@@ -25,7 +25,7 @@ vi.mock('@/lib/project-porting', async (importOriginal) => {
 async function setup() {
   const owner = await createVolunteer()
   const project = await createProject({ assigneeId: owner.id, title: 'Rally', description: 'desc' })
-  const a = await createTask(project.id, { title: 'A', sortOrder: 1, durationDays: 2 })
+  const a = await createTask(project.id, { title: 'A', sortOrder: 1 })
   const b = await createTask(project.id, { title: 'B', sortOrder: 2, assigneeId: owner.id })
   await prisma.workItemDependency.create({
     data: { predecessorId: a.id, successorId: b.id, lagDays: 1 },
@@ -126,7 +126,6 @@ describe('projects.applyImport', () => {
           assigneeEmail: helper.email,
           deadline: '2026-12-01',
           startDate: '2026-10-01',
-          durationDays: 4,
           featuredAsQuickTask: true,
           isAnchor: true,
           timing: 'fixed',
@@ -137,7 +136,7 @@ describe('projects.applyImport', () => {
           title: 'New',
           assigneeEmail: owner.email,
           startDate: '2026-11-01',
-          durationDays: 1,
+          durationDays: 3,
           dependsOn: [{ on: b.id }],
         },
         { ref: 'n2', title: 'New2', dependsOn: [{ on: 'n', lagDays: 2 }] },
@@ -163,7 +162,7 @@ describe('projects.applyImport', () => {
       title: 'A2',
       status: 'in_progress',
       assigneeId: helper.id,
-      durationDays: 4,
+      startDate: new Date('2026-10-01T00:00:00Z'),
       isAnchor: true,
       timing: 'fixed',
       featuredAsQuickTask: true,
@@ -174,9 +173,12 @@ describe('projects.applyImport', () => {
       where: { parentId: project.id, title: { in: ['New', 'New2'] } },
       orderBy: { sortOrder: 'asc' },
     })
-    expect(created.map((t) => [t.title, t.sortOrder, t.assigneeId])).toEqual([
-      ['New', 3, owner.id],
-      ['New2', 4, null],
+    // A length in the file becomes the deadline it implies.
+    expect(
+      created.map((t) => [t.title, t.sortOrder, t.assigneeId, t.deadline, t.durationDays]),
+    ).toEqual([
+      ['New', 3, owner.id, new Date('2026-11-03T00:00:00Z'), null],
+      ['New2', 4, null, null, null],
     ])
     const edges = await prisma.workItemDependency.findMany({
       where: { successor: { parentId: project.id } },

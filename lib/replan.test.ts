@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  barLength,
   daysPastPlan,
   pastPlanDetail,
   previewReplan,
@@ -22,6 +23,7 @@ function item(id: number, over: Partial<ScheduleInput> = {}): ScheduleInput {
     baselineDurationDays: null,
     startedAt: null,
     completedAt: null,
+    endsOnDeadline: true,
     ...over,
   }
 }
@@ -42,27 +44,31 @@ describe('replan', () => {
     expect(daysPastPlan(day('2026-10-07'), { ...held, assigned: false }, today)).toBeNull()
   })
 
-  it('moves the bar to end on the new date, keeping its length unless told otherwise', () => {
-    expect(replanWrite({ durationDays: 5 }, day('2026-10-13'))).toEqual({
+  it('moves the bar to end on the new deadline, keeping its length unless told otherwise', () => {
+    const bar = { start: day('2026-10-01'), end: day('2026-10-05'), isMilestone: false }
+    expect(barLength(bar)).toBe(5)
+    expect(replanWrite(bar, day('2026-10-13'))).toEqual({
       startDate: day('2026-10-09'),
-      durationDays: 5,
+      taskDeadline: day('2026-10-13'),
+      durationDays: null,
     })
     // A length of the owner's own, when the work turned out bigger.
-    expect(replanWrite({ durationDays: 5 }, day('2026-10-13'), 8)).toEqual({
+    expect(replanWrite(bar, day('2026-10-13'), 8)).toEqual({
       startDate: day('2026-10-06'),
-      durationDays: 8,
+      taskDeadline: day('2026-10-13'),
+      durationDays: null,
     })
-    // No length yet: one day. A milestone stays a moment, on the date.
-    expect(replanWrite({ durationDays: null }, day('2026-10-13'))).toEqual({
+    // A milestone stays a moment, on the date; so does a length of zero or less.
+    const milestone = { start: day('2026-10-01'), end: day('2026-10-01'), isMilestone: true }
+    expect(barLength(milestone)).toBe(0)
+    expect(replanWrite(milestone, day('2026-10-13'))).toEqual({
       startDate: day('2026-10-13'),
-      durationDays: 1,
-    })
-    expect(replanWrite({ durationDays: 0 }, day('2026-10-13'))).toEqual({
-      startDate: day('2026-10-13'),
+      taskDeadline: null,
       durationDays: 0,
     })
-    expect(replanWrite({ durationDays: 3 }, new Date('2026-10-13T15:00:00.000Z'), -2)).toEqual({
+    expect(replanWrite(bar, new Date('2026-10-13T15:00:00.000Z'), -2)).toEqual({
       startDate: day('2026-10-13'),
+      taskDeadline: null,
       durationDays: 0,
     })
   })
@@ -77,9 +83,9 @@ describe('replan', () => {
   it('previews what moves, what now conflicts, and the key dates it overruns', () => {
     const items = [
       // Book venue, 1–7 Oct, replanned to end 12 Oct.
-      item(1, { startDate: day('2026-10-01'), durationDays: 7 }),
+      item(1, { startDate: day('2026-10-01'), deadline: day('2026-10-07') }),
       // Follows it: derived, so it moves.
-      item(2, { durationDays: 2 }),
+      item(2, {}),
       // Follows it but is pinned to 10 Oct: now too early.
       item(3, { startDate: day('2026-10-10') }),
       // The protest, pinned 11 Oct, key date: prep now runs a day past it.
@@ -92,17 +98,18 @@ describe('replan', () => {
       [link(1, 2), link(1, 3), link(1, 4)],
       day('2026-10-01'),
       1,
-      { startDate: day('2026-10-01'), durationDays: 12 },
+      { startDate: day('2026-10-01'), taskDeadline: day('2026-10-12'), durationDays: null },
     )
     expect(preview.moved).toEqual([{ id: 2, start: day('2026-10-13'), days: 5 }])
     expect(preview.pinConflicts).toEqual([{ id: 3, days: 3 }])
     expect(preview.keyDatesLate).toEqual([{ id: 4, days: 1 }])
     expect(ymd(preview.endBefore)).toBe('2026-10-11')
-    expect(ymd(preview.endAfter)).toBe('2026-10-14')
+    expect(ymd(preview.endAfter)).toBe('2026-10-13')
 
     const nothing = previewReplan(items, [], day('2026-10-01'), 5, {
       startDate: day('2026-10-01'),
-      durationDays: 1,
+      taskDeadline: day('2026-10-01'),
+      durationDays: null,
     })
     expect(nothing).toMatchObject({ moved: [], pinConflicts: [], keyDatesLate: [] })
   })

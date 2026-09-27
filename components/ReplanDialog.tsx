@@ -8,32 +8,38 @@ import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDateShort, fromDateInputValue, toDateInputValue } from '@/lib/format-date'
 import { plural } from '@/lib/plural'
-import { diffInDays } from '@/lib/schedule'
 import { toClientScheduleInput } from '@/components/gantt/optimistic'
-import { REPLAN_STEPS, previewReplan, replanWrite, stepBase, steppedEnd } from '@/lib/replan'
+import {
+  REPLAN_STEPS,
+  barLength,
+  previewReplan,
+  replanWrite,
+  stepBase,
+  steppedEnd,
+} from '@/lib/replan'
 
 /** How many moved tasks the preview names before summing up the rest. */
 const PREVIEW_NAMES = 5
 
 /**
- * The owner moves the planned end of a task that has run past it. The preview is the same
- * scheduler the server runs, so what it shows moving is what will move.
+ * The owner moves the deadline of a task that has run past it, and the bar with it. The preview
+ * is the same scheduler the server runs, so what it shows moving is what will move.
  */
 export default function ReplanDialog({
   projectId,
   taskId,
   taskTitle,
-  plannedEnd,
-  deadline,
+  placement,
   onClose,
 }: {
   projectId: number
   taskId: number
   taskTitle: string
-  plannedEnd: Date
-  deadline: Date | null
+  /** Where the plan has the task now. */
+  placement: { start: Date; end: Date; isMilestone: boolean }
   onClose: () => void
 }) {
+  const plannedEnd = placement.end
   const showToast = useToast()
   const queryClient = useQueryClient()
   const [end, setEnd] = useState(toDateInputValue(steppedEnd(plannedEnd, REPLAN_STEPS[0].days)))
@@ -46,12 +52,11 @@ export default function ReplanDialog({
   )
 
   const newEnd = fromDateInputValue(end)
-  const task = timeline?.tasks.find((t) => t.id === taskId)
-  const days = daysDraft ?? String(task?.durationDays ?? 1)
+  const days = daysDraft ?? String(barLength(placement))
   const daysValue = Number.parseInt(days, 10)
   const write =
-    newEnd && task && Number.isInteger(daysValue) && daysValue >= 0
-      ? replanWrite(task, newEnd, daysValue)
+    newEnd && Number.isInteger(daysValue) && daysValue >= 0
+      ? replanWrite(placement, newEnd, daysValue)
       : null
 
   const preview =
@@ -80,8 +85,6 @@ export default function ReplanDialog({
       showToast(err instanceof Error ? err.message : 'Failed to replan', 'error'),
   })
 
-  const lateBy = newEnd && deadline ? diffInDays(deadline, newEnd) : null
-
   return (
     <Modal id="replan-dialog" title={`Replan '${taskTitle}'`} isOpen onClose={onClose}>
       <form
@@ -92,19 +95,13 @@ export default function ReplanDialog({
             projectId,
             taskId,
             newEnd,
-            durationDays: write.durationDays,
+            durationDays: daysValue,
             reason: reason.trim(),
           })
         }}
       >
         <p className="mt-0">
-          The plan had it finishing <strong>{formatDateShort(plannedEnd)}</strong>
-          {deadline && (
-            <>
-              ; its deadline is <strong>{formatDateShort(deadline)}</strong>
-            </>
-          )}
-          . When will it finish now?
+          It was due <strong>{formatDateShort(plannedEnd)}</strong>. When is it due now?
         </p>
         <div className="mb-1 flex flex-wrap items-center gap-2">
           {REPLAN_STEPS.map((s) => {
@@ -123,7 +120,7 @@ export default function ReplanDialog({
             )
           })}
           <label className="sr-only" htmlFor="replan-end">
-            New planned end
+            New deadline
           </label>
           <input
             id="replan-end"
@@ -134,7 +131,7 @@ export default function ReplanDialog({
           />
         </div>
         <p className="text-text-light mt-0 mb-3 text-xs">
-          Counted from {formatDateShort(stepBase(plannedEnd))}, since the planned end has passed.
+          Counted from {formatDateShort(stepBase(plannedEnd))}, since the deadline has passed.
         </p>
         <div className="mb-1 flex flex-wrap items-center gap-2">
           <label htmlFor="replan-days">Days</label>
@@ -208,11 +205,6 @@ export default function ReplanDialog({
               ))}
               {preview.endAfter.getTime() !== preview.endBefore.getTime() && (
                 <li>The whole plan now ends {formatDateShort(preview.endAfter)}</li>
-              )}
-              {lateBy !== null && lateBy > 0 && (
-                <li className="text-error">
-                  Still {plural(lateBy, 'day')} after the task&rsquo;s deadline
-                </li>
               )}
             </ul>
           )}

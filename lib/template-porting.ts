@@ -20,6 +20,7 @@ import { z } from 'zod'
 import { HttpUrlSchema } from '@/lib/schemas'
 import type { CurrentTask, CurrentDependency, LocalRef } from '@/lib/project-porting'
 import { fromYmd } from '@/lib/project-porting'
+import { diffInDays } from '@/lib/schedule'
 
 export const CURRENT_TEMPLATE_SCHEMA_VERSION = 1
 
@@ -48,6 +49,10 @@ const TemplateTaskSchema = z.object({
   deadline: ymd.default(null),
   /** Days after the project's own startOffsetDays anchor (0). Null = unscheduled. */
   startOffsetDays: z.number().int().min(0).max(3650).nullable().default(null),
+  /**
+   * Days from the start through the deadline; 0 is a milestone. A task stores a deadline, not a
+   * length, so this becomes one only once the task has a start to count from.
+   */
   durationDays: z.number().int().min(0).max(3650).nullable().default(null),
   featuredAsQuickTask: z.boolean().default(false),
   isAnchor: z.boolean().default(false),
@@ -160,7 +165,12 @@ export function serializeProjectAsTemplate(
       estimatedHours: null,
       deadline: toYmd(t.deadline),
       startOffsetDays: offsetDays(t.startDate),
-      durationDays: t.durationDays,
+      durationDays:
+        t.durationDays === 0
+          ? 0
+          : t.startDate && t.deadline
+            ? Math.max(1, diffInDays(t.startDate, t.deadline) + 1)
+            : null,
       featuredAsQuickTask: t.featuredAsQuickTask,
       isAnchor: t.isAnchor,
       timing: t.timing,
@@ -269,19 +279,23 @@ export function buildInstantiatePlan(
       durationDays: structure.durationDays,
     },
     projectSkills: structure.skills,
-    taskCreates: structure.tasks.map((t) => ({
-      ref: t.ref,
-      title: t.title,
-      description: t.description,
-      estimatedHours: t.estimatedHours,
-      deadline: fromYmd(t.deadline),
-      startDate: resolveDate(t.startOffsetDays),
-      durationDays: t.durationDays,
-      featuredAsQuickTask: t.featuredAsQuickTask,
-      isAnchor: t.isAnchor,
-      timing: t.timing,
-      skills: t.skills,
-    })),
+    taskCreates: structure.tasks.map((t) => {
+      const startDate = resolveDate(t.startOffsetDays)
+      const length = t.durationDays ?? 0
+      return {
+        ref: t.ref,
+        title: t.title,
+        description: t.description,
+        estimatedHours: t.estimatedHours,
+        deadline: startDate && length > 0 ? addDays(startDate, length - 1) : fromYmd(t.deadline),
+        startDate,
+        durationDays: t.durationDays === 0 ? 0 : null,
+        featuredAsQuickTask: t.featuredAsQuickTask,
+        isAnchor: t.isAnchor,
+        timing: t.timing,
+        skills: t.skills,
+      }
+    }),
     dependencyCreates: structure.tasks.flatMap((t) =>
       t.dependsOn
         .filter((dep) => refs.has(String(dep.on)))

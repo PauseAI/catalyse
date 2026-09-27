@@ -17,9 +17,14 @@ export type ScheduleInput = {
   id: number
   /** Pinned anchor, or null to derive the start from predecessors. */
   startDate: Date | null
-  /** null is read as 1 day. */
+  /** null is read as 1 day. Ignored when the item ends on its deadline. */
   durationDays: number | null
   deadline: Date | null
+  /**
+   * A task's deadline is where its bar ends, so the length follows from the start. A project's
+   * deadline is only a target its plan is measured against.
+   */
+  endsOnDeadline?: boolean
   baselineStartDate: Date | null
   baselineDurationDays: number | null
   startedAt: Date | null
@@ -47,7 +52,10 @@ export type ScheduledItem = {
   isDerived: boolean
   /** The deadline as a UTC day, or null when there is none. */
   deadline: Date | null
-  /** Planned end minus deadline: positive is days late, zero is on the day, negative is spare. */
+  /**
+   * Planned end minus deadline: positive is days late, zero is on the day, negative is spare.
+   * An item that ends on its deadline is only ever late (its start is pushed past it), else null.
+   */
   daysLate: number | null
   breachesDeadline: boolean
   /** Pin is earlier than the dependencies allow. The pin wins; this flags the conflict. */
@@ -56,6 +64,8 @@ export type ScheduledItem = {
   pinConflictDays: number | null
   /** The predecessor that sets the earliest permitted start, when the pin conflicts with it. */
   pinConflictWith: number | null
+  /** The bar ends on the deadline rather than after a number of days. */
+  endsOnDeadline: boolean
   /** On a chain that determines when an anchor (or, with no anchors, the scope) lands. */
   isCritical: boolean
   /** This item is itself a fixed point the plan is built around. */
@@ -237,7 +247,11 @@ export function computeSchedule(
 
     const pinned = item.startDate ? startOfUtcDay(item.startDate) : null
     const start = pinned ?? earliest
-    const end = endOfSpan(start, item.durationDays)
+    const deadline = item.deadline ? startOfUtcDay(item.deadline) : null
+    const endsOnDeadline = item.endsOnDeadline === true && item.durationDays !== 0
+    // Work that cannot start until after its deadline still takes its first day, and is late.
+    const end =
+      endsOnDeadline && deadline ? laterOf(deadline, start) : endOfSpan(start, item.durationDays)
     spans.set(id, { start, end })
 
     const baseline =
@@ -256,8 +270,8 @@ export function computeSchedule(
             end: item.completedAt ? startOfUtcDay(item.completedAt) : null,
           }
 
-    const deadline = item.deadline ? startOfUtcDay(item.deadline) : null
-    const daysLate = deadline ? diffInDays(deadline, end) : null
+    const gap = deadline ? diffInDays(deadline, end) : null
+    const daysLate = endsOnDeadline && gap !== null && gap <= 0 ? null : gap
     const pinConflict = pinned !== null && isDerived && pinned.getTime() < earliest.getTime()
 
     const scheduledItem: ScheduledItem = {
@@ -272,6 +286,7 @@ export function computeSchedule(
       pinnedBeforePredecessor: pinConflict,
       pinConflictDays: pinConflict ? diffInDays(pinned, earliest) : null,
       pinConflictWith: pinConflict ? bindingPredecessor : null,
+      endsOnDeadline,
       isCritical: false,
       isAnchor: item.isAnchor === true,
       isMilestone: item.durationDays === 0,

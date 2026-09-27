@@ -13,6 +13,8 @@ import { emails } from '@/test/fakes/email'
 
 const task = (id: number) => prisma.workItem.findUniqueOrThrow({ where: { id } })
 
+const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`)
+
 describe('projects.listTasks / getTask', () => {
   it('lists tasks with schedule, dependencies and manage rights, gated on project visibility', async () => {
     const owner = await createVolunteer()
@@ -151,15 +153,26 @@ describe('projects.createTask / reorderTasks / deleteTask', () => {
       deadline: new Date('2026-09-01T00:00:00Z'),
       featuredAsQuickTask: true,
       startDate: new Date('2026-08-01T00:00:00Z'),
-      durationDays: 3,
     })
     expect((await task(t1.id)).sortOrder).toBe(1)
     expect(await task(t2.id)).toMatchObject({
       sortOrder: 2,
       estimatedHours: 2,
       featuredAsQuickTask: true,
-      durationDays: 3,
+      deadline: new Date('2026-09-01T00:00:00Z'),
+      durationDays: null,
     })
+    // A task ends on its deadline, so it takes no length but a milestone's zero.
+    await expect(
+      c.projects.createTask({ projectId: project.id, title: 'Long', durationDays: 3 as 0 }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    const moment = await c.projects.createTask({
+      projectId: project.id,
+      title: 'Moment',
+      startDate: new Date('2026-08-05T00:00:00Z'),
+      durationDays: 0,
+    })
+    expect((await task(moment.id)).durationDays).toBe(0)
 
     await expect(
       clientAs(other).projects.reorderTasks({ projectId: project.id, items: [] }),
@@ -265,6 +278,15 @@ describe('projects.ganttOverview', () => {
     expect(idsSeen).not.toContain(done.id)
     expect(res.projects.find((p) => p.id === b.id)).toMatchObject({ taskCount: 2 })
     expect(res.projects.find((p) => p.id === a.id)!.placement).not.toBeNull()
+
+    // A project with no length of its own spans its dated tasks; an undated one does not count.
+    const spanned = await createProject({ title: 'gantt c', startDate: day('2027-05-01') })
+    await createTask(spanned.id)
+    await createTask(spanned.id, { startDate: day('2027-05-01'), deadline: day('2027-05-05') })
+    const placed = (await clientAs(me).projects.ganttOverview({})).projects.find(
+      (p) => p.id === spanned.id,
+    )!.placement!
+    expect([placed.start, placed.end]).toEqual([day('2027-05-01'), day('2027-05-05')])
     expect(res.dependencies).toEqual([
       expect.objectContaining({ predecessorId: a.id, successorId: b.id }),
     ])
@@ -310,7 +332,6 @@ describe('projects.updateTask', () => {
         featuredAsQuickTask: true,
         isAnchor: true,
         startDate: new Date('2026-09-01T00:00:00Z'),
-        durationDays: 2,
         assigneeId: helper.id,
         status: 'in_progress',
       },
@@ -321,8 +342,10 @@ describe('projects.updateTask', () => {
       assigneeId: helper.id,
       status: 'in_progress',
       isAnchor: true,
-      durationDays: 2,
+      deadline: new Date('2026-10-01T00:00:00Z'),
     })
+    // The deadline is where the bar ends, so moving it is a change to the schedule.
+    expect(after.scheduleUpdatedAt).not.toBeNull()
     expect(after.startedAt).not.toBeNull()
     const started = after.startedAt
     await c.projects.updateTask({

@@ -315,7 +315,7 @@ test.describe('Task Deadlines', () => {
     await adminPage.getByRole('button', { name: 'Add Task' }).click()
     await adminPage.getByLabel('Task title').fill('Task with deadline')
     await adminPage.getByLabel('Effort (hours of work)').fill('4')
-    await adminPage.getByLabel('Deadline (optional)').fill(deadlineValue)
+    await adminPage.getByLabel('Deadline', { exact: true }).fill(deadlineValue)
     await adminPage.getByRole('button', { name: 'Create Task' }).click()
 
     await expect(adminPage.getByText('Task added!')).toBeVisible({ timeout: 10_000 })

@@ -234,6 +234,7 @@ export default function TaskDetailPage({
             durationDays={task.durationDays}
             estimatedHours={task.estimatedHours}
             deadline={task.deadline}
+            openStart={task.startDate === null && task.predecessors.length === 0}
             placement={task.placement}
             assigneeName={task.assignedToName}
             startedAt={task.startedAt}
@@ -301,8 +302,11 @@ export default function TaskDetailPage({
             projectId={projectId}
             taskId={taskId}
             taskTitle={task.title}
-            plannedEnd={new Date(task.placement.end)}
-            deadline={task.deadline ? new Date(task.deadline) : null}
+            placement={{
+              start: new Date(task.placement.start),
+              end: new Date(task.placement.end),
+              isMilestone: task.placement.isMilestone,
+            }}
             onClose={() => setReplanning(false)}
           />
         )}

@@ -14,6 +14,7 @@ import {
   CLAIM_BLOCKING_INTEREST_STATUSES,
   serializeTask,
   applyScheduleWrite,
+  baselineLength,
   canManageProject,
   canManageProjectTasks,
   isProjectDeputy,
@@ -29,11 +30,12 @@ import { daysPastPlan, previewReplan, replanWrite } from '@/lib/replan'
 import {
   lateProjects,
   loadProjectTaskSchedule,
-  toScheduleInput,
+  toTaskScheduleInput,
   loadProjectEdges,
   scheduleProjectsByIds,
 } from '@/lib/project-schedule'
 import { startOfUtcDay } from '@/lib/schedule'
+import { taskIsDated } from '@/lib/task-dates'
 import { notifyMatchingVolunteers } from '@/lib/project-match-notify'
 import { html } from '@/lib/email'
 import { formatDateShort } from '@/lib/format-date'
@@ -853,13 +855,12 @@ export const projectsRouter = {
       const mappedTasks = sortedTasks.map((t, i) => ({
         ...serializeTask(t),
         keyDateSide: sides.get(t.id) ?? null,
-        pastPlanDays:
-          t.startDate !== null || t.durationDays !== null || hasPredecessor.has(t.id)
-            ? daysPastPlan(schedule.scheduled[i].end, {
-                done: t.status === TaskStatus.completed,
-                assigned: t.assigneeId !== null,
-              })
-            : null,
+        pastPlanDays: taskIsDated(t, hasPredecessor.has(t.id))
+          ? daysPastPlan(schedule.scheduled[i].end, {
+              done: t.status === TaskStatus.completed,
+              assigned: t.assigneeId !== null,
+            })
+          : null,
         assignedToName: t.assignee?.name ?? null,
         createdByName: t.creator?.name ?? null,
         requestedByName: t.requestedBy?.name ?? null,
@@ -1166,7 +1167,7 @@ export const projectsRouter = {
       }
       if (body.timeCommitmentHoursPerWeek !== undefined)
         data.timeCommitmentHoursPerWeek = body.timeCommitmentHoursPerWeek
-      applyScheduleWrite(data, body)
+      applyScheduleWrite(data, { startDate: body.startDate, durationDays: body.durationDays })
 
       // The project's deadline is a promise the owner makes, so a proposer who never owned the
       // project cannot move it.
@@ -1957,19 +1958,17 @@ export const projectsRouter = {
         }),
       ])
 
-      // Where the plan puts this task. A task with no start, length or predecessor is not on
-      // the timeline, so it has no placement to report.
-      const placement =
-        task.startDate !== null || task.durationDays !== null || predecessorRows.length > 0
-          ? ((
-              await loadProjectTaskSchedule(
-                project,
-                await prisma.workItem.findMany({
-                  where: { parentId: input.projectId, type: WorkItemType.TASK },
-                }),
-              )
-            ).schedule.byId.get(task.id) ?? null)
-          : null
+      // Where the plan puts this task. One that is not on the timeline has no placement.
+      const placement = taskIsDated(task, predecessorRows.length > 0)
+        ? ((
+            await loadProjectTaskSchedule(
+              project,
+              await prisma.workItem.findMany({
+                where: { parentId: input.projectId, type: WorkItemType.TASK },
+              }),
+            )
+          ).schedule.byId.get(task.id) ?? null)
+        : null
 
       const canManage = canManageProjectTasks(
         project,
@@ -2048,6 +2047,7 @@ export const projectsRouter = {
       applyScheduleWrite(scheduleOnCreate, {
         startDate: input.startDate ?? null,
         durationDays: input.durationDays ?? null,
+        taskDeadline: input.deadline ?? null,
       })
 
       const task = await prisma.$transaction(async (tx) => {
@@ -2063,7 +2063,6 @@ export const projectsRouter = {
             title: input.title,
             description: input.description ?? null,
             estimatedHours: input.estimatedHours ?? null,
-            deadline: input.deadline ?? null,
             featuredAsQuickTask: input.featuredAsQuickTask ?? false,
             timing: input.timing ?? TaskTiming.flexible,
             creatorId: volunteer.id,
@@ -2145,7 +2144,7 @@ export const projectsRouter = {
               where: { id: t.id },
               data: {
                 baselineStartDate: t.startDate,
-                baselineDurationDays: t.durationDays,
+                baselineDurationDays: baselineLength(t),
                 baselineSetAt: now,
               },
             }),
@@ -2337,12 +2336,11 @@ export const projectsRouter = {
       if (input.data.title !== undefined) data.title = input.data.title
       if (input.data.description !== undefined) data.description = input.data.description
       if (input.data.estimatedHours !== undefined) data.estimatedHours = input.data.estimatedHours
-      if (input.data.deadline !== undefined) data.deadline = input.data.deadline
       if (input.data.featuredAsQuickTask !== undefined)
         data.featuredAsQuickTask = input.data.featuredAsQuickTask
       if (input.data.isAnchor !== undefined) data.isAnchor = input.data.isAnchor
       if (input.data.timing !== undefined) data.timing = input.data.timing
-      applyScheduleWrite(data, input.data)
+      applyScheduleWrite(data, { ...input.data, taskDeadline: input.data.deadline })
       if (input.data.status !== undefined) {
         data.status = input.data.status
         if (input.data.status === TaskStatus.completed) data.completedAt = new Date()
@@ -2636,8 +2634,8 @@ export const projectsRouter = {
     }),
 
   /**
-   * The owner (or a deputy, or an admin) moves the planned end of a task that has run past
-   * its plan. Writes only the start and length, never the dependencies or the deadline; says
+   * The owner (or a deputy, or an admin) moves the deadline of a task that has run past its
+   * plan, and its start with it. Never touches the dependencies; says
    * why in the task's Discussion; tells the assignee and everyone whose task moved with it.
    */
   replanTask: approvedProcedure
@@ -2668,12 +2666,13 @@ export const projectsRouter = {
         where: { parentId: input.projectId, type: WorkItemType.TASK },
         include: { assignee: { select: { name: true } } },
       })
-      const task = tasks.find((t) => t.id === input.taskId)
-      if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
+      const index = tasks.findIndex((t) => t.id === input.taskId)
+      if (index < 0) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
+      const task = tasks[index]
 
-      const { edges, origin } = await loadProjectTaskSchedule(project, tasks)
-      const write = replanWrite(task, input.newEnd, input.durationDays)
-      const preview = previewReplan(tasks.map(toScheduleInput), edges, origin, task.id, write)
+      const { schedule, edges, origin } = await loadProjectTaskSchedule(project, tasks)
+      const write = replanWrite(schedule.scheduled[index], input.newEnd, input.durationDays)
+      const preview = previewReplan(tasks.map(toTaskScheduleInput), edges, origin, task.id, write)
 
       const data: Record<string, unknown> = { updatedAt: new Date() }
       applyScheduleWrite(data, write)

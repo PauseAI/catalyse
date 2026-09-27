@@ -141,9 +141,11 @@ export default function GanttRow({
       : null
   const conflict = pinConflictSlip(placement, pinConflictLabel)
 
-  const deadlineCentre = placement.deadline
-    ? dateToX(placement.deadline, origin, pxPerDay) + pxPerDay / 2
-    : null
+  // A task's bar already ends on its deadline, so it is marked only once it is late.
+  const deadlineCentre =
+    placement.deadline && (!placement.endsOnDeadline || standing?.late)
+      ? dateToX(placement.deadline, origin, pxPerDay) + pxPerDay / 2
+      : null
   const deadlineX =
     deadlineCentre !== null && deadlineCentre >= 0 && deadlineCentre <= windowWidth
       ? deadlineCentre

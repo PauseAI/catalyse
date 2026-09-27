@@ -117,3 +117,10 @@ confusing than it needed to be, and that will do so again.
       them.** `task-dates-ui.test.tsx` failed the day its 17 Sept 2026 deadline fell behind the
       real date, though nothing about the component had changed. Tests of anything that compares
       to today should either take a fixed today (`vi.setSystemTime`) or use dates far ahead.
+
+- [ ] **A git worktree cannot run the suite until it has the main checkout's env files and a
+      real `node_modules`.** Working beside another session's uncommitted changes, the unit tier
+      failed with "DATABASE_URL is not set" until `.env`/`.env.local` were linked in, and the e2e
+      build failed on a symlinked `node_modules` ("points out of the filesystem root") until it
+      was cloned with `cp -cR`. A `scripts/new-worktree.ts` that links the env files, clones
+      `node_modules` and copies `generated/` would make a side worktree work first time.

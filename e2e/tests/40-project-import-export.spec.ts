@@ -36,14 +36,14 @@ async function makeProject(api: Api, opts: { startDate?: Date } = {}): Promise<n
 async function addTask(
   api: Api,
   projectId: number,
-  opts: { title?: string; startDate?: Date | null; durationDays?: number | null } = {},
+  opts: { title?: string; startDate?: Date | null; deadline?: Date | null } = {},
 ): Promise<number> {
   const res = await api.projects.createTask({
     body: {
       projectId,
       title: opts.title ?? fake.quickTaskTitle(),
       startDate: opts.startDate ?? null,
-      durationDays: opts.durationDays ?? null,
+      deadline: opts.deadline ?? null,
     },
   })
   expect(res.status, JSON.stringify(res.body)).toBe(200)
@@ -86,7 +86,7 @@ async function listTasks(api: Api, projectId: number) {
   const res = await api.projects.listTasks({ body: { projectId } })
   expect(res.status, JSON.stringify(res.body)).toBe(200)
   return res.body as {
-    tasks: { id: number; title: string; durationDays: number | null }[]
+    tasks: { id: number; title: string; deadline: string | Date | null }[]
     dependencies: { predecessorId: number; successorId: number; lagDays: number }[]
   }
 }
@@ -95,7 +95,11 @@ test.describe('Project import / export', () => {
   test('round-tripping an unchanged export shows no changes', async ({ baseUrl }) => {
     const api = createApiClient(baseUrl, readAdminToken(baseUrl))
     const projectId = await makeProject(api, { startDate: day('2026-03-02') })
-    await addTask(api, projectId, { title: 'A', startDate: day('2026-03-03'), durationDays: 3 })
+    await addTask(api, projectId, {
+      title: 'A',
+      startDate: day('2026-03-03'),
+      deadline: day('2026-03-05'),
+    })
 
     const file = await exportProject(api, projectId)
     const diff = await preview(api, projectId, file)
@@ -109,17 +113,17 @@ test.describe('Project import / export', () => {
   test('an edited field is reported and applied', async ({ baseUrl }) => {
     const api = createApiClient(baseUrl, readAdminToken(baseUrl))
     const projectId = await makeProject(api, { startDate: day('2026-04-01') })
-    const taskId = await addTask(api, projectId, { title: 'Before', durationDays: 2 })
+    const taskId = await addTask(api, projectId, { title: 'Before' })
 
     const file = await exportProject(api, projectId)
     const row = file.tasks.find((t) => t.id === taskId)!
     row.title = 'After'
-    row.durationDays = 6
+    row.deadline = '2026-04-10'
 
     const diff = await preview(api, projectId, file)
     const entry = diff.tasks.find((t) => t.identity.id === taskId)!
     expect(entry.op).toBe('update')
-    expect(entry.fieldChanges.map((c) => c.field).sort()).toEqual(['durationDays', 'title'])
+    expect(entry.fieldChanges.map((c) => c.field).sort()).toEqual(['deadline', 'title'])
 
     const applied = await api.projects.applyImport({
       body: {
@@ -133,7 +137,7 @@ test.describe('Project import / export', () => {
     const { tasks } = await listTasks(api, projectId)
     const updated = tasks.find((t) => t.id === taskId)!
     expect(updated.title).toBe('After')
-    expect(updated.durationDays).toBe(6)
+    expect(new Date(updated.deadline!).toISOString().slice(0, 10)).toBe('2026-04-10')
   })
 
   test('a new task row is created', async ({ baseUrl }) => {
@@ -220,9 +224,9 @@ test.describe('Project import / export', () => {
     const a = await addTask(api, projectId, {
       title: 'First',
       startDate: day('2026-07-01'),
-      durationDays: 3,
+      deadline: day('2026-07-03'),
     })
-    const b = await addTask(api, projectId, { title: 'Second', durationDays: 2 })
+    const b = await addTask(api, projectId, { title: 'Second' })
 
     const file = await exportProject(api, projectId)
     file.tasks.find((t) => t.id === b)!.dependsOn = [{ on: a, lagDays: 0 }]

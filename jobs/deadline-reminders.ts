@@ -3,6 +3,7 @@ import { isEmailConfigured, sendDailySummaryEmail } from '@/lib/email'
 import { createNotification, refreshNotification } from '@/lib/notify'
 import { lateProjects, loadProjectTaskSchedule } from '@/lib/project-schedule'
 import { addDays, diffInDays, startOfUtcDay } from '@/lib/schedule'
+import { taskIsDated } from '@/lib/task-dates'
 import { daysPastPlan, pastPlanDetail } from '@/lib/replan'
 import { shouldAlertSlip, stagesToday, type OwnerStage } from '@/lib/deadline-reminders'
 import { summarySections, summarySubject, type SummaryLine } from '@/lib/daily-summary'
@@ -243,17 +244,6 @@ export async function runDeadlineRemindersJob(now: Date = new Date()) {
             : undefined,
         )
       }
-      // Late against its deadline while the plan still runs: a fact the owner should see.
-      const pastDeadline = diffInDays(task.deadline, today)
-      if (pastDeadline > 0 && finishBy.getTime() >= today.getTime()) {
-        await tell(owner, key('owner_past_deadline'), {
-          role: 'owner',
-          kind: 'past_deadline',
-          group,
-          href,
-          text: `${t} is ${plural(pastDeadline, 'day')} past its deadline; the plan ends ${formatDateShort(finishBy)}`,
-        })
-      }
     }
   }
 
@@ -278,9 +268,7 @@ export async function runDeadlineRemindersJob(now: Date = new Date()) {
     for (const [i, task] of tasks.entries()) {
       if (!OPEN_TASK_STATUSES.includes(task.status)) continue
       const href = `/projects/${project.id}/tasks/${task.id}`
-      const dated =
-        task.startDate !== null || task.durationDays !== null || hasPredecessor.has(task.id)
-      const placed = dated ? schedule.scheduled[i] : null
+      const placed = taskIsDated(task, hasPredecessor.has(task.id)) ? schedule.scheduled[i] : null
 
       const pastPlan = placed
         ? daysPastPlan(placed.end, { done: false, assigned: task.assignee !== null }, today)
@@ -315,13 +303,13 @@ export async function runDeadlineRemindersJob(now: Date = new Date()) {
       }
 
       if (task.deadline) {
-        const finishBy = placed
-          ? laterOf(startOfUtcDay(task.deadline), placed.end)
-          : startOfUtcDay(task.deadline)
+        // A start of its own or a task before it sets when the work begins; with neither, the
+        // bar's start is only the plan's first day.
+        const ownStart = task.startDate !== null || hasPredecessor.has(task.id)
         await remind(
           { ...task, deadline: task.deadline },
-          finishBy,
-          placed?.start ?? null,
+          startOfUtcDay(task.deadline),
+          ownStart ? (placed?.start ?? null) : null,
           owners,
           project.title,
           href,

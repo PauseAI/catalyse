@@ -27,115 +27,80 @@ function Harness(
 const value = () => JSON.parse(screen.getByTestId('value').textContent!) as DatesValue
 
 describe('DatesBlock', () => {
-  it('keeps start, end and days in step and relates the end to the deadline', async () => {
-    render(<Harness initial={{ deadline: '2030-09-17' }} />)
+  it('takes an optional start and one deadline, and refuses a deadline before the start', async () => {
+    render(<Harness />)
     expect(screen.getByText(/No start date: it goes at the beginning of the plan/)).toBeTruthy()
-    expect(screen.queryByLabelText('To')).toBeNull()
 
-    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2030-09-14' } })
-    expect(screen.getByLabelText('To')).toHaveValue('2030-09-14')
+    fireEvent.change(screen.getByLabelText('Deadline'), { target: { value: '2030-09-17' } })
+    expect(value().deadline).toBe('2030-09-17')
+    expect(screen.getByText('No start date: any time up to the deadline.')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Start (optional)'), {
+      target: { value: '2030-09-20' },
+    })
     expect(screen.getByText('Starts on this date.')).toBeTruthy()
-    expect(screen.getByText('Planned to finish 14 Sept 2030, 3 days before the deadline.'))
+    const deadline = screen.getByLabelText('Deadline') as HTMLInputElement
+    expect(deadline).toHaveAttribute('min', '2030-09-20')
+    expect(screen.getByRole('alert')).toHaveTextContent('The deadline is before the start')
+    expect(deadline).toHaveAttribute('aria-invalid', 'true')
+    expect(deadline.validationMessage).toBe('The deadline is before the start')
 
-    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2030-09-20' } })
-    expect(value().durationDays).toBe('7')
-    const late = screen.getByText('Planned to finish 20 Sept 2030, 3 days after the deadline.')
-    expect(late).toHaveClass('text-error')
-
-    // Moving the start keeps the length and moves the end.
-    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2030-09-15' } })
-    expect(screen.getByLabelText('To')).toHaveValue('2030-09-21')
-
-    fireEvent.change(screen.getByLabelText('Days'), { target: { value: '2' } })
-    expect(screen.getByLabelText('To')).toHaveValue('2030-09-16')
-
-    // One click makes the window end on the deadline.
-    await userEvent.click(screen.getByRole('button', { name: 'Fit to deadline' }))
-    expect(value().durationDays).toBe('3')
-    expect(screen.getByText('Planned to finish 17 Sept 2030, on the deadline.'))
-    expect(screen.queryByRole('button', { name: 'Fit to deadline' })).toBeNull()
+    fireEvent.change(screen.getByLabelText('Start (optional)'), {
+      target: { value: '2030-09-14' },
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(deadline.validationMessage).toBe('')
 
     await userEvent.type(screen.getByLabelText('Effort (hours of work)'), '6')
     expect(value().estimatedHours).toBe('6')
-    fireEvent.change(screen.getByLabelText('Deadline (optional)'), { target: { value: '' } })
-    expect(screen.queryByText(/Planned to finish/)).toBeNull()
   })
 
-  it('says when the deadline has gone by, and stops offering to fit the window to it', () => {
-    render(
-      <Harness initial={{ startDate: '2026-09-14', durationDays: '1', deadline: '2026-09-17' }} />,
-    )
-    expect(
-      screen.getByText(/^Planned to finish 14 Sept 2026; the deadline passed \d+ days ago\.$/),
-    ).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Fit to deadline' })).toBeNull()
-  })
-
-  it('refuses an end before the start until it is fixed', () => {
-    render(<Harness initial={{ startDate: '2026-09-14', durationDays: '3' }} />)
-    const end = screen.getByLabelText('To') as HTMLInputElement
-    fireEvent.change(end, { target: { value: '2026-09-10' } })
-    expect(screen.getByRole('alert')).toHaveTextContent('Ends before it starts')
-    expect(end).toHaveAttribute('aria-invalid', 'true')
-    expect(end.validationMessage).toBe('Ends before it starts')
-    expect(value().durationDays).toBe('3')
-    // Clearing the end is not an error either; it changes nothing.
-    fireEvent.change(end, { target: { value: '' } })
-    expect(screen.queryByRole('alert')).toBeNull()
-    fireEvent.change(end, { target: { value: '2026-09-15' } })
-    expect(value().durationDays).toBe('2')
-    expect(end.validationMessage).toBe('')
-  })
-
-  it('offers set dates and a milestone, with no deadline', async () => {
-    render(
-      <Harness initial={{ startDate: '2026-09-26', durationDays: '1', deadline: '2026-09-30' }} />,
-    )
+  it('offers set dates and a milestone', async () => {
+    render(<Harness initial={{ startDate: '2026-09-26', deadline: '2026-09-30' }} />)
     await userEvent.click(screen.getByRole('radio', { name: /On set dates/ }))
     expect(screen.getByLabelText('Runs from')).toBeTruthy()
-    expect(screen.queryByLabelText('Deadline (optional)')).toBeNull()
-    // The deadline it had is named, so switching is not a silent loss.
-    expect(
-      screen.getByText(
-        'No deadline: the dates themselves are fixed. Saving removes the deadline of 30 Sept 2026.',
-      ),
-    ).toBeTruthy()
-    expect(screen.queryByText(/Planned to finish/)).toBeNull()
+    expect(screen.getByLabelText('To')).toHaveValue('2026-09-30')
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-09-25' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('Ends before it starts')
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-09-30' } })
 
     const moment = screen.getByRole('checkbox', { name: /a moment, not a stretch of work/ })
     await userEvent.click(moment)
-    expect(value().durationDays).toBe('0')
+    expect(value().milestone).toBe(true)
+    expect(screen.getByLabelText('On')).toBeTruthy()
     expect(screen.queryByLabelText('To')).toBeNull()
-    expect(screen.queryByLabelText('Days')).toBeNull()
     await userEvent.click(moment)
-    expect(value().durationDays).toBe('1')
+    expect(value().milestone).toBe(false)
 
-    // Back to a window, a milestone's zero days would make no sense, so it is cleared.
+    // Back to a window, a milestone makes no sense, so it is cleared.
     await userEvent.click(moment)
     await userEvent.click(screen.getByRole('radio', { name: /Any time in a window/ }))
-    expect(value()).toMatchObject({ timing: 'flexible', durationDays: '' })
-    await userEvent.click(screen.getByRole('radio', { name: /On set dates/ }))
-    await userEvent.click(screen.getByRole('radio', { name: /Any time in a window/ }))
-    expect(value().durationDays).toBe('')
+    expect(value()).toMatchObject({ timing: 'flexible', milestone: false })
   })
 
-  it('explains a task that follows another, and shows the note', () => {
+  it('explains a task that follows another, warns when it cannot make its deadline, and shows the note', () => {
     const { unmount } = render(
       <Harness
-        initial={{ durationDays: '3' }}
+        initial={{ deadline: '2026-09-13' }}
         followsTitle="Book the venue"
         derivedStart={day('2026-09-15')}
         note="Only the project owner can change these dates once the task exists."
       />,
     )
     expect(
-      screen.getByText(
-        'Starts when “Book the venue” finishes (currently 15 Sept 2026 – 17 Sept 2026).',
-      ),
+      screen.getByText('Starts when “Book the venue” finishes (currently 15 Sept 2026).'),
     ).toBeTruthy()
+    expect(
+      screen.getByText(
+        '“Book the venue” finishes too late: this can’t start until 15 Sept 2026, 2 days after its deadline.',
+      ),
+    ).toHaveClass('text-error')
     expect(screen.getByText(/Only the project owner can change these dates/)).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-09-14' } })
+    fireEvent.change(screen.getByLabelText('Start (optional)'), {
+      target: { value: '2026-09-10' },
+    })
     expect(screen.getByText(/Starts on this date even if “Book the venue” runs late/)).toBeTruthy()
+    expect(screen.queryByText(/finishes too late/)).toBeNull()
     unmount()
     render(<Harness followsTitle="Book the venue" />)
     expect(screen.getByText('Starts when “Book the venue” finishes.')).toBeTruthy()
@@ -145,10 +110,11 @@ describe('DatesBlock', () => {
 describe('TaskDatesSummary', () => {
   const base = {
     timing: 'flexible' as const,
-    durationDays: 7,
+    durationDays: null,
     estimatedHours: 6,
-    deadline: day('2099-09-17'),
-    placement: { start: day('2099-09-14'), end: day('2099-09-20'), daysLate: 3 },
+    deadline: day('2099-09-20'),
+    openStart: false,
+    placement: { start: day('2099-09-14'), end: day('2099-09-20'), daysLate: null },
     assigneeName: 'Chelsie',
     startedAt: day('2099-09-14'),
     completedAt: null,
@@ -156,32 +122,45 @@ describe('TaskDatesSummary', () => {
   }
   const dd = (label: string) => screen.getByText(label).nextSibling
 
-  it('reads a flexible window against its deadline', () => {
+  it('reads a flexible window that ends on its deadline', () => {
     render(<TaskDatesSummary {...base} />)
     expect(dd('When')).toHaveTextContent(
-      '14 Sept 2099 – 20 Sept 2099Any time in this window, about 6 hours of work',
+      /^14 Sept 2099 – 20 Sept 2099Any time in this window, about 6 hours of work$/,
     )
-    expect(dd('Deadline')).toHaveTextContent('17 Sept 2099 · 3 days late')
+    expect(screen.queryByText('Deadline')).toBeNull()
     expect(dd('Who')).toHaveTextContent('Chelsie, claimed on 14 Sept 2099')
   })
 
-  it('calls a passed deadline on unfinished work overdue, whatever the plan says', () => {
-    render(
+  it('reads only the deadline when nothing sets a start', () => {
+    const { rerender } = render(<TaskDatesSummary {...base} openStart />)
+    expect(dd('When')).toHaveTextContent(/^By 20 Sept 2099About 6 hours of work$/)
+    rerender(<TaskDatesSummary {...base} openStart estimatedHours={null} />)
+    expect(dd('When')).toHaveTextContent(/^By 20 Sept 2099$/)
+  })
+
+  it('says when it is late: overdue once the deadline passes, or pushed past it by the work before', () => {
+    const { rerender } = render(
       <TaskDatesSummary
         {...base}
         deadline={day('2020-01-02')}
-        placement={{ start: day('2020-01-01'), end: day('2020-01-01'), daysLate: -1 }}
+        placement={{ start: day('2020-01-01'), end: day('2020-01-02'), daysLate: null }}
       />,
     )
-    expect(dd('Deadline')).toHaveTextContent(/^2 Jan 2020 · \d+ days overdue$/)
+    expect(dd('When')).toHaveTextContent(/\d+ days overdue$/)
+    rerender(
+      <TaskDatesSummary
+        {...base}
+        placement={{ start: day('2099-09-23'), end: day('2099-09-23'), daysLate: 3 }}
+      />,
+    )
+    expect(dd('When')).toHaveTextContent(/3 days late$/)
   })
 
   it('reads set dates, a milestone and a task off the timeline', () => {
     const { rerender } = render(
-      <TaskDatesSummary {...base} timing="fixed" durationDays={0} hasPosted />,
+      <TaskDatesSummary {...base} timing="fixed" durationDays={0} deadline={null} hasPosted />,
     )
     expect(dd('When')).toHaveTextContent('A moment, not a stretch of work')
-    expect(screen.queryByText('Deadline')).toBeNull()
     expect(dd('Who')).toHaveTextContent('Chelsie, started 14 Sept 2099')
 
     rerender(
@@ -206,7 +185,6 @@ describe('TaskDatesSummary', () => {
       />,
     )
     expect(dd('When')).toHaveTextContent(/^Not on the timeline yet$/)
-    expect(dd('Deadline')).toHaveTextContent(/^17 Sept 2099$/)
     expect(dd('Who')).toHaveTextContent('Chelsie, finished 21 Sept 2099')
   })
 })

@@ -87,13 +87,13 @@ describe('runDeadlineRemindersJob', () => {
       status: 'in_progress',
       assigneeId: sam.id,
       startDate: addDays(today, -6),
-      durationDays: 3,
+      deadline: addDays(today, -4),
     })
     // Past its plan too, but nobody holds it: not a decision, so it nags no one.
     await createTask(project.id, {
       title: 'Unclaimed',
       startDate: addDays(today, -6),
-      durationDays: 3,
+      deadline: addDays(today, -4),
     })
     await runDeadlineRemindersJob(now)
     const decision = await notes(owner.id, 'task_needs_decision')
@@ -180,14 +180,14 @@ describe('runDeadlineRemindersJob', () => {
     )
     expect(emails.lastTo('o3@example.org')!.html).toContain('no update yet, 5 days to go')
 
-    // Past its deadline but with the plan still running: the owner sees the gap.
+    // Once the deadline has gone by, the task is past its plan: the owner has a decision.
     await prisma.workItem.update({
       where: { id: task.id },
-      data: { deadline: addDays(today, -1), startDate: addDays(today, -5), durationDays: 10 },
+      data: { deadline: addDays(today, -1), startDate: addDays(today, -5) },
     })
     await runDeadlineRemindersJob(addDays(now, 1))
-    expect(emails.lastTo('o3@example.org')!.html).toContain(
-      '2 days past its deadline; the plan ends',
+    expect((await notes(owner.id, 'task_needs_decision'))[0].title).toBe(
+      '“Secure speakers” is 2 days past plan',
     )
   })
 
@@ -200,7 +200,7 @@ describe('runDeadlineRemindersJob', () => {
       startDate: addDays(today, -2),
       deadline: today,
     })
-    const task = await createTask(project.id, { title: 'Build', durationDays: 5 })
+    const task = await createTask(project.id, { title: 'Build', deadline: addDays(today, 2) })
     await runDeadlineRemindersJob(now)
     const html = emails.lastTo('o4@example.org')!.html
     expect(html).toContain('The plan now finishes 2 days after the project deadline')
@@ -213,7 +213,10 @@ describe('runDeadlineRemindersJob', () => {
     expect(emails.lastTo('o4@example.org')!.html).toContain('The project deadline passed 1 day ago')
 
     // Three days further out: alerted again.
-    await prisma.workItem.update({ where: { id: task.id }, data: { durationDays: 8 } })
+    await prisma.workItem.update({
+      where: { id: task.id },
+      data: { deadline: addDays(today, 5) },
+    })
     await runDeadlineRemindersJob(addDays(now, 2))
     expect(await notes(owner.id, 'plan_slip')).toHaveLength(2)
 

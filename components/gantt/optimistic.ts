@@ -36,6 +36,8 @@ export type PendingPatch = {
   id: number
   startDate: Date | string | null
   durationDays?: number | null
+  /** Tasks only: where the bar ends. */
+  deadline?: Date | string | null
 }
 
 function asDate(value: Date | string | null): Date | null {
@@ -54,6 +56,7 @@ export function toClientScheduleInput(t: ClientSchedulable): ScheduleInput {
     startedAt: asDate(t.startedAt),
     completedAt: asDate(t.completedAt),
     isAnchor: t.isAnchor ?? false,
+    endsOnDeadline: true,
   }
 }
 
@@ -77,6 +80,7 @@ export function scheduleWithPatches(
       ...item,
       startDate: patch ? asDate(patch.startDate) : item.startDate,
       durationDays: patch && patch.durationDays !== undefined ? patch.durationDays : t.durationDays,
+      deadline: patch && patch.deadline !== undefined ? asDate(patch.deadline) : item.deadline,
     }
   })
 

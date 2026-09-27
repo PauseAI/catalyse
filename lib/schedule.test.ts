@@ -150,6 +150,35 @@ describe('computeSchedule', () => {
     expect(byId.get(4)).toMatchObject({ deadline: null, daysLate: null, breachesDeadline: false })
   })
 
+  it("ends a task's bar on its deadline, and calls it late only once its start passes it", () => {
+    const task = (id: number, over: Partial<ScheduleInput>) =>
+      item(id, { endsOnDeadline: true, ...over })
+    const { byId } = computeSchedule(
+      [
+        task(1, { startDate: day('2026-09-20'), durationDays: 4, deadline: day('2026-09-30') }),
+        // Follows 1, so it cannot start until 1 Oct: after its own deadline.
+        task(2, { deadline: day('2026-09-28') }),
+        // No start and nothing before it: the bar runs from the plan's first day.
+        task(3, { deadline: day('2026-03-05') }),
+        // With no deadline it is a day long.
+        task(4, { startDate: day('2026-09-20') }),
+        // A milestone keeps its single day, whatever deadline it carries.
+        task(5, { startDate: day('2026-09-20'), durationDays: 0, deadline: day('2026-09-25') }),
+      ],
+      [link(1, 2)],
+      origin,
+    )
+    expect(byId.get(1)).toMatchObject({ endsOnDeadline: true, daysLate: null })
+    expect(ymd(byId.get(1)!.end)).toBe('2026-09-30')
+    expect(byId.get(2)).toMatchObject({ daysLate: 3, breachesDeadline: true })
+    expect(ymd(byId.get(2)!.start)).toBe('2026-10-01')
+    expect(ymd(byId.get(2)!.end)).toBe('2026-10-01')
+    expect([ymd(byId.get(3)!.start), ymd(byId.get(3)!.end)]).toEqual(['2026-03-02', '2026-03-05'])
+    expect(ymd(byId.get(4)!.end)).toBe('2026-09-20')
+    expect(byId.get(5)).toMatchObject({ endsOnDeadline: false, isMilestone: true })
+    expect(ymd(byId.get(5)!.end)).toBe('2026-09-20')
+  })
+
   it('does not hang on a dependency cycle', () => {
     const { scheduled } = computeSchedule(
       [item(1, { durationDays: 2 }), item(2, { durationDays: 2 })],
@@ -264,6 +293,13 @@ describe('applyScheduleWrite', () => {
     expect(data).not.toHaveProperty('baselineStartDate')
     expect(data).not.toHaveProperty('baselineDurationDays')
     expect(data).not.toHaveProperty('baselineSetAt')
+  })
+
+  it("writes a task's deadline as part of its schedule", () => {
+    const data: Record<string, unknown> = {}
+    const now = day('2026-03-02')
+    expect(applyScheduleWrite(data, { taskDeadline: day('2026-03-10') }, now)).toBe(true)
+    expect(data).toEqual({ deadline: day('2026-03-10'), scheduleUpdatedAt: now })
   })
 
   it('writes an explicit null through, so a date can be cleared', () => {

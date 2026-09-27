@@ -18,6 +18,7 @@ import { navigation } from '@/test/next-navigation'
 import ProjectDetailPage from './page'
 import { queryClient } from '@/lib/query-client'
 import { orpc } from '@/lib/orpc'
+import { diffInDays } from '@/lib/schedule'
 
 const drags = await vi.hoisted(() => import('@/test/dnd').then((m) => m.captureDrags()))
 vi.mock('@dnd-kit/core', (importOriginal) => drags.mockDndKit(importOriginal))
@@ -373,14 +374,10 @@ describe('project page — owner', () => {
     await userEvent.type(screen.getByLabelText('Task title'), 'Third task')
     await userEvent.type(screen.getByLabelText('Description'), 'details')
     await userEvent.type(screen.getByLabelText('Effort (hours of work)'), '2')
-    fireEvent.change(screen.getByLabelText('Deadline (optional)'), {
-      target: { value: '2030-01-01' },
+    fireEvent.change(screen.getByLabelText('Deadline'), { target: { value: '2030-01-01' } })
+    fireEvent.change(screen.getByLabelText('Start (optional)'), {
+      target: { value: '2029-12-01' },
     })
-    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2029-12-01' } })
-    // The end date and the day count keep each other in step; only the days are stored.
-    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2029-12-03' } })
-    expect(screen.getByLabelText('Days')).toHaveValue(3)
-    expect(screen.getByText(/Planned to finish 3 Dec 2029, 29 days before the deadline/))
     // An owner is not told that only the owner can change the dates later.
     expect(screen.queryByText(/Only the project owner can change these dates/)).toBeNull()
     await userEvent.click(screen.getByRole('checkbox', { name: /quick task/i }))
@@ -389,7 +386,9 @@ describe('project page — owner', () => {
     const t3 = await prisma.workItem.findFirstOrThrow({ where: { title: 'Third task' } })
     expect(t3).toMatchObject({
       estimatedHours: 2,
-      durationDays: 3,
+      startDate: new Date('2029-12-01T00:00:00Z'),
+      deadline: new Date('2030-01-01T00:00:00Z'),
+      durationDays: null,
       featuredAsQuickTask: true,
       timing: 'flexible',
     })
@@ -986,13 +985,13 @@ describe('project page — timeline tab', () => {
     })
     const a = await createTask(project.id, {
       title: 'Alpha',
-      durationDays: 2,
       startDate: new Date('2026-06-01T00:00:00Z'),
+      deadline: new Date('2026-06-02T00:00:00Z'),
       baselineStartDate: new Date('2026-06-01T00:00:00Z'),
       baselineDurationDays: 2,
       baselineSetAt: new Date('2026-05-01T00:00:00Z'),
     })
-    const b = await createTask(project.id, { title: 'Beta', durationDays: 1 })
+    const b = await createTask(project.id, { title: 'Beta' })
     const c = await createTask(project.id, { title: 'Gamma' })
     await prisma.workItemDependency.create({ data: { predecessorId: a.id, successorId: b.id } })
     return { owner, helper, project, a, b, c }
@@ -1031,7 +1030,8 @@ describe('project page — timeline tab', () => {
     await screen.findByRole('button', { name: /^Alpha:/ })
 
     await userEvent.click(screen.getByLabelText('Add Gamma to the timeline'))
-    await waitFor(async () => expect((await row(c.id)).durationDays).toBe(1))
+    await waitFor(async () => expect((await row(c.id)).startDate).not.toBeNull())
+    expect((await row(c.id)).deadline).toBeNull()
     await waitFor(() => expect(screen.queryByText(/Unscheduled/)).toBeNull())
 
     // Drag a bar (via the captured DndContext), then link two bars.
@@ -1055,13 +1055,18 @@ describe('project page — timeline tab', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Beta:/ }))
     const panel = () => screen.getByRole('complementary')
     await within(panel()).findByText('Beta')
-    fireEvent.change(within(panel()).getByLabelText('Days'), { target: { value: '4' } })
-    fireEvent.submit(within(panel()).getByLabelText('Days').closest('form')!)
-    await waitFor(async () => expect((await row(b.id)).durationDays).toBe(4))
+    const datesForm = within(panel()).getByLabelText('Deadline').closest('form')!
+    fireEvent.change(within(panel()).getByLabelText('Deadline'), {
+      target: { value: '2027-06-30' },
+    })
+    fireEvent.submit(datesForm)
+    await waitFor(async () =>
+      expect((await row(b.id)).deadline).toEqual(new Date('2027-06-30T00:00:00Z')),
+    )
     // Timing and effort are not schedule, so they go by the task update rather than the drag path.
     await userEvent.click(within(panel()).getByRole('radio', { name: /On set dates/ }))
     await userEvent.type(within(panel()).getByLabelText('Effort (hours of work)'), '3')
-    fireEvent.submit(within(panel()).getByLabelText('Days').closest('form')!)
+    fireEvent.submit(datesForm)
     await waitFor(async () =>
       expect(await row(b.id)).toMatchObject({ timing: 'fixed', estimatedHours: 3 }),
     )
@@ -1131,7 +1136,11 @@ describe('project page — timeline tab', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Replace original plan' }))
     await userEvent.click(screen.getAllByRole('button', { name: 'Replace original plan' })[1])
     await screen.findByText('Original plan updated')
-    await waitFor(async () => expect((await row(b.id)).baselineDurationDays).toBe(4))
+    // The original plan records the days from the start through the deadline.
+    await waitFor(async () => {
+      const beta = await row(b.id)
+      expect(beta.baselineDurationDays).toBe(diffInDays(beta.startDate!, beta.deadline!) + 1)
+    })
     const startBefore = (await row(b.id)).startDate
 
     // A drag whose cache entry has been evicted still lands; there is just nothing to patch
@@ -1163,7 +1172,7 @@ describe('project page — timeline tab', () => {
     await screen.findByText('Unscheduled (2)')
     expect(screen.getByText(/No tasks have dates yet/)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Add all to timeline' }))
-    await waitFor(async () => expect((await row(t2.id)).durationDays).toBe(1))
+    await waitFor(async () => expect((await row(t2.id)).startDate).not.toBeNull())
     await screen.findByRole('button', { name: /^Loose one:/ })
     await userEvent.click(screen.getByRole('button', { name: 'Set original plan' }))
     await userEvent.click(screen.getAllByRole('button', { name: 'Set original plan' })[1])
@@ -1179,7 +1188,7 @@ describe('project page — timeline tab', () => {
     await userEvent.click(within(panel).getByRole('button', { name: 'Add' }))
     await screen.findByText('One or both items were not found')
     // A failed reschedule is rolled back and the timeline refetched (which drops the panel).
-    fireEvent.submit(within(panel).getByLabelText('Days').closest('form')!)
+    fireEvent.submit(within(panel).getByLabelText('Deadline').closest('form')!)
     await screen.findByText('One or more items were not found')
     await userEvent.click(await screen.findByRole('button', { name: 'Replace original plan' }))
     localStorage.setItem('authToken', 'stale')
@@ -1193,7 +1202,7 @@ describe('project page — timeline tab', () => {
     await mount(project.id, visitor, '#timeline')
     await screen.findByRole('button', { name: /^Alpha:/ })
     expect(screen.queryByRole('button', { name: 'Add all to timeline' })).toBeNull()
-    expect(screen.getByText(/These tasks have no start date/)).toBeInTheDocument()
+    expect(screen.getByText(/These tasks have no dates/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /baseline/i })).toBeNull()
   })
 })

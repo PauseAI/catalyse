@@ -1,13 +1,14 @@
 /**
  * The dates on a task as a form holds them, and as people read them.
  *
- * A task's window is stored as a start and a number of days. The form also offers an end date,
- * and the three fields keep each other in step: only the day count is saved. `timing` says how
- * to read the window — `flexible` work happens any time within it, `fixed` work happens on
- * exactly those dates (a shift, a stall, the event itself).
+ * A task has a start and a deadline, and its bar runs from one to the other: the deadline is
+ * the one date it should be done by, and the one reminders count towards. `timing` says how to
+ * read the window — `flexible` work happens any time within it, `fixed` work happens on exactly
+ * those dates (a shift, a stall, the event itself). A fixed task can instead be a milestone: a
+ * single moment with no length.
  */
 
-import { addDays, diffInDays, startOfUtcDay } from './schedule'
+import { diffInDays } from './schedule'
 import { formatDateShort, fromDateInputValue, toDateInputValue } from './format-date'
 import { plural } from './plural'
 
@@ -18,10 +19,11 @@ export type DatesValue = {
   timing: TaskTimingValue
   /** `yyyy-mm-dd`, or empty to start when the work before it finishes. */
   startDate: string
-  /** Whole days; "0" is a milestone, empty reads as one day. */
-  durationDays: string
-  estimatedHours: string
+  /** `yyyy-mm-dd`: the last day, when it should be done by. Empty for none. */
   deadline: string
+  /** Fixed timing only: a moment on the start date, with no deadline. */
+  milestone: boolean
+  estimatedHours: string
 }
 
 export function datesValueFrom(task: {
@@ -34,83 +36,62 @@ export function datesValueFrom(task: {
   return {
     timing: task.timing ?? 'flexible',
     startDate: toDateInputValue(task.startDate),
-    durationDays: task.durationDays !== null ? String(task.durationDays) : '',
-    estimatedHours: task.estimatedHours !== null ? String(task.estimatedHours) : '',
     deadline: toDateInputValue(task.deadline),
+    milestone: task.durationDays === 0,
+    estimatedHours: task.estimatedHours !== null ? String(task.estimatedHours) : '',
   }
 }
 
 export const EMPTY_DATES: DatesValue = {
   timing: 'flexible',
   startDate: '',
-  durationDays: '',
-  estimatedHours: '',
   deadline: '',
+  milestone: false,
+  estimatedHours: '',
 }
 
 export type DatesPayload = ReturnType<typeof datesPayload>
 
-/** The fields to send to the API. A fixed task has no deadline: its dates are the commitment. */
+/** The fields to send to the API. A milestone has a length of zero and no deadline. */
 export function datesPayload(v: DatesValue) {
+  const milestone = v.timing === 'fixed' && v.milestone
   return {
     timing: v.timing,
     startDate: fromDateInputValue(v.startDate),
-    durationDays: v.durationDays ? parseInt(v.durationDays, 10) : null,
+    durationDays: milestone ? (0 as const) : null,
     estimatedHours: v.estimatedHours ? parseFloat(v.estimatedHours) : null,
-    deadline: v.timing === 'fixed' ? null : fromDateInputValue(v.deadline),
+    deadline: milestone ? null : fromDateInputValue(v.deadline),
   }
 }
 
-/** Days as the scheduler reads them: empty or unparseable is one day; a milestone takes its day. */
-function spanDays(durationDays: string): number {
-  const n = parseInt(durationDays, 10)
-  return Number.isNaN(n) ? 1 : Math.max(1, n)
+/**
+ * Whether a task is on the timeline: it has a start, a deadline, a length (a milestone) or a
+ * task before it. One with none of these has no plan to draw or to be past.
+ */
+export function taskIsDated(
+  t: {
+    startDate: Date | string | null
+    durationDays: number | null
+    deadline: Date | string | null
+  },
+  hasPredecessor: boolean,
+): boolean {
+  return t.startDate !== null || t.durationDays !== null || t.deadline !== null || hasPredecessor
 }
 
-/** The last day of a window starting on `start`, as an input value. */
-export function endInputValue(start: string, durationDays: string): string {
-  const from = fromDateInputValue(start)
-  return from ? toDateInputValue(addDays(from, spanDays(durationDays) - 1)) : ''
-}
-
-/** Days from `start` to `end` inclusive, or null when the end comes before the start. */
-export function daysBetween(start: string, end: string): number | null {
-  const from = fromDateInputValue(start)
-  const to = fromDateInputValue(end)
-  if (!from || !to) return null
-  const days = diffInDays(from, to) + 1
-  return days >= 1 ? days : null
+/** Days the deadline falls before the start, or null when it does not (or either is unknown). */
+export function deadlineBeforeStart(start: Date | null, deadline: Date | null): number | null {
+  if (!start || !deadline) return null
+  const days = diffInDays(deadline, start)
+  return days > 0 ? days : null
 }
 
 /**
- * Where the plan puts the end, from the form: a set start, or the start the schedule derived
- * when the task follows another. Null when neither is known.
+ * The line under a task that follows another and cannot start in time: "“Book venue” finishes
+ * too late: this can't start until 3 Oct, 2 days after its deadline."
  */
-export function plannedEnd(v: DatesValue, derivedStart: Date | null): Date | null {
-  const start = fromDateInputValue(v.startDate) ?? derivedStart
-  return start ? addDays(start, spanDays(v.durationDays) - 1) : null
-}
-
-/**
- * "Planned to finish 20 Sept 2026, 3 days after the deadline." Once the deadline has gone by,
- * how the plan compared to it no longer matters; what matters is that it has passed.
- */
-export function finishSentence(end: Date, deadline: Date, today: Date = new Date()): string {
-  const overdue = diffInDays(deadline, today)
-  if (overdue > 0) {
-    return `Planned to finish ${formatDateShort(end)}; the deadline passed ${plural(overdue, 'day')} ago.`
-  }
-  const late = diffInDays(deadline, end)
-  const gap =
-    late === 0
-      ? 'on the deadline'
-      : `${plural(Math.abs(late), 'day')} ${late > 0 ? 'after' : 'before'} the deadline`
-  return `Planned to finish ${formatDateShort(end)}, ${gap}.`
-}
-
-/** Whether the deadline has already passed, so fitting the window to it would end in the past. */
-export function deadlinePassed(deadline: Date, today: Date = new Date()): boolean {
-  return diffInDays(deadline, today) > 0
+export function lateStartSentence(followsTitle: string, start: Date, days: number): string {
+  return `“${followsTitle}” finishes too late: this can’t start until ${formatDateShort(start)}, ${plural(days, 'day')} after its deadline.`
 }
 
 /** "14 Sept 2026" or "14 Sept 2026 – 20 Sept 2026". */
@@ -139,28 +120,4 @@ export function windowReading(
   }
   if (effort) return `Any time ${one ? 'that day' : 'in this window'}, ${effort}`
   return one ? 'Takes the day' : 'Takes the whole window'
-}
-
-/**
- * The dates that make the window end on the deadline: the same start (or the one the schedule
- * gives it, or today when it has neither), and the days to reach the deadline. Null when there
- * is no deadline, it has passed, it already ends there, or the deadline comes before the start.
- */
-export function fitToDeadline(
-  v: DatesValue,
-  derivedStart: Date | null,
-  today: Date = new Date(),
-): DatesValue | null {
-  const deadline = fromDateInputValue(v.deadline)
-  if (v.timing === 'fixed' || !deadline || deadlinePassed(deadline, today)) return null
-  const start = fromDateInputValue(v.startDate) ?? derivedStart ?? startOfUtcDay(today)
-  const days = diffInDays(start, deadline) + 1
-  if (days < 1) return null
-  const end = plannedEnd(v, derivedStart)
-  if (end && end.getTime() === deadline.getTime()) return null
-  return {
-    ...v,
-    startDate: v.startDate || (derivedStart ? '' : toDateInputValue(start)),
-    durationDays: String(days),
-  }
 }

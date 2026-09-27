@@ -7,7 +7,6 @@ export type SummaryLineKind =
   | 'needs_decision'
   | 'overdue'
   | 'at_risk'
-  | 'past_deadline'
   | 'plan_slip'
   | 'due_today'
   | 'due_tomorrow'
@@ -35,12 +34,11 @@ const ORDER: Record<SummaryLineKind, number> = {
   needs_decision: 0,
   overdue: 1,
   at_risk: 2,
-  past_deadline: 3,
-  plan_slip: 4,
-  due_today: 5,
-  due_tomorrow: 6,
-  check_in: 7,
-  activity: 8,
+  plan_slip: 3,
+  due_today: 4,
+  due_tomorrow: 5,
+  check_in: 6,
+  activity: 7,
 }
 
 /** The kinds that count towards "N things need you today". */

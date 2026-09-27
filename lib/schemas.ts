@@ -235,6 +235,12 @@ export const ProjectInterestBodySchema = z.object({
   message: z.string().optional().nullable(),
 })
 
+/** A task's bar ends on its deadline, so it has no length of its own; zero marks a milestone. */
+const TaskDurationSchema = z
+  .literal(0, { error: 'A task ends on its deadline; only a milestone has a length (0)' })
+  .nullable()
+  .optional()
+
 export const CreateProjectTaskSchema = WorkItemSchema.pick({
   title: true,
   description: true,
@@ -243,14 +249,16 @@ export const CreateProjectTaskSchema = WorkItemSchema.pick({
   featuredAsQuickTask: true,
   timing: true,
   ...SCHEDULE_INPUT_FIELDS,
-}).partial({
-  description: true,
-  estimatedHours: true,
-  deadline: true,
-  featuredAsQuickTask: true,
-  timing: true,
-  ...SCHEDULE_INPUT_FIELDS,
 })
+  .partial({
+    description: true,
+    estimatedHours: true,
+    deadline: true,
+    featuredAsQuickTask: true,
+    timing: true,
+    ...SCHEDULE_INPUT_FIELDS,
+  })
+  .extend({ durationDays: TaskDurationSchema })
 
 export const UpdateProjectTaskSchema = WorkItemSchema.pick({
   title: true,
@@ -264,7 +272,7 @@ export const UpdateProjectTaskSchema = WorkItemSchema.pick({
   ...SCHEDULE_INPUT_FIELDS,
 })
   .partial()
-  .extend({ status: TaskStatusSchema.optional() })
+  .extend({ status: TaskStatusSchema.optional(), durationDays: TaskDurationSchema })
 
 /** A finish-to-start link. Lag is signed: positive leaves a gap, negative overlaps. */
 export const DependencyBodySchema = z.object({

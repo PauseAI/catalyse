@@ -141,7 +141,7 @@ export default function GanttLegend({
             aria-hidden="true"
           />
         </Swatch>
-        <Swatch label="Deadline (red once the plan runs past it)">
+        <Swatch label="Deadline (red once it is missed)">
           <span aria-hidden="true" style={{ color: 'var(--gantt-today)' }}>
             ▲
           </span>

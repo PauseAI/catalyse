@@ -3,11 +3,9 @@ import {
   EMPTY_DATES,
   datesPayload,
   datesValueFrom,
-  daysBetween,
-  endInputValue,
-  finishSentence,
-  fitToDeadline,
-  plannedEnd,
+  deadlineBeforeStart,
+  lateStartSentence,
+  taskIsDated,
   windowReading,
   windowText,
 } from './task-dates'
@@ -18,21 +16,21 @@ describe('task dates', () => {
   it('round-trips a task through the form and back to the API', () => {
     const value = datesValueFrom({
       startDate: day('2026-09-14'),
-      durationDays: 7,
+      durationDays: null,
       estimatedHours: 6,
       deadline: day('2026-09-17'),
     })
     expect(value).toEqual({
       timing: 'flexible',
       startDate: '2026-09-14',
-      durationDays: '7',
-      estimatedHours: '6',
       deadline: '2026-09-17',
+      milestone: false,
+      estimatedHours: '6',
     })
     expect(datesPayload(value)).toEqual({
       timing: 'flexible',
       startDate: day('2026-09-14'),
-      durationDays: 7,
+      durationDays: null,
       estimatedHours: 6,
       deadline: day('2026-09-17'),
     })
@@ -43,8 +41,8 @@ describe('task dates', () => {
       estimatedHours: null,
       deadline: null,
     })
-    // A fixed task's dates are the commitment, so any deadline it carried is not sent.
-    expect(datesPayload({ ...value, timing: 'fixed' }).deadline).toBeNull()
+    // A fixed task keeps its last day as its deadline.
+    expect(datesPayload({ ...value, timing: 'fixed' }).deadline).toEqual(day('2026-09-17'))
     expect(
       datesValueFrom({
         timing: 'fixed',
@@ -56,66 +54,40 @@ describe('task dates', () => {
     ).toEqual({ ...EMPTY_DATES, timing: 'fixed' })
   })
 
-  it('keeps the end date and the day count in step', () => {
-    expect(endInputValue('2026-09-14', '7')).toBe('2026-09-20')
-    // Empty days and a milestone both occupy their start day.
-    expect(endInputValue('2026-09-14', '')).toBe('2026-09-14')
-    expect(endInputValue('2026-09-14', '0')).toBe('2026-09-14')
-    expect(endInputValue('', '7')).toBe('')
-    expect(daysBetween('2026-09-14', '2026-09-20')).toBe(7)
-    expect(daysBetween('2026-09-14', '2026-09-14')).toBe(1)
-    expect(daysBetween('2026-09-14', '2026-09-13')).toBeNull()
-    expect(daysBetween('', '2026-09-13')).toBeNull()
-  })
-
-  it('finds the planned end from a set start or the derived one', () => {
-    const v = { ...EMPTY_DATES, durationDays: '3' }
-    expect(plannedEnd({ ...v, startDate: '2026-09-14' }, null)).toEqual(day('2026-09-16'))
-    expect(plannedEnd(v, day('2026-09-20'))).toEqual(day('2026-09-22'))
-    expect(plannedEnd(v, null)).toBeNull()
-  })
-
-  it('fits the window to end on the deadline', () => {
-    const v = { ...EMPTY_DATES, deadline: '2026-09-20' }
-    const today = day('2026-09-16')
-    // A set start keeps its start.
-    expect(
-      fitToDeadline({ ...v, startDate: '2026-09-14', durationDays: '1' }, null, today),
-    ).toMatchObject({ startDate: '2026-09-14', durationDays: '7' })
-    // A task that follows another keeps following.
-    expect(fitToDeadline(v, day('2026-09-18'), today)).toMatchObject({
-      startDate: '',
-      durationDays: '3',
+  it('sends a milestone as zero days with no deadline, and only when the timing is fixed', () => {
+    const milestone = datesValueFrom({
+      timing: 'fixed',
+      startDate: day('2026-10-03'),
+      durationDays: 0,
+      estimatedHours: null,
+      deadline: null,
     })
-    // With neither, it starts today.
-    expect(fitToDeadline(v, null, today)).toMatchObject({
-      startDate: '2026-09-16',
-      durationDays: '5',
+    expect(milestone.milestone).toBe(true)
+    const withStaleDeadline = { ...milestone, deadline: '2026-10-05' }
+    expect(datesPayload(withStaleDeadline)).toMatchObject({ durationDays: 0, deadline: null })
+    // Switching to a window leaves the tick behind, so it is not sent.
+    expect(datesPayload({ ...withStaleDeadline, timing: 'flexible' })).toMatchObject({
+      durationDays: null,
+      deadline: day('2026-10-05'),
     })
-    // Nothing to do: no deadline, set dates, already on it, a deadline before the start, or one
-    // that has already passed.
-    expect(fitToDeadline({ ...v, deadline: '' }, null, today)).toBeNull()
-    expect(fitToDeadline({ ...v, timing: 'fixed' }, null, today)).toBeNull()
-    expect(
-      fitToDeadline({ ...v, startDate: '2026-09-14', durationDays: '7' }, null, today),
-    ).toBeNull()
-    expect(fitToDeadline({ ...v, startDate: '2026-09-25' }, null, today)).toBeNull()
-    expect(fitToDeadline({ ...v, startDate: '2026-09-14' }, null, day('2026-09-21'))).toBeNull()
   })
 
-  it('relates the planned finish to the deadline, until the deadline has gone by', () => {
-    const today = day('2026-09-15')
-    expect(finishSentence(day('2026-09-20'), day('2026-09-17'), today)).toBe(
-      'Planned to finish 20 Sept 2026, 3 days after the deadline.',
-    )
-    expect(finishSentence(day('2026-09-16'), day('2026-09-17'), today)).toBe(
-      'Planned to finish 16 Sept 2026, 1 day before the deadline.',
-    )
-    expect(finishSentence(day('2026-09-17'), day('2026-09-17'), today)).toBe(
-      'Planned to finish 17 Sept 2026, on the deadline.',
-    )
-    expect(finishSentence(day('2026-09-14'), day('2026-09-17'), day('2026-09-25'))).toBe(
-      'Planned to finish 14 Sept 2026; the deadline passed 8 days ago.',
+  it('knows which tasks are on the timeline', () => {
+    const none = { startDate: null, durationDays: null, deadline: null }
+    expect(taskIsDated(none, false)).toBe(false)
+    expect(taskIsDated(none, true)).toBe(true)
+    expect(taskIsDated({ ...none, startDate: day('2026-09-14') }, false)).toBe(true)
+    expect(taskIsDated({ ...none, deadline: day('2026-09-14') }, false)).toBe(true)
+    expect(taskIsDated({ ...none, durationDays: 0 }, false)).toBe(true)
+  })
+
+  it('flags a deadline before the start, and says when the work before it runs too late', () => {
+    expect(deadlineBeforeStart(day('2026-09-20'), day('2026-09-17'))).toBe(3)
+    expect(deadlineBeforeStart(day('2026-09-17'), day('2026-09-17'))).toBeNull()
+    expect(deadlineBeforeStart(null, day('2026-09-17'))).toBeNull()
+    expect(deadlineBeforeStart(day('2026-09-17'), null)).toBeNull()
+    expect(lateStartSentence('Book venue', day('2026-10-03'), 2)).toBe(
+      '“Book venue” finishes too late: this can’t start until 3 Oct 2026, 2 days after its deadline.',
     )
   })
 

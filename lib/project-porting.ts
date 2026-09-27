@@ -14,6 +14,7 @@
 
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
+import { addDays } from './schedule'
 
 // ── Live state the router hands in ────────────────────────────────────────────
 
@@ -94,21 +95,30 @@ const DependsOnSchema = z.object({
  * on a new row the system default applies. `null` is an explicit clear. `dependsOn` omitted
  * leaves a row's existing links alone; `dependsOn: []` clears them.
  */
-const ImportTaskSchema = z.object({
-  id: z.number().int().positive().optional(),
-  ref: z.string().min(1).max(64).optional(),
-  title: z.string().min(1).max(300),
-  description: z.string().max(20_000).nullable().optional(),
-  status: z.enum(TASK_STATUSES).optional(),
-  assigneeEmail: z.string().email().nullable().optional(),
-  deadline: ymd.optional(),
-  startDate: ymd.optional(),
-  durationDays: z.number().int().min(0).max(3650).nullable().optional(),
-  featuredAsQuickTask: z.boolean().optional(),
-  isAnchor: z.boolean().optional(),
-  timing: z.enum(['flexible', 'fixed']).optional(),
-  dependsOn: z.array(DependsOnSchema).max(MAX_DEPENDENCIES_PER_TASK).optional(),
-})
+const ImportTaskSchema = z
+  .object({
+    id: z.number().int().positive().optional(),
+    ref: z.string().min(1).max(64).optional(),
+    title: z.string().min(1).max(300),
+    description: z.string().max(20_000).nullable().optional(),
+    status: z.enum(TASK_STATUSES).optional(),
+    assigneeEmail: z.string().email().nullable().optional(),
+    deadline: ymd.optional(),
+    startDate: ymd.optional(),
+    durationDays: z.number().int().min(0).max(3650).nullable().optional(),
+    featuredAsQuickTask: z.boolean().optional(),
+    isAnchor: z.boolean().optional(),
+    timing: z.enum(['flexible', 'fixed']).optional(),
+    dependsOn: z.array(DependsOnSchema).max(MAX_DEPENDENCIES_PER_TASK).optional(),
+  })
+  .transform((t) => {
+    // A task ends on its deadline and stores no length but a milestone's zero. A length given
+    // anyway becomes the deadline it implies from the start.
+    if (!t.durationDays) return t
+    const start = fromYmd(t.startDate)
+    const implied = start ? toYmd(addDays(start, t.durationDays - 1)) : undefined
+    return { ...t, durationDays: null, deadline: t.deadline ?? implied }
+  })
 
 const ImportProjectSchema = z.object({
   id: z.number().int().positive().optional(),

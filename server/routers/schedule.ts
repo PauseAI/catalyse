@@ -16,6 +16,8 @@ const RescheduleItem = z.object({
   startDate: z.coerce.date().nullable(),
   /** Omit to leave the duration untouched. Zero is a milestone, as in an imported project. */
   durationDays: z.number().int().min(0).max(3650).nullable().optional(),
+  /** Tasks only: where the bar ends. Omit to leave it untouched. */
+  deadline: z.coerce.date().nullable().optional(),
 })
 
 /**
@@ -38,6 +40,20 @@ export const scheduleRouter = {
 
       // Resolve the governing project for each item, then prove manage rights once per project.
       const projectIdFor = new Map<number, number>()
+      for (const item of input.items) {
+        const type = byId.get(item.id)?.type
+        // A task's length follows from its start and deadline; only a milestone sets one.
+        if (type === WorkItemType.TASK && (item.durationDays ?? 0) !== 0) {
+          throw new ORPCError('BAD_REQUEST', {
+            message: 'A task ends on its deadline; move its deadline instead',
+          })
+        }
+        if (type === WorkItemType.PROJECT && item.deadline !== undefined) {
+          throw new ORPCError('BAD_REQUEST', {
+            message: "A project's deadline is a target, not part of its schedule",
+          })
+        }
+      }
       for (const w of items) {
         if (w.type === WorkItemType.PROJECT) projectIdFor.set(w.id, w.id)
         else if (w.type === WorkItemType.TASK && w.parentId) projectIdFor.set(w.id, w.parentId)
@@ -78,7 +94,11 @@ export const scheduleRouter = {
           const data: Record<string, unknown> = {}
           applyScheduleWrite(
             data,
-            { startDate: item.startDate, durationDays: item.durationDays },
+            {
+              startDate: item.startDate,
+              durationDays: item.durationDays,
+              taskDeadline: item.deadline,
+            },
             now,
           )
           return prisma.workItem.update({ where: { id: item.id }, data })

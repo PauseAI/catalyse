@@ -35,6 +35,7 @@ function placed(
     pinnedBeforePredecessor: false,
     pinConflictDays: null,
     pinConflictWith: null,
+    endsOnDeadline: false,
     isCritical: false,
     isAnchor: false,
     isMilestone: false,
@@ -154,6 +155,35 @@ describe('palette / drag maths', () => {
       ),
     ).toBeNull()
     expect(patchFromDrag(rows[0], { kind: 'link', rowId: 1 }, 60, 30)).toBeNull()
+  })
+
+  it("moves a task's deadline with its bar, and resizing sets the deadline", () => {
+    const task = (over: Partial<ScheduledItem>): GanttRow => ({
+      ...rows[1],
+      placement: placed(2, '2026-06-04', '2026-06-06', { endsOnDeadline: true, ...over }),
+    })
+    const withDeadline = task({ isPinned: true, deadline: day('2026-06-06') })
+    expect(patchFromDrag(withDeadline, { kind: 'move', rowId: 2 }, 60, 30)).toEqual({
+      id: 2,
+      startDate: day('2026-06-06'),
+      deadline: day('2026-06-08'),
+    })
+    expect(patchFromDrag(withDeadline, { kind: 'resize-end', rowId: 2 }, 30, 30)).toEqual({
+      id: 2,
+      startDate: day('2026-06-04'),
+      deadline: day('2026-06-07'),
+    })
+    // With no deadline yet a move only pins the start; a resize gives it one.
+    const open = task({})
+    expect(patchFromDrag(open, { kind: 'move', rowId: 2 }, 30, 30)).toEqual({
+      id: 2,
+      startDate: day('2026-06-05'),
+    })
+    expect(patchFromDrag(open, { kind: 'resize-end', rowId: 2 }, -300, 30)).toEqual({
+      id: 2,
+      startDate: null,
+      deadline: day('2026-06-04'),
+    })
   })
 })
 
@@ -527,9 +557,9 @@ describe('GanttItemPanel', () => {
     dates: {
       timing: 'flexible' as const,
       startDate: '2026-06-04',
-      durationDays: '3',
-      estimatedHours: '1',
       deadline: '2026-06-05',
+      milestone: false,
+      estimatedHours: '1',
     },
     description: 'Print them',
     assigneeName: null,
@@ -578,9 +608,9 @@ describe('GanttItemPanel', () => {
         dates={{
           timing: 'fixed',
           startDate: '',
-          durationDays: '0',
-          estimatedHours: '2',
           deadline: '',
+          milestone: true,
+          estimatedHours: '2',
         }}
         description={null}
         assigneeName="Ann"
@@ -644,25 +674,27 @@ describe('GanttItemPanel', () => {
     expect(
       screen.getByText(/Starts on this date even if “Book venue” runs late/),
     ).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-06-09' } })
-    fireEvent.change(screen.getByLabelText('Days'), { target: { value: '5' } })
-    fireEvent.submit(screen.getByLabelText('Days').closest('form')!)
+    fireEvent.change(screen.getByLabelText('Start (optional)'), {
+      target: { value: '2026-06-02' },
+    })
+    fireEvent.change(screen.getByLabelText('Deadline'), { target: { value: '2026-06-09' } })
+    fireEvent.submit(screen.getByLabelText('Deadline').closest('form')!)
     expect(baseProps.onSaveDates).toHaveBeenCalledWith({
       timing: 'flexible',
-      startDate: day('2026-06-09'),
-      durationDays: 5,
+      startDate: day('2026-06-02'),
+      durationDays: null,
       estimatedHours: 1,
-      deadline: day('2026-06-05'),
+      deadline: day('2026-06-09'),
     })
     fireEvent.click(screen.getByRole('button', { name: 'Follow “Book venue” instead' }))
     expect(baseProps.onSaveDates).toHaveBeenLastCalledWith(
-      expect.objectContaining({ startDate: null, durationDays: 5 }),
+      expect.objectContaining({ startDate: null, deadline: day('2026-06-09') }),
     )
     expect(screen.getByText(/Starts when “Book venue” finishes/)).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Days'), { target: { value: '' } })
-    fireEvent.submit(screen.getByLabelText('Days').closest('form')!)
+    fireEvent.change(screen.getByLabelText('Deadline'), { target: { value: '' } })
+    fireEvent.submit(screen.getByLabelText('Deadline').closest('form')!)
     expect(baseProps.onSaveDates).toHaveBeenLastCalledWith(
-      expect.objectContaining({ startDate: null, durationDays: null }),
+      expect.objectContaining({ startDate: null, deadline: null }),
     )
     await user.click(screen.getByRole('checkbox'))
     expect(baseProps.onSetAnchor).toHaveBeenCalledWith(true)
@@ -702,7 +734,7 @@ describe('GanttItemPanel', () => {
       <GanttItemPanel
         {...baseProps}
         row={late}
-        dates={{ ...baseProps.dates, startDate: '', durationDays: '' }}
+        dates={{ ...baseProps.dates, startDate: '', deadline: '' }}
         assigneeName="Zed"
         canManage
         assignment={assignment}

@@ -36,12 +36,12 @@ export const PROJECT_IMPORT_EXAMPLE = {
       id: 101,
       title: 'Book the venue',
       startDate: '2026-09-02',
-      durationDays: 3,
+      deadline: '2026-09-04',
     },
     {
       ref: 'permit',
       title: 'Apply for the permit',
-      durationDays: 8,
+      deadline: '2026-09-20',
       dependsOn: [{ on: 101, lagDays: 2 }],
     },
     {
@@ -105,8 +105,11 @@ Task: \`id\`, \`ref\`, \`title\` (required), \`description\`, \`status\` (\`open
 - Dates are \`YYYY-MM-DD\` strings. Any other format is rejected.
 - A file may carry at most 1000 tasks, each with at most 100 \`dependsOn\` entries. Titles cap
   at 300 characters and descriptions at 20,000.
-- \`durationDays\` is elapsed calendar days, 0 to 3650. **0 means a milestone** — a moment
-  rather than a stretch of work. It is not the same as leaving it out.
+- \`deadline\` is the one date a task should be done by. Its bar runs from its start to the
+  deadline, and reminders count towards it. A task has no separate end date or length.
+- \`durationDays\` is only for a milestone: **0 means a moment** rather than a stretch of work,
+  with no deadline. Any other number, up to 3650, is read as days from \`startDate\` and
+  turned into the deadline it implies; write the \`deadline\` instead.
 - \`startDate\` *pins* a task to that date. A task with no \`startDate\` starts when its
   dependencies allow, which is usually what you want for anything downstream.
 - \`assigneeEmail\` must belong to an existing approved volunteer, or the import is rejected.

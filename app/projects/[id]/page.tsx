@@ -12,7 +12,13 @@ import DatesBlock from '@/components/DatesBlock'
 import { plural } from '@/lib/plural'
 import { handedIn, isOverdue as deadlinePassed } from '@/lib/overdue'
 import { KEY_DATE_SIDE_LABELS, bySide, keyDateSides } from '@/lib/key-date'
-import { EMPTY_DATES, datesPayload, datesValueFrom, type DatesValue } from '@/lib/task-dates'
+import {
+  EMPTY_DATES,
+  datesPayload,
+  datesValueFrom,
+  taskIsDated,
+  type DatesValue,
+} from '@/lib/task-dates'
 import { Badge } from '@/components/Badge'
 import Tooltip from '@/components/Tooltip'
 import { projectStatusVariant } from '@/components/ProjectCard'
@@ -305,7 +311,12 @@ function TaskTimeline({
     // Place the drag immediately, using the same scheduler the server will run. Without this the
     // bar snaps back the instant the pointer is released and only jumps forward on the refetch.
     onMutate: async (vars: {
-      items: { id: number; startDate: Date | null; durationDays?: number | null }[]
+      items: {
+        id: number
+        startDate: Date | null
+        durationDays?: number | null
+        deadline?: Date | null
+      }[]
     }) => {
       await queryClient.cancelQueries({ queryKey: timelineKey })
       const previous = queryClient.getQueryData<TimelineData>(timelineKey)
@@ -318,6 +329,7 @@ function TaskTimeline({
           ...t,
           startDate: patch.startDate,
           ...(patch.durationDays !== undefined ? { durationDays: patch.durationDays } : {}),
+          ...(patch.deadline !== undefined ? { deadline: patch.deadline } : {}),
         }
       })
       const scheduled = scheduleWithPatches(
@@ -384,13 +396,11 @@ function TaskTimeline({
   const titleById = new Map(timeline.tasks.map((t) => [t.id, t.title]))
 
   const scheduledRows: GanttRowData[] = []
-  const unscheduled: { id: number; title: string; deadline: Date | null }[] = []
+  const unscheduled: { id: number; title: string }[] = []
   for (const task of timeline.tasks) {
-    const isUnscheduled =
-      task.startDate === null && task.durationDays === null && !hasPredecessor.has(task.id)
     const placement = placementById.get(task.id)
-    if (isUnscheduled || !placement) {
-      unscheduled.push({ id: task.id, title: task.title, deadline: task.deadline })
+    if (!taskIsDated(task, hasPredecessor.has(task.id)) || !placement) {
+      unscheduled.push({ id: task.id, title: task.title })
     } else {
       scheduledRows.push({
         id: task.id,
@@ -410,13 +420,13 @@ function TaskTimeline({
     : null
   /**
    * An unscheduled task has no bar, so there is nothing to drag — this is the way onto the
-   * chart. It lands as a one-day bar at the start of the plan rather than anywhere cleverer:
-   * a guessed duration looks like a decision someone made, and stacking them all on the same
-   * day makes it obvious they still need placing.
+   * chart. It lands as a one-day bar at the start of the plan, with no deadline, rather than
+   * anywhere cleverer: a guessed deadline looks like a decision someone made, and would start
+   * reminders; stacking them all on the same day makes it obvious they still need placing.
    */
   function addToTimeline(ids: number[]) {
     const start = startOfUtcDay(new Date(timeline!.scopeOrigin))
-    reschedule.mutate({ items: ids.map((id) => ({ id, startDate: start, durationDays: 1 })) })
+    reschedule.mutate({ items: ids.map((id) => ({ id, startDate: start })) })
   }
 
   function addAllToTimeline() {
@@ -459,6 +469,7 @@ function TaskTimeline({
                       ...(patch.durationDays !== undefined
                         ? { durationDays: patch.durationDays }
                         : {}),
+                      ...(patch.deadline !== undefined ? { deadline: patch.deadline } : {}),
                     },
                   ],
                 })
@@ -497,25 +508,22 @@ function TaskTimeline({
                 onSaveDates={(p) => {
                   reschedule.mutate({
                     items: [
-                      { id: selectedRow.id, startDate: p.startDate, durationDays: p.durationDays },
+                      {
+                        id: selectedRow.id,
+                        startDate: p.startDate,
+                        durationDays: p.durationDays,
+                        deadline: p.deadline,
+                      },
                     ],
                   })
                   // The rest is not schedule, so it goes by the ordinary task update, and only
                   // when something there changed.
                   const was = datesPayload(datesValueFrom(selectedTask))
-                  if (
-                    p.timing !== was.timing ||
-                    p.estimatedHours !== was.estimatedHours ||
-                    p.deadline?.getTime() !== was.deadline?.getTime()
-                  ) {
+                  if (p.timing !== was.timing || p.estimatedHours !== was.estimatedHours) {
                     updateTask.mutate({
                       projectId,
                       taskId: selectedRow.id,
-                      data: {
-                        timing: p.timing,
-                        estimatedHours: p.estimatedHours,
-                        deadline: p.deadline,
-                      },
+                      data: { timing: p.timing, estimatedHours: p.estimatedHours },
                     })
                   }
                 }}
@@ -563,8 +571,7 @@ function TaskTimeline({
               projectId={projectId}
               taskId={replanId}
               taskTitle={task.title}
-              plannedEnd={placed.placement.end}
-              deadline={task.deadline ? new Date(task.deadline) : null}
+              placement={placed.placement}
               onClose={() => setReplanId(null)}
             />
           ) : null
@@ -593,8 +600,8 @@ function TaskTimeline({
           </div>
           <p className="text-text-light mt-0 mb-2 text-xs">
             {canManage
-              ? 'Adding a task puts a one-day bar on the first day of the plan and sets that as its start date. Drag it to when it happens, drag its edge to set how long it takes, and drag the circle at its end onto whatever follows it.'
-              : 'These tasks have no start date, so they are not on the timeline.'}
+              ? 'Adding a task puts a one-day bar on the first day of the plan and sets that as its start date. Drag it to when it happens, drag its end to set its deadline, and drag the circle at its end onto whatever follows it.'
+              : 'These tasks have no dates, so they are not on the timeline.'}
           </p>
           <ul className="m-0 flex flex-wrap gap-2 p-0">
             {unscheduled.map((t) => (
@@ -605,11 +612,6 @@ function TaskTimeline({
                 <Link href={`/projects/${projectId}/tasks/${t.id}`} className="hover:underline">
                   {t.title}
                 </Link>
-                {t.deadline && (
-                  <span className="text-text-light ml-1 text-xs whitespace-nowrap">
-                    Deadline {formatDateShort(t.deadline)}
-                  </span>
-                )}
                 {canManage && (
                   <button
                     type="button"

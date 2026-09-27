@@ -110,14 +110,7 @@ export default function GanttItemPanel({
     setDraft(dates)
     // Keyed on the values, not the object, which callers rebuild on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    row.id,
-    dates.timing,
-    dates.startDate,
-    dates.durationDays,
-    dates.estimatedHours,
-    dates.deadline,
-  ])
+  }, [row.id, dates.timing, dates.startDate, dates.milestone, dates.estimatedHours, dates.deadline])
 
   const p = row.placement
   const estimatedHours = dates.estimatedHours ? parseFloat(dates.estimatedHours) : null
@@ -207,7 +200,7 @@ export default function GanttItemPanel({
       {/* Derived facts only. Anything editable is stated once, by its own control below — the
           panel should never print a value and then offer the field for it half a screen away. */}
       <dl className="grid grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1.5 text-sm">
-        <Fact label="Planned">{span}</Fact>
+        <Fact label="When">{span}</Fact>
         {p.deadline && standing && (
           <Fact label="Deadline">
             {formatDateShort(p.deadline)}{' '}

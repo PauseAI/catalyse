@@ -84,12 +84,22 @@ describe('scheduleWithPatches', () => {
     expect(ymd(found(scheduled, 1).start)).toBe('2026-03-02')
   })
 
-  it('recounts the days late while a bar is dragged past its deadline', () => {
+  it('ends the bar on the deadline a patch carries', () => {
     const scheduled = scheduleWithPatches(
-      [task(1, { startDate: day('2026-03-10'), durationDays: 3, deadline: '2026-03-13' })],
+      [task(1, { startDate: day('2026-03-10'), deadline: '2026-03-13' })],
       [],
       origin,
-      [{ id: 1, startDate: day('2026-03-14') }],
+      [{ id: 1, startDate: day('2026-03-12'), deadline: day('2026-03-18') }],
+    )
+    expect(ymd(found(scheduled, 1).end)).toBe('2026-03-18')
+  })
+
+  it('counts the days late once the start is moved past a deadline that stays put', () => {
+    const scheduled = scheduleWithPatches(
+      [task(1, { startDate: day('2026-03-10'), deadline: '2026-03-13' })],
+      [],
+      origin,
+      [{ id: 1, startDate: day('2026-03-16') }],
     )
     expect(found(scheduled, 1)).toMatchObject({ daysLate: 3, breachesDeadline: true })
   })
@@ -126,22 +136,21 @@ describe('scheduleWithPatches', () => {
       task(3, { durationDays: 4 }),
     ]
     const edges = [link(1, 2), link(2, 3, 2)]
-    const patch = { id: 1, startDate: day('2026-03-16'), durationDays: 5 }
+    const patch = { id: 1, startDate: day('2026-03-16'), deadline: day('2026-03-20') }
 
     const optimistic = scheduleWithPatches(tasks, edges, origin, [patch])
 
     // What the server stores, then reschedules from.
     const saved = tasks.map((t) =>
-      t.id === patch.id
-        ? { ...t, startDate: patch.startDate, durationDays: patch.durationDays }
-        : t,
+      t.id === patch.id ? { ...t, startDate: patch.startDate, deadline: patch.deadline } : t,
     )
     const authoritative = computeSchedule(
       saved.map((t) => ({
         id: t.id,
         startDate: t.startDate as Date | null,
         durationDays: t.durationDays,
-        deadline: null,
+        deadline: t.deadline as Date | null,
+        endsOnDeadline: true,
         baselineStartDate: null,
         baselineDurationDays: null,
         startedAt: null,

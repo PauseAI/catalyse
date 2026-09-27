@@ -1,26 +1,17 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import Radio from '@/components/Radio'
 import Checkbox from '@/components/Checkbox'
-import Button from '@/components/Button'
 import { formatDateShort, fromDateInputValue } from '@/lib/format-date'
-import {
-  daysBetween,
-  endInputValue,
-  fitToDeadline,
-  finishSentence,
-  plannedEnd,
-  windowText,
-  type DatesValue,
-} from '@/lib/task-dates'
+import { deadlineBeforeStart, lateStartSentence, type DatesValue } from '@/lib/task-dates'
 
 /**
  * One way to enter a task's dates, used by Add Task, Edit Task and the timeline panel.
  *
- * The window can be typed as an end date or a number of days; each updates the other, and
- * moving the start keeps the days. A task that follows another has no start of its own, so it
- * takes days only. The sentence underneath relates the plan to the deadline as you type.
+ * A task has one end date, its deadline: the bar runs from the start to it, and reminders count
+ * towards it. A task that follows another has no start of its own; the line underneath says
+ * when that puts it, and whether it can still make its deadline.
  */
 export default function DatesBlock({
   id,
@@ -44,38 +35,25 @@ export default function DatesBlock({
   disabled?: boolean
 }) {
   const fixed = value.timing === 'fixed'
-  const milestone = value.durationDays === '0'
+  const milestone = fixed && value.milestone
   const set = (patch: Partial<DatesValue>) => onChange({ ...value, ...patch })
 
-  // The end field shows what the start and days imply, except while someone is typing an end
-  // that comes before the start: that stays on screen, flagged, and changes nothing.
-  const [endDraft, setEndDraft] = useState<string | null>(null)
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setEndDraft(null)
-  }, [value.startDate, value.durationDays])
-  const endValue = endDraft ?? endInputValue(value.startDate, value.durationDays)
-  const endError = endDraft !== null && endDraft !== '' ? 'Ends before it starts' : null
+  const typedStart = fromDateInputValue(value.startDate)
+  const deadline = milestone ? null : fromDateInputValue(value.deadline)
+  const endError =
+    deadlineBeforeStart(typedStart, deadline) !== null
+      ? fixed
+        ? 'Ends before it starts'
+        : 'The deadline is before the start'
+      : null
   // A custom validity message stops the surrounding form submitting until the end is fixed.
   const endRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
     endRef.current?.setCustomValidity(endError ?? '')
   }, [endError])
 
-  function changeEnd(end: string) {
-    const days = daysBetween(value.startDate, end)
-    if (days === null) {
-      setEndDraft(end)
-      return
-    }
-    setEndDraft(null)
-    set({ durationDays: String(days) })
-  }
-
-  const start = fromDateInputValue(value.startDate) ?? derivedStart ?? null
-  const end = plannedEnd(value, derivedStart ?? null)
-  const deadline = fixed ? null : fromDateInputValue(value.deadline)
-  const fitted = fitToDeadline(value, derivedStart ?? null)
+  const followedLate =
+    !typedStart && followsTitle && derivedStart ? deadlineBeforeStart(derivedStart, deadline) : null
 
   return (
     <fieldset className="m-0 border-0 p-0" disabled={disabled}>
@@ -84,9 +62,7 @@ export default function DatesBlock({
         <Radio
           name={`${id}-timing`}
           checked={!fixed}
-          onChange={() =>
-            set({ timing: 'flexible', durationDays: milestone ? '' : value.durationDays })
-          }
+          onChange={() => set({ timing: 'flexible', milestone: false })}
         >
           Any time in a window
         </Radio>
@@ -97,7 +73,9 @@ export default function DatesBlock({
 
       <div className="mb-1 flex flex-wrap items-start gap-3">
         <div>
-          <label htmlFor={`${id}-start`}>{fixed ? 'Runs from' : 'From'}</label>
+          <label htmlFor={`${id}-start`}>
+            {milestone ? 'On' : fixed ? 'Runs from' : 'Start (optional)'}
+          </label>
           <input
             id={`${id}-start`}
             type="date"
@@ -105,116 +83,69 @@ export default function DatesBlock({
             onChange={(e) => set({ startDate: e.target.value })}
           />
         </div>
-        {value.startDate && !milestone && (
+        {!milestone && (
           <div>
-            <label htmlFor={`${id}-end`}>To</label>
+            <label htmlFor={`${id}-deadline`}>{fixed ? 'To' : 'Deadline'}</label>
             <input
               ref={endRef}
-              id={`${id}-end`}
+              id={`${id}-deadline`}
               type="date"
-              value={endValue}
-              min={value.startDate}
+              value={value.deadline}
+              min={value.startDate || undefined}
               aria-invalid={endError ? true : undefined}
-              aria-describedby={endError ? `${id}-end-error` : undefined}
-              onChange={(e) => changeEnd(e.target.value)}
-            />
-          </div>
-        )}
-        {!milestone && (
-          <div className="w-24">
-            <label htmlFor={`${id}-days`}>Days</label>
-            <input
-              id={`${id}-days`}
-              type="number"
-              min="1"
-              step="1"
-              value={value.durationDays}
-              placeholder="1"
-              onChange={(e) => set({ durationDays: e.target.value })}
+              aria-describedby={endError ? `${id}-deadline-error` : undefined}
+              onChange={(e) => set({ deadline: e.target.value })}
             />
           </div>
         )}
       </div>
       {endError && (
-        <p id={`${id}-end-error`} role="alert" className="text-error mt-0 mb-1 text-sm">
+        <p id={`${id}-deadline-error`} role="alert" className="text-error mt-0 mb-1 text-sm">
           {endError}
         </p>
       )}
       <p className="text-text-light mt-0 mb-3 text-xs">
-        {value.startDate
+        {typedStart
           ? followsTitle
             ? `Starts on this date even if “${followsTitle}” runs late. Clear it to follow that task instead.`
             : 'Starts on this date.'
           : followsTitle
             ? `Starts when “${followsTitle}” finishes${
-                start && end ? ` (currently ${windowText(start, end)})` : ''
+                derivedStart ? ` (currently ${formatDateShort(derivedStart)})` : ''
               }.`
-            : 'No start date: it goes at the beginning of the plan until it has one.'}
+            : deadline
+              ? 'No start date: any time up to the deadline.'
+              : 'No start date: it goes at the beginning of the plan until it has one.'}
       </p>
+      {followedLate !== null && followsTitle && derivedStart && (
+        <p className="text-error mt-0 mb-3 text-sm" aria-live="polite">
+          {lateStartSentence(followsTitle, derivedStart, followedLate)}
+        </p>
+      )}
 
       {fixed && (
         <div className="mb-3">
           <Checkbox
-            checked={milestone}
-            onChange={(e) => set({ durationDays: e.target.checked ? '0' : '1' })}
+            checked={value.milestone}
+            onChange={(e) => set({ milestone: e.target.checked })}
           >
             It&rsquo;s a moment, not a stretch of work (a milestone)
           </Checkbox>
         </div>
       )}
 
-      <div className="mb-3 flex flex-wrap items-start gap-3">
-        <div className="w-48">
-          <label htmlFor={`${id}-hours`}>Effort (hours of work)</label>
-          <input
-            id={`${id}-hours`}
-            type="number"
-            min="0"
-            step="0.5"
-            placeholder="e.g. 3"
-            value={value.estimatedHours}
-            onChange={(e) => set({ estimatedHours: e.target.value })}
-          />
-        </div>
-        {!fixed && (
-          <div>
-            <label htmlFor={`${id}-deadline`}>Deadline (optional)</label>
-            <input
-              id={`${id}-deadline`}
-              type="date"
-              value={value.deadline}
-              onChange={(e) => set({ deadline: e.target.value })}
-            />
-          </div>
-        )}
+      <div className="mb-3 w-48">
+        <label htmlFor={`${id}-hours`}>Effort (hours of work)</label>
+        <input
+          id={`${id}-hours`}
+          type="number"
+          min="0"
+          step="0.5"
+          placeholder="e.g. 3"
+          value={value.estimatedHours}
+          onChange={(e) => set({ estimatedHours: e.target.value })}
+        />
       </div>
-      {fixed && (
-        <p className="text-text-light mt-0 mb-3 text-xs">
-          No deadline: the dates themselves are fixed.
-          {value.deadline && (
-            <> Saving removes the deadline of {formatDateShort(value.deadline)}.</>
-          )}
-        </p>
-      )}
-
-      {end && deadline && (
-        <p
-          className={`mt-0 mb-3 text-sm ${end.getTime() > deadline.getTime() ? 'text-error' : ''}`}
-          aria-live="polite"
-        >
-          {finishSentence(end, deadline)}
-        </p>
-      )}
-      {fitted && (
-        <div className="mb-3">
-          <Button type="button" size="sm" variant="secondary" onClick={() => onChange(fitted)}>
-            Fit to deadline
-          </Button>
-          <span className="text-text-light ml-2 text-xs">
-            Stretch or shrink the window so it ends on the deadline.
-          </span>
-        </div>
-      )}
       {note && <p className="text-text-light mt-0 mb-3 text-xs">{note}</p>}
     </fieldset>
   )

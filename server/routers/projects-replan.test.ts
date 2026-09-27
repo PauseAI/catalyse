@@ -31,13 +31,12 @@ async function setup() {
     status: 'in_progress',
     assigneeId: sam.id,
     startDate: addDays(today, -7),
-    durationDays: 5,
+    deadline: addDays(today, -3),
   })
   const next = await createTask(project.id, {
     title: 'Print flyers',
     status: 'in_progress',
     assigneeId: pat.id,
-    durationDays: 2,
   })
   await prisma.workItemDependency.create({
     data: { predecessorId: late.id, successorId: next.id },
@@ -122,11 +121,11 @@ describe('a task past its plan', () => {
       reason: 'waiting on the venue',
     })
     expect(result).toEqual({ message: 'Task replanned', moved: 1 })
-    // The bar keeps its five days and moves to end on the new date.
+    // The bar keeps its five days and moves to end on the new deadline.
     expect(await prisma.workItem.findUniqueOrThrow({ where: { id: late.id } })).toMatchObject({
       startDate: addDays(newEnd, -4),
-      durationDays: 5,
-      deadline: null,
+      durationDays: null,
+      deadline: newEnd,
     })
     const comment = await prisma.workItemComment.findFirstOrThrow({
       where: { workItemId: late.id },
@@ -158,7 +157,7 @@ describe('a task past its plan', () => {
     })
     expect(await prisma.workItem.findUniqueOrThrow({ where: { id: loose.id } })).toMatchObject({
       startDate: addDays(today, 3),
-      durationDays: 1,
+      deadline: addDays(today, 3),
     })
     expect(await notes(owner.id, 'task_replanned')).toHaveLength(0)
 
@@ -177,7 +176,27 @@ describe('a task past its plan', () => {
     })
     expect(await prisma.workItem.findUniqueOrThrow({ where: { id: after.id } })).toMatchObject({
       startDate: addDays(today, 4),
-      durationDays: 3,
+      deadline: addDays(today, 6),
+      durationDays: null,
+    })
+
+    // A milestone replanned stays a moment on the new day.
+    const moment = await createTask(project.id, {
+      title: 'Moment',
+      assigneeId: owner.id,
+      startDate: addDays(today, -2),
+      durationDays: 0,
+    })
+    await clientAs(owner).projects.replanTask({
+      projectId: project.id,
+      taskId: moment.id,
+      newEnd: addDays(today, 1),
+      reason: 'moved',
+    })
+    expect(await prisma.workItem.findUniqueOrThrow({ where: { id: moment.id } })).toMatchObject({
+      startDate: addDays(today, 1),
+      deadline: null,
+      durationDays: 0,
     })
   })
 

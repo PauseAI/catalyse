@@ -11,6 +11,7 @@ import {
   WorkItemType,
   TaskTiming,
 } from '@/generated/prisma/enums'
+import { diffInDays } from './schedule'
 
 // ── Comment access ────────────────────────────────────────────────────────────
 // Reading a work item's comment thread is gated identically to viewing the work
@@ -623,8 +624,9 @@ export function serializeTask(t: TaskLike) {
  * Builds the Prisma `data` for a schedule change, and reports whether the write actually
  * touches the schedule.
  *
- * `scheduleUpdatedAt` is stamped whenever startDate or durationDays moves, so every caller
- * (task edit, project edit, drag-to-reschedule) records it identically.
+ * `scheduleUpdatedAt` is stamped whenever startDate, durationDays or `taskDeadline` moves, so
+ * every caller (task edit, project edit, drag-to-reschedule) records it identically. Only a task
+ * passes `taskDeadline`: its bar ends there. A project's deadline is a target, not its plan.
  *
  * The baseline is deliberately NOT touched here. Typing a first date is planning, not
  * committing to a plan: an owner needs to sketch dates and shuffle them before anything is
@@ -633,18 +635,36 @@ export function serializeTask(t: TaskLike) {
  */
 export function applyScheduleWrite(
   data: Record<string, unknown>,
-  input: { startDate?: Date | null; durationDays?: number | null },
+  input: { startDate?: Date | null; durationDays?: number | null; taskDeadline?: Date | null },
   now: Date = new Date(),
 ): boolean {
   const touchesStart = input.startDate !== undefined
   const touchesDuration = input.durationDays !== undefined
-  if (!touchesStart && !touchesDuration) return false
+  const touchesDeadline = input.taskDeadline !== undefined
+  if (!touchesStart && !touchesDuration && !touchesDeadline) return false
 
   if (touchesStart) data.startDate = input.startDate
   if (touchesDuration) data.durationDays = input.durationDays
+  if (touchesDeadline) data.deadline = input.taskDeadline
   data.scheduleUpdatedAt = now
 
   return true
+}
+
+/**
+ * The length a baseline records. A task's bar ends on its deadline, so its length is the days
+ * from its start through that deadline; a project's is its own `durationDays`.
+ */
+export function baselineLength(w: {
+  type: string
+  startDate: Date | null
+  durationDays: number | null
+  deadline: Date | null
+}): number | null {
+  if (w.type !== WorkItemType.TASK || !w.startDate || !w.deadline || w.durationDays === 0) {
+    return w.durationDays
+  }
+  return Math.max(1, diffInDays(w.startDate, w.deadline) + 1)
 }
 
 export type StarterTaskLike = {

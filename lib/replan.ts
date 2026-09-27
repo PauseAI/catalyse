@@ -29,22 +29,28 @@ export function daysPastPlan(
   return days > 0 ? days : null
 }
 
+/** A replan as the columns it writes: the task's bar ends on its deadline, a milestone on its day. */
+export type ReplanWrite = { startDate: Date; taskDeadline: Date | null; durationDays: 0 | null }
+
+/** Days a placed bar covers; zero for a milestone. */
+export function barLength(p: { start: Date; end: Date; isMilestone: boolean }): number {
+  return p.isMilestone ? 0 : diffInDays(p.start, p.end) + 1
+}
+
 /**
- * The start and length that put a task's bar so it ends on `newEnd`. The bar keeps its length
- * and moves, rather than growing over the days already gone; `days` replaces the length when the
- * work turned out bigger or smaller. A task with no length yet gets one day. The start is written
- * even for a task that followed another, so it stops following.
+ * The dates that put a task's bar so it ends on `newEnd`, which becomes its deadline. The bar
+ * keeps its length and moves, rather than growing over the days already gone; `days` replaces
+ * the length when the work turned out bigger or smaller, and zero makes it a milestone. The
+ * start is written even for a task that followed another, so it stops following.
  */
 export function replanWrite(
-  current: { durationDays: number | null },
+  current: { start: Date; end: Date; isMilestone: boolean },
   newEnd: Date,
-  days: number = current.durationDays ?? 1,
-): { startDate: Date; durationDays: number } {
-  const durationDays = Math.max(0, days)
-  return {
-    startDate: addDays(startOfUtcDay(newEnd), -Math.max(durationDays - 1, 0)),
-    durationDays,
-  }
+  days: number = barLength(current),
+): ReplanWrite {
+  const end = startOfUtcDay(newEnd)
+  if (days <= 0) return { startDate: end, taskDeadline: null, durationDays: 0 }
+  return { startDate: addDays(end, -(days - 1)), taskDeadline: end, durationDays: null }
 }
 
 export type ReplanPreview = {
@@ -64,11 +70,16 @@ export function previewReplan(
   edges: ScheduleEdge[],
   origin: Date,
   taskId: number,
-  write: { startDate: Date | null; durationDays: number },
+  write: ReplanWrite,
 ): ReplanPreview {
   const before = computeSchedule(items, edges, origin)
+  const replanned = {
+    startDate: write.startDate,
+    deadline: write.taskDeadline,
+    durationDays: write.durationDays,
+  }
   const after = computeSchedule(
-    items.map((i) => (i.id === taskId ? { ...i, ...write } : i)),
+    items.map((i) => (i.id === taskId ? { ...i, ...replanned } : i)),
     edges,
     origin,
   )

@@ -35,14 +35,14 @@ async function makeProject(api: Api, opts: { startDate?: Date } = {}): Promise<n
 async function addTask(
   api: Api,
   projectId: number,
-  opts: { title?: string; startDate?: Date | null; durationDays?: number | null } = {},
+  opts: { title?: string; startDate?: Date | null; deadline?: Date | null } = {},
 ): Promise<number> {
   const res = await api.projects.createTask({
     body: {
       projectId,
       title: opts.title ?? fake.quickTaskTitle(),
       startDate: opts.startDate ?? null,
-      durationDays: opts.durationDays ?? null,
+      deadline: opts.deadline ?? null,
     },
   })
   expect(res.status, JSON.stringify(res.body)).toBe(200)
@@ -78,13 +78,16 @@ const placed = (s: Awaited<ReturnType<typeof schedule>>, id: number) =>
 const ymd = (d: string | Date) => new Date(d).toISOString().slice(0, 10)
 
 test.describe('Work item scheduling and dependencies', () => {
-  test('a task with a start date and duration is placed on those dates; a bare task falls back to the project origin', async ({
+  test('a task with a start date and deadline is placed on those dates; one with only a deadline starts at the project origin', async ({
     baseUrl,
   }) => {
     const api = createApiClient(baseUrl, readAdminToken(baseUrl))
     const projectId = await makeProject(api, { startDate: day('2026-03-02') })
-    const pinned = await addTask(api, projectId, { startDate: day('2026-03-10'), durationDays: 5 })
-    const bare = await addTask(api, projectId, { durationDays: 3 })
+    const pinned = await addTask(api, projectId, {
+      startDate: day('2026-03-10'),
+      deadline: day('2026-03-14'),
+    })
+    const bare = await addTask(api, projectId, { deadline: day('2026-03-04') })
 
     const s = await schedule(api, projectId)
     expect(ymd(placed(s, pinned).start)).toBe('2026-03-10')
@@ -101,7 +104,10 @@ test.describe('Work item scheduling and dependencies', () => {
     const api = createApiClient(baseUrl, readAdminToken(baseUrl))
     // No project start date, so the origin is today — and the task is pinned well before it.
     const projectId = await makeProject(api)
-    const past = await addTask(api, projectId, { startDate: day('2020-01-06'), durationDays: 4 })
+    const past = await addTask(api, projectId, {
+      startDate: day('2020-01-06'),
+      deadline: day('2020-01-09'),
+    })
 
     const s = await schedule(api, projectId)
     expect(ymd(placed(s, past).start)).toBe('2020-01-06')
@@ -115,9 +121,12 @@ test.describe('Work item scheduling and dependencies', () => {
     const api = createApiClient(baseUrl, readAdminToken(baseUrl))
     const projectId = await makeProject(api, { startDate: day('2026-06-01') })
     // prep → event(anchor) → followUp. followUp finishes last but only trails the event.
-    const prep = await addTask(api, projectId, { startDate: day('2026-06-01'), durationDays: 5 })
-    const event = await addTask(api, projectId, { durationDays: 1 })
-    const followUp = await addTask(api, projectId, { durationDays: 10 })
+    const prep = await addTask(api, projectId, {
+      startDate: day('2026-06-01'),
+      deadline: day('2026-06-05'),
+    })
+    const event = await addTask(api, projectId)
+    const followUp = await addTask(api, projectId, { deadline: day('2026-06-20') })
     for (const [p, s] of [
       [prep, event],
       [event, followUp],
@@ -148,8 +157,11 @@ test.describe('Work item scheduling and dependencies', () => {
   }) => {
     const api = createApiClient(baseUrl, readAdminToken(baseUrl))
     const projectId = await makeProject(api, { startDate: day('2026-04-01') })
-    const a = await addTask(api, projectId, { startDate: day('2026-04-01'), durationDays: 5 })
-    const b = await addTask(api, projectId, { durationDays: 2 })
+    const a = await addTask(api, projectId, {
+      startDate: day('2026-04-01'),
+      deadline: day('2026-04-05'),
+    })
+    const b = await addTask(api, projectId)
 
     const link = await api.dependencies.add({
       body: { predecessorId: a, successorId: b, lagDays: 0 },
@@ -161,9 +173,9 @@ test.describe('Work item scheduling and dependencies', () => {
     expect(ymd(placed(s, b).start)).toBe('2026-04-06')
     expect(placed(s, b).isDerived).toBe(true)
 
-    // Extend A by two days → B follows.
+    // Move A's deadline two days later → B follows.
     const upd = await api.projects.updateTask({
-      body: { projectId, taskId: a, data: { durationDays: 7 } },
+      body: { projectId, taskId: a, data: { deadline: day('2026-04-07') } },
     })
     expect(upd.status, JSON.stringify(upd.body)).toBe(200)
 
@@ -175,8 +187,11 @@ test.describe('Work item scheduling and dependencies', () => {
   test('a lag adds days between predecessor and successor', async ({ baseUrl }) => {
     const api = createApiClient(baseUrl, readAdminToken(baseUrl))
     const projectId = await makeProject(api, { startDate: day('2026-05-01') })
-    const a = await addTask(api, projectId, { startDate: day('2026-05-01'), durationDays: 3 })
-    const b = await addTask(api, projectId, { durationDays: 2 })
+    const a = await addTask(api, projectId, {
+      startDate: day('2026-05-01'),
+      deadline: day('2026-05-03'),
+    })
+    const b = await addTask(api, projectId)
 
     await api.dependencies.add({ body: { predecessorId: a, successorId: b, lagDays: 2 } })
 
@@ -190,8 +205,14 @@ test.describe('Work item scheduling and dependencies', () => {
   }) => {
     const api = createApiClient(baseUrl, readAdminToken(baseUrl))
     const projectId = await makeProject(api, { startDate: day('2026-06-01') })
-    const a = await addTask(api, projectId, { startDate: day('2026-06-01'), durationDays: 10 })
-    const b = await addTask(api, projectId, { startDate: day('2026-06-05'), durationDays: 2 })
+    const a = await addTask(api, projectId, {
+      startDate: day('2026-06-01'),
+      deadline: day('2026-06-10'),
+    })
+    const b = await addTask(api, projectId, {
+      startDate: day('2026-06-05'),
+      deadline: day('2026-06-06'),
+    })
 
     await api.dependencies.add({ body: { predecessorId: a, successorId: b, lagDays: 0 } })
 
@@ -244,9 +265,12 @@ test.describe('Work item scheduling and dependencies', () => {
   }) => {
     const api = createApiClient(baseUrl, readAdminToken(baseUrl))
     const projectId = await makeProject(api, { startDate: day('2026-08-01') })
-    const a = await addTask(api, projectId, { startDate: day('2026-08-01'), durationDays: 4 })
-    const b = await addTask(api, projectId, { durationDays: 2 })
-    const c = await addTask(api, projectId, { durationDays: 2 })
+    const a = await addTask(api, projectId, {
+      startDate: day('2026-08-01'),
+      deadline: day('2026-08-04'),
+    })
+    const b = await addTask(api, projectId, { deadline: day('2026-08-06') })
+    const c = await addTask(api, projectId)
 
     await api.dependencies.add({ body: { predecessorId: a, successorId: b, lagDays: 0 } })
     await api.dependencies.add({ body: { predecessorId: b, successorId: c, lagDays: 0 } })
@@ -263,22 +287,21 @@ test.describe('Work item scheduling and dependencies', () => {
     expect(ymd(placed(s, c).start)).toBe('2026-08-01')
   })
 
-  test('a task whose computed end runs past its deadline is flagged', async ({ baseUrl }) => {
+  test('a task that cannot start until after its deadline is flagged', async ({ baseUrl }) => {
     const api = createApiClient(baseUrl, readAdminToken(baseUrl))
     const projectId = await makeProject(api, { startDate: day('2026-09-01') })
-    const res = await api.projects.createTask({
-      body: {
-        projectId,
-        title: 'Tight task',
-        startDate: day('2026-09-01'),
-        durationDays: 10,
-        deadline: day('2026-09-05'),
-      },
+    const before = await addTask(api, projectId, {
+      startDate: day('2026-09-01'),
+      deadline: day('2026-09-10'),
     })
-    expect(res.status).toBe(200)
-    const taskId = (res.body as { id: number }).id
+    const taskId = await addTask(api, projectId, {
+      title: 'Tight task',
+      deadline: day('2026-09-05'),
+    })
+    await api.dependencies.add({ body: { predecessorId: before, successorId: taskId } })
 
     const s = await schedule(api, projectId)
+    expect(ymd(placed(s, taskId).start)).toBe('2026-09-11')
     expect(placed(s, taskId).breachesDeadline).toBe(true)
   })
 
@@ -311,7 +334,7 @@ test.describe('Work item scheduling and dependencies', () => {
     await addTask(api, projectId, {
       title: 'Dated task',
       startDate: day('2026-11-03'),
-      durationDays: 4,
+      deadline: day('2026-11-06'),
     })
     await addTask(api, projectId, { title: 'Floating task' })
 
@@ -333,9 +356,9 @@ test.describe('Work item scheduling and dependencies', () => {
     const a = await addTask(api, projectId, {
       title: 'First',
       startDate: day('2026-12-01'),
-      durationDays: 3,
+      deadline: day('2026-12-03'),
     })
-    const b = await addTask(api, projectId, { title: 'Second', durationDays: 2 })
+    const b = await addTask(api, projectId, { title: 'Second' })
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}/tasks/${b}`)
     await adminPage.getByLabel('Add a dependency').selectOption({ label: 'First' })
@@ -353,8 +376,11 @@ test.describe('Work item scheduling and dependencies', () => {
   }) => {
     const api = createApiClient(baseUrl, readAdminToken(baseUrl))
     const projectId = await makeProject(api, { startDate: day('2027-01-04') })
-    const a = await addTask(api, projectId, { startDate: day('2027-01-04'), durationDays: 3 })
-    const b = await addTask(api, projectId, { durationDays: 2 })
+    const a = await addTask(api, projectId, {
+      startDate: day('2027-01-04'),
+      deadline: day('2027-01-06'),
+    })
+    const b = await addTask(api, projectId)
     await api.dependencies.add({ body: { predecessorId: a, successorId: b, lagDays: 0 } })
 
     // Following A, B starts 01-07.
@@ -363,7 +389,7 @@ test.describe('Work item scheduling and dependencies', () => {
 
     // Pin B far out.
     const pin = await api.schedule.rescheduleItems({
-      body: { items: [{ id: b, startDate: day('2027-02-01'), durationDays: 2 }] },
+      body: { items: [{ id: b, startDate: day('2027-02-01'), deadline: day('2027-02-02') }] },
     })
     expect(pin.status, JSON.stringify(pin.body)).toBe(200)
     s = await schedule(api, projectId)
@@ -385,12 +411,12 @@ test.describe('Work item scheduling and dependencies', () => {
   }) => {
     const admin = createApiClient(baseUrl, readAdminToken(baseUrl))
     const projectId = await makeProject(admin, { startDate: day('2027-03-01') })
-    const t = await addTask(admin, projectId, { durationDays: 2 })
+    const t = await addTask(admin, projectId)
 
     const bystander = await createApprovedVolunteer(baseUrl)
     const outsider = createApiClient(baseUrl, bystander.token)
     const res = await outsider.schedule.rescheduleItems({
-      body: { items: [{ id: t, startDate: day('2027-03-05'), durationDays: 2 }] },
+      body: { items: [{ id: t, startDate: day('2027-03-05'), deadline: day('2027-03-06') }] },
     })
     expect(res.status).toBe(403)
   })
@@ -400,7 +426,8 @@ test.describe('Work item scheduling and dependencies', () => {
   }) => {
     const api = createApiClient(baseUrl, readAdminToken(baseUrl))
     const a = await makeProject(api, { startDate: day('2027-05-01') })
-    await addTask(api, a, { durationDays: 5 }) // follows A's start → 05-01..05-05, so A spans 5 days
+    // 05-01..05-05, so A spans 5 days.
+    await addTask(api, a, { startDate: day('2027-05-01'), deadline: day('2027-05-05') })
     const b = await makeProject(api)
 
     const link = await api.dependencies.add({
@@ -452,7 +479,7 @@ test.describe('Work item scheduling and dependencies', () => {
     await addTask(api, projectId, {
       title: 'Panel task',
       startDate: day('2027-04-06'),
-      durationDays: 3,
+      deadline: day('2027-04-08'),
     })
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}`)
@@ -473,7 +500,7 @@ test.describe('Work item scheduling and dependencies', () => {
     await addTask(api, projectId, {
       title: 'Visible task',
       startDate: day('2027-05-04'),
-      durationDays: 4,
+      deadline: day('2027-05-07'),
     })
 
     // The hash opens the tab directly, without a click.
@@ -506,8 +533,8 @@ test.describe('Work item scheduling and dependencies', () => {
     const panel = adminPage.getByRole('complementary')
     await expect(panel.getByRole('heading', { name: 'Visible task' })).toBeVisible()
     // Every editing affordance the panel owns is reachable for a manager.
-    await expect(panel.getByLabel('From', { exact: true })).toBeVisible()
-    await expect(panel.getByLabel('Days', { exact: true })).toBeVisible()
+    await expect(panel.getByLabel('Start (optional)', { exact: true })).toBeVisible()
+    await expect(panel.getByLabel('Deadline', { exact: true })).toBeVisible()
     await expect(panel.getByRole('checkbox', { name: /Key date/ })).toBeVisible()
     await expect(panel.getByRole('button', { name: 'Save' })).toBeVisible()
     await expect(panel.getByRole('link', { name: 'Open task' })).toBeVisible()
@@ -528,7 +555,7 @@ test.describe('Work item scheduling and dependencies', () => {
     await addTask(api, projectId, {
       title: 'Anchor me',
       startDate: day('2027-06-08'),
-      durationDays: 2,
+      deadline: day('2027-06-09'),
     })
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}#timeline`)
@@ -591,7 +618,7 @@ test.describe('Work item scheduling and dependencies', () => {
     await addTask(api, projectId, {
       title: 'Hover me',
       startDate: day('2027-07-06'),
-      durationDays: 2,
+      deadline: day('2027-07-07'),
     })
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}#timeline`)

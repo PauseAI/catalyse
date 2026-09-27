@@ -185,7 +185,6 @@ describe('task detail page', () => {
       estimatedHours: 2,
       deadline: new Date('2030-01-01T00:00:00Z'),
       startDate: new Date('2029-12-01T00:00:00Z'),
-      durationDays: 1,
       sortOrder: 3,
     })
     await prisma.workItemDependency.create({
@@ -217,12 +216,9 @@ describe('task detail page', () => {
       'href',
       `/projects/${project.id}`,
     )
-    // When, Deadline and Who, in the words the Dates block uses.
+    // When and Who, in the words the Dates block uses: the window ends on the deadline.
     expect(screen.getByText('When').nextSibling).toHaveTextContent(
-      '1 Dec 2029Any time that day, about 2 hours of work',
-    )
-    expect(screen.getByText('Deadline').nextSibling).toHaveTextContent(
-      '1 Jan 2030 · 31 days to spare',
+      /^1 Dec 2029 – 1 Jan 2030Any time in this window, about 2 hours of work$/,
     )
     expect(screen.getByText('Who').nextSibling).toHaveTextContent('Nobody yet')
     expect(screen.getByRole('link', { name: 'Predecessor' })).toBeInTheDocument()
@@ -254,13 +250,12 @@ describe('task detail page', () => {
     await userEvent.type(title, 'Renamed task')
     await userEvent.clear(screen.getByLabelText('Description'))
     await userEvent.clear(screen.getByLabelText('Effort (hours of work)'))
-    fireEvent.change(screen.getByLabelText('Deadline (optional)'), { target: { value: '' } })
-    fireEvent.change(screen.getByLabelText('From'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('Deadline'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('Start (optional)'), { target: { value: '' } })
     expect(screen.getByText(/Starts when “Predecessor” finishes/)).toBeInTheDocument()
-    await userEvent.clear(screen.getByLabelText('Days'))
-    // On set dates there is no deadline to set: the dates are the commitment.
+    // On set dates the deadline reads as the last day.
     await userEvent.click(screen.getByRole('radio', { name: /On set dates/ }))
-    expect(screen.queryByLabelText('Deadline (optional)')).toBeNull()
+    expect(screen.getByLabelText('To')).toHaveValue('')
     await userEvent.click(screen.getByRole('checkbox', { name: /quick task/i }))
     fireEvent.submit(title.closest('form')!)
     await screen.findByText('Task updated!')
@@ -437,10 +432,9 @@ describe('task detail page — past plan', () => {
       status: 'in_progress',
       assigneeId: sam.id,
       startDate: addDays(today, -7),
-      durationDays: 5,
-      deadline: addDays(today, -1),
+      deadline: addDays(today, -3),
     })
-    const next = await createTask(project.id, { title: 'Print flyers', durationDays: 2 })
+    const next = await createTask(project.id, { title: 'Print flyers' })
     // Pinned to today, so a later end leaves it starting too early.
     const pinned = await createTask(project.id, { title: 'Set up stall', startDate: today })
     // The event, pinned tomorrow: a later end runs the prep past it.
@@ -475,9 +469,8 @@ describe('task detail page — past plan', () => {
     const dialog = await screen.findByRole('dialog')
     // The default is a day from today; the preview names what moves with it.
     await within(dialog).findByText(/‘Print flyers’ moves \d+ days? later/)
-    expect(within(dialog).getByText(/after the task’s deadline/)).toBeInTheDocument()
     await userEvent.click(within(dialog).getByRole('button', { name: '+1 week' }))
-    expect(within(dialog).getByLabelText('New planned end')).toHaveValue(
+    expect(within(dialog).getByLabelText('New deadline')).toHaveValue(
       toDateInputValue(addDays(today, 7)),
     )
     // The bar keeps its length and moves; a blank length disables the save.
@@ -487,7 +480,7 @@ describe('task detail page — past plan', () => {
     fireEvent.submit(within(dialog).getByLabelText('Days').closest('form')!)
     fireEvent.change(within(dialog).getByLabelText('Days'), { target: { value: '5' } })
     // A date typed by hand moves the start with it.
-    fireEvent.change(within(dialog).getByLabelText('New planned end'), {
+    fireEvent.change(within(dialog).getByLabelText('New deadline'), {
       target: { value: toDateInputValue(addDays(today, 10)) },
     })
     expect(within(dialog).getByText(/so it starts/)).toHaveTextContent(
@@ -504,7 +497,11 @@ describe('task detail page — past plan', () => {
     await screen.findByText(/^Replanned\. 'Book venue' now finishes/)
     await screen.findByText(/^Replanned by .*: venue$/)
     await waitFor(async () =>
-      expect(await row(late.id)).toMatchObject({ startDate: addDays(today, -1), durationDays: 5 }),
+      expect(await row(late.id)).toMatchObject({
+        startDate: addDays(today, -1),
+        deadline: addDays(today, 3),
+        durationDays: null,
+      }),
     )
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Past plan' })).toBeNull())
   })

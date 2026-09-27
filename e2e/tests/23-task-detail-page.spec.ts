@@ -114,7 +114,7 @@ test.describe('Task Detail Page', () => {
     await adminPage.getByLabel('Task title').fill('Edited title')
     await adminPage.getByLabel('Description').fill('Edited description')
     await adminPage.getByLabel('Effort (hours of work)').fill('4')
-    await adminPage.getByLabel('Deadline (optional)').fill('2099-01-01')
+    await adminPage.getByLabel('Deadline', { exact: true }).fill('2099-01-01')
     await adminPage.getByRole('button', { name: 'Save Changes' }).click()
 
     await expect(getAlert(adminPage)).toContainText('Task updated!', { timeout: 10_000 })
