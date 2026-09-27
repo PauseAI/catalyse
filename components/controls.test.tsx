@@ -11,6 +11,7 @@ import FilterDropdown, { useFilterOptions, type FilterOption } from './FilterDro
 import { renderApp } from '@/test/render'
 import { createVolunteer } from '@/test/factories'
 import { prisma } from '@/lib/prisma'
+import { navigation } from '@/test/next-navigation'
 
 function mockMatchMedia(dark: boolean) {
   const listeners = new Set<() => void>()
@@ -142,6 +143,39 @@ describe('FloatingActions', () => {
     expect(screen.queryByText('✓')).toBeNull()
     expect(screen.queryByLabelText('Report a bug or give feedback')).toBeNull()
     vi.unstubAllEnvs()
+  })
+
+  it('lets an admin switch between the admin and volunteer views', async () => {
+    mockMatchMedia(false)
+    const admin = await createVolunteer({ isAdmin: true })
+    await renderApp(
+      <ThemeProvider>
+        <FloatingActions />
+      </ThemeProvider>,
+      { as: admin, url: '/admin' },
+    )
+    await userEvent.click(await screen.findByRole('button', { name: 'Viewing as admin' }))
+    const toVolunteer = await screen.findByRole('button', { name: 'Viewing as volunteer' })
+    expect(toVolunteer).toHaveAttribute('aria-pressed', 'true')
+    expect(localStorage.getItem('viewAs')).toBe('volunteer')
+    expect(navigation.push).toHaveBeenCalledWith('/dashboard')
+
+    await userEvent.click(toVolunteer)
+    expect(await screen.findByRole('button', { name: 'Viewing as admin' })).toBeEnabled()
+    expect(localStorage.getItem('viewAs')).toBeNull()
+    expect(navigation.push).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers no view switch to a volunteer', async () => {
+    mockMatchMedia(false)
+    await renderApp(
+      <ThemeProvider>
+        <FloatingActions />
+      </ThemeProvider>,
+      { as: await createVolunteer() },
+    )
+    await screen.findByLabelText('Report a bug or give feedback')
+    expect(screen.queryByRole('button', { name: /^Viewing as/ })).toBeNull()
   })
 })
 

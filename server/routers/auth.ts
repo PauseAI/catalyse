@@ -400,7 +400,7 @@ export const authRouter = {
       },
     })
     if (!vol) throw new ORPCError('NOT_FOUND')
-    return redactVolunteer(vol, {
+    const me = redactVolunteer(vol, {
       showContact: true,
       skills: vol.skills.map((vs) => ({
         id: vs.skill.id,
@@ -418,6 +418,11 @@ export const authRouter = {
         skillName: se.skill.name,
       })),
     })
+    const { viewingAsVolunteer } = context
+    // Super admin is decided by email address, so it has to be withdrawn here explicitly.
+    return viewingAsVolunteer
+      ? { ...me, isAdmin: false, isSuperAdmin: false, viewingAsVolunteer }
+      : { ...me, viewingAsVolunteer }
   }),
 
   changePassword: authedProcedure

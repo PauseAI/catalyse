@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ThemeToggle } from './ThemeToggle'
+import { ViewAsToggle } from './ViewAsToggle'
 import BugReportDialog from './BugReportDialog'
 import Button from '@/components/Button'
 import { useToast } from '@/lib/toast'
@@ -16,6 +17,7 @@ export default function FloatingActions() {
     <>
       <div className="fixed right-6 bottom-4 z-[200] hidden xl:flex items-center bg-surface border border-brand-border rounded-lg shadow-lg overflow-hidden">
         <ThemeToggle icon={false} className="rounded-none self-stretch" />
+        <ViewAsToggle className="rounded-none self-stretch" />
         {process.env.NODE_ENV === 'development' && (
           <>
             <Button

@@ -11,7 +11,10 @@ import { appRouter } from '@/server/router'
 export function clientAs(volunteer: Volunteer | null, extra: Partial<Context> = {}) {
   const request = extra.request ?? new Request('http://localhost/api/rpc')
   const token = 'token' in extra ? (extra.token ?? null) : volunteer ? 'test-token' : null
-  return createRouterClient(appRouter, { context: { volunteer, token, request } })
+  const viewingAsVolunteer = extra.viewingAsVolunteer ?? false
+  return createRouterClient(appRouter, {
+    context: { volunteer, viewingAsVolunteer, token, request },
+  })
 }
 
 export const anon = () => clientAs(null)

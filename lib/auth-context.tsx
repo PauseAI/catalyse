@@ -10,6 +10,8 @@ interface User {
   name: string
   isAdmin: boolean
   isSuperAdmin: boolean
+  /** An admin browsing as a volunteer: `isAdmin` and `isSuperAdmin` read false meanwhile. */
+  viewingAsVolunteer: boolean
   approvalStatus: string
   emailConfirmed: boolean
   hasPassword: boolean
