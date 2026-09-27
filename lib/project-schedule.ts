@@ -291,5 +291,6 @@ export async function pastPlanTasks(
       })
     }
   }
-  return found
+  // The most overdue first: that is the one the owner should look at.
+  return found.sort((a, b) => b.daysPast - a.daysPast)
 }

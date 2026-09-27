@@ -2,7 +2,7 @@ import { Badge } from '@/components/Badge'
 import { formatDateShort } from '@/lib/format-date'
 import { isOverdue } from '@/lib/overdue'
 
-/** "Deadline 30 Sept 2026", with an Overdue badge once it has passed and the work is not done. */
+/** "Deadline 30 Sept 2026", with an Overdue badge once it has passed and the work is not handed in. */
 export default function DeadlineChip({
   deadline,
   done,

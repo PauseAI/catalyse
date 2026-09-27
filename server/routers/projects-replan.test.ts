@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import { createVolunteer, createAdmin, createProject, createTask } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
@@ -47,6 +47,13 @@ async function setup() {
 
 const notes = (volunteerId: number, type: string) =>
   prisma.notification.findMany({ where: { volunteerId, type } })
+// The row is written after the response, so a read straight after the call waits for it.
+const firstNote = (volunteerId: number, type: string) =>
+  vi.waitFor(async () => {
+    const [note] = await notes(volunteerId, type)
+    expect(note).toBeDefined()
+    return note
+  })
 
 describe('a task past its plan', () => {
   it('shows the days past plan on the task, the task list and Home', async () => {
@@ -64,8 +71,8 @@ describe('a task past its plan', () => {
     const home = await clientAs(owner).dashboard.get()
     expect(home.attention[0]).toMatchObject({
       kind: 'past_plan',
-      title: '"Book venue" is 3 days past plan',
-      detail: 'Assignee: Sam, last update 0 days ago. Replan, reassign or release.',
+      title: `"Book venue" in ${project.title} is 3 days past plan`,
+      detail: 'Assignee: Sam, last update 0 days ago. Replan, reassign or unassign.',
       href: `/projects/${project.id}/tasks/${late.id}`,
     })
     const mine = (await clientAs(sam).dashboard.get()).work
@@ -94,14 +101,6 @@ describe('a task past its plan', () => {
     await expect(
       clientAs(owner).projects.replanTask({
         projectId: project.id,
-        taskId: late.id,
-        newEnd: addDays(today, -30),
-        reason: 'too early',
-      }),
-    ).rejects.toMatchObject({ message: 'The new end is before the task starts' })
-    await expect(
-      clientAs(owner).projects.replanTask({
-        projectId: project.id,
         taskId: 999_999,
         newEnd,
         reason: 'gone',
@@ -123,9 +122,10 @@ describe('a task past its plan', () => {
       reason: 'waiting on the venue',
     })
     expect(result).toEqual({ message: 'Task replanned', moved: 1 })
+    // The bar keeps its five days and moves to end on the new date.
     expect(await prisma.workItem.findUniqueOrThrow({ where: { id: late.id } })).toMatchObject({
-      startDate: addDays(today, -7),
-      durationDays: 10,
+      startDate: addDays(newEnd, -4),
+      durationDays: 5,
       deadline: null,
     })
     const comment = await prisma.workItemComment.findFirstOrThrow({
@@ -133,10 +133,10 @@ describe('a task past its plan', () => {
     })
     expect(comment.content).toBe('Replanned by Dee (deputy): waiting on the venue')
     expect(await notes(owner.id, 'task_needs_decision')).toHaveLength(0)
-    expect((await notes(sam.id, 'task_replanned'))[0]).toMatchObject({
+    expect(await firstNote(sam.id, 'task_replanned')).toMatchObject({
       body: 'waiting on the venue',
     })
-    expect((await notes(pat.id, 'plan_moved'))[0].title).toMatch(
+    expect((await firstNote(pat.id, 'plan_moved')).title).toMatch(
       /^'Print flyers' now starts .* because 'Book venue' was replanned$/,
     )
     expect(
@@ -146,7 +146,7 @@ describe('a task past its plan', () => {
     void next
   })
 
-  it('tells nobody about their own replan, and starts an undated task today', async () => {
+  it('tells nobody about their own replan; an undated task gets a day, a follower is pinned', async () => {
     const owner = await createVolunteer()
     const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
     const loose = await createTask(project.id, { title: 'Loose', assigneeId: owner.id })
@@ -157,12 +157,13 @@ describe('a task past its plan', () => {
       reason: 'giving it a date',
     })
     expect(await prisma.workItem.findUniqueOrThrow({ where: { id: loose.id } })).toMatchObject({
-      startDate: today,
-      durationDays: 4,
+      startDate: addDays(today, 3),
+      durationDays: 1,
     })
     expect(await notes(owner.id, 'task_replanned')).toHaveLength(0)
 
-    // A task that only follows another keeps following and just lengthens.
+    // A task that only followed another is given a start of its own, and a new length when
+    // the owner says the work is bigger.
     const after = await createTask(project.id, { title: 'After' })
     await prisma.workItemDependency.create({
       data: { predecessorId: loose.id, successorId: after.id },
@@ -171,10 +172,11 @@ describe('a task past its plan', () => {
       projectId: project.id,
       taskId: after.id,
       newEnd: addDays(today, 6),
+      durationDays: 3,
       reason: 'longer',
     })
     expect(await prisma.workItem.findUniqueOrThrow({ where: { id: after.id } })).toMatchObject({
-      startDate: null,
+      startDate: addDays(today, 4),
       durationDays: 3,
     })
   })
@@ -187,7 +189,7 @@ describe('a task past its plan', () => {
       taskId: late.id,
       assigneeId: pat.id,
     })
-    expect((await notes(sam.id, 'task_reassigned'))[0].title).toBe(
+    expect((await firstNote(sam.id, 'task_reassigned')).title).toBe(
       "'Book venue' has been handed to someone else",
     )
     // Assigning to whoever already has it tells nobody.
@@ -203,6 +205,6 @@ describe('a task past its plan', () => {
       taskId: late.id,
       data: { status: 'open' },
     })
-    expect((await notes(pat.id, 'task_released'))[0].title).toBe("'Book venue' is open again")
+    expect((await firstNote(pat.id, 'task_released')).title).toBe("'Book venue' is open again")
   })
 })

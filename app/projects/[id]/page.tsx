@@ -10,7 +10,7 @@ import Button from '@/components/Button'
 import Checkbox from '@/components/Checkbox'
 import DatesBlock from '@/components/DatesBlock'
 import { plural } from '@/lib/plural'
-import { isOverdue as deadlinePassed } from '@/lib/overdue'
+import { handedIn, isOverdue as deadlinePassed } from '@/lib/overdue'
 import { KEY_DATE_SIDE_LABELS, bySide, keyDateSides } from '@/lib/key-date'
 import { EMPTY_DATES, datesPayload, datesValueFrom, type DatesValue } from '@/lib/task-dates'
 import { Badge } from '@/components/Badge'
@@ -384,13 +384,13 @@ function TaskTimeline({
   const titleById = new Map(timeline.tasks.map((t) => [t.id, t.title]))
 
   const scheduledRows: GanttRowData[] = []
-  const unscheduled: { id: number; title: string }[] = []
+  const unscheduled: { id: number; title: string; deadline: Date | null }[] = []
   for (const task of timeline.tasks) {
     const isUnscheduled =
       task.startDate === null && task.durationDays === null && !hasPredecessor.has(task.id)
     const placement = placementById.get(task.id)
     if (isUnscheduled || !placement) {
-      unscheduled.push({ id: task.id, title: task.title })
+      unscheduled.push({ id: task.id, title: task.title, deadline: task.deadline })
     } else {
       scheduledRows.push({
         id: task.id,
@@ -438,7 +438,7 @@ function TaskTimeline({
           happens — or set a start date on an individual task from its own page.
         </p>
       ) : (
-        <div className="flex flex-col gap-4 lg:flex-row">
+        <div className="flex flex-col gap-4 xl:flex-row">
           <div className="min-w-0 flex-1">
             <GanttChart
               rows={bySide(scheduledRows, keyDateSides(timeline.tasks, timeline.dependencies))}
@@ -471,10 +471,12 @@ function TaskTimeline({
             />
           </div>
 
-          {/* Sticky so the panel stays beside the bars on a long chart rather than scrolling off
-              the top; it gets its own scrollbar if the contents outgrow the viewport. */}
+          {/* Beside the bars only where the middle column can spare its width; narrower than
+              that the chart keeps the column and the panel sits under it. Sticky so the panel
+              stays beside a long chart rather than scrolling off the top, with its own scrollbar
+              if the contents outgrow the viewport. */}
           {selectedRow && selectedTask && (
-            <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:w-96 lg:shrink-0 lg:self-start lg:overflow-y-auto">
+            <div className="xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:w-96 xl:shrink-0 xl:self-start xl:overflow-y-auto">
               <GanttItemPanel
                 row={selectedRow}
                 dates={datesValueFrom(selectedTask)}
@@ -592,7 +594,7 @@ function TaskTimeline({
           <p className="text-text-light mt-0 mb-2 text-xs">
             {canManage
               ? 'Adding a task puts a one-day bar on the first day of the plan and sets that as its start date. Drag it to when it happens, drag its edge to set how long it takes, and drag the circle at its end onto whatever follows it.'
-              : 'These tasks have no dates yet, so they are not on the timeline.'}
+              : 'These tasks have no start date, so they are not on the timeline.'}
           </p>
           <ul className="m-0 flex flex-wrap gap-2 p-0">
             {unscheduled.map((t) => (
@@ -603,6 +605,11 @@ function TaskTimeline({
                 <Link href={`/projects/${projectId}/tasks/${t.id}`} className="hover:underline">
                   {t.title}
                 </Link>
+                {t.deadline && (
+                  <span className="text-text-light ml-1 text-xs whitespace-nowrap">
+                    Deadline {formatDateShort(t.deadline)}
+                  </span>
+                )}
                 {canManage && (
                   <button
                     type="button"
@@ -1890,10 +1897,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                       >
                         <ul className="list-none p-0 m-0">
                           {orderedTasks.map((task) => {
-                            const isOverdue = deadlinePassed(
-                              task.deadline,
-                              task.status === TaskStatus.completed,
-                            )
+                            const isOverdue = deadlinePassed(task.deadline, handedIn(task.status))
                             const canAssign =
                               canRunTasks &&
                               task.status !== TaskStatus.completed &&

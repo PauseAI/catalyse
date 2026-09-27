@@ -33,6 +33,7 @@ import {
   loadProjectEdges,
   scheduleProjectsByIds,
 } from '@/lib/project-schedule'
+import { startOfUtcDay } from '@/lib/schedule'
 import { notifyMatchingVolunteers } from '@/lib/project-match-notify'
 import { html } from '@/lib/email'
 import { formatDateShort } from '@/lib/format-date'
@@ -1850,6 +1851,7 @@ export const projectsRouter = {
       })
 
       const { schedule, origin } = await loadProjectTaskSchedule(project, tasks)
+      const today = startOfUtcDay(new Date())
 
       // Loaded here with the row id so the timeline panel can edit/remove links directly.
       const dependencyRows = await prisma.workItemDependency.findMany({
@@ -1874,7 +1876,9 @@ export const projectsRouter = {
         // no pinned start. A task pinned earlier than that still has to fit on the axis, so the
         // scope runs from whichever comes first.
         scopeStart: schedule.start.getTime() < origin.getTime() ? schedule.start : origin,
-        scopeEnd: schedule.end,
+        // A plan that ended before today still has to show today, so the Today line and the
+        // work still running past its bars stay on the axis.
+        scopeEnd: schedule.end.getTime() < today.getTime() ? today : schedule.end,
         // Sent so the client can recompute this exact schedule while a drag is in flight.
         scopeOrigin: origin,
         projectDeadline: project.deadline,
@@ -2642,6 +2646,8 @@ export const projectsRouter = {
         projectId: z.number().int(),
         taskId: z.number().int(),
         newEnd: z.coerce.date(),
+        /** Only when the work turned out bigger or smaller; the length is kept otherwise. */
+        durationDays: z.number().int().min(0).max(3650).optional(),
         reason: z.string().trim().min(1, { message: 'Say why the plan is changing' }).max(500),
       }),
     )
@@ -2665,18 +2671,8 @@ export const projectsRouter = {
       const task = tasks.find((t) => t.id === input.taskId)
       if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
 
-      const { schedule, edges, origin } = await loadProjectTaskSchedule(project, tasks)
-      // A task with no dates sits at the plan's start only as a placeholder; it has no start
-      // of its own to keep, so replanning starts it today.
-      const dated =
-        task.startDate !== null ||
-        task.durationDays !== null ||
-        edges.some((e) => e.successorId === task.id)
-      const placed = dated ? (schedule.byId.get(task.id)?.start ?? null) : null
-      const write = replanWrite({ startDate: task.startDate, placedStart: placed }, input.newEnd)
-      if (!write) {
-        throw new ORPCError('BAD_REQUEST', { message: 'The new end is before the task starts' })
-      }
+      const { edges, origin } = await loadProjectTaskSchedule(project, tasks)
+      const write = replanWrite(task, input.newEnd, input.durationDays)
       const preview = previewReplan(tasks.map(toScheduleInput), edges, origin, task.id, write)
 
       const data: Record<string, unknown> = { updatedAt: new Date() }

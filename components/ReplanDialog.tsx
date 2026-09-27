@@ -37,6 +37,8 @@ export default function ReplanDialog({
   const showToast = useToast()
   const queryClient = useQueryClient()
   const [end, setEnd] = useState(toDateInputValue(steppedEnd(plannedEnd, REPLAN_STEPS[0].days)))
+  // Null until the owner types a length of their own; the task's own length stands until then.
+  const [daysDraft, setDaysDraft] = useState<string | null>(null)
   const [reason, setReason] = useState('')
 
   const { data: timeline } = useQuery(
@@ -45,16 +47,11 @@ export default function ReplanDialog({
 
   const newEnd = fromDateInputValue(end)
   const task = timeline?.tasks.find((t) => t.id === taskId)
-  const placed = timeline?.scheduled.find((s) => s.id === taskId)
+  const days = daysDraft ?? String(task?.durationDays ?? 1)
+  const daysValue = Number.parseInt(days, 10)
   const write =
-    newEnd && task
-      ? replanWrite(
-          {
-            startDate: task.startDate ? new Date(task.startDate) : null,
-            placedStart: placed ? new Date(placed.start) : null,
-          },
-          newEnd,
-        )
+    newEnd && task && Number.isInteger(daysValue) && daysValue >= 0
+      ? replanWrite(task, newEnd, daysValue)
       : null
 
   const preview =
@@ -76,6 +73,7 @@ export default function ReplanDialog({
       void queryClient.invalidateQueries({ queryKey: orpc.projects.getTask.key() })
       void queryClient.invalidateQueries({ queryKey: orpc.projects.listTasks.key() })
       void queryClient.invalidateQueries({ queryKey: orpc.projects.getById.key() })
+      void queryClient.invalidateQueries({ queryKey: orpc.workItemComments.list.key() })
       onClose()
     },
     onError: (err: unknown) =>
@@ -90,7 +88,13 @@ export default function ReplanDialog({
         onSubmit={(e) => {
           e.preventDefault()
           if (!newEnd || !write || !reason.trim()) return
-          replan.mutate({ projectId, taskId, newEnd, reason: reason.trim() })
+          replan.mutate({
+            projectId,
+            taskId,
+            newEnd,
+            durationDays: write.durationDays,
+            reason: reason.trim(),
+          })
         }}
       >
         <p className="mt-0">
@@ -132,13 +136,31 @@ export default function ReplanDialog({
         <p className="text-text-light mt-0 mb-3 text-xs">
           Counted from {formatDateShort(stepBase(plannedEnd))}, since the planned end has passed.
         </p>
-        {newEnd && task && !write && (
-          <p role="alert" className="text-error text-sm">
-            That is before the task starts.
-          </p>
-        )}
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <label htmlFor="replan-days">Days</label>
+          <input
+            id="replan-days"
+            type="number"
+            min={0}
+            max={3650}
+            value={days}
+            onChange={(e) => setDaysDraft(e.target.value)}
+            className="w-20"
+          />
+          {write && (
+            <span className="text-sm">
+              so it starts <strong>{formatDateShort(write.startDate)}</strong>
+            </span>
+          )}
+        </div>
+        <p className="text-text-light mt-0 mb-3 text-xs">
+          The bar moves and keeps its length. Change the days only if the work turned out bigger or
+          smaller.
+        </p>
 
-        <label htmlFor="replan-reason">Why is the plan changing?</label>
+        <label htmlFor="replan-reason" className="required">
+          Why is the plan changing?
+        </label>
         <input
           id="replan-reason"
           type="text"

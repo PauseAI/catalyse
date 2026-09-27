@@ -39,6 +39,12 @@ describe('quick tasks — volunteer view', () => {
       description: null,
       deadline: new Date('2020-01-02T00:00:00Z'),
     })
+    await createQuickTask({
+      title: 'Mine submitted',
+      assigneeId: me.id,
+      status: 'under_review',
+      deadline: new Date('2020-01-02T00:00:00Z'),
+    })
     const open = await createQuickTask({
       title: 'Open quick',
       skillId: skill.id,
@@ -63,12 +69,14 @@ describe('quick tasks — volunteer view', () => {
       within(within(myList).getByText(title).closest('[role=article]')!)
     expect(myCard('Mine in progress').getByRole('status')).toHaveTextContent('In progress')
     expect(myCard('Mine done').getByRole('status')).toHaveTextContent('Done')
-    // Overdue only while the work is not done.
+    // Overdue only while the work is not handed in: a task waiting for review is off the clock.
     expect(myCard('Mine in progress').getByText('Overdue')).toBeInTheDocument()
     expect(myCard('Mine done').getByText('Deadline 2 Jan 2020')).toBeInTheDocument()
     expect(myCard('Mine done').queryByText('Overdue')).toBeNull()
+    expect(myCard('Mine submitted').getByText('Deadline 2 Jan 2020')).toBeInTheDocument()
+    expect(myCard('Mine submitted').queryByText('Overdue')).toBeNull()
     // Opens on my own tasks; the open pool is the other tab.
-    expect(screen.getByRole('tab', { name: 'Mine (2)' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Mine (3)' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.queryByText('Browse Quick Tasks')).toBeNull()
     await userEvent.click(await screen.findByRole('tab', { name: 'Open (2)' }))
     const browse = screen.getByText('Browse Quick Tasks').closest('section')!

@@ -93,25 +93,25 @@ confusing than it needed to be, and that will do so again.
       a debugging round in R-06 and two more in R-08 (the owner's buttons, then the
       "waiting" count). `renderApp` could start each mount with an empty query cache, or
       `test/render.tsx` could say to use `findBy…` after a remount.
-- [ ] **Browser QA as several users at once has no working setup: pages on
-      `127.0.0.1:3000`, `[::1]:3000` or `*.localhost:3000` render blank under
-      `next dev`.** Separate hosts would give each account its own `localStorage`
-      token, but the dev server only hydrates `localhost`, so the Phase 2 QA fell
-      back to swapping `authToken` by hand in one tab. `allowedDevOrigins` in
-      `next.config.ts` (e.g. `['*.localhost']`) plus a line in `CLAUDE.local.md`
-      would give one tab per account.
 - [ ] **Seeded dev accounts are hidden from the directory, so they can't be
       invited to a project or sent a contact request.** `scripts/seed-dev-accounts.ts`
       sets `consent_make_profile_visible_in_directory` false, and the invite picker
       and Request contact both need it true; QA needed a hand-run `UPDATE`. The seed
       should set it true.
 
-- [ ] **A browser UX drive cannot start until a human logs in, because Claude may not type a
-      password and minting a session token from a script is refused as credential
-      materialization.** The Phase 3 review lost several turns finding this out before asking
-      the user. A development-only sign-in (a `?as=admin` route or button, gated on
-      `NODE_ENV === 'development'`) or a note in `CLAUDE.local.md` saying to ask up front would
-      remove the detour; a second role (owner and assignee at once) still needs two logins.
+- [ ] **Seeded dev accounts hold no project roles, so a two-role browser drive (owner and
+      assignee) starts with hand-run database edits.** The Phase 3 UX review spent several turns
+      giving `volunteer@example.com` a task by `UPDATE`, then hit "Task not found" because the
+      project is team- and country-scoped and a bare `assigneeId` grants no membership; a second
+      volunteer had no session token because `SEED_VOLUNTEERS` defaults to 1. The seed could put
+      each dev account on one live project (owner, deputy, assignee with an accepted interest and
+      a matching country) and `CLAUDE.local.md` could say which project that is.
+
+- [ ] **A hard navigation in the Claude-in-Chrome tab sometimes leaves the page unresponsive to
+      the extension (screenshots and scripts time out for minutes) while the server and renderer
+      are idle.** Three times in one review; each cost a tab-context reset and a fresh tab. A line
+      in `CLAUDE.local.md` saying to prefer in-app links over `navigate` and to open a fresh tab
+      after one timeout, rather than waiting or diagnosing the app, would save the detour.
 
 - [ ] **Component tests that pin a calendar date but not "today" rot as the calendar passes
       them.** `task-dates-ui.test.tsx` failed the day its 17 Sept 2026 deadline fell behind the

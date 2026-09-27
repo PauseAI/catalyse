@@ -297,7 +297,7 @@ async function attentionFor(viewer: Viewer): Promise<AttentionItem[]> {
   const decisions: AttentionItem[] = (await pastPlanTasks(led.map((p) => p.id))).map((t) => ({
     key: `past-plan-${t.id}`,
     kind: 'past_plan',
-    title: `"${t.title}" is ${plural(t.daysPast, 'day')} past plan`,
+    title: `"${t.title}" in ${t.projectTitle} is ${plural(t.daysPast, 'day')} past plan`,
     detail: pastPlanDetail(t),
     href: `/projects/${t.projectId}/tasks/${t.id}`,
     action: 'Decide',

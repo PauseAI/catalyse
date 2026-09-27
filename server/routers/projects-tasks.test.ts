@@ -8,6 +8,7 @@ import {
   createTeam,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
+import { startOfUtcDay } from '@/lib/schedule'
 import { emails } from '@/test/fakes/email'
 
 const task = (id: number) => prisma.workItem.findUniqueOrThrow({ where: { id } })
@@ -50,6 +51,8 @@ describe('projects.listTasks / getTask', () => {
       new Date('2026-04-04T00:00:00Z'),
     )
     expect(res.scopeOrigin).toEqual(new Date('2026-04-01T00:00:00Z'))
+    // The plan ended long ago; the axis still reaches today.
+    expect(res.scopeEnd.getTime()).toBeGreaterThanOrEqual(startOfUtcDay(new Date()).getTime())
     expect(res.canManageTasks).toBe(false)
     expect(
       (await clientAs(owner).projects.listTasks({ projectId: project.id })).canManageTasks,

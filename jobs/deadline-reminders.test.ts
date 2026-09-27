@@ -100,7 +100,7 @@ describe('runDeadlineRemindersJob', () => {
     expect(decision).toHaveLength(1)
     expect(decision[0]).toMatchObject({
       title: '“Print flyers” is 4 days past plan',
-      body: expect.stringMatching(/^Assignee: Sam Slow, .*\. Replan, reassign or release\.$/),
+      body: expect.stringMatching(/^Assignee: Sam Slow, .*\. Replan, reassign or unassign\.$/),
       entityId: late.id,
     })
     expect(await notes(deputy.id, 'task_needs_decision')).toHaveLength(1)

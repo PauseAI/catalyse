@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { createVolunteer, createAdmin, createProject, createTask } from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { addDays, startOfUtcDay } from '@/lib/schedule'
-import { toDateInputValue } from '@/lib/format-date'
+import { formatDateShort, toDateInputValue } from '@/lib/format-date'
 import TaskDetailPage from './page'
 
 const row = (id: number) => prisma.workItem.findUniqueOrThrow({ where: { id } })
@@ -480,24 +480,36 @@ describe('task detail page — past plan', () => {
     expect(within(dialog).getByLabelText('New planned end')).toHaveValue(
       toDateInputValue(addDays(today, 7)),
     )
-    // Before the task starts: refused, and nothing to save.
-    fireEvent.change(within(dialog).getByLabelText('New planned end'), {
-      target: { value: toDateInputValue(addDays(today, -30)) },
-    })
-    expect(within(dialog).getByRole('alert')).toHaveTextContent('That is before the task starts.')
+    // The bar keeps its length and moves; a blank length disables the save.
+    expect(within(dialog).getByLabelText('Days')).toHaveValue(5)
+    fireEvent.change(within(dialog).getByLabelText('Days'), { target: { value: '' } })
     expect(within(dialog).getByRole('button', { name: 'Replan' })).toBeDisabled()
-    fireEvent.submit(within(dialog).getByLabelText('New planned end').closest('form')!)
+    fireEvent.submit(within(dialog).getByLabelText('Days').closest('form')!)
+    fireEvent.change(within(dialog).getByLabelText('Days'), { target: { value: '5' } })
+    // A date typed by hand moves the start with it.
+    fireEvent.change(within(dialog).getByLabelText('New planned end'), {
+      target: { value: toDateInputValue(addDays(today, 10)) },
+    })
+    expect(within(dialog).getByText(/so it starts/)).toHaveTextContent(
+      formatDateShort(addDays(today, 6)),
+    )
     await userEvent.click(within(dialog).getByRole('button', { name: '+3 days' }))
+    expect(within(dialog).getByText(/so it starts/)).toHaveTextContent(
+      formatDateShort(addDays(today, -1)),
+    )
     expect(within(dialog).getByText(/‘Set up stall’ is set to start \d+ days? too early/))
     expect(within(dialog).getByText(/prep for key date ‘Protest’ would finish \d+ days? after it/))
     await userEvent.type(within(dialog).getByLabelText('Why is the plan changing?'), 'venue')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Replan' }))
     await screen.findByText(/^Replanned\. 'Book venue' now finishes/)
-    await waitFor(async () => expect((await row(late.id)).durationDays).toBe(11))
+    await screen.findByText(/^Replanned by .*: venue$/)
+    await waitFor(async () =>
+      expect(await row(late.id)).toMatchObject({ startDate: addDays(today, -1), durationDays: 5 }),
+    )
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Past plan' })).toBeNull())
   })
 
-  it('lets the owner reassign or release it, and cancel a replan', async () => {
+  it('lets the owner reassign or unassign it, and cancel a replan', async () => {
     const { owner, pat, project, late } = await lateTask('B')
     await mount(project.id, late.id, owner)
     const box = await screen.findByRole('region', { name: 'Past plan' })
@@ -521,8 +533,8 @@ describe('task detail page — past plan', () => {
     await screen.findByText('Cannot assign a completed task')
     await prisma.workItem.update({ where: { id: late.id }, data: { status: 'in_progress' } })
 
-    // Released, the task is nobody's to be late with, so there is no decision left to make.
-    await userEvent.click(await within(box).findByRole('button', { name: 'Release' }))
+    // Unassigned, the task is nobody's to be late with, so there is no decision left to make.
+    await userEvent.click(await within(box).findByRole('button', { name: 'Unassign' }))
     await waitFor(async () => expect((await row(late.id)).assigneeId).toBeNull())
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Past plan' })).toBeNull())
 

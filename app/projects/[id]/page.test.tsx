@@ -1193,7 +1193,7 @@ describe('project page — timeline tab', () => {
     await mount(project.id, visitor, '#timeline')
     await screen.findByRole('button', { name: /^Alpha:/ })
     expect(screen.queryByRole('button', { name: 'Add all to timeline' })).toBeNull()
-    expect(screen.getByText(/These tasks have no dates yet/)).toBeInTheDocument()
+    expect(screen.getByText(/These tasks have no start date/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /baseline/i })).toBeNull()
   })
 })

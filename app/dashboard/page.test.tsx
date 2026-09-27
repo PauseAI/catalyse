@@ -247,6 +247,14 @@ describe('home', () => {
     const owner = await createVolunteer()
     const sam = await createVolunteer({ name: 'Sam Late' })
     const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
+    // Listed first in the database, but less overdue, so it comes second on Home.
+    await createTask(project.id, {
+      title: 'Slipped a little',
+      status: 'in_progress',
+      assigneeId: sam.id,
+      startDate: new Date(Date.now() - 5 * DAY),
+      durationDays: 3,
+    })
     await createTask(project.id, {
       title: 'Slipped',
       status: 'in_progress',
@@ -256,8 +264,9 @@ describe('home', () => {
     })
     await renderApp(<HomePage />, { as: owner, url: '/dashboard' })
     const attention = await screen.findByRole('region', { name: /Needs your attention/ })
-    const first = within(attention).getAllByRole('listitem')[0]
-    expect(first).toHaveTextContent(/"Slipped" is \d+ days past plan/)
+    const [first, second] = within(attention).getAllByRole('listitem')
+    expect(first).toHaveTextContent(/"Slipped" in .* is \d+ days past plan/)
+    expect(second).toHaveTextContent(/"Slipped a little" in .* is \d+ days past plan/)
     expect(first).toHaveTextContent('Assignee: Sam Late, no update yet.')
     expect(within(first).getByRole('link', { name: /^Decide/ })).toBeInTheDocument()
     cleanup()

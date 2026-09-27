@@ -42,24 +42,29 @@ describe('replan', () => {
     expect(daysPastPlan(day('2026-10-07'), { ...held, assigned: false }, today)).toBeNull()
   })
 
-  it('keeps a set start, keeps following a predecessor, and starts today with neither', () => {
-    expect(
-      replanWrite(
-        { startDate: day('2026-10-01'), placedStart: day('2026-10-01') },
-        day('2026-10-13'),
-        today,
-      ),
-    ).toEqual({ startDate: day('2026-10-01'), durationDays: 13 })
-    expect(
-      replanWrite({ startDate: null, placedStart: day('2026-10-05') }, day('2026-10-13'), today),
-    ).toEqual({ startDate: null, durationDays: 9 })
-    expect(replanWrite({ startDate: null, placedStart: null }, day('2026-10-13'), today)).toEqual({
-      startDate: day('2026-10-10'),
-      durationDays: 4,
+  it('moves the bar to end on the new date, keeping its length unless told otherwise', () => {
+    expect(replanWrite({ durationDays: 5 }, day('2026-10-13'))).toEqual({
+      startDate: day('2026-10-09'),
+      durationDays: 5,
     })
-    expect(
-      replanWrite({ startDate: day('2026-10-05'), placedStart: null }, day('2026-10-01'), today),
-    ).toBeNull()
+    // A length of the owner's own, when the work turned out bigger.
+    expect(replanWrite({ durationDays: 5 }, day('2026-10-13'), 8)).toEqual({
+      startDate: day('2026-10-06'),
+      durationDays: 8,
+    })
+    // No length yet: one day. A milestone stays a moment, on the date.
+    expect(replanWrite({ durationDays: null }, day('2026-10-13'))).toEqual({
+      startDate: day('2026-10-13'),
+      durationDays: 1,
+    })
+    expect(replanWrite({ durationDays: 0 }, day('2026-10-13'))).toEqual({
+      startDate: day('2026-10-13'),
+      durationDays: 0,
+    })
+    expect(replanWrite({ durationDays: 3 }, new Date('2026-10-13T15:00:00.000Z'), -2)).toEqual({
+      startDate: day('2026-10-13'),
+      durationDays: 0,
+    })
   })
 
   it('steps from today when the old end has passed, and from the old end when it has not', () => {
@@ -104,10 +109,10 @@ describe('replan', () => {
 
   it('describes who has a late task and when they last said anything', () => {
     expect(pastPlanDetail({ assigneeName: 'Sam', lastUpdateAt: day('2026-10-05') }, today)).toBe(
-      'Assignee: Sam, last update 5 days ago. Replan, reassign or release.',
+      'Assignee: Sam, last update 5 days ago. Replan, reassign or unassign.',
     )
     expect(pastPlanDetail({ assigneeName: 'Sam', lastUpdateAt: null }, today)).toBe(
-      'Assignee: Sam, no update yet. Replan, reassign or release.',
+      'Assignee: Sam, no update yet. Replan, reassign or unassign.',
     )
     expect(pastPlanDetail({ assigneeName: 'Sam', lastUpdateAt: day('2026-10-09') })).toMatch(
       /^Assignee: Sam, last update \d+ days? ago/,

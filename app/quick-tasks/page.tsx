@@ -31,6 +31,7 @@ import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate, fromDateInputValue, toDateInputValue } from '@/lib/format-date'
 import DeadlineChip from '@/components/DeadlineChip'
+import { handedIn } from '@/lib/overdue'
 import { QuickTaskStatus, TaskStatus } from '@/generated/prisma/enums'
 import PageLoading from '@/components/PageLoading'
 import Skeleton from '@/components/Skeleton'
@@ -265,7 +266,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                       <DeadlineChip
                         key="deadline"
                         deadline={task.deadline}
-                        done={task.status === QuickTaskStatus.completed}
+                        done={handedIn(task.status)}
                       />
                     ),
                     task.projectTitle && (
@@ -712,7 +713,7 @@ function AdminQuickTasksView() {
                   <DeadlineChip
                     key="deadline"
                     deadline={task.deadline}
-                    done={task.status === QuickTaskStatus.completed}
+                    done={handedIn(task.status)}
                   />
                 ),
                 task.assignedToId && task.assignedToName && (
@@ -850,7 +851,7 @@ function AdminQuickTasksView() {
                     <DeadlineChip
                       key="deadline"
                       deadline={task.deadline}
-                      done={task.status === TaskStatus.completed}
+                      done={handedIn(task.status)}
                     />
                   ),
                   task.assignedToId && task.assignedToName && (

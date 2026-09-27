@@ -285,7 +285,7 @@ export default function TaskDetailPage({
                   updateMutation.mutate({ projectId, taskId, data: { status: TaskStatus.open } })
                 }
               >
-                Release
+                Unassign
               </Button>
             </div>
           </section>

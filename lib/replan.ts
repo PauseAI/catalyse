@@ -30,20 +30,19 @@ export function daysPastPlan(
 }
 
 /**
- * The start and length that make `taskId` end on `newEnd`. A task with a start keeps it; one
- * that follows another keeps following and only lengthens; one with neither starts today.
- * Null when the new end comes before the start.
+ * The start and length that put a task's bar so it ends on `newEnd`. The bar keeps its length
+ * and moves, rather than growing over the days already gone; `days` replaces the length when the
+ * work turned out bigger or smaller. A task with no length yet gets one day. The start is written
+ * even for a task that followed another, so it stops following.
  */
 export function replanWrite(
-  current: { startDate: Date | null; placedStart: Date | null },
+  current: { durationDays: number | null },
   newEnd: Date,
-  today: Date = new Date(),
-): { startDate: Date | null; durationDays: number } | null {
-  const start = current.startDate ?? current.placedStart ?? startOfUtcDay(today)
-  const durationDays = diffInDays(start, newEnd) + 1
-  if (durationDays < 1) return null
+  days: number = current.durationDays ?? 1,
+): { startDate: Date; durationDays: number } {
+  const durationDays = Math.max(0, days)
   return {
-    startDate: current.startDate ?? (current.placedStart ? null : startOfUtcDay(today)),
+    startDate: addDays(startOfUtcDay(newEnd), -Math.max(durationDays - 1, 0)),
     durationDays,
   }
 }
@@ -111,7 +110,7 @@ export function steppedEnd(oldEnd: Date, days: number, today: Date = new Date())
   return addDays(stepBase(oldEnd, today), days)
 }
 
-/** "Assignee: Sam, last update 5 days ago. Replan, reassign or release." */
+/** "Assignee: Sam, last update 5 days ago. Replan, reassign or unassign." */
 export function pastPlanDetail(
   t: { assigneeName: string; lastUpdateAt: Date | null },
   today: Date = new Date(),
@@ -120,5 +119,5 @@ export function pastPlanDetail(
     t.lastUpdateAt === null
       ? 'no update yet'
       : `last update ${plural(Math.max(0, diffInDays(t.lastUpdateAt, today)), 'day')} ago`
-  return `Assignee: ${t.assigneeName}, ${last}. Replan, reassign or release.`
+  return `Assignee: ${t.assigneeName}, ${last}. Replan, reassign or unassign.`
 }

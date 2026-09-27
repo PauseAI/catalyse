@@ -18,6 +18,7 @@ import RequestChangesButton from '@/components/RequestChangesButton'
 import QuickTaskReviewDialog from '@/components/QuickTaskReviewDialog'
 import { QUICK_TASK_CLAIMED_MESSAGE } from '@/lib/action-messages'
 import { QuickTaskStatus } from '@/generated/prisma/enums'
+import { handedIn } from '@/lib/overdue'
 import PageLoading from '@/components/PageLoading'
 
 const REVIEW_RATING_LABELS: Record<string, string> = {
@@ -112,10 +113,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
           )}
           {task.deadline && (
             <span className="flex items-center gap-2 self-center">
-              <DeadlineChip
-                deadline={task.deadline}
-                done={task.status === QuickTaskStatus.completed}
-              />
+              <DeadlineChip deadline={task.deadline} done={handedIn(task.status)} />
             </span>
           )}
           {task.projectTitle && task.projectId && (
