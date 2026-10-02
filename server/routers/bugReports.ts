@@ -8,6 +8,26 @@ import { CreateBugReportSchema } from '@/lib/schemas'
 import { authedProcedure } from '../procedures'
 
 export const bugReportsRouter = {
+  listMine: authedProcedure.handler(async ({ context }) => {
+    const reports = await prisma.bugReport.findMany({
+      where: { reporterId: context.volunteer.id },
+      include: { assignee: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    return reports.map((r) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description,
+      category: r.category,
+      severity: r.severity,
+      status: r.status,
+      resolutionNotes: r.resolutionNotes,
+      assigneeName: r.assignee?.name ?? null,
+      createdAt: r.createdAt,
+    }))
+  }),
+
   getById: authedProcedure
     .input(z.object({ id: z.number().int() }))
     .handler(async ({ input, context }) => {
