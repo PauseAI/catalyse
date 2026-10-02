@@ -24,13 +24,18 @@ import {
   resolveProjectMembership,
 } from '@/lib/work-item'
 import { notifyUser, notifyAdmins, notifyTeamOfProject, clearNotifications } from '@/lib/notify'
+import { keyDateSides } from '@/lib/key-date'
+import { daysPastPlan, previewReplan, replanWrite } from '@/lib/replan'
 import {
+  lateProjects,
   loadProjectTaskSchedule,
+  toScheduleInput,
   loadProjectEdges,
   scheduleProjectsByIds,
 } from '@/lib/project-schedule'
 import { notifyMatchingVolunteers } from '@/lib/project-match-notify'
 import { html } from '@/lib/email'
+import { formatDateShort } from '@/lib/format-date'
 import { awaitsOwnerReview } from '@/lib/task-review'
 import { canReach } from '@/lib/contact'
 import {
@@ -63,6 +68,7 @@ import {
   ProjectStatus,
   TaskStatus,
   WorkItemType,
+  TaskTiming,
 } from '@/generated/prisma/enums'
 
 /** Is the project within this volunteer's scope (team and country)? See lib/work-item.ts. */
@@ -224,6 +230,29 @@ async function findTaskToReview(
 }
 
 /** How a person is named on something they did as a manager: a deputy says so. */
+/**
+ * Tells whoever held a task that it has been handed on or opened up again, so they stop working
+ * on it. Nobody is told about a task they are simply keeping.
+ */
+async function tellPreviousAssignee(
+  task: { id: number; title: string; parentId: number | null; assigneeId: number | null },
+  newAssigneeId: number | null,
+  how: 'reassigned' | 'released',
+): Promise<void> {
+  if (task.assigneeId === null || task.assigneeId === newAssigneeId) return
+  await notifyUser(
+    task.assigneeId,
+    how === 'reassigned' ? 'task_reassigned' : 'task_released',
+    how === 'reassigned'
+      ? `'${task.title}' has been handed to someone else`
+      : `'${task.title}' is open again`,
+    'The owner has taken it off your list, so there is nothing more to do on it.',
+    `/projects/${task.parentId}/tasks/${task.id}`,
+    undefined,
+    task.id,
+  )
+}
+
 function actorLabel(volunteer: { name: string }, isDeputy: boolean): string {
   return isDeputy ? `${volunteer.name} (deputy)` : volunteer.name
 }
@@ -399,10 +428,14 @@ export const projectsRouter = {
       })
 
       const projectMap = new Map(rawProjects.map((p) => [p.id, p]))
+      const late = await lateProjects(rawProjects)
       const projects = ids
         .map((id) => projectMap.get(id))
         .filter((p): p is NonNullable<typeof p> => p !== undefined)
-        .map((p) => withProjectExtras(p as EnrichedProject, volunteerSkillIds, viewerTeamIds))
+        .map((p) => ({
+          ...withProjectExtras(p as EnrichedProject, volunteerSkillIds, viewerTeamIds),
+          daysLate: late.get(p.id) ?? null,
+        }))
 
       // Match sorting can't be done in SQL, so this branch fetched every matching id and
       // paginates here. The slice has to happen whether or not the volunteer has skills to
@@ -533,6 +566,7 @@ export const projectsRouter = {
         include: projectInclude,
       })
       const projectMap = new Map(rawProjects.map((p) => [p.id, p]))
+      const late = await lateProjects(rawProjects)
 
       return {
         groups: bucketResults.map(({ key, total, ids }) => ({
@@ -541,7 +575,10 @@ export const projectsRouter = {
           projects: ids
             .map((id) => projectMap.get(id))
             .filter((p): p is NonNullable<typeof p> => p !== undefined)
-            .map((p) => withProjectExtras(p as EnrichedProject, volunteerSkillIds, viewerTeamIds)),
+            .map((p) => ({
+              ...withProjectExtras(p as EnrichedProject, volunteerSkillIds, viewerTeamIds),
+              daysLate: late.get(p.id) ?? null,
+            })),
         })),
       }
     }),
@@ -807,8 +844,21 @@ export const projectsRouter = {
         return (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0)
       })
 
-      const mappedTasks = sortedTasks.map((t) => ({
+      // The schedule gives each task's days past plan; its edges give the key-date sides.
+      const { schedule, edges } = await loadProjectTaskSchedule(project, sortedTasks)
+      const hasPredecessor = new Set(edges.map((e) => e.successorId))
+      const sides = keyDateSides(sortedTasks, edges)
+
+      const mappedTasks = sortedTasks.map((t, i) => ({
         ...serializeTask(t),
+        keyDateSide: sides.get(t.id) ?? null,
+        pastPlanDays:
+          t.startDate !== null || t.durationDays !== null || hasPredecessor.has(t.id)
+            ? daysPastPlan(schedule.scheduled[i].end, {
+                done: t.status === TaskStatus.completed,
+                assigned: t.assigneeId !== null,
+              })
+            : null,
         assignedToName: t.assignee?.name ?? null,
         createdByName: t.creator?.name ?? null,
         requestedByName: t.requestedBy?.name ?? null,
@@ -1116,6 +1166,17 @@ export const projectsRouter = {
       if (body.timeCommitmentHoursPerWeek !== undefined)
         data.timeCommitmentHoursPerWeek = body.timeCommitmentHoursPerWeek
       applyScheduleWrite(data, body)
+
+      // The project's deadline is a promise the owner makes, so a proposer who never owned the
+      // project cannot move it.
+      if (body.deadline !== undefined) {
+        if (!canReassign && body.deadline?.getTime() !== project.deadline?.getTime()) {
+          throw new ORPCError('FORBIDDEN', {
+            message: 'Only the project owner or an admin can set the project deadline',
+          })
+        }
+        data.deadline = body.deadline
+      }
 
       if (body.assigneeId !== undefined && body.assigneeId !== project.assigneeId) {
         if (!canReassign) {
@@ -1816,6 +1877,8 @@ export const projectsRouter = {
         scopeEnd: schedule.end,
         // Sent so the client can recompute this exact schedule while a drag is in flight.
         scopeOrigin: origin,
+        projectDeadline: project.deadline,
+        canSetKeyDate: canManageProject(project, volunteer),
         canManageTasks: canManageProjectTasks(
           project,
           volunteer,
@@ -1890,6 +1953,20 @@ export const projectsRouter = {
         }),
       ])
 
+      // Where the plan puts this task. A task with no start, length or predecessor is not on
+      // the timeline, so it has no placement to report.
+      const placement =
+        task.startDate !== null || task.durationDays !== null || predecessorRows.length > 0
+          ? ((
+              await loadProjectTaskSchedule(
+                project,
+                await prisma.workItem.findMany({
+                  where: { parentId: input.projectId, type: WorkItemType.TASK },
+                }),
+              )
+            ).schedule.byId.get(task.id) ?? null)
+          : null
+
       const canManage = canManageProjectTasks(
         project,
         volunteer,
@@ -1934,6 +2011,15 @@ export const projectsRouter = {
           lagDays: r.lagDays,
         })),
         siblingTasks,
+        placement,
+        pastPlanDays: placement
+          ? daysPastPlan(placement.end, {
+              done: task.status === TaskStatus.completed,
+              assigned: task.assigneeId !== null,
+            })
+          : null,
+        // The key date is the owner's, not a deputy's (the update enforces the same).
+        canSetKeyDate: canManageProject(project, volunteer),
       }
     }),
 
@@ -1975,6 +2061,7 @@ export const projectsRouter = {
             estimatedHours: input.estimatedHours ?? null,
             deadline: input.deadline ?? null,
             featuredAsQuickTask: input.featuredAsQuickTask ?? false,
+            timing: input.timing ?? TaskTiming.flexible,
             creatorId: volunteer.id,
             sortOrder: (max._max.sortOrder ?? 0) + 1,
             ...scheduleOnCreate,
@@ -2166,6 +2253,7 @@ export const projectsRouter = {
         input.data.deadline === undefined &&
         input.data.featuredAsQuickTask === undefined &&
         input.data.isAnchor === undefined &&
+        input.data.timing === undefined &&
         input.data.startDate === undefined &&
         input.data.durationDays === undefined
       const isSelfClaim =
@@ -2241,6 +2329,7 @@ export const projectsRouter = {
       }
 
       const data: Record<string, unknown> = {}
+      let releasedFrom: number | null = null
       if (input.data.title !== undefined) data.title = input.data.title
       if (input.data.description !== undefined) data.description = input.data.description
       if (input.data.estimatedHours !== undefined) data.estimatedHours = input.data.estimatedHours
@@ -2248,6 +2337,7 @@ export const projectsRouter = {
       if (input.data.featuredAsQuickTask !== undefined)
         data.featuredAsQuickTask = input.data.featuredAsQuickTask
       if (input.data.isAnchor !== undefined) data.isAnchor = input.data.isAnchor
+      if (input.data.timing !== undefined) data.timing = input.data.timing
       applyScheduleWrite(data, input.data)
       if (input.data.status !== undefined) {
         data.status = input.data.status
@@ -2257,6 +2347,7 @@ export const projectsRouter = {
           // original date — the work did start then.
           if (task.startedAt === null) data.startedAt = new Date()
         } else if (input.data.status === TaskStatus.open) {
+          releasedFrom = task.assigneeId
           data.assigneeId = null
           data.requestedById = null
           data.completedAt = null
@@ -2306,6 +2397,11 @@ export const projectsRouter = {
             },
           })
         }
+      }
+
+      if (releasedFrom !== null && releasedFrom !== volunteer.id) {
+        await tellPreviousAssignee(task, null, 'released')
+        await clearNotifications('task_needs_decision', task.id)
       }
 
       return { message: 'Task updated', requested: false }
@@ -2529,8 +2625,103 @@ export const projectsRouter = {
           projectId: input.projectId,
         },
       )
+      await tellPreviousAssignee(task, input.assigneeId, 'reassigned')
+      await clearNotifications('task_needs_decision', task.id)
 
       return { message: 'Task assigned' }
+    }),
+
+  /**
+   * The owner (or a deputy, or an admin) moves the planned end of a task that has run past
+   * its plan. Writes only the start and length, never the dependencies or the deadline; says
+   * why in the task's Discussion; tells the assignee and everyone whose task moved with it.
+   */
+  replanTask: approvedProcedure
+    .input(
+      z.object({
+        projectId: z.number().int(),
+        taskId: z.number().int(),
+        newEnd: z.coerce.date(),
+        reason: z.string().trim().min(1, { message: 'Say why the plan is changing' }).max(500),
+      }),
+    )
+    .handler(async ({ input, context }) => {
+      const volunteer = context.volunteer
+      const project = await prisma.workItem.findFirst({
+        where: { id: input.projectId, type: WorkItemType.PROJECT },
+      })
+      if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
+      const isDeputy = await isProjectDeputy(project.id, volunteer.id)
+      if (!canManageProjectTasks(project, volunteer, isDeputy)) {
+        throw new ORPCError('FORBIDDEN', {
+          message: 'Only the project owner, a deputy or an admin can replan a task',
+        })
+      }
+
+      const tasks = await prisma.workItem.findMany({
+        where: { parentId: input.projectId, type: WorkItemType.TASK },
+        include: { assignee: { select: { name: true } } },
+      })
+      const task = tasks.find((t) => t.id === input.taskId)
+      if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
+
+      const { schedule, edges, origin } = await loadProjectTaskSchedule(project, tasks)
+      // A task with no dates sits at the plan's start only as a placeholder; it has no start
+      // of its own to keep, so replanning starts it today.
+      const dated =
+        task.startDate !== null ||
+        task.durationDays !== null ||
+        edges.some((e) => e.successorId === task.id)
+      const placed = dated ? (schedule.byId.get(task.id)?.start ?? null) : null
+      const write = replanWrite({ startDate: task.startDate, placedStart: placed }, input.newEnd)
+      if (!write) {
+        throw new ORPCError('BAD_REQUEST', { message: 'The new end is before the task starts' })
+      }
+      const preview = previewReplan(tasks.map(toScheduleInput), edges, origin, task.id, write)
+
+      const data: Record<string, unknown> = { updatedAt: new Date() }
+      applyScheduleWrite(data, write)
+      await prisma.workItem.update({ where: { id: task.id }, data })
+
+      const who = actorLabel(volunteer, isDeputy)
+      await prisma.workItemComment.create({
+        data: {
+          workItemId: task.id,
+          authorId: volunteer.id,
+          content: `Replanned by ${who}: ${input.reason}`,
+        },
+      })
+      await clearNotifications('task_needs_decision', task.id)
+
+      const endText = formatDateShort(input.newEnd)
+      const taskLink = `/projects/${project.id}/tasks/${task.id}`
+      if (task.assigneeId !== null && task.assigneeId !== volunteer.id) {
+        await notifyUser(
+          task.assigneeId,
+          'task_replanned',
+          `'${task.title}' now finishes ${endText}`,
+          input.reason,
+          taskLink,
+          undefined,
+          task.id,
+        )
+      }
+      const titleOf = new Map(tasks.map((t) => [t.id, t]))
+      for (const m of preview.moved) {
+        const movedTask = titleOf.get(m.id)
+        if (!movedTask?.assigneeId || movedTask.assigneeId === volunteer.id) continue
+        await notifyUser(
+          movedTask.assigneeId,
+          'plan_moved',
+          `'${movedTask.title}' now starts ${formatDateShort(m.start)} because '${task.title}' was replanned`,
+          null,
+          `/projects/${project.id}/tasks/${m.id}`,
+          undefined,
+          m.id,
+        )
+      }
+
+      return { message: 'Task replanned', moved: preview.moved.length }
     }),
 
   deleteTask: approvedProcedure

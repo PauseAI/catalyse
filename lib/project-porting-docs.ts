@@ -100,7 +100,7 @@ project page instead.
 
 Task: \`id\`, \`ref\`, \`title\` (required), \`description\`, \`status\` (\`open\`,
 \`in_progress\`, \`completed\`), \`assigneeEmail\`, \`deadline\`, \`startDate\`,
-\`durationDays\`, \`featuredAsQuickTask\`, \`isAnchor\`, \`dependsOn\`.
+\`durationDays\`, \`featuredAsQuickTask\`, \`isAnchor\`, \`timing\`, \`dependsOn\`.
 
 - Dates are \`YYYY-MM-DD\` strings. Any other format is rejected.
 - A file may carry at most 1000 tasks, each with at most 100 \`dependsOn\` entries. Titles cap
@@ -113,6 +113,8 @@ Task: \`id\`, \`ref\`, \`title\` (required), \`description\`, \`status\` (\`open
 - \`isAnchor\` marks the fixed point the plan is built around — an event date, a deadline. The
   critical path is measured towards anchors, so work that merely follows one is correctly
   shown as having slack. Usually there is exactly one.
+- \`timing\` is \`flexible\` (the default: the work happens any time between the start and the
+  end) or \`fixed\` (it happens on exactly those dates, like a shift or the event itself).
 
 ## Dependencies
 

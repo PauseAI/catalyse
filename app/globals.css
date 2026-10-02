@@ -203,6 +203,7 @@ input[type='number'],
 input[type='url'],
 input[type='password'],
 input[type='search'],
+input[type='date'],
 textarea,
 select {
   width: 100%;
@@ -273,6 +274,7 @@ textarea {
 [data-theme='dark'] input[type='url'],
 [data-theme='dark'] input[type='password'],
 [data-theme='dark'] input[type='search'],
+[data-theme='dark'] input[type='date'],
 [data-theme='dark'] textarea,
 [data-theme='dark'] select {
   background: #1f2937;

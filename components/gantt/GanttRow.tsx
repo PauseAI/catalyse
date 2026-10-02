@@ -2,6 +2,9 @@
 
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { formatDate } from '@/lib/format-date'
+import { deadlineSlip, deadlineStanding, movedSlip, movedText, pinConflictSlip } from '@/lib/slip'
+import { windowReading } from '@/lib/task-dates'
+import { diffInDays } from '@/lib/schedule'
 import { barFill } from './palette'
 import {
   dateToX,
@@ -29,6 +32,8 @@ export default function GanttRow({
   dimmed,
   onSelect,
   onHover,
+  pinConflictLabel,
+  highlightCritical = true,
 }: {
   row: GanttRowData
   origin: Date
@@ -43,6 +48,10 @@ export default function GanttRow({
   dimmed: boolean
   onSelect?: (id: number) => void
   onHover?: (id: number | null) => void
+  /** Name of the predecessor a conflicting pin starts too early for. */
+  pinConflictLabel?: string
+  /** Ring the critical path; a planning aid, so only for those who can change the plan. */
+  highlightCritical?: boolean
 }) {
   const { placement } = row
   const milestone = placement.isMilestone
@@ -109,12 +118,36 @@ export default function GanttRow({
   const rangeLabel = milestone
     ? formatDate(placement.start)
     : `${formatDate(placement.start)} – ${formatDate(placement.end)}`
-  const variance =
-    placement.startVarianceDays === null || placement.startVarianceDays === 0
-      ? null
-      : placement.startVarianceDays > 0
-        ? `${placement.startVarianceDays} day${placement.startVarianceDays === 1 ? '' : 's'} later than planned`
-        : `${-placement.startVarianceDays} day${placement.startVarianceDays === -1 ? '' : 's'} earlier than planned`
+  const variance = placement.finishVarianceDays
+    ? `${movedText(placement.finishVarianceDays)} than the original plan`
+    : null
+  const late = deadlineSlip(placement, row.status === 'completed')
+  // A flexible window with less work in it than it spans is drawn faint, with the hours on it,
+  // so it reads as "some time in here"; a fixed one is drawn solid with an edge.
+  const fixedTiming = row.timing === 'fixed'
+  const effort = row.effortHours ?? null
+  const faint = row.timing === 'flexible' && effort !== null && !milestone
+  const reading = row.timing
+    ? windowReading(
+        row.timing,
+        milestone ? 0 : diffInDays(placement.start, placement.end) + 1,
+        effort,
+      )
+    : null
+  const standing = deadlineStanding(placement, row.status === 'completed')
+  const lateAria =
+    placement.deadline && standing
+      ? `deadline ${formatDate(placement.deadline)}, ${standing.text}`
+      : null
+  const conflict = pinConflictSlip(placement, pinConflictLabel)
+
+  const deadlineCentre = placement.deadline
+    ? dateToX(placement.deadline, origin, pxPerDay) + pxPerDay / 2
+    : null
+  const deadlineX =
+    deadlineCentre !== null && deadlineCentre >= 0 && deadlineCentre <= windowWidth
+      ? deadlineCentre
+      : null
 
   const moveOffset = draggable ? (moveTransform?.x ?? 0) : 0
   // A milestone has no duration to stretch, so only bars take the resize offset.
@@ -134,15 +167,17 @@ export default function GanttRow({
   const barTop = midY - barHeight / 2
 
   // Selection wins over the critical-path ring so the ring never hides which bar you picked.
-  // Anchor, critical path and the planned baseline are planning aids, shown only to those
-  // who can change the plan.
-  const isAnchor = editable && placement.isAnchor
-  const isCritical = editable && placement.isCritical
+  // The key date is for everyone; the critical path and the original plan are planning aids,
+  // shown only to those who can change the plan.
+  const isAnchor = placement.isAnchor
+  const isCritical = editable && highlightCritical && placement.isCritical
   const ring = selected
     ? '0 0 0 2px var(--color-brand-text)'
     : isCritical
       ? 'inset 0 0 0 2px var(--gantt-critical)'
-      : undefined
+      : fixedTiming
+        ? 'inset 0 0 0 2px var(--gantt-finish)'
+        : undefined
 
   // A cut end is squared off, so a bar running past the window does not read as finishing there.
   const corner = (clipped: boolean) => (clipped ? 0 : 6)
@@ -175,7 +210,7 @@ export default function GanttRow({
             height: RULE_HEIGHT,
             background: 'var(--gantt-baseline)',
           }}
-          title={`Planned ${formatDate(placement.baseline.start)} – ${formatDate(placement.baseline.end)}`}
+          title={`Original plan ${formatDate(placement.baseline.start)} – ${formatDate(placement.baseline.end)}`}
         />
       )}
 
@@ -188,15 +223,18 @@ export default function GanttRow({
         {...(draggable ? moveListeners : {})}
         {...(draggable ? moveAttrs : {})}
         onClick={onSelect ? () => onSelect(row.id) : undefined}
-        aria-label={`${row.label}: ${milestone ? `milestone on ${rangeLabel}` : rangeLabel}${variance ? `, ${variance}` : ''}${isAnchor ? ', anchor' : ''}${isCritical ? ', on the critical path' : ''}${offWindow ? ', outside the visible range' : ''}`}
+        aria-label={`${row.label}: ${milestone ? `milestone on ${rangeLabel}` : rangeLabel}${reading ? `, ${reading.toLowerCase()}` : ''}${lateAria ? `, ${lateAria}` : ''}${variance ? `, ${variance}` : ''}${isAnchor ? ', key date' : ''}${isCritical ? ', on the critical path' : ''}${offWindow ? ', outside the visible range' : ''}`}
         aria-pressed={selected}
         title={[
           row.label,
           milestone ? `Milestone — ${rangeLabel}` : rangeLabel,
-          variance,
-          isAnchor && '★ Anchor — the plan is built around this date',
+          reading,
+          late,
+          movedSlip(placement),
+          conflict,
+          isAnchor && '★ Key date — the plan is built around this date',
           isCritical &&
-            'Critical path — zero slack, so a day late here is a day late for the anchor',
+            'Critical path — zero slack, so a day late here is a day late for the key date',
           offWindow && 'Outside the visible range',
         ]
           .filter(Boolean)
@@ -208,7 +246,12 @@ export default function GanttRow({
           top: barTop,
           height: barHeight,
           borderRadius: barRadius,
-          background: milestone && !offWindow ? 'transparent' : barFill(row.status),
+          background:
+            milestone && !offWindow
+              ? 'transparent'
+              : faint
+                ? `color-mix(in srgb, ${barFill(row.status)} 40%, transparent)`
+                : barFill(row.status),
           opacity: offWindow ? 0.4 : 1,
           cursor: draggable ? 'grab' : 'pointer',
           boxShadow: milestone && !offWindow ? undefined : ring,
@@ -217,6 +260,14 @@ export default function GanttRow({
           touchAction: 'none',
         }}
       >
+        {faint && !offWindow && barWidth >= 28 && (
+          <span
+            aria-hidden="true"
+            className="text-brand-text pointer-events-none flex h-full items-center px-1.5 text-[10px] leading-none font-semibold"
+          >
+            {effort}h
+          </span>
+        )}
         {milestone && !offWindow && (
           <span
             aria-hidden="true"
@@ -251,7 +302,7 @@ export default function GanttRow({
               background: 'var(--gantt-today)',
               boxShadow: '0 0 0 1.5px var(--color-surface)',
             }}
-            title="Pinned earlier than its dependencies allow"
+            title={conflict ?? undefined}
           />
         )}
       </button>
@@ -269,6 +320,9 @@ export default function GanttRow({
               role="button"
               aria-label={`Resize ${row.label} — currently ${rangeLabel}`}
               tabIndex={0}
+              // The grip covers most of a short bar, so a plain click on it selects the row
+              // as a click on the bar would; only a drag resizes.
+              onClick={onSelect ? () => onSelect(row.id) : undefined}
               className="absolute flex items-center justify-end opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100"
               style={{
                 left: barLeft + barWidth - 6,
@@ -334,20 +388,23 @@ export default function GanttRow({
         />
       )}
 
-      {/* Deadline marker, offset past the link handle so the two never collide. */}
-      {placement.breachesDeadline && !offWindow && (
+      {/* Deadline marker, on the deadline day itself; red with the day count once the plan
+          runs past it. */}
+      {deadlineX !== null && (
         <div
-          className="pointer-events-none absolute"
+          className="pointer-events-none absolute flex items-center gap-0.5 whitespace-nowrap"
           style={{
-            left: barLeft + barWidth + (draggable ? 20 : 4),
-            top: midY - 6,
-            color: 'var(--gantt-today)',
-            fontSize: 12,
+            left: deadlineX - 5,
+            top: midY + BAR_HEIGHT / 2 - 4,
+            color: standing?.late ? 'var(--gantt-today)' : 'var(--color-text-light)',
+            fontSize: 10,
             lineHeight: 1,
+            fontWeight: 600,
           }}
-          title="Runs past its deadline"
+          title={late ?? undefined}
         >
-          ▲
+          <span aria-hidden="true">▲</span>
+          {standing?.late && <span>+{standing.days}d</span>}
         </div>
       )}
     </div>

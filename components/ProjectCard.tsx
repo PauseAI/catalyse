@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Button from '@/components/Button'
 import { Badge, badgeClasses, type BadgeVariant } from '@/components/Badge'
 import { matchGradeLabel } from '@/lib/matching'
+import { plural } from '@/lib/plural'
 import { projectLocationParts } from '@/lib/filter-options'
 import { PROJECT_STATUS_CONFIG as PROJECT_LIFECYCLE_CONFIG } from '@/lib/project-status'
 
@@ -18,6 +19,8 @@ export interface Project {
   isSeekingOwner?: boolean | null
   /** Derived server-side: owned, but no open tasks. */
   needsTasks?: boolean | null
+  /** Derived server-side: days the plan runs past the project's deadline, when it does. */
+  daysLate?: number | null
   isOrgProposed?: boolean | null
   projectType?: string | null
   country?: string | null
@@ -108,6 +111,7 @@ export function ProjectCard({
         {p.isSeekingOwner && <Badge variant="caution">Seeking Owner</Badge>}
         {p.isSeekingHelp && <Badge variant="caution">Seeking Help</Badge>}
         {p.needsTasks && <Badge variant="warning">Needs Tasks</Badge>}
+        {p.daysLate ? <Badge variant="danger">{plural(p.daysLate, 'day')} late</Badge> : null}
         {badge}
       </div>
       <div className="row-start-3 flex items-center gap-3 flex-wrap text-xs text-text-light self-start">

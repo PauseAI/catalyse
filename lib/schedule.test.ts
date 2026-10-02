@@ -107,6 +107,47 @@ describe('computeSchedule', () => {
     )
     expect(byId.get(2)!.pinnedBeforePredecessor).toBe(true)
     expect(ymd(byId.get(2)!.start)).toBe('2026-03-11')
+    // Predecessor ends 14 Mar, so the earliest permitted start is 15 Mar: four days after the pin.
+    expect(byId.get(2)!.pinConflictDays).toBe(4)
+    expect(byId.get(2)!.pinConflictWith).toBe(1)
+    expect(byId.get(1)!.pinConflictDays).toBeNull()
+    expect(byId.get(1)!.pinConflictWith).toBeNull()
+  })
+
+  it('names the predecessor that binds hardest, lag included', () => {
+    const { byId } = computeSchedule(
+      [
+        item(1, { startDate: day('2026-03-10'), durationDays: 5 }),
+        item(2, { startDate: day('2026-03-10'), durationDays: 2 }),
+        item(3, { startDate: day('2026-03-10') }),
+      ],
+      [link(1, 3), link(2, 3, 6)],
+      origin,
+    )
+    // 1 permits 15 Mar; 2 ends 11 Mar and with six days' lag permits 18 Mar.
+    expect(byId.get(3)!.pinConflictWith).toBe(2)
+    expect(byId.get(3)!.pinConflictDays).toBe(8)
+  })
+
+  it('counts days late or to spare against the deadline', () => {
+    // A task ending 1 Oct with a deadline of 30 Sept is one day late.
+    const { byId } = computeSchedule(
+      [
+        item(1, { startDate: day('2026-09-20'), durationDays: 12, deadline: day('2026-09-30') }),
+        item(2, { startDate: day('2026-09-20'), deadline: new Date('2026-09-23T15:00:00Z') }),
+        item(3, { startDate: day('2026-09-20'), durationDays: 0, deadline: day('2026-09-20') }),
+        item(4, { startDate: day('2026-09-20') }),
+      ],
+      [],
+      origin,
+    )
+    expect(byId.get(1)).toMatchObject({ daysLate: 1, breachesDeadline: true })
+    expect(ymd(byId.get(1)!.deadline!)).toBe('2026-09-30')
+    // A deadline carrying a time of day is read as its UTC day.
+    expect(byId.get(2)).toMatchObject({ daysLate: -3, breachesDeadline: false })
+    expect(ymd(byId.get(2)!.deadline!)).toBe('2026-09-23')
+    expect(byId.get(3)).toMatchObject({ daysLate: 0, breachesDeadline: false })
+    expect(byId.get(4)).toMatchObject({ deadline: null, daysLate: null, breachesDeadline: false })
   })
 
   it('does not hang on a dependency cycle', () => {

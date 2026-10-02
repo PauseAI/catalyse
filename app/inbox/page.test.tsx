@@ -264,7 +264,9 @@ describe('inbox', () => {
     await renderApp(<InboxPage />, { as: me, url: '/inbox' })
     await userEvent.click(await screen.findByRole('button', { name: 'Mark as read' }))
     await waitFor(async () => expect((await note(one.id)).readAt).not.toBeNull())
-    // Opening one already read leaves it as it was.
+    // Opening one already read leaves it as it was. Wait until the row shows it read, or the
+    // page still thinks it is unread and marks it again.
+    await screen.findByRole('button', { name: 'Mark as unread' })
     const readAt = (await note(one.id)).readAt
     await userEvent.click(await screen.findByRole('link', { name: 'Open' }))
     expect((await note(one.id)).readAt).toEqual(readAt)

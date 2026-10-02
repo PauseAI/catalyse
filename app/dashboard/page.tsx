@@ -8,7 +8,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRequireAuth } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
 import Button from '@/components/Button'
+import { plural } from '@/lib/plural'
 import { Badge, type BadgeVariant } from '@/components/Badge'
+import DeadlineChip from '@/components/DeadlineChip'
 import Modal from '@/components/ui/Modal'
 import Skeleton from '@/components/Skeleton'
 import { ApprovalStatus } from '@/generated/prisma/enums'
@@ -243,6 +245,11 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-2">
             <Badge variant={ROLE_VARIANTS[w.role]}>{w.role}</Badge>
+            {w.daysLate ? <Badge variant="danger">{plural(w.daysLate, 'day')} late</Badge> : null}
+            {w.deadline && <DeadlineChip deadline={w.deadline} done={false} />}
+            {w.pastPlanDays ? (
+              <Badge variant="warning">{plural(w.pastPlanDays, 'day')} past plan</Badge>
+            ) : null}
             {w.status && <span className="text-sm text-text-light">{w.status}</span>}
           </div>
         </li>

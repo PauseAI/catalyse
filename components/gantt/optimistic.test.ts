@@ -84,6 +84,16 @@ describe('scheduleWithPatches', () => {
     expect(ymd(found(scheduled, 1).start)).toBe('2026-03-02')
   })
 
+  it('recounts the days late while a bar is dragged past its deadline', () => {
+    const scheduled = scheduleWithPatches(
+      [task(1, { startDate: day('2026-03-10'), durationDays: 3, deadline: '2026-03-13' })],
+      [],
+      origin,
+      [{ id: 1, startDate: day('2026-03-14') }],
+    )
+    expect(found(scheduled, 1)).toMatchObject({ daysLate: 3, breachesDeadline: true })
+  })
+
   it('accepts the serialised date strings that arrive over the wire', () => {
     const scheduled = scheduleWithPatches(
       [task(1, { startDate: '2026-03-10T00:00:00.000Z', durationDays: 3 })],

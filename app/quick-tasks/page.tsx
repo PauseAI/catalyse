@@ -29,7 +29,8 @@ import {
 } from '@/lib/status-labels'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
-import { formatDate } from '@/lib/format-date'
+import { formatDate, fromDateInputValue, toDateInputValue } from '@/lib/format-date'
+import DeadlineChip from '@/components/DeadlineChip'
 import { QuickTaskStatus, TaskStatus } from '@/generated/prisma/enums'
 import PageLoading from '@/components/PageLoading'
 import Skeleton from '@/components/Skeleton'
@@ -55,6 +56,7 @@ interface AdminQuickTask {
   reviewRating: string | null
   reviewNotes: string | null
   estimatedHours: number | null
+  deadline: string | Date | null
   createdAt: string
   submission: Submission | null
   changesRequested: string | null
@@ -71,6 +73,7 @@ interface FeaturedProjectTask {
   assignedToId: number | null
   assignedToName: string | null
   estimatedHours: number | null
+  deadline: string | Date | null
   createdAt: string
 }
 
@@ -258,6 +261,13 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                         ~{task.estimatedHours}h
                       </span>
                     ),
+                    task.deadline && (
+                      <DeadlineChip
+                        key="deadline"
+                        deadline={task.deadline}
+                        done={task.status === QuickTaskStatus.completed}
+                      />
+                    ),
                     task.projectTitle && (
                       <span key="project" className="text-text-light text-sm">
                         Related: {task.projectTitle}
@@ -327,6 +337,9 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                           ~{task.estimatedHours}h
                         </span>
                       ),
+                      task.deadline && (
+                        <DeadlineChip key="deadline" deadline={task.deadline} done={false} />
+                      ),
                     ]}
                   >
                     <Button
@@ -360,6 +373,9 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                         <span key="hours" className="text-text-light text-sm">
                           ~{task.estimatedHours}h
                         </span>
+                      ),
+                      task.deadline && (
+                        <DeadlineChip key="deadline" deadline={task.deadline} done={false} />
                       ),
                     ]}
                   >
@@ -418,6 +434,7 @@ function AdminQuickTasksView() {
   const [createDesc, setCreateDesc] = useState('')
   const [createSkillId, setCreateSkillId] = useState('')
   const [createHours, setCreateHours] = useState('')
+  const [createDeadline, setCreateDeadline] = useState('')
 
   // Edit modal
   const [editModal, setEditModal] = useState<AdminQuickTask | null>(null)
@@ -425,6 +442,7 @@ function AdminQuickTasksView() {
   const [editDesc, setEditDesc] = useState('')
   const [editSkillId, setEditSkillId] = useState('')
   const [editHours, setEditHours] = useState('')
+  const [editDeadline, setEditDeadline] = useState('')
 
   // Assign — inline dropdown per task, matching the project-task assign pattern
   const [taskAssignSelections, setTaskAssignSelections] = useState<Record<number, string>>({})
@@ -490,6 +508,7 @@ function AdminQuickTasksView() {
       setCreateDesc('')
       setCreateSkillId('')
       setCreateHours('')
+      setCreateDeadline('')
       void queryClient.invalidateQueries({ queryKey: orpc.quickTasks.list.key() })
     },
     onError: (err: unknown) =>
@@ -573,6 +592,7 @@ function AdminQuickTasksView() {
     setEditDesc(task.description)
     setEditSkillId(task.skillId ? String(task.skillId) : '')
     setEditHours(task.estimatedHours ? String(task.estimatedHours) : '')
+    setEditDeadline(toDateInputValue(task.deadline))
   }
 
   function createTask(e: React.FormEvent) {
@@ -582,6 +602,7 @@ function AdminQuickTasksView() {
       description: createDesc.trim(),
       skillId: createSkillId ? parseInt(createSkillId) : null,
       estimatedHours: createHours ? parseFloat(createHours) : null,
+      deadline: fromDateInputValue(createDeadline),
     })
   }
 
@@ -593,6 +614,7 @@ function AdminQuickTasksView() {
       description: editDesc.trim(),
       skillId: editSkillId ? parseInt(editSkillId) : null,
       estimatedHours: editHours ? parseFloat(editHours) : null,
+      deadline: fromDateInputValue(editDeadline),
     })
   }
 
@@ -685,6 +707,13 @@ function AdminQuickTasksView() {
                   <span key="hours" className="text-text-light text-sm">
                     ~{task.estimatedHours}h
                   </span>
+                ),
+                task.deadline && (
+                  <DeadlineChip
+                    key="deadline"
+                    deadline={task.deadline}
+                    done={task.status === QuickTaskStatus.completed}
+                  />
                 ),
                 task.assignedToId && task.assignedToName && (
                   <span key="assignee" className="text-text-light text-sm">
@@ -816,6 +845,13 @@ function AdminQuickTasksView() {
                     <span key="hours" className="text-text-light text-sm">
                       ~{task.estimatedHours}h
                     </span>
+                  ),
+                  task.deadline && (
+                    <DeadlineChip
+                      key="deadline"
+                      deadline={task.deadline}
+                      done={task.status === TaskStatus.completed}
+                    />
                   ),
                   task.assignedToId && task.assignedToName && (
                     <span key="assignee" className="text-text-light text-sm">
@@ -957,6 +993,15 @@ function AdminQuickTasksView() {
                       placeholder="e.g., 2"
                     />
                   </div>
+                  <div>
+                    <label htmlFor="ct-deadline">Deadline (optional)</label>
+                    <input
+                      id="ct-deadline"
+                      type="date"
+                      value={createDeadline}
+                      onChange={(e) => setCreateDeadline(e.target.value)}
+                    />
+                  </div>
                 </div>
                 <div className="px-0 py-4 border-t border-brand-border flex gap-3 justify-end">
                   <Button type="button" variant="secondary" onClick={() => setShowCreate(false)}>
@@ -1039,6 +1084,15 @@ function AdminQuickTasksView() {
                       step="0.5"
                       value={editHours}
                       onChange={(e) => setEditHours(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="et-deadline">Deadline (optional)</label>
+                    <input
+                      id="et-deadline"
+                      type="date"
+                      value={editDeadline}
+                      onChange={(e) => setEditDeadline(e.target.value)}
                     />
                   </div>
                 </div>

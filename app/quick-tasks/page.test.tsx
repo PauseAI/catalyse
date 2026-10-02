@@ -30,22 +30,26 @@ describe('quick tasks — volunteer view', () => {
       estimatedHours: 2,
       contextProjectId: project.id,
       changesRequestedNote: 'Add a photo',
+      deadline: new Date('2020-01-02T00:00:00Z'),
     })
     await createQuickTask({
       title: 'Mine done',
       assigneeId: me.id,
       status: 'completed',
       description: null,
+      deadline: new Date('2020-01-02T00:00:00Z'),
     })
     const open = await createQuickTask({
       title: 'Open quick',
       skillId: skill.id,
       estimatedHours: 1,
+      deadline: new Date('2099-03-04T00:00:00Z'),
     })
     const featured = await createTask(project.id, {
       title: 'Featured task',
       featuredAsQuickTask: true,
       estimatedHours: 3,
+      deadline: new Date('2099-05-06T00:00:00Z'),
     })
     await renderApp(<QuickTasksPage />, { as: me })
     const myList = (await screen.findByRole('heading', { name: 'My Quick Tasks' })).closest(
@@ -59,12 +63,18 @@ describe('quick tasks — volunteer view', () => {
       within(within(myList).getByText(title).closest('[role=article]')!)
     expect(myCard('Mine in progress').getByRole('status')).toHaveTextContent('In progress')
     expect(myCard('Mine done').getByRole('status')).toHaveTextContent('Done')
+    // Overdue only while the work is not done.
+    expect(myCard('Mine in progress').getByText('Overdue')).toBeInTheDocument()
+    expect(myCard('Mine done').getByText('Deadline 2 Jan 2020')).toBeInTheDocument()
+    expect(myCard('Mine done').queryByText('Overdue')).toBeNull()
     // Opens on my own tasks; the open pool is the other tab.
     expect(screen.getByRole('tab', { name: 'Mine (2)' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.queryByText('Browse Quick Tasks')).toBeNull()
     await userEvent.click(await screen.findByRole('tab', { name: 'Open (2)' }))
     const browse = screen.getByText('Browse Quick Tasks').closest('section')!
     await within(browse).findByText('Open quick')
+    expect(within(browse).getByText('Deadline 4 Mar 2099')).toBeInTheDocument()
+    expect(within(browse).getByText('Deadline 6 May 2099')).toBeInTheDocument()
     expect(
       within(within(browse).getByText('Open quick').closest('[role=article]')!).getByRole('status'),
     ).toHaveTextContent('Open')
@@ -208,11 +218,22 @@ describe('quick tasks — admin view', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Skill Being Tested' }))
     await userEvent.click(screen.getByRole('option', { name: new RegExp(skill.name) }))
     await userEvent.type(screen.getByLabelText('Estimated Hours'), '1.5')
+    fireEvent.change(screen.getByLabelText('Deadline (optional)'), {
+      target: { value: '2020-01-02' },
+    })
     fireEvent.submit(screen.getByLabelText('Title').closest('form')!)
     await screen.findByText('Task created!')
     const fresh = await prisma.workItem.findFirstOrThrow({ where: { title: 'Fresh task' } })
-    expect(fresh).toMatchObject({ skillId: skill.id, estimatedHours: 1.5 })
+    expect(fresh).toMatchObject({
+      skillId: skill.id,
+      estimatedHours: 1.5,
+      deadline: new Date('2020-01-02T00:00:00Z'),
+    })
     const freshCard = () => screen.getByText('Fresh task').closest('[role=article]') as HTMLElement
+    // A deadline that has passed on an open task flags it Overdue.
+    await screen.findByText('Fresh task')
+    expect(within(freshCard()).getByText('Deadline 2 Jan 2020')).toBeInTheDocument()
+    expect(within(freshCard()).getByText('Overdue')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Status' }))
     await userEvent.click(screen.getByRole('option', { name: 'Submitted (needs review)' }))
@@ -231,12 +252,15 @@ describe('quick tasks — admin view', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Skill Being Tested' }))
     await userEvent.click(screen.getByRole('option', { name: 'None specific' }))
     await userEvent.clear(screen.getByLabelText('Estimated Hours'))
+    expect(screen.getByLabelText('Deadline (optional)')).toHaveValue('2020-01-02')
+    fireEvent.change(screen.getByLabelText('Deadline (optional)'), { target: { value: '' } })
     fireEvent.submit(editTitle.closest('form')!)
     await screen.findByText('Task updated!')
     expect(await row(fresh.id)).toMatchObject({
       title: 'Edited task',
       skillId: null,
       estimatedHours: null,
+      deadline: null,
     })
     await screen.findByText('Edited task')
     const editedCard = () =>
@@ -303,10 +327,12 @@ describe('quick tasks — admin view', () => {
       title: 'Featured one',
       featuredAsQuickTask: true,
       estimatedHours: 2,
+      deadline: new Date('2099-05-06T00:00:00Z'),
     })
     await renderApp(<QuickTasksPage />, { as: admin })
     const card = () => screen.getByText('Featured one').closest('[role=article]') as HTMLElement
     await screen.findByText('Featured one')
+    expect(within(card()).getByText('Deadline 6 May 2099')).toBeInTheDocument()
     await userEvent.click(
       within(card()).getByRole('button', { name: 'Assign volunteer to Featured one' }),
     )

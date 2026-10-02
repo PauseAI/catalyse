@@ -59,6 +59,7 @@ const TASK_INPUT_FIELD_NAMES = [
   'deadline',
   'featuredAsQuickTask',
   'isAnchor',
+  'timing',
   'startDate',
   'durationDays',
 ] as const

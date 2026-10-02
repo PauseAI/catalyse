@@ -36,6 +36,7 @@ describe('ProjectCard', () => {
           ...base,
           isSeekingHelp: true,
           needsTasks: true,
+          daysLate: 2,
           country: 'UK',
           localGroup: 'Leeds',
           remoteEligibility: 'GLOBAL',
@@ -58,6 +59,7 @@ describe('ProjectCard', () => {
     expect(screen.getByText('In Progress')).toBeInTheDocument()
     expect(screen.getByText('Seeking Help')).toBeInTheDocument()
     expect(screen.getByText('Needs Tasks')).toBeInTheDocument()
+    expect(screen.getByText('2 days late')).toBeInTheDocument()
     expect(screen.getByText('👤 Owen')).toBeInTheDocument()
     expect(screen.getByText('📍 Remote · Global · United Kingdom · Leeds')).toBeInTheDocument()
     expect(screen.getByText('🧑‍🤝‍🧑 Ops')).toBeInTheDocument()

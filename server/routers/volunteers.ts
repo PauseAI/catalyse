@@ -350,6 +350,7 @@ export const volunteersRouter = {
       'otherSkills',
       'emailDigest',
       'emailMutedCategories',
+      'dailySummary',
       'notifyRemoteProjects',
       'applicationMessage',
     ] as const

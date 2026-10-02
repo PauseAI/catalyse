@@ -57,6 +57,18 @@ enum TaskStatus {
   completed
 }
 
+enum DailySummaryPreference {
+  email_and_in_app
+  in_app_only
+  off
+}
+
+/// How a task's dates are read: any time within the window, or on exactly those dates.
+enum TaskTiming {
+  flexible
+  fixed
+}
+
 enum QuickTaskStatus {
   open
   in_progress
@@ -348,21 +360,24 @@ model WorkItem {
   // block above. QUICK_TASK does not participate. See lib/schedule.ts.
   // `startDate` null + predecessors => start is derived from them; set => pinned to that date.
   // `durationDays` null is read as 1 day; a PROJECT with none rolls its span up from its tasks.
-  startDate            DateTime? @map("start_date")
-  durationDays         Int?      @map("duration_days")
+  startDate            DateTime?  @map("start_date")
+  durationDays         Int?       @map("duration_days")
   // The plan as committed. Captured the first time an item is scheduled, then moved only by an
   // explicit re-baseline — never by an ordinary edit or a dependency cascade.
-  baselineStartDate    DateTime? @map("baseline_start_date")
-  baselineDurationDays Int?      @map("baseline_duration_days")
-  baselineSetAt        DateTime? @map("baseline_set_at")
+  baselineStartDate    DateTime?  @map("baseline_start_date")
+  baselineDurationDays Int?       @map("baseline_duration_days")
+  baselineSetAt        DateTime?  @map("baseline_set_at")
   // The fixed point the plan is built around — a protest date, a launch, a hearing. The
   // critical path is measured towards anchors when any exist, rather than towards whatever
   // simply finishes last, so follow-up work trailing an anchor is correctly slack.
-  isAnchor             Boolean   @default(false) @map("is_anchor")
+  isAnchor             Boolean    @default(false) @map("is_anchor")
+  // `flexible`: the work happens any time within start..start+duration (effort may be far less).
+  // `fixed`: it happens on exactly those dates — a shift, a stall, the event itself.
+  timing               TaskTiming @default(flexible)
   // Last change to startDate/durationDays or to this item's dependency edges.
-  scheduleUpdatedAt    DateTime? @map("schedule_updated_at")
+  scheduleUpdatedAt    DateTime?  @map("schedule_updated_at")
   // Actual start. `completedAt` above is the actual finish.
-  startedAt            DateTime? @map("started_at")
+  startedAt            DateTime?  @map("started_at")
 
   country           String?
   localGroup        String?           @map("local_group")
@@ -386,6 +401,7 @@ model WorkItem {
   skill                Skill?                 @relation(fields: [skillId], references: [id], onUpdate: NoAction)
   team                 Team?                  @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   comments             WorkItemComment[]
+  finishByReminders    FinishByReminder[]
   reviewRequests       ProjectReviewRequest[]
   skills               WorkItemSkill[]
   interests            WorkItemInterest[]
@@ -707,6 +723,25 @@ model ApplicationsSummaryRun {
   @@map("applications_summary_runs")
 }
 
+/// One reminder or summary line already given to one person on one day, so a rerun of the
+/// daily job never repeats it. `finishBy` is the expected finish the line was about: changing it
+/// starts a fresh sequence.
+model FinishByReminder {
+  id          Int       @id @default(autoincrement())
+  workItemId  Int       @map("work_item_id")
+  stage       String
+  finishBy    DateTime  @map("finish_by")
+  recipientId Int       @map("recipient_id")
+  sentOn      DateTime  @map("sent_on")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  workItem    WorkItem  @relation(fields: [workItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  recipient   Volunteer @relation(fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([workItemId, stage, finishBy, recipientId, sentOn], map: "uq_finish_by_reminders")
+  @@index([recipientId, sentOn], map: "idx_finish_by_reminders_recipient")
+  @@map("finish_by_reminders")
+}
+
 model CronJobRun {
   id          Int       @id @default(autoincrement())
   jobName     String    @map("job_name")
@@ -850,6 +885,8 @@ model Volunteer {
   emailDigest                             String?                  @default("none") @map("email_digest") // TODO: enum — none, daily, weekly
   /// Inbox categories (lib/notification-categories.ts) whose notifications are not also emailed.
   emailMutedCategories                    String[]                 @default([]) @map("email_muted_categories")
+  /// How the daily summary of reminders and project activity reaches this person.
+  dailySummary                            DailySummaryPreference   @default(email_and_in_app) @map("daily_summary")
   notifyRemoteProjects                    Boolean                  @default(false) @map("notify_remote_projects")
   localGroup                              String?                  @map("local_group")
   locationConfirmedAt                     DateTime?                @map("location_confirmed_at")
@@ -875,6 +912,7 @@ model Volunteer {
   contactRequestsReceived                 ContactRequest[]         @relation("ContactRequestTo")
   messagesReceived                        Message[]                @relation("MessageTo")
   notifications                           Notification[]
+  finishByReminders                       FinishByReminder[]
   emailVerificationTokens                 EmailVerificationToken[]
   passwordResetTokens                     PasswordResetToken[]
   workItemInterests                       WorkItemInterest[]       @relation("InterestVolunteer")

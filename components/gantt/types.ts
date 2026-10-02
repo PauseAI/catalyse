@@ -9,6 +9,10 @@ export type GanttRow = {
   /** Status string (TaskStatus / ProjectStatus) — drives the bar colour. */
   status: string
   placement: ScheduledItem
+  /** Tasks only: how to read the window (see lib/task-dates.ts). */
+  timing?: 'flexible' | 'fixed'
+  /** Tasks only: hours of work inside the window. */
+  effortHours?: number | null
 }
 
 /** A finish-to-start edge, already filtered to rows present on the chart. */

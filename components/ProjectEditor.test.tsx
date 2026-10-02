@@ -212,7 +212,10 @@ describe('ProjectEditor — new volunteer proposal', () => {
 
     // The error stays until a task exists, and then submitting works.
     await userEvent.type(screen.getByLabelText('Task title'), 'First step')
-    await userEvent.click(screen.getByRole('button', { name: 'Add Task' }))
+    // The title's autosave creates the draft, and the button reads "Adding…" until it has.
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Add Task' }, { timeout: 20_000 }),
+    )
     await waitFor(() =>
       expect(screen.queryByText('Add at least one task before submitting.')).toBeNull(),
     )
@@ -389,6 +392,14 @@ describe('ProjectEditor — editing an existing project', () => {
     fireEvent.change(days, { target: { value: '12' } })
     blur(days)
     await waitFor(async () => expect((await row(project.id)).durationDays).toBe(12))
+
+    const deadline = screen.getByLabelText('Deadline (optional)')
+    blur(deadline) // unchanged
+    fireEvent.change(deadline, { target: { value: '2026-07-31' } })
+    blur(deadline)
+    await waitFor(async () =>
+      expect((await row(project.id)).deadline).toEqual(new Date('2026-07-31T00:00:00Z')),
+    )
 
     const link = screen.getByLabelText(/Collaboration Doc/)
     blur(link)

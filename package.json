@@ -21,6 +21,7 @@
     "migrate": "tsx scripts/migrate.ts",
     "fetch-prod-db": "tsx scripts/fetch-prod-db.ts",
     "anonymise-db": "tsx scripts/anonymise-db.ts",
+    "mark-disposable": "tsx scripts/mark-disposable.ts",
     "export-bug-reports": "tsx scripts/export-bug-reports.ts",
     "install:browsers": "playwright install chromium --with-deps",
     "install:pg-tools": "tsx scripts/install-pg-tools.ts",

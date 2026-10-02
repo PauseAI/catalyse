@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import { createVolunteer, createAdmin, createProject, createTask } from '@/test/factories'
 import { renderApp } from '@/test/render'
+import { addDays, startOfUtcDay } from '@/lib/schedule'
+import { toDateInputValue } from '@/lib/format-date'
 import TaskDetailPage from './page'
 
 const row = (id: number) => prisma.workItem.findUniqueOrThrow({ where: { id } })
@@ -34,13 +36,13 @@ describe('task detail page', () => {
 
     cleanup()
     await mount(project.id, task.id, me)
-    await screen.findByText(/Claimed on 2 January 2030/)
+    await screen.findByText(/claimed on 2 Jan 2030/)
     await prisma.workItemComment.create({
       data: { workItemId: task.id, authorId: me.id, content: 'Going well' },
     })
     cleanup()
     await mount(project.id, task.id, me)
-    await screen.findByText(/Started 2 January 2030/)
+    await screen.findByText(/started 2 Jan 2030/)
 
     // A project with no owner to review it takes the work as done.
     await userEvent.click(screen.getByRole('button', { name: 'Submit work' }))
@@ -215,9 +217,14 @@ describe('task detail page', () => {
       'href',
       `/projects/${project.id}`,
     )
-    expect(screen.getByText('~2h estimated')).toBeInTheDocument()
-    expect(screen.getByText('Due 1 January 2030')).toBeInTheDocument()
-    expect(screen.getByText(/Planned 1 December 2029 · 1 day/)).toBeInTheDocument()
+    // When, Deadline and Who, in the words the Dates block uses.
+    expect(screen.getByText('When').nextSibling).toHaveTextContent(
+      '1 Dec 2029Any time that day, about 2 hours of work',
+    )
+    expect(screen.getByText('Deadline').nextSibling).toHaveTextContent(
+      '1 Jan 2030 · 31 days to spare',
+    )
+    expect(screen.getByText('Who').nextSibling).toHaveTextContent('Nobody yet')
     expect(screen.getByRole('link', { name: 'Predecessor' })).toBeInTheDocument()
     const depRow = (name: string) => screen.getByRole('link', { name }).closest('li') as HTMLElement
     expect(within(depRow('Predecessor')).getByRole('spinbutton')).toBeDisabled()
@@ -233,8 +240,7 @@ describe('task detail page', () => {
     await screen.findByRole('button', { name: 'Submit work' })
     expect(screen.getByText(rule)).toBeInTheDocument()
     await waitFor(async () => expect((await row(task.id)).assigneeId).toBe(me.id))
-    await screen.findByText(`Assigned to ${me.name}`)
-    await screen.findByText(/Claimed on/)
+    await screen.findByText(`${me.name}, claimed on`, { exact: false })
 
     cleanup()
     await mount(project.id, task.id, owner)
@@ -247,11 +253,15 @@ describe('task detail page', () => {
     fireEvent.submit(title.closest('form')!)
     await userEvent.type(title, 'Renamed task')
     await userEvent.clear(screen.getByLabelText('Description'))
-    await userEvent.clear(screen.getByLabelText('Estimated hours'))
-    fireEvent.change(screen.getByLabelText('Deadline'), { target: { value: '' } })
-    fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '' } })
-    await userEvent.clear(screen.getByLabelText('Duration (days)'))
-    await userEvent.click(screen.getByRole('checkbox'))
+    await userEvent.clear(screen.getByLabelText('Effort (hours of work)'))
+    fireEvent.change(screen.getByLabelText('Deadline (optional)'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '' } })
+    expect(screen.getByText(/Starts when “Predecessor” finishes/)).toBeInTheDocument()
+    await userEvent.clear(screen.getByLabelText('Days'))
+    // On set dates there is no deadline to set: the dates are the commitment.
+    await userEvent.click(screen.getByRole('radio', { name: /On set dates/ }))
+    expect(screen.queryByLabelText('Deadline (optional)')).toBeNull()
+    await userEvent.click(screen.getByRole('checkbox', { name: /quick task/i }))
     fireEvent.submit(title.closest('form')!)
     await screen.findByText('Task updated!')
     expect(await row(task.id)).toMatchObject({
@@ -262,8 +272,17 @@ describe('task detail page', () => {
       startDate: null,
       durationDays: null,
       featuredAsQuickTask: true,
+      timing: 'fixed',
     })
     await screen.findByRole('heading', { name: 'Renamed task' })
+
+    // The owner can make a task the key date, and everyone then sees it marked.
+    await userEvent.click(screen.getByRole('button', { name: 'Make this the key date' }))
+    await screen.findByText('★ Key date: the date this project is planned around')
+    expect((await row(task.id)).isAnchor).toBe(true)
+    await userEvent.click(screen.getByRole('button', { name: 'Stop using this as the key date' }))
+    await screen.findByRole('button', { name: 'Make this the key date' })
+    expect((await row(task.id)).isAnchor).toBe(false)
 
     // Lag edits write only on change; dependencies can be removed and added.
     const lag = within(depRow('Predecessor')).getByRole('spinbutton')
@@ -313,7 +332,7 @@ describe('task detail page', () => {
       startedAt: new Date('2026-02-01T00:00:00Z'),
     })
     await mount(project.id, done.id, admin)
-    await screen.findByText(/finished 2 February 2026/)
+    await screen.findByText('Finished 2 Feb 2026')
     cleanup()
     await mount(project.id, 999999, admin)
     await screen.findByRole('link', { name: 'Back to Project' })
@@ -394,12 +413,133 @@ describe('task detail page — messaging the assignee', () => {
 
     // Not to yourself, and not from someone who does not work on the project.
     await mount(project.id, task.id, assignee)
-    await screen.findByText('Assigned to Ann')
+    await screen.findByText(/^Ann\b/)
     expect(screen.queryByRole('button', { name: /^Message/ })).toBeNull()
     cleanup()
     await mount(project.id, task.id, outsider)
-    await screen.findByText('Assigned to Ann')
+    await screen.findByText(/^Ann\b/)
     // The remount first shows the previous viewer's cached answer.
     await waitFor(() => expect(screen.queryByRole('button', { name: /^Message/ })).toBeNull())
+  })
+})
+
+describe('task detail page — past plan', () => {
+  const today = startOfUtcDay(new Date())
+
+  /** Names carry `tag`, as the volunteers of every test in this file share one database. */
+  async function lateTask(tag: string) {
+    const owner = await createVolunteer({ name: `Olive Owner ${tag}` })
+    const sam = await createVolunteer({ name: `Sam Slow ${tag}` })
+    const pat = await createVolunteer({ name: `Pat Next ${tag}` })
+    const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
+    const late = await createTask(project.id, {
+      title: 'Book venue',
+      status: 'in_progress',
+      assigneeId: sam.id,
+      startDate: addDays(today, -7),
+      durationDays: 5,
+      deadline: addDays(today, -1),
+    })
+    const next = await createTask(project.id, { title: 'Print flyers', durationDays: 2 })
+    // Pinned to today, so a later end leaves it starting too early.
+    const pinned = await createTask(project.id, { title: 'Set up stall', startDate: today })
+    // The event, pinned tomorrow: a later end runs the prep past it.
+    const event = await createTask(project.id, {
+      title: 'Protest',
+      startDate: addDays(today, 1),
+      durationDays: 0,
+      isAnchor: true,
+    })
+    await prisma.workItemDependency.createMany({
+      data: [
+        { predecessorId: late.id, successorId: next.id },
+        { predecessorId: late.id, successorId: pinned.id },
+        { predecessorId: late.id, successorId: event.id },
+      ],
+    })
+    return { owner, sam, pat, project, late, next }
+  }
+
+  it('tells the assignee the owner knows, and gives the owner the decision', async () => {
+    const { owner, sam, project, late } = await lateTask('A')
+    await mount(project.id, late.id, sam)
+    await screen.findByText(/3 days past plan\./)
+    expect(screen.getByText(/The owner has been told/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Replan' })).toBeNull()
+    cleanup()
+
+    await mount(project.id, late.id, owner)
+    const box = await screen.findByRole('region', { name: 'Past plan' })
+    expect(box).toHaveTextContent('Sam Slow A has it.')
+    await userEvent.click(within(box).getByRole('button', { name: 'Replan' }))
+    const dialog = await screen.findByRole('dialog')
+    // The default is a day from today; the preview names what moves with it.
+    await within(dialog).findByText(/‘Print flyers’ moves \d+ days? later/)
+    expect(within(dialog).getByText(/after the task’s deadline/)).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: '+1 week' }))
+    expect(within(dialog).getByLabelText('New planned end')).toHaveValue(
+      toDateInputValue(addDays(today, 7)),
+    )
+    // Before the task starts: refused, and nothing to save.
+    fireEvent.change(within(dialog).getByLabelText('New planned end'), {
+      target: { value: toDateInputValue(addDays(today, -30)) },
+    })
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('That is before the task starts.')
+    expect(within(dialog).getByRole('button', { name: 'Replan' })).toBeDisabled()
+    fireEvent.submit(within(dialog).getByLabelText('New planned end').closest('form')!)
+    await userEvent.click(within(dialog).getByRole('button', { name: '+3 days' }))
+    expect(within(dialog).getByText(/‘Set up stall’ is set to start \d+ days? too early/))
+    expect(within(dialog).getByText(/prep for key date ‘Protest’ would finish \d+ days? after it/))
+    await userEvent.type(within(dialog).getByLabelText('Why is the plan changing?'), 'venue')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Replan' }))
+    await screen.findByText(/^Replanned\. 'Book venue' now finishes/)
+    await waitFor(async () => expect((await row(late.id)).durationDays).toBe(11))
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Past plan' })).toBeNull())
+  })
+
+  it('lets the owner reassign or release it, and cancel a replan', async () => {
+    const { owner, pat, project, late } = await lateTask('B')
+    await mount(project.id, late.id, owner)
+    const box = await screen.findByRole('region', { name: 'Past plan' })
+    await userEvent.click(within(box).getByRole('button', { name: 'Replan' }))
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }),
+    )
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    await userEvent.click(within(box).getByRole('button', { name: 'Reassign to' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Pat Next B' }))
+    await userEvent.click(within(box).getByRole('button', { name: 'Reassign' }))
+    await screen.findByText('Reassigned. The previous assignee has been told.')
+    await waitFor(async () => expect((await row(late.id)).assigneeId).toBe(pat.id))
+
+    // A failed reassignment says why.
+    await userEvent.click(within(box).getByRole('button', { name: 'Reassign to' }))
+    await userEvent.click((await screen.findAllByRole('option', { name: 'Pat Next B' }))[0])
+    await prisma.workItem.update({ where: { id: late.id }, data: { status: 'completed' } })
+    await userEvent.click(within(box).getByRole('button', { name: 'Reassign' }))
+    await screen.findByText('Cannot assign a completed task')
+    await prisma.workItem.update({ where: { id: late.id }, data: { status: 'in_progress' } })
+
+    // Released, the task is nobody's to be late with, so there is no decision left to make.
+    await userEvent.click(await within(box).findByRole('button', { name: 'Release' }))
+    await waitFor(async () => expect((await row(late.id)).assigneeId).toBeNull())
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Past plan' })).toBeNull())
+
+    // A replan that fails says why.
+    await prisma.workItem.update({
+      where: { id: late.id },
+      data: { status: 'in_progress', assigneeId: pat.id },
+    })
+    cleanup()
+    await mount(project.id, late.id, owner)
+    const again = await screen.findByRole('region', { name: 'Past plan' })
+    await userEvent.click(within(again).getByRole('button', { name: 'Replan' }))
+    const dialog = await screen.findByRole('dialog')
+    await within(dialog).findByText(/moves \d+ days? later/)
+    await userEvent.type(within(dialog).getByLabelText('Why is the plan changing?'), 'x')
+    localStorage.setItem('authToken', 'stale')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Replan' }))
+    await screen.findByText('Unauthorized')
   })
 })

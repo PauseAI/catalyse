@@ -29,7 +29,7 @@ GitHub issue. An entry here is about the work itself: something in the code
 structure, tooling, tests, docs or diagnostics that made a task slower or more
 confusing than it needed to be, and that will do so again.
 
-## 3x
+## 4x
 
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
       and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
@@ -38,7 +38,10 @@ confusing than it needed to be, and that will do so again.
       first autosave were dropped), and e2e `01` reloaded before a background
       mark-read landed. R-06's run hit e2e `16`, which read a reply's text on screen
       as proof it was saved while the draft was still in the box, and R-09's hit
-      `ProjectEditor.test.tsx` again (a button that follows a refetch, read with `getBy…`). Each passed 8/8
+      `ProjectEditor.test.tsx` again (a button that follows a refetch, read with `getBy…`). Phase 3's
+      D-04 run hit it a third time (the Add Task button reads "Adding…" while the title's
+      autosave creates the draft) together with the Inbox mark-read test (opening a row
+      before it showed as read). Each passed 8/8
       when run alone. A script that reruns one
       file under the same parallel load (for example all unit files at once with
       only the suspect repeated) would find them in one pass instead of one per
@@ -55,6 +58,13 @@ confusing than it needed to be, and that will do so again.
       line — render the dialog inside `{target && (…)}` and read the target in
       the handler closure — belongs in `AGENTS.md` next to the coverage rules,
       and in `components/ui/ConfirmDialog.tsx`'s own usage note.
+
+- [ ] **There is no quick way to see coverage for just the files a change touched, so each
+      uncovered line costs a full `check-all`.** Phase 3 needed four extra runs (about 7 minutes
+      each) for single lines, and its UX-review follow-up a fifth (a hint's click handler): a cron registry wrapper, a dialog's error toast, an import path
+      no test fed a new field, a chip's own null guard. An npm script that runs the unit tests
+      with coverage limited to files changed since `main` and prints their uncovered lines would
+      find these in a minute.
 
 ## 1x
 
@@ -95,3 +105,15 @@ confusing than it needed to be, and that will do so again.
       sets `consent_make_profile_visible_in_directory` false, and the invite picker
       and Request contact both need it true; QA needed a hand-run `UPDATE`. The seed
       should set it true.
+
+- [ ] **A browser UX drive cannot start until a human logs in, because Claude may not type a
+      password and minting a session token from a script is refused as credential
+      materialization.** The Phase 3 review lost several turns finding this out before asking
+      the user. A development-only sign-in (a `?as=admin` route or button, gated on
+      `NODE_ENV === 'development'`) or a note in `CLAUDE.local.md` saying to ask up front would
+      remove the detour; a second role (owner and assignee at once) still needs two logins.
+
+- [ ] **Component tests that pin a calendar date but not "today" rot as the calendar passes
+      them.** `task-dates-ui.test.tsx` failed the day its 17 Sept 2026 deadline fell behind the
+      real date, though nothing about the component had changed. Tests of anything that compares
+      to today should either take a fixed today (`vi.setSystemTime`) or use dates far ahead.

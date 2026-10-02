@@ -118,6 +118,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
   // Set by a Submit with no tasks; the error under Tasks shows until one is added.
   const [submitWithoutTasks, setSubmitWithoutTasks] = useState(false)
   const [durationDays, setDurationDays] = useState('')
+  const [projectDeadline, setProjectDeadline] = useState('')
   const [collaborationLink, setCollaborationLink] = useState('')
   const [skills, setSkills] = useState<SelectedSkill[]>([])
   const [seekingHelp, setSeekingHelp] = useState(true)
@@ -165,6 +166,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
     setDuration(data.estimatedDuration ?? '')
     setStartDate(toDateInputValue(data.startDate))
     setDurationDays(data.durationDays !== null ? String(data.durationDays) : '')
+    setProjectDeadline(toDateInputValue(data.deadline))
     setSeekingHelp(data.isSeekingHelp ?? false)
     setAutoAccept(data.autoAcceptTasks)
     setWantToOwn(data.ownerId === user?.id)
@@ -769,9 +771,30 @@ export default function ProjectEditor(props: ProjectEditorProps) {
               className="w-30"
             />
           </div>
+          {/* The deadline is the owner's promise, so it waits until the project exists and is
+              set by its owner or an admin; the server holds the same line. */}
+          {projectId !== undefined && (
+            <div>
+              <label htmlFor="project-deadline">Deadline (optional)</label>
+              <input
+                id="project-deadline"
+                type="date"
+                value={projectDeadline}
+                onChange={(e) => setProjectDeadline(e.target.value)}
+                onBlur={() => {
+                  if (toDateInputValue(projectData?.deadline) === projectDeadline) return
+                  commitField({ deadline: fromDateInputValue(projectDeadline) })
+                }}
+                disabled={
+                  !canEdit || !(user?.isAdmin || projectData?.ownerId === user?.id || isDraft)
+                }
+              />
+            </div>
+          )}
           <p className="text-text-light basis-full text-sm">
             Used by the timeline view. Leave the duration empty to have the project span its own
-            tasks.
+            tasks. The deadline is the date the whole project should be done by; the timeline shows
+            how far the plan lands from it.
           </p>
         </div>
 

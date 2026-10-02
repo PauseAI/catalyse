@@ -129,6 +129,7 @@ describe('projects.applyImport', () => {
           durationDays: 4,
           featuredAsQuickTask: true,
           isAnchor: true,
+          timing: 'fixed',
         },
         { ...file.tasks[1], assigneeEmail: null, dependsOn: [{ on: a.id, lagDays: 3 }] },
         {
@@ -164,6 +165,7 @@ describe('projects.applyImport', () => {
       assigneeId: helper.id,
       durationDays: 4,
       isAnchor: true,
+      timing: 'fixed',
       featuredAsQuickTask: true,
       deadline: new Date('2026-12-01T00:00:00Z'),
     })

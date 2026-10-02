@@ -5,7 +5,12 @@ import Link from 'next/link'
 import Button from '@/components/Button'
 import Linkify from '@/components/Linkify'
 import Tooltip from '@/components/Tooltip'
-import { formatDateShort, toDateInputValue, fromDateInputValue } from '@/lib/format-date'
+import { formatDateShort } from '@/lib/format-date'
+import DatesBlock from '@/components/DatesBlock'
+import { daysPastPlan } from '@/lib/replan'
+import { plural } from '@/lib/plural'
+import { datesPayload, windowText, type DatesPayload, type DatesValue } from '@/lib/task-dates'
+import { deadlineStanding, movedText, pinConflictSlip } from '@/lib/slip'
 import { barFill, barTone, TONE_LABELS } from './palette'
 import { ANCHOR_HINT, CRITICAL_HINT } from './GanttLegend'
 import type { GanttRow } from './types'
@@ -58,12 +63,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  */
 export default function GanttItemPanel({
   row,
-  startDate,
-  durationDays,
+  dates,
   description,
   assigneeName,
-  deadline,
-  estimatedHours,
   canManage,
   siblings,
   predecessors,
@@ -74,54 +76,62 @@ export default function GanttItemPanel({
   onRemoveDependency,
   onUpdateLag,
   onSetAnchor,
+  onReplan,
   assignment,
 }: {
   row: GanttRow
-  startDate: Date | null
-  durationDays: number | null
+  /** The stored dates, timing, effort and deadline, as the Dates block edits them. */
+  dates: DatesValue
   description?: string | null
   assigneeName?: string | null
-  deadline?: Date | string | null
-  /** Effort, as opposed to `durationDays` elapsed — the two are independent. */
-  estimatedHours?: number | null
   canManage: boolean
   siblings: { id: number; title: string }[]
   predecessors: PanelPredecessor[]
   busy?: boolean
   onClose: () => void
-  onSaveDates: (patch: { startDate: Date | null; durationDays: number | null }) => void
+  onSaveDates: (patch: DatesPayload) => void
   onAddDependency: (predecessorId: number, lagDays: number) => void
   onRemoveDependency: (dependencyId: number) => void
   onUpdateLag: (dependencyId: number, lagDays: number) => void
   onSetAnchor?: (isAnchor: boolean) => void
+  /** Opens the replan dialog for a task that has run past its plan; omit where it cannot. */
+  onReplan?: () => void
   /** Omit to leave the panel read-only about who is doing the work. */
   assignment?: PanelAssignment
 }) {
-  const [start, setStart] = useState(toDateInputValue(startDate))
-  const [duration, setDuration] = useState(durationDays !== null ? String(durationDays) : '')
+  const [draft, setDraft] = useState(dates)
   const [newPred, setNewPred] = useState('')
   const [newLag, setNewLag] = useState('')
   const [pickedAssignee, setPickedAssignee] = useState('')
 
   useEffect(() => {
     // Re-seed the inputs when a different bar is selected or its stored dates change.
-    /* eslint-disable react-hooks/set-state-in-effect */
-    setStart(toDateInputValue(startDate))
-    setDuration(durationDays !== null ? String(durationDays) : '')
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, [row.id, startDate, durationDays])
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDraft(dates)
+    // Keyed on the values, not the object, which callers rebuild on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    row.id,
+    dates.timing,
+    dates.startDate,
+    dates.durationDays,
+    dates.estimatedHours,
+    dates.deadline,
+  ])
 
   const p = row.placement
-  const variance =
-    p.startVarianceDays && p.startVarianceDays !== 0
-      ? p.startVarianceDays > 0
-        ? `${p.startVarianceDays} day${p.startVarianceDays === 1 ? '' : 's'} late`
-        : `${-p.startVarianceDays} day${p.startVarianceDays === -1 ? '' : 's'} early`
-      : 'On plan'
+  const estimatedHours = dates.estimatedHours ? parseFloat(dates.estimatedHours) : null
+  const pastPlan = daysPastPlan(p.end, {
+    done: row.status === 'completed',
+    assigned: !!assigneeName,
+  })
+  const standing = deadlineStanding(p, row.status === 'completed')
+  const conflict = pinConflictSlip(
+    p,
+    predecessors.find((d) => d.predecessorId === p.pinConflictWith)?.predecessorTitle,
+  )
 
-  const span = p.isMilestone
-    ? formatDateShort(p.start)
-    : `${formatDateShort(p.start)} – ${formatDateShort(p.end)}`
+  const span = windowText(p.start, p.end)
 
   const taken = new Set(predecessors.map((d) => d.predecessorId))
   const addable = siblings.filter((s) => !taken.has(s.id) && s.id !== row.id)
@@ -148,13 +158,13 @@ export default function GanttItemPanel({
             Milestone
           </span>
         )}
-        {canManage && p.isAnchor && (
+        {p.isAnchor && (
           <Tooltip content={ANCHOR_HINT}>
             <span
               className="rounded-full px-2 py-0.5"
               style={{ background: 'var(--gantt-anchor)', color: 'var(--gantt-bar-text)' }}
             >
-              ★ Anchor
+              ★ Key date
             </span>
           </Tooltip>
         )}
@@ -168,12 +178,22 @@ export default function GanttItemPanel({
             </span>
           </Tooltip>
         )}
-        {p.breachesDeadline && (
+        {pastPlan !== null && (
+          <span className="border-warning-text text-warning-text rounded-full border px-2 py-0.5">
+            {plural(pastPlan, 'day')} past plan
+          </span>
+        )}
+        {pastPlan !== null && onReplan && (
+          <Button size="sm" variant="secondary" disabled={busy} onClick={onReplan}>
+            Replan
+          </Button>
+        )}
+        {standing?.late && (
           <span
             className="rounded-full px-2 py-0.5"
             style={{ background: 'var(--gantt-today)', color: 'var(--gantt-bar-text)' }}
           >
-            Past deadline
+            {standing.text}
           </span>
         )}
       </div>
@@ -186,26 +206,35 @@ export default function GanttItemPanel({
 
       {/* Derived facts only. Anything editable is stated once, by its own control below — the
           panel should never print a value and then offer the field for it half a screen away. */}
-      <dl className="grid grid-cols-[5.5rem_1fr] gap-x-3 gap-y-1.5 text-sm">
-        <Fact label="Scheduled">{span}</Fact>
-        {deadline && <Fact label="Deadline">{formatDateShort(deadline)}</Fact>}
-        {estimatedHours !== null && estimatedHours !== undefined && (
+      <dl className="grid grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1.5 text-sm">
+        <Fact label="Planned">{span}</Fact>
+        {p.deadline && standing && (
+          <Fact label="Deadline">
+            {formatDateShort(p.deadline)}{' '}
+            <span className={standing.late ? 'text-error' : 'text-text-light'}>
+              · {standing.text}
+            </span>
+          </Fact>
+        )}
+        {estimatedHours !== null && (
           <Fact label="Effort">
             {estimatedHours} hour{estimatedHours === 1 ? '' : 's'} of work
           </Fact>
         )}
         {p.baseline && (
-          <Fact label="Planned">
+          <Fact label="Original plan">
             {formatDateShort(p.baseline.start)} – {formatDateShort(p.baseline.end)}
           </Fact>
         )}
-        {/* Variance only means something against a committed baseline. With none set there is
+        {/* Days moved only mean something against a saved original plan. With none there is
             nothing to compare to, so the row is absent rather than reading a misleading
             "On plan". */}
         {p.baseline && (
-          <Fact label="Variance">
-            <span className={p.startVarianceDays ? 'text-warning-text' : undefined}>
-              {variance}
+          <Fact label="Moved">
+            <span className={p.finishVarianceDays ? 'text-warning-text' : undefined}>
+              {p.finishVarianceDays
+                ? `${movedText(p.finishVarianceDays)} (${formatDateShort(p.baseline.end)} → ${formatDateShort(p.end)})`
+                : 'On plan'}
             </span>
           </Fact>
         )}
@@ -218,59 +247,31 @@ export default function GanttItemPanel({
       </dl>
 
       {canManage && !p.baseline && (
-        <p className="text-text-light mt-2 mb-0 text-xs">No baseline set, so no variance yet.</p>
+        <p className="text-text-light mt-2 mb-0 text-xs">
+          No original plan saved yet, so nothing to compare.
+        </p>
       )}
 
-      {p.pinnedBeforePredecessor && (
-        <p className="text-error mt-2 mb-0 text-sm">Pinned earlier than its dependencies allow.</p>
-      )}
+      {conflict && <p className="text-error mt-2 mb-0 text-sm">{conflict}</p>}
 
       {canManage && (
         <Section title="Dates">
           <form
             onSubmit={(e) => {
               e.preventDefault()
-              onSaveDates({
-                startDate: fromDateInputValue(start),
-                durationDays: duration ? parseInt(duration, 10) : null,
-              })
+              onSaveDates(datesPayload(draft))
             }}
           >
-            {/* A date needs room for ten characters; a duration needs two. Equal columns would
-                make the duration hint wrap. */}
-            <div className="mb-2 grid grid-cols-[1fr_auto] items-start gap-3">
-              <div>
-                <label htmlFor="panel-start">Start date</label>
-                <input
-                  id="panel-start"
-                  type="date"
-                  value={start}
-                  onChange={(e) => setStart(e.target.value)}
-                />
-              </div>
-              <div>
-                <label htmlFor="panel-duration">Duration</label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    id="panel-duration"
-                    type="number"
-                    min="0"
-                    step="1"
-                    className="w-16"
-                    value={duration}
-                    onChange={(e) => setDuration(e.target.value)}
-                    aria-describedby="panel-duration-hint"
-                  />
-                  <span className="text-text-light text-sm">days</span>
-                </div>
-              </div>
-            </div>
-            <p id="panel-duration-hint" className="text-text-light mt-0 mb-2 text-xs">
-              {start ? 'Pinned to this date.' : 'Following its dependencies — no fixed date.'} A
-              duration of 0 makes it a milestone.
-            </p>
+            <DatesBlock
+              id="panel"
+              value={draft}
+              onChange={setDraft}
+              followsTitle={predecessors[0]?.predecessorTitle ?? null}
+              derivedStart={draft.startDate ? null : p.start}
+              disabled={busy}
+            />
 
-            {/* The anchor belongs with the dates it governs, not in a section of its own. */}
+            {/* The key date belongs with the dates it governs, not in a section of its own. */}
             {onSetAnchor && (
               <label className="mb-3 flex items-center gap-2 font-normal">
                 <input
@@ -282,7 +283,7 @@ export default function GanttItemPanel({
                 />
                 <Tooltip content={ANCHOR_HINT}>
                   <span className="text-sm decoration-dotted underline-offset-2 [text-decoration-line:underline]">
-                    Anchor — a fixed point the plan is built around
+                    Key date — a fixed point the plan is built around
                   </span>
                 </Tooltip>
               </label>
@@ -292,21 +293,20 @@ export default function GanttItemPanel({
               <Button type="submit" size="sm" disabled={busy}>
                 Save
               </Button>
-              {start && (
+              {draft.startDate && predecessors.length > 0 && (
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
                   disabled={busy}
+                  title="Clear the start date so it begins when the work before it finishes"
                   onClick={() => {
-                    setStart('')
-                    onSaveDates({
-                      startDate: null,
-                      durationDays: duration ? parseInt(duration, 10) : null,
-                    })
+                    const next = { ...draft, startDate: '' }
+                    setDraft(next)
+                    onSaveDates(datesPayload(next))
                   }}
                 >
-                  Unpin
+                  Follow “{predecessors[0].predecessorTitle}” instead
                 </Button>
               )}
             </div>

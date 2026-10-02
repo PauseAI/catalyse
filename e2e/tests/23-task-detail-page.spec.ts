@@ -113,8 +113,8 @@ test.describe('Task Detail Page', () => {
     await adminPage.getByRole('button', { name: 'Edit', exact: true }).click()
     await adminPage.getByLabel('Task title').fill('Edited title')
     await adminPage.getByLabel('Description').fill('Edited description')
-    await adminPage.getByLabel('Estimated hours').fill('4')
-    await adminPage.getByLabel('Deadline').fill('2099-01-01')
+    await adminPage.getByLabel('Effort (hours of work)').fill('4')
+    await adminPage.getByLabel('Deadline (optional)').fill('2099-01-01')
     await adminPage.getByRole('button', { name: 'Save Changes' }).click()
 
     await expect(getAlert(adminPage)).toContainText('Task updated!', { timeout: 10_000 })
@@ -122,7 +122,7 @@ test.describe('Task Detail Page', () => {
       timeout: 10_000,
     })
     await expect(adminPage.locator('p').filter({ hasText: 'Edited description' })).toBeVisible()
-    await expect(adminPage.getByText('~4h estimated')).toBeVisible()
+    await expect(adminPage.getByText('About 4 hours of work')).toBeVisible()
   })
 
   test('Admin unassigns a volunteer from an in-progress task via the task menu', async ({

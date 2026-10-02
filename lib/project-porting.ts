@@ -38,6 +38,7 @@ export type CurrentTask = {
   baselineSetAt: Date | null
   featuredAsQuickTask: boolean
   isAnchor: boolean
+  timing: 'flexible' | 'fixed'
   sortOrder: number | null
 }
 
@@ -105,6 +106,7 @@ const ImportTaskSchema = z.object({
   durationDays: z.number().int().min(0).max(3650).nullable().optional(),
   featuredAsQuickTask: z.boolean().optional(),
   isAnchor: z.boolean().optional(),
+  timing: z.enum(['flexible', 'fixed']).optional(),
   dependsOn: z.array(DependsOnSchema).max(MAX_DEPENDENCIES_PER_TASK).optional(),
 })
 
@@ -164,6 +166,7 @@ export type ProjectExportPayload = {
     durationDays: number | null
     featuredAsQuickTask: boolean
     isAnchor: boolean
+    timing: 'flexible' | 'fixed'
     dependsOn: Array<{ on: number; lagDays: number }>
   }>
 }
@@ -216,6 +219,7 @@ export function serializeProjectExport(state: CurrentState, appUrl?: string): Pr
       durationDays: t.durationDays,
       featuredAsQuickTask: t.featuredAsQuickTask,
       isAnchor: t.isAnchor,
+      timing: t.timing,
       dependsOn: state.dependencies
         .filter((d) => d.successorId === t.id)
         .sort((a, b) => a.predecessorId - b.predecessorId)
@@ -249,6 +253,7 @@ function canonicalise(state: CurrentState): string {
       durationDays: t.durationDays ?? null,
       featuredAsQuickTask: t.featuredAsQuickTask,
       isAnchor: t.isAnchor,
+      timing: t.timing,
     }))
     .sort((a, b) => a.id - b.id)
   const dependencies = [...state.dependencies]
@@ -342,6 +347,7 @@ const TASK_FIELDS = [
   'durationDays',
   'featuredAsQuickTask',
   'isAnchor',
+  'timing',
 ] as const
 
 type NormalisedTask = {
@@ -354,6 +360,7 @@ type NormalisedTask = {
   durationDays: number | null
   featuredAsQuickTask: boolean
   isAnchor: boolean
+  timing: 'flexible' | 'fixed'
 }
 
 function normaliseCurrent(t: CurrentTask): NormalisedTask {
@@ -367,6 +374,7 @@ function normaliseCurrent(t: CurrentTask): NormalisedTask {
     durationDays: t.durationDays ?? null,
     featuredAsQuickTask: t.featuredAsQuickTask,
     isAnchor: t.isAnchor,
+    timing: t.timing,
   }
 }
 
@@ -634,12 +642,15 @@ function createTaskFieldList(ft: ImportTask): FieldChange[] {
     durationDays: ft.durationDays ?? null,
     featuredAsQuickTask: ft.featuredAsQuickTask ?? false,
     isAnchor: ft.isAnchor ?? false,
+    timing: ft.timing ?? 'flexible',
   }
   const rec = effective as unknown as Record<string, unknown>
   const out: FieldChange[] = []
   for (const field of TASK_FIELDS) {
     const v = rec[field]
-    if (v !== null && v !== false && v !== '') out.push({ field, from: null, to: v })
+    // Only what differs from a blank task is worth listing; `flexible` is the timing default.
+    if (v !== null && v !== false && v !== '' && v !== 'flexible')
+      out.push({ field, from: null, to: v })
   }
   return out
 }
@@ -784,6 +795,7 @@ export type TaskWriteFields = {
   durationDays?: number | null
   featuredAsQuickTask?: boolean
   isAnchor?: boolean
+  timing?: 'flexible' | 'fixed'
 }
 
 export type LocalRef = { kind: 'existing'; id: number } | { kind: 'created'; ref: string }
@@ -817,6 +829,7 @@ function writeFieldsForUpdate(node: TaskNode): TaskWriteFields {
   if (changed.has('durationDays')) fields.durationDays = ft.durationDays ?? null
   if (changed.has('featuredAsQuickTask')) fields.featuredAsQuickTask = ft.featuredAsQuickTask
   if (changed.has('isAnchor')) fields.isAnchor = ft.isAnchor
+  if (changed.has('timing')) fields.timing = ft.timing
   return fields
 }
 
@@ -831,6 +844,7 @@ function writeFieldsForCreate(ft: ImportTask): TaskWriteFields {
     durationDays: ft.durationDays ?? null,
     featuredAsQuickTask: ft.featuredAsQuickTask ?? false,
     isAnchor: ft.isAnchor ?? false,
+    timing: ft.timing ?? 'flexible',
   }
 }
 

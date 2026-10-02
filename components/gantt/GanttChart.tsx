@@ -36,6 +36,7 @@ import {
 import { RANGES, windowDays, windowFor, type RangeKey } from './range'
 import { formatDateShort } from '@/lib/format-date'
 import { plural } from '@/lib/plural'
+import { lateText } from '@/lib/slip'
 import { patchFromDrag, type DragData, type ReschedulePatch } from './useGanttDrag'
 import type { GanttEdge, GanttRow as GanttRowData } from './types'
 
@@ -76,6 +77,8 @@ export default function GanttChart({
   onLink,
   onUnlink,
   busy,
+  deadline,
+  highlightCritical = true,
 }: {
   rows: GanttRowData[]
   edges: GanttEdge[]
@@ -89,6 +92,9 @@ export default function GanttChart({
   /** Omit to leave the arrows read-only; only edges carrying a row id can be removed. */
   onUnlink?: (dependencyId: number) => void
   busy?: boolean
+  /** The scope's own deadline (a project's), measured against where the plan ends. */
+  deadline?: Date | null
+  highlightCritical?: boolean
 }) {
   const [zoom, setZoom] = useState<ZoomLevel>('fit')
   const [range, setRange] = useState<RangeKey>('all')
@@ -116,9 +122,19 @@ export default function GanttChart({
     useSensor(KeyboardSensor),
   )
 
+  // The scope runs to the last deadline as well as the last bar, so a marker for a date the
+  // plan has not reached yet is drawn rather than left off the right-hand edge.
+  const scopeEnd = useMemo(() => {
+    const ends = [
+      rangeEnd,
+      ...(deadline ? [deadline] : []),
+      ...rows.flatMap((r) => r.placement.deadline ?? []),
+    ]
+    return ends.reduce((a, b) => (b.getTime() > a.getTime() ? b : a))
+  }, [rangeEnd, deadline, rows])
   const visible = useMemo(
-    () => windowFor(range, rangeStart, rangeEnd, new Date()),
-    [range, rangeStart, rangeEnd],
+    () => windowFor(range, rangeStart, scopeEnd, new Date()),
+    [range, rangeStart, scopeEnd],
   )
   const origin = startOfUtcDay(visible.start)
   // Leave a sliver spare so "Fit" never rounds up into a horizontal scrollbar.
@@ -145,6 +161,8 @@ export default function GanttChart({
   const finishVisible = finishX >= 0 && finishX <= width
   const scopeDays = windowDays(startOfUtcDay(rangeStart), startOfUtcDay(rangeEnd))
   const daysToFinish = diffInDays(new Date(), rangeEnd)
+  const daysLate = deadline ? diffInDays(deadline, rangeEnd) : null
+  const labelById = useMemo(() => new Map(rows.map((r) => [r.id, r.label])), [rows])
 
   /** Hover wins over selection so pointing at a row always previews its links. */
   const focusedId = hoveredId ?? selectedId ?? null
@@ -375,6 +393,12 @@ export default function GanttChart({
                     dimmed={relatedIds !== null && !relatedIds.has(r.id)}
                     onSelect={onSelect}
                     onHover={setHoveredId}
+                    highlightCritical={highlightCritical}
+                    pinConflictLabel={
+                      r.placement.pinConflictWith === null
+                        ? undefined
+                        : labelById.get(r.placement.pinConflictWith)
+                    }
                   />
                 </div>
               ))}
@@ -423,6 +447,20 @@ export default function GanttChart({
           <dt className="text-text-light">Ends</dt>
           <dd className="m-0 font-medium">{formatDateShort(rangeEnd)}</dd>
         </div>
+        {deadline && daysLate !== null && (
+          <>
+            <div className="flex items-baseline gap-2">
+              <dt className="text-text-light">Deadline</dt>
+              <dd className="m-0 font-medium">{formatDateShort(deadline)}</dd>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <dt className="sr-only">Against the deadline</dt>
+              <dd className={`m-0 ${daysLate > 0 ? 'text-error font-medium' : ''}`}>
+                {lateText(daysLate)}
+              </dd>
+            </div>
+          </>
+        )}
         <div className="flex items-baseline gap-2">
           <dt className="text-text-light">Span</dt>
           <dd className="m-0">{plural(scopeDays, 'day')}</dd>
@@ -482,7 +520,7 @@ export default function GanttChart({
         {body}
       </DndContext>
 
-      <GanttLegend editable={editable} />
+      <GanttLegend editable={editable} highlightCritical={highlightCritical} />
     </div>
   )
 }

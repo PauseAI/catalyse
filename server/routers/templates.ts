@@ -29,6 +29,7 @@ const ScratchTaskSchema = z.object({
   durationDays: z.number().int().min(0).max(3650).nullable().optional(),
   featuredAsQuickTask: z.boolean().optional(),
   isAnchor: z.boolean().optional(),
+  timing: z.enum(['flexible', 'fixed']).optional(),
   skillIds: z.array(z.number().int()).optional(),
   dependsOnRefs: z.array(z.string().min(1).max(64)).optional(),
 })
@@ -154,6 +155,7 @@ export const templatesRouter = {
         baselineSetAt: t.baselineSetAt,
         featuredAsQuickTask: t.featuredAsQuickTask ?? false,
         isAnchor: t.isAnchor ?? false,
+        timing: t.timing ?? 'flexible',
         sortOrder: t.sortOrder,
         skills: t.skills.map((s) => ({ skillId: s.skillId, isRequired: s.isRequired ?? true })),
       }))
@@ -232,6 +234,7 @@ export const templatesRouter = {
           durationDays: t.durationDays ?? null,
           featuredAsQuickTask: t.featuredAsQuickTask ?? false,
           isAnchor: t.isAnchor ?? false,
+          timing: t.timing ?? 'flexible',
           skills: (t.skillIds ?? []).map((skillId) => ({ skillId, isRequired: true })),
           dependsOn: (t.dependsOnRefs ?? []).map((ref) => ({ on: ref, lagDays: 0 })),
         })),
@@ -393,6 +396,7 @@ export const templatesRouter = {
               deadline: taskCreate.deadline,
               featuredAsQuickTask: taskCreate.featuredAsQuickTask,
               isAnchor: taskCreate.isAnchor,
+              timing: taskCreate.timing,
               creatorId: context.volunteer.id,
               sortOrder: ++sortOrder,
               ...taskScheduleData,

@@ -372,15 +372,27 @@ describe('project page — owner', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add Task' }))
     await userEvent.type(screen.getByLabelText('Task title'), 'Third task')
     await userEvent.type(screen.getByLabelText('Description'), 'details')
-    await userEvent.type(screen.getByLabelText('Estimated hours'), '2')
-    fireEvent.change(screen.getByLabelText('Deadline'), { target: { value: '2030-01-01' } })
-    fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2029-12-01' } })
-    await userEvent.type(screen.getByLabelText('Duration (days)'), '3')
+    await userEvent.type(screen.getByLabelText('Effort (hours of work)'), '2')
+    fireEvent.change(screen.getByLabelText('Deadline (optional)'), {
+      target: { value: '2030-01-01' },
+    })
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2029-12-01' } })
+    // The end date and the day count keep each other in step; only the days are stored.
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2029-12-03' } })
+    expect(screen.getByLabelText('Days')).toHaveValue(3)
+    expect(screen.getByText(/Planned to finish 3 Dec 2029, 29 days before the deadline/))
+    // An owner is not told that only the owner can change the dates later.
+    expect(screen.queryByText(/Only the project owner can change these dates/)).toBeNull()
     await userEvent.click(screen.getByRole('checkbox', { name: /quick task/i }))
     fireEvent.submit(screen.getByLabelText('Task title').closest('form')!)
     await screen.findByText('Task added!')
     const t3 = await prisma.workItem.findFirstOrThrow({ where: { title: 'Third task' } })
-    expect(t3).toMatchObject({ estimatedHours: 2, durationDays: 3, featuredAsQuickTask: true })
+    expect(t3).toMatchObject({
+      estimatedHours: 2,
+      durationDays: 3,
+      featuredAsQuickTask: true,
+      timing: 'flexible',
+    })
 
     // Accept one interest, decline the other with a message.
     await openTab(/^People/)
@@ -575,6 +587,98 @@ describe('project page — owner', () => {
     await waitFor(() => expect(screen.getAllByText('Project not found').length).toBeGreaterThan(2))
     await openTab(/^Tasks/)
     act(() => listDrag()({ active: { id: t1.id }, over: { id: t1.id + 1 } } as DragEndEvent))
+  })
+})
+
+describe('project page — key date', () => {
+  it('labels tasks by their side of the key date and orders the timeline the same way', async () => {
+    const owner = await createVolunteer()
+    const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
+    const start = new Date('2030-03-01T00:00:00Z')
+    // Created after-first, so the timeline has to reorder them.
+    const press = await createTask(project.id, { title: 'Press', durationDays: 1 })
+    const event = await createTask(project.id, { title: 'Event', isAnchor: true, durationDays: 0 })
+    const prep = await createTask(project.id, { title: 'Prep', startDate: start, durationDays: 2 })
+    await prisma.workItemDependency.createMany({
+      data: [
+        { predecessorId: prep.id, successorId: event.id },
+        { predecessorId: event.id, successorId: press.id },
+      ],
+    })
+    await mount(project.id, owner, '#tasks')
+    await screen.findByText('Before the key date')
+    expect(screen.getByText('After the key date')).toBeInTheDocument()
+    expect(screen.getByText('★ Key date')).toBeInTheDocument()
+    // The list says which task the labels are about.
+    expect(screen.getByText(/The work it waits for is marked Before/)).toHaveTextContent('Event')
+
+    await openTab(/^Timeline/)
+    const bars = await screen.findAllByRole('button', { name: /^(Prep|Event|Press):/ })
+    expect(bars.map((b) => b.getAttribute('aria-label')!.split(':')[0])).toEqual([
+      'Prep',
+      'Event',
+      'Press',
+    ])
+  })
+})
+
+describe('project page — past plan', () => {
+  it('flags a task past its plan in the list and in the timeline panel', async () => {
+    const owner = await createVolunteer()
+    const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
+    const start = new Date(Date.now() - 9 * 86_400_000)
+    await createTask(project.id, {
+      title: 'Behind',
+      status: 'in_progress',
+      assigneeId: owner.id,
+      startDate: new Date(
+        Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()),
+      ),
+      durationDays: 2,
+    })
+    await mount(project.id, owner, '#tasks')
+    await screen.findByText('8 days past plan')
+    await openTab(/^Timeline/)
+    await userEvent.click(await screen.findByRole('button', { name: /^Behind:/ }))
+    const panel = screen.getByRole('complementary')
+    expect(within(panel).getByText('8 days past plan')).toBeInTheDocument()
+    // The owner can replan from the panel without leaving the chart.
+    await userEvent.click(within(panel).getByRole('button', { name: 'Replan' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent("Replan 'Behind'")
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('points a manager at the timeline when many tasks are past plan at once', async () => {
+    const owner = await createVolunteer()
+    const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
+    for (let i = 0; i < 5; i++) {
+      await createTask(project.id, {
+        title: `Stale ${i}`,
+        status: 'in_progress',
+        assigneeId: owner.id,
+        startDate: new Date(Date.now() - 9 * 86_400_000),
+        durationDays: 1,
+      })
+    }
+    await mount(project.id, owner, '#tasks')
+    await screen.findByText(/5 tasks are past plan/)
+    await userEvent.click(screen.getByRole('button', { name: 'Timeline' }))
+    expect(await screen.findByRole('heading', { name: 'Timeline' })).toBeInTheDocument()
+  })
+
+  it('does not call an unclaimed task past its plan', async () => {
+    const owner = await createVolunteer()
+    const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
+    await createTask(project.id, {
+      title: 'Waiting',
+      startDate: new Date(Date.now() - 9 * 86_400_000),
+      durationDays: 2,
+    })
+    await mount(project.id, owner, '#tasks')
+    await screen.findByText('Waiting')
+    expect(screen.queryByText(/past plan/)).toBeNull()
   })
 })
 
@@ -901,7 +1005,7 @@ describe('project page — timeline tab', () => {
     expect(screen.getByRole('tab', { name: 'Timeline' })).toHaveAttribute('aria-selected', 'true')
     await screen.findByRole('button', { name: /^Alpha:/ })
     expect(screen.getByText('Unscheduled (1)')).toBeInTheDocument()
-    expect(screen.getByText(/Baseline set/)).toBeInTheDocument()
+    expect(screen.getByText(/Original plan set/)).toBeInTheDocument()
 
     // Tab switching pushes history; the popstate/hashchange listeners read it back.
     await userEvent.click(screen.getByRole('tab', { name: 'Overview' }))
@@ -951,11 +1055,19 @@ describe('project page — timeline tab', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Beta:/ }))
     const panel = () => screen.getByRole('complementary')
     await within(panel()).findByText('Beta')
-    fireEvent.change(within(panel()).getByLabelText('Duration'), { target: { value: '4' } })
-    fireEvent.submit(within(panel()).getByLabelText('Duration').closest('form')!)
+    fireEvent.change(within(panel()).getByLabelText('Days'), { target: { value: '4' } })
+    fireEvent.submit(within(panel()).getByLabelText('Days').closest('form')!)
     await waitFor(async () => expect((await row(b.id)).durationDays).toBe(4))
-    await userEvent.click(within(panel()).getByRole('checkbox'))
+    // Timing and effort are not schedule, so they go by the task update rather than the drag path.
+    await userEvent.click(within(panel()).getByRole('radio', { name: /On set dates/ }))
+    await userEvent.type(within(panel()).getByLabelText('Effort (hours of work)'), '3')
+    fireEvent.submit(within(panel()).getByLabelText('Days').closest('form')!)
+    await waitFor(async () =>
+      expect(await row(b.id)).toMatchObject({ timing: 'fixed', estimatedHours: 3 }),
+    )
+    await userEvent.click(within(panel()).getByRole('checkbox', { name: /Key date/ }))
     await waitFor(async () => expect((await row(b.id)).isAnchor).toBe(true))
+    await screen.findByText('This is now the key date.')
     const lag = within(panel()).getByLabelText(/Lag/, { selector: 'input[id^="panel-lag-"]' })
     fireEvent.change(lag, { target: { value: '2' } })
     fireEvent.blur(lag)
@@ -1008,11 +1120,17 @@ describe('project page — timeline tab', () => {
       expect(await prisma.workItemDependency.count({ where: { successorId: b.id } })).toBe(0),
     )
 
-    await userEvent.click(screen.getByRole('button', { name: 'Re-baseline' }))
+    // The critical path is a planning aid, ringed only when asked for.
+    expect(screen.queryByRole('button', { name: /on the critical path/ })).toBeNull()
+    await userEvent.click(screen.getByLabelText('Highlight the critical path'))
+    expect(screen.getAllByRole('button', { name: /on the critical path/ }).length).toBeGreaterThan(
+      0,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Replace original plan' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Re-baseline' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Replace baseline' }))
-    await screen.findByText('Baseline updated')
+    await userEvent.click(screen.getByRole('button', { name: 'Replace original plan' }))
+    await userEvent.click(screen.getAllByRole('button', { name: 'Replace original plan' })[1])
+    await screen.findByText('Original plan updated')
     await waitFor(async () => expect((await row(b.id)).baselineDurationDays).toBe(4))
     const startBefore = (await row(b.id)).startDate
 
@@ -1047,9 +1165,9 @@ describe('project page — timeline tab', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add all to timeline' }))
     await waitFor(async () => expect((await row(t2.id)).durationDays).toBe(1))
     await screen.findByRole('button', { name: /^Loose one:/ })
-    await userEvent.click(screen.getByRole('button', { name: 'Set baseline' }))
-    await userEvent.click(screen.getAllByRole('button', { name: 'Set baseline' })[1])
-    await screen.findByText('Baseline updated')
+    await userEvent.click(screen.getByRole('button', { name: 'Set original plan' }))
+    await userEvent.click(screen.getAllByRole('button', { name: 'Set original plan' })[1])
+    await screen.findByText('Original plan updated')
 
     // Failures: an anchor change and a reschedule on a task that vanished.
     await userEvent.click(screen.getByRole('button', { name: /^Loose one:/ }))
@@ -1061,11 +1179,11 @@ describe('project page — timeline tab', () => {
     await userEvent.click(within(panel).getByRole('button', { name: 'Add' }))
     await screen.findByText('One or both items were not found')
     // A failed reschedule is rolled back and the timeline refetched (which drops the panel).
-    fireEvent.submit(within(panel).getByLabelText('Duration').closest('form')!)
+    fireEvent.submit(within(panel).getByLabelText('Days').closest('form')!)
     await screen.findByText('One or more items were not found')
-    await userEvent.click(await screen.findByRole('button', { name: 'Re-baseline' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Replace original plan' }))
     localStorage.setItem('authToken', 'stale')
-    await userEvent.click(screen.getByRole('button', { name: 'Replace baseline' }))
+    await userEvent.click(screen.getAllByRole('button', { name: 'Replace original plan' })[1])
     await screen.findByText('Unauthorized')
   })
 

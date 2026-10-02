@@ -219,6 +219,7 @@ export const UpdateProjectSchema = WorkItemSchema.pick({
   outcome: true,
   outcomeNotes: true,
   autoAcceptTasks: true,
+  deadline: true,
 })
   .partial()
   .extend({
@@ -240,12 +241,14 @@ export const CreateProjectTaskSchema = WorkItemSchema.pick({
   estimatedHours: true,
   deadline: true,
   featuredAsQuickTask: true,
+  timing: true,
   ...SCHEDULE_INPUT_FIELDS,
 }).partial({
   description: true,
   estimatedHours: true,
   deadline: true,
   featuredAsQuickTask: true,
+  timing: true,
   ...SCHEDULE_INPUT_FIELDS,
 })
 
@@ -257,6 +260,7 @@ export const UpdateProjectTaskSchema = WorkItemSchema.pick({
   deadline: true,
   featuredAsQuickTask: true,
   isAnchor: true,
+  timing: true,
   ...SCHEDULE_INPUT_FIELDS,
 })
   .partial()
@@ -424,7 +428,8 @@ export const CreateQuickTaskSchema = WorkItemSchema.pick({
   skillId: true,
   contextProjectId: true,
   estimatedHours: true,
-}).partial({ skillId: true, contextProjectId: true, estimatedHours: true })
+  deadline: true,
+}).partial({ skillId: true, contextProjectId: true, estimatedHours: true, deadline: true })
 
 export const AssignQuickTaskSchema = z.object({
   volunteerId: z.number().int({ message: 'volunteerId is required' }),
@@ -498,4 +503,5 @@ export const UpdateVolunteerSchema = VolunteerSchema.omit({
       .nullable()
       .optional(),
     emailMutedCategories: z.array(z.enum(MUTABLE_EMAIL_CATEGORIES)).optional(),
+    dailySummary: z.enum(['email_and_in_app', 'in_app_only', 'off']).optional(),
   })

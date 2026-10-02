@@ -3,6 +3,7 @@ import path from 'node:path'
 import { Client } from 'pg'
 // Imported for its side effect of loading .env and .env.local, so the variables below can live there.
 import '../lib/db-url'
+import { markDisposable } from '../scripts/disposable-db'
 
 /**
  * Every test file gets its own private copy of the schema, in one of two ways chosen by
@@ -149,7 +150,8 @@ async function dropDatabase(database: string): Promise<void> {
 /**
  * Once per run: clears what an interrupted run left, then prepares the mode. Building the
  * template, or one probe schema, makes a broken migration or an unreachable database fail
- * here with one clear error instead of once per test file.
+ * here with one clear error instead of once per test file. Every copy must be marked
+ * disposable for the dev-database scripts to run against it (see scripts/disposable-db.ts).
  */
 export async function prepareTestDb(): Promise<void> {
   await dropStale()
@@ -157,13 +159,27 @@ export async function prepareTestDb(): Promise<void> {
     await createTemplate()
   } else {
     await createSchema(`${DB_PREFIX}probe`)
+    await withClient(markDisposable)
   }
 }
 
-/** Gives a test file its private copy, named `name`. */
+/**
+ * Gives a test file its private copy, named `name`. A clone is marked disposable here, since
+ * it does not inherit the template's database settings; schema copies share the server's
+ * database, which `prepareTestDb` marks.
+ */
 export async function createTestDb(name: string): Promise<void> {
-  if (testDbMode() === 'clone') await cloneTemplate(name)
-  else await createSchema(name)
+  if (testDbMode() === 'clone') {
+    await cloneTemplate(name)
+    const client = await connect(urlForDatabase(name).toString())
+    try {
+      await markDisposable(client)
+    } finally {
+      await client.end()
+    }
+  } else {
+    await createSchema(name)
+  }
 }
 
 export async function dropTestDb(name: string): Promise<void> {

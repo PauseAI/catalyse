@@ -150,6 +150,11 @@ const EMAIL_TYPES: { value: string; label: string; params: Record<string, Param>
     },
   },
   {
+    value: 'daily-summary',
+    label: 'Daily Summary',
+    params: { name: 'Alex' },
+  },
+  {
     value: 'task-surrendered-assignee',
     label: 'Task Surrendered (Assignee)',
     params: {

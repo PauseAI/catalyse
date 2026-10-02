@@ -17,9 +17,57 @@ import {
   buildTaskFinalWarningHtml,
   buildTaskSurrenderedOwnerHtml,
   buildTaskSurrenderedAssigneeHtml,
+  buildDailySummaryHtml,
 } from '@/lib/email'
+import { summarySections, summarySubject, type SummaryLine } from '@/lib/daily-summary'
 import { adminProcedure } from '../../procedures'
 import { env } from '@/lib/env'
+
+/** A day with a decision, a task of the reader's own, a quiet task and some news. */
+const SAMPLE_SUMMARY: SummaryLine[] = [
+  {
+    role: 'owner',
+    kind: 'needs_decision',
+    group: 'Westminster protest',
+    href: '/projects/1/tasks/2',
+    text: '“Draft run of show” is 3 days past plan. Assignee: Sam, last update 5 days ago. Replan, reassign or release.',
+  },
+  {
+    role: 'assignee',
+    kind: 'overdue',
+    group: 'Quick Tasks',
+    href: '/quick-tasks/3',
+    text: '“Write the press release” is 3 days past plan',
+  },
+  {
+    role: 'assignee',
+    kind: 'due_tomorrow',
+    group: 'Westminster protest',
+    href: '/projects/1/tasks/4',
+    text: '“Book the room” is due 12 Oct 2026',
+  },
+  {
+    role: 'owner',
+    kind: 'at_risk',
+    group: 'Westminster protest',
+    href: '/projects/1/tasks/5',
+    text: '“Secure speakers”: no update yet, 5 days to go',
+  },
+  {
+    role: 'owner',
+    kind: 'activity',
+    group: 'Westminster protest',
+    href: '/projects/1/tasks/6',
+    text: 'Riley posted on “Make Luma event”',
+  },
+  {
+    role: 'owner',
+    kind: 'activity',
+    group: 'Westminster protest',
+    href: '/projects/1#people',
+    text: 'Jo wants to help',
+  },
+]
 
 const SAMPLE_PROJECTS = [
   {
@@ -187,6 +235,10 @@ const EMAIL_PREVIEW_REGISTRY: Record<string, { subject: string; build: () => str
         'Climate Action Newsletter',
         1,
       ),
+  },
+  'daily-summary': {
+    subject: summarySubject(SAMPLE_SUMMARY),
+    build: () => buildDailySummaryHtml('Alex', summarySections(SAMPLE_SUMMARY)),
   },
   'task-surrendered-assignee': {
     subject: 'Update on your task: Write fundraising copy',

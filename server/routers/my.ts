@@ -52,6 +52,7 @@ export const myRouter = {
       reviewedAt: t.reviewedAt,
       changesRequested: t.changesRequestedNote,
       estimatedHours: t.estimatedHours,
+      deadline: t.deadline,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
     }))

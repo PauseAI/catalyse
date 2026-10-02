@@ -28,6 +28,7 @@ function task(id: number, over: Partial<CurrentTask> = {}): CurrentTask {
     baselineSetAt: null,
     featuredAsQuickTask: false,
     isAnchor: false,
+    timing: 'flexible',
     sortOrder: id,
     ...over,
   }
@@ -136,7 +137,14 @@ describe('computeProjectDiff', () => {
       state(),
       file({
         tasks: [
-          { id: 10, title: 'Renamed', description: 'd', status: 'completed', isAnchor: true },
+          {
+            id: 10,
+            title: 'Renamed',
+            description: 'd',
+            status: 'completed',
+            isAnchor: true,
+            timing: 'fixed',
+          },
           { ref: 'new', title: 'New one', durationDays: 2, assigneeEmail: 'a@b.c' },
         ],
       }),
@@ -152,6 +160,7 @@ describe('computeProjectDiff', () => {
         { field: 'title', from: 'Task 10', to: 'Renamed' },
         { field: 'status', from: 'open', to: 'completed' },
         { field: 'isAnchor', from: false, to: true },
+        { field: 'timing', from: 'flexible', to: 'fixed' },
       ]),
     )
     expect(diff.tasks[1].fieldChanges.map((c) => c.field)).toEqual([

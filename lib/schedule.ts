@@ -45,9 +45,17 @@ export type ScheduledItem = {
   isPinned: boolean
   /** Start came from a predecessor rather than from the origin. */
   isDerived: boolean
+  /** The deadline as a UTC day, or null when there is none. */
+  deadline: Date | null
+  /** Planned end minus deadline: positive is days late, zero is on the day, negative is spare. */
+  daysLate: number | null
   breachesDeadline: boolean
   /** Pin is earlier than the dependencies allow. The pin wins; this flags the conflict. */
   pinnedBeforePredecessor: boolean
+  /** Days the pin would have to move later to satisfy its predecessors; null when it need not. */
+  pinConflictDays: number | null
+  /** The predecessor that sets the earliest permitted start, when the pin conflicts with it. */
+  pinConflictWith: number | null
   /** On a chain that determines when an anchor (or, with no anchors, the scope) lands. */
   isCritical: boolean
   /** This item is itself a fixed point the plan is built around. */
@@ -215,11 +223,16 @@ export function computeSchedule(
 
     let earliest = scopeOrigin
     let isDerived = false
+    let bindingPredecessor: number | null = null
     for (const edge of preds) {
       const predSpan = spans.get(edge.predecessorId)
       if (!predSpan) continue // predecessor sat on a cycle; ignore this constraint
       isDerived = true
-      earliest = laterOf(earliest, addDays(predSpan.end, 1 + edge.lagDays))
+      const permitted = addDays(predSpan.end, 1 + edge.lagDays)
+      if (bindingPredecessor === null || permitted.getTime() > earliest.getTime()) {
+        bindingPredecessor = edge.predecessorId
+      }
+      earliest = laterOf(earliest, permitted)
     }
 
     const pinned = item.startDate ? startOfUtcDay(item.startDate) : null
@@ -243,16 +256,22 @@ export function computeSchedule(
             end: item.completedAt ? startOfUtcDay(item.completedAt) : null,
           }
 
+    const deadline = item.deadline ? startOfUtcDay(item.deadline) : null
+    const daysLate = deadline ? diffInDays(deadline, end) : null
+    const pinConflict = pinned !== null && isDerived && pinned.getTime() < earliest.getTime()
+
     const scheduledItem: ScheduledItem = {
       id,
       start,
       end,
       isPinned: pinned !== null,
       isDerived: isDerived && pinned === null,
-      breachesDeadline:
-        item.deadline !== null && end.getTime() > startOfUtcDay(item.deadline).getTime(),
-      pinnedBeforePredecessor:
-        pinned !== null && isDerived && pinned.getTime() < earliest.getTime(),
+      deadline,
+      daysLate,
+      breachesDeadline: daysLate !== null && daysLate > 0,
+      pinnedBeforePredecessor: pinConflict,
+      pinConflictDays: pinConflict ? diffInDays(pinned, earliest) : null,
+      pinConflictWith: pinConflict ? bindingPredecessor : null,
       isCritical: false,
       isAnchor: item.isAnchor === true,
       isMilestone: item.durationDays === 0,

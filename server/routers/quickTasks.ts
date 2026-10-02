@@ -79,6 +79,7 @@ export const quickTasksRouter = {
         assignedToId: t.assigneeId,
         assignedToName: t.assignee?.name ?? null,
         estimatedHours: t.estimatedHours,
+        deadline: t.deadline,
         createdAt: t.createdAt,
       }))
   }),
@@ -134,6 +135,7 @@ export const quickTasksRouter = {
         skillName: t.skill?.name ?? null,
         skillCategory: t.skill?.category?.name ?? null,
         estimatedHours: t.estimatedHours,
+        deadline: t.deadline,
         createdAt: t.createdAt,
       })),
       ...projectTasks
@@ -146,6 +148,7 @@ export const quickTasksRouter = {
           projectId: t.parentId as number,
           projectTitle: t.parent?.title ?? null,
           estimatedHours: t.estimatedHours,
+          deadline: t.deadline,
           createdAt: t.createdAt,
         })),
     ].sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
@@ -186,6 +189,7 @@ export const quickTasksRouter = {
         skillId: input.skillId ?? null,
         contextProjectId: input.contextProjectId ?? null,
         estimatedHours: input.estimatedHours ?? null,
+        deadline: input.deadline ?? null,
       },
     })
     return { id: task.id, message: 'Quick Task created' }
@@ -199,6 +203,7 @@ export const quickTasksRouter = {
         description: z.string().optional(),
         skillId: z.number().int().nullable().optional(),
         estimatedHours: z.number().nullable().optional(),
+        deadline: z.coerce.date().nullable().optional(),
       }),
     )
     .handler(async ({ input }) => {
@@ -214,6 +219,7 @@ export const quickTasksRouter = {
           ...(input.description !== undefined && { description: input.description.trim() }),
           ...('skillId' in input && { skillId: input.skillId }),
           ...('estimatedHours' in input && { estimatedHours: input.estimatedHours }),
+          ...('deadline' in input && { deadline: input.deadline }),
         },
       })
       return { id: updated.id, message: 'Task updated' }

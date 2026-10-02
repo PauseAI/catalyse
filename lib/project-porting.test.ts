@@ -26,6 +26,7 @@ function state(over: Partial<CurrentState> = {}): CurrentState {
         baselineSetAt: null,
         featuredAsQuickTask: false,
         isAnchor: false,
+        timing: 'flexible',
         sortOrder: 1,
       },
     ],

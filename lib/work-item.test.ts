@@ -321,6 +321,7 @@ describe('serializers', () => {
       reviewedById: null,
       reviewedAt: null,
       estimatedHours: null,
+      deadline: null,
       createdAt: null,
       updatedAt: null,
       changesRequestedNote: 'Add the link',

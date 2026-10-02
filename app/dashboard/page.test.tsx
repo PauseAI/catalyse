@@ -212,6 +212,62 @@ describe('home', () => {
     expect(within(finished).queryByRole('link', { name: 'Shelved' })).toBeNull()
   })
 
+  it('flags a project whose plan runs past its deadline', async () => {
+    const me = await createVolunteer()
+    const project = await createProject({
+      title: 'Behind',
+      assigneeId: me.id,
+      status: 'in_progress',
+      startDate: new Date('2026-09-20T00:00:00Z'),
+      deadline: new Date('2026-09-28T00:00:00Z'),
+    })
+    await createTask(project.id, { durationDays: 12 })
+    await renderApp(<HomePage />, { as: me, url: '/dashboard' })
+    const work = await screen.findByRole('region', { name: 'My work' })
+    const row = within(work).getByRole('link', { name: 'Behind' }).closest('li')!
+    expect(within(row).getByText('3 days late')).toBeInTheDocument()
+  })
+
+  it('shows the deadline of a task on Home, flagged Overdue once it has passed', async () => {
+    const me = await createVolunteer()
+    await createQuickTask({
+      title: 'Late quick',
+      assigneeId: me.id,
+      status: 'in_progress',
+      deadline: new Date('2020-01-02T00:00:00Z'),
+    })
+    await renderApp(<HomePage />, { as: me, url: '/dashboard' })
+    const work = await screen.findByRole('region', { name: 'My work' })
+    const row = within(work).getByRole('link', { name: 'Late quick' }).closest('li')!
+    expect(within(row).getByText('Deadline 2 Jan 2020')).toBeInTheDocument()
+    expect(within(row).getByText('Overdue')).toBeInTheDocument()
+  })
+
+  it('puts a task past its plan at the top for its owner, and flags it for the assignee', async () => {
+    const owner = await createVolunteer()
+    const sam = await createVolunteer({ name: 'Sam Late' })
+    const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
+    await createTask(project.id, {
+      title: 'Slipped',
+      status: 'in_progress',
+      assigneeId: sam.id,
+      startDate: new Date(Date.now() - 10 * DAY),
+      durationDays: 3,
+    })
+    await renderApp(<HomePage />, { as: owner, url: '/dashboard' })
+    const attention = await screen.findByRole('region', { name: /Needs your attention/ })
+    const first = within(attention).getAllByRole('listitem')[0]
+    expect(first).toHaveTextContent(/"Slipped" is \d+ days past plan/)
+    expect(first).toHaveTextContent('Assignee: Sam Late, no update yet.')
+    expect(within(first).getByRole('link', { name: /^Decide/ })).toBeInTheDocument()
+    cleanup()
+
+    await renderApp(<HomePage />, { as: sam, url: '/dashboard' })
+    const work = await screen.findByRole('region', { name: 'My work' })
+    const row = (await within(work).findByRole('link', { name: 'Slipped' })).closest('li')!
+    expect(within(row).getByText(/^\d+ days past plan$/)).toBeInTheDocument()
+  })
+
   it('says so when a filter leaves nothing, and when nothing matches', async () => {
     const skill = await createSkill()
     const me = await createVolunteer({

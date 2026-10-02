@@ -51,6 +51,7 @@ const TemplateTaskSchema = z.object({
   durationDays: z.number().int().min(0).max(3650).nullable().default(null),
   featuredAsQuickTask: z.boolean().default(false),
   isAnchor: z.boolean().default(false),
+  timing: z.enum(['flexible', 'fixed']).default('flexible'),
   skills: z.array(TemplateSkillSchema).default([]),
   dependsOn: z.array(TemplateDependsOnSchema).default([]),
 })
@@ -162,6 +163,7 @@ export function serializeProjectAsTemplate(
       durationDays: t.durationDays,
       featuredAsQuickTask: t.featuredAsQuickTask,
       isAnchor: t.isAnchor,
+      timing: t.timing,
       skills: t.skills,
       dependsOn: dependencies
         .filter((d) => d.successorId === t.id)
@@ -199,6 +201,7 @@ export type InstantiateTaskCreate = {
   durationDays: number | null
   featuredAsQuickTask: boolean
   isAnchor: boolean
+  timing: 'flexible' | 'fixed'
   skills: SourceSkill[]
 }
 
@@ -276,6 +279,7 @@ export function buildInstantiatePlan(
       durationDays: t.durationDays,
       featuredAsQuickTask: t.featuredAsQuickTask,
       isAnchor: t.isAnchor,
+      timing: t.timing,
       skills: t.skills,
     })),
     dependencyCreates: structure.tasks.flatMap((t) =>

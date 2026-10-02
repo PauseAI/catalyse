@@ -142,10 +142,19 @@ describe('quickTasks admin mutations', () => {
       skillId: skill.id,
       estimatedHours: 2,
       contextProjectId: null,
+      deadline: new Date('2030-01-31T00:00:00Z'),
     })
+    expect(await prisma.workItem.findUniqueOrThrow({ where: { id: full.id } })).toMatchObject({
+      estimatedHours: 2,
+      deadline: new Date('2030-01-31T00:00:00Z'),
+    })
+    expect((await c.quickTasks.get({ id: full.id })).deadline).toEqual(
+      new Date('2030-01-31T00:00:00Z'),
+    )
+    await c.quickTasks.update({ id: full.id, deadline: null })
     expect(
-      (await prisma.workItem.findUniqueOrThrow({ where: { id: full.id } })).estimatedHours,
-    ).toBe(2)
+      (await prisma.workItem.findUniqueOrThrow({ where: { id: full.id } })).deadline,
+    ).toBeNull()
 
     await expect(c.quickTasks.update({ id: 999_999 })).rejects.toMatchObject({ code: 'NOT_FOUND' })
     expect(

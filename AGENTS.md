@@ -19,9 +19,24 @@ Do **not** run `prisma migrate dev` — it checks for schema drift and will fail
 4. `npm run migrate` — applies it
 5. `npm run generate` — regenerates the client and zod schema
 
+## Disposable databases
+
+`fetch-prod-db`, `anonymise-db` and the dev-account seed refuse any database not marked disposable (`scripts/disposable-db.ts`); production never is. An empty database is marked on its first restore; mark an existing local one with `npm run mark-disposable`. Never mark a database that holds data you need.
+
 ## Verifying changes
 
 Run `npm run check-all` when work is complete and before raising a PR, to verify typecheck, lint, formatting, and tests all pass. This takes several minutes — lint is ~3s cached (~70s cold), tests are ~2.5–3 min. Do not abort early.
+
+## Signing in to the dev server
+
+To check a change in a browser as a particular user, never type a password. Every seeded dev account has a session token, `dev-` plus its email's local part, and signs in on its own localhost subdomain of the same name:
+
+- `volunteer@example.com` → http://volunteer.localhost:3000, token `dev-volunteer`
+- `admin1@example.com` → http://admin1.localhost:3000, token `dev-admin1`
+
+Sessions live in per-origin `localStorage`, so each subdomain holds its own, and several roles can be open side by side. Use an unseeded subdomain (`anon.localhost:3000`) for signed-out views. To sign one in, open its `/login` page and run `localStorage.setItem('authToken', 'dev-admin'); location.href = '/dashboard'`. On any other page, a stale token's 401 clears storage straight after your write.
+
+`seedDevAccounts` (`scripts/seed-dev-accounts.ts`) seeds the tokens on every `fetch-prod-db` / `anonymise-db`, into local databases only, so a signed-in subdomain stays signed in across reseeds. `SEED_VOLUNTEERS` / `SEED_ADMINS` / `SEED_SUPERADMINS` set how many accounts of each role exist (default 1). For a scenario needing more people (owner, assignee), give seeded volunteers those roles in the app.
 
 If `format:check` fails, run `npm run format` to fix all files at once — do not run `prettier --write` on individual files.
 

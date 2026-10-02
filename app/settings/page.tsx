@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import Button from '@/components/Button'
 import Checkbox from '@/components/Checkbox'
+import Radio from '@/components/Radio'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import SkillPicker from '@/components/SkillPicker'
 import Tabs from '@/components/Tabs'
@@ -28,6 +29,14 @@ import {
 } from '@/lib/filter-options'
 
 type TabKey = 'profile' | 'account' | 'notifications' | 'privacy' | 'bug-reports'
+
+type DailySummaryChoice = 'email_and_in_app' | 'in_app_only' | 'off'
+
+const DAILY_SUMMARY_CHOICES: { value: DailySummaryChoice; label: string }[] = [
+  { value: 'email_and_in_app', label: 'Email and in-app' },
+  { value: 'in_app_only', label: 'In-app only' },
+  { value: 'off', label: 'Off' },
+]
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'profile', label: 'Profile' },
@@ -101,6 +110,7 @@ function SettingsPageContent() {
   )
   const [notifyRemoteProjects, setNotifyRemoteProjects] = useState(false)
   const [emailMutedCategories, setEmailMutedCategories] = useState<MutableEmailCategory[]>([])
+  const [dailySummary, setDailySummary] = useState<DailySummaryChoice>('email_and_in_app')
   const [consentMakeProfileVisibleInDirectory, setConsentMakeProfileVisibleInDirectory] =
     useState(true)
   const [consentAnalytics, setConsentAnalytics] = useState(false)
@@ -192,6 +202,7 @@ function SettingsPageContent() {
     setEmailMutedCategories(
       MUTABLE_EMAIL_CATEGORIES.filter((c) => me.emailMutedCategories?.includes(c)),
     )
+    setDailySummary(me.dailySummary ?? 'email_and_in_app')
     setOtherSkills(me.otherSkills ?? '')
     setConsentMakeProfileVisibleInDirectory(!!me.consentMakeProfileVisibleInDirectory)
     setConsentAnalytics(me.cookieConsentAnalytics !== false)
@@ -312,6 +323,7 @@ function SettingsPageContent() {
       emailDigest,
       notifyRemoteProjects,
       emailMutedCategories,
+      dailySummary,
       otherSkills: otherSkills.trim() || null,
       skillIds: skills.map((s) => s.skillId),
       consentMakeProfileVisibleInDirectory,
@@ -749,6 +761,26 @@ function SettingsPageContent() {
             <p className="text-sm text-text-light mt-1 ml-7">
               Everything still arrives in your Inbox. Messages from other volunteers are always
               emailed as well.
+            </p>
+          </fieldset>
+          <fieldset className="mb-5 border-0 p-0">
+            <legend className="font-medium mb-2">Daily summary</legend>
+            <div className="flex flex-col gap-2">
+              {DAILY_SUMMARY_CHOICES.map((c) => (
+                <Radio
+                  key={c.value}
+                  name="daily_summary"
+                  checked={dailySummary === c.value}
+                  onChange={() => setDailySummary(c.value)}
+                >
+                  {c.label}
+                </Radio>
+              ))}
+            </div>
+            <p className="text-sm text-text-light mt-1 ml-7">
+              One message a day, only when something needs you: deadlines coming up, work past its
+              plan, and news on projects you lead. Turning it off never hides the Overdue flag or
+              what is waiting on your Home page.
             </p>
           </fieldset>
           {saveButton}

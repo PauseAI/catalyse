@@ -8,6 +8,9 @@ import {
   TASK_STATUS_LABELS,
 } from '@/lib/status-labels'
 import { daysQuiet } from '@/lib/staleness'
+import { lateProjects, pastPlanTasks } from '@/lib/project-schedule'
+import { pastPlanDetail } from '@/lib/replan'
+import { plural } from '@/lib/plural'
 import {
   ApprovalStatus,
   ContactRequestStatus,
@@ -26,6 +29,7 @@ export type AttentionKind =
   | 'applicants'
   | 'changes_requested'
   | 'quiet_task'
+  | 'past_plan'
   | 'mention'
   | 'submission'
   | 'invite'
@@ -56,6 +60,12 @@ export type WorkRow = {
   context: string | null
   /** Finished or archived work, listed after the rest. */
   done: boolean
+  /** A project whose plan runs past its deadline, by this many days. */
+  daysLate?: number
+  /** A task's deadline, shown with its Overdue flag. */
+  deadline?: Date | null
+  /** A task of mine whose plan ended this many days ago while it is not done. */
+  pastPlanDays?: number
 }
 
 export type FindItem = { id: number; title: string; href: string; reason: string | null }
@@ -276,11 +286,37 @@ async function attentionFor(viewer: Viewer): Promise<AttentionItem[]> {
     })
   }
 
-  return items.sort((a, b) => (b.at?.getTime() ?? 0) - (a.at?.getTime() ?? 0))
+  // A task past its plan waits on the owner's decision, so it goes above everything else.
+  const led = await prisma.workItem.findMany({
+    where: {
+      type: WorkItemType.PROJECT,
+      OR: [{ assigneeId: viewer.id }, { deputies: { some: { volunteerId: viewer.id } } }],
+    },
+    select: { id: true },
+  })
+  const decisions: AttentionItem[] = (await pastPlanTasks(led.map((p) => p.id))).map((t) => ({
+    key: `past-plan-${t.id}`,
+    kind: 'past_plan',
+    title: `"${t.title}" is ${plural(t.daysPast, 'day')} past plan`,
+    detail: pastPlanDetail(t),
+    href: `/projects/${t.projectId}/tasks/${t.id}`,
+    action: 'Decide',
+    notificationId: null,
+    at: null,
+  }))
+
+  return [...decisions, ...items.sort((a, b) => (b.at?.getTime() ?? 0) - (a.at?.getTime() ?? 0))]
 }
 
 async function workFor(viewer: Viewer): Promise<WorkRow[]> {
-  const projectSelect = { id: true, title: true, status: true, updatedAt: true } as const
+  const projectSelect = {
+    id: true,
+    title: true,
+    status: true,
+    updatedAt: true,
+    startDate: true,
+    deadline: true,
+  } as const
   const [owned, interests, proposed, tasks, memberships, deputyRows] = await Promise.all([
     prisma.workItem.findMany({
       where: { type: WorkItemType.PROJECT, assigneeId: viewer.id },
@@ -334,12 +370,10 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
   // A project appears once, under the closest tie: leading, deputising, helping, proposing,
   // applying.
   const projects = new Map<number, WorkRow & { updatedAt: Date | null }>()
-  const addProject = (
-    p: { id: number; title: string; status: string; updatedAt: Date | null },
-    role: WorkRow['role'],
-    status: string,
-  ) => {
+  const projectRowsById = new Map<number, (typeof owned)[number]>()
+  const addProject = (p: (typeof owned)[number], role: WorkRow['role'], status: string) => {
     if (projects.has(p.id)) return
+    projectRowsById.set(p.id, p)
     projects.set(p.id, {
       key: `project-${p.id}`,
       kind: 'project',
@@ -369,6 +403,12 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
     )
   }
 
+  const late = await lateProjects([...projectRowsById.values()])
+  for (const [id, row] of projects) {
+    const days = late.get(id)
+    if (days) row.daysLate = days
+  }
+
   const projectRows = [...projects.values()]
     .sort(
       (a, b) =>
@@ -377,6 +417,15 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
     )
     .map(({ updatedAt: _updatedAt, ...row }) => row)
 
+  const pastPlan = new Map(
+    (
+      await pastPlanTasks([
+        ...new Set(
+          tasks.flatMap((t) => (t.type === WorkItemType.TASK && t.parentId ? [t.parentId] : [])),
+        ),
+      ])
+    ).map((p) => [p.id, p.daysPast]),
+  )
   const taskRows: WorkRow[] = tasks.map((t) => ({
     key: `task-${t.id}`,
     kind: 'task',
@@ -389,6 +438,8 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
         : TASK_STATUS_LABELS[t.status],
     context: t.parent?.title ?? null,
     done: false,
+    deadline: t.deadline,
+    pastPlanDays: pastPlan.get(t.id),
   }))
 
   const teamRows: WorkRow[] = memberships.map((m) => ({

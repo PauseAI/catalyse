@@ -64,6 +64,7 @@ async function loadState(
       baselineSetAt: t.baselineSetAt,
       featuredAsQuickTask: t.featuredAsQuickTask ?? false,
       isAnchor: t.isAnchor ?? false,
+      timing: t.timing ?? 'flexible',
       sortOrder: t.sortOrder,
     })),
     dependencies,
@@ -219,6 +220,7 @@ export const projectPortingRouter = {
           if (f.deadline !== undefined) data.deadline = f.deadline
           if (f.featuredAsQuickTask !== undefined) data.featuredAsQuickTask = f.featuredAsQuickTask
           if (f.isAnchor !== undefined) data.isAnchor = f.isAnchor
+          if (f.timing !== undefined) data.timing = f.timing
           if (f.status !== undefined) data.status = f.status
           if (f.assigneeEmail !== undefined) {
             data.assigneeId = f.assigneeEmail === null ? null : idForEmail(f.assigneeEmail)
@@ -247,6 +249,7 @@ export const projectPortingRouter = {
               deadline: f.deadline ?? null,
               featuredAsQuickTask: f.featuredAsQuickTask ?? false,
               isAnchor: f.isAnchor ?? false,
+              timing: f.timing ?? 'flexible',
               assigneeId: f.assigneeEmail ? idForEmail(f.assigneeEmail) : null,
               creatorId: volunteer.id,
               sortOrder: ++sortOrder,

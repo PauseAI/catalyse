@@ -7,12 +7,17 @@ import { useRequireConfirmed } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
 import Button from '@/components/Button'
 import Checkbox from '@/components/Checkbox'
+import DatesBlock from '@/components/DatesBlock'
+import ReplanDialog from '@/components/ReplanDialog'
+import VolunteerSelect from '@/components/VolunteerSelect'
+import { plural } from '@/lib/plural'
+import TaskDatesSummary from '@/components/TaskDatesSummary'
+import { EMPTY_DATES, datesPayload, datesValueFrom, type DatesValue } from '@/lib/task-dates'
 import { Badge } from '@/components/Badge'
 import CommentThread from '@/components/CommentThread'
 import MessageDialog from '@/components/MessageDialog'
 import Linkify from '@/components/Linkify'
 import { useToast } from '@/lib/toast'
-import { formatDate, toDateInputValue, fromDateInputValue } from '@/lib/format-date'
 import { TaskStatus } from '@/generated/prisma/enums'
 import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS } from '@/lib/status-labels'
 import { PROJECT_TASK_CLAIMED_MESSAGE, TASK_REQUESTED_MESSAGE } from '@/lib/action-messages'
@@ -45,14 +50,13 @@ export default function TaskDetailPage({
 
   const [editTitle, setEditTitle] = useState('')
   const [editDescription, setEditDescription] = useState('')
-  const [editEstimatedHours, setEditEstimatedHours] = useState('')
-  const [editDeadline, setEditDeadline] = useState('')
-  const [editStartDate, setEditStartDate] = useState('')
-  const [editDurationDays, setEditDurationDays] = useState('')
+  const [editDates, setEditDates] = useState<DatesValue>(EMPTY_DATES)
   const [editFeatured, setEditFeatured] = useState(false)
   const [initialized, setInitialized] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [messaging, setMessaging] = useState(false)
+  const [replanning, setReplanning] = useState(false)
+  const [reassignTo, setReassignTo] = useState('')
 
   useEffect(() => {
     if (!task || initialized) return
@@ -60,10 +64,7 @@ export default function TaskDetailPage({
     setInitialized(true)
     setEditTitle(task.title)
     setEditDescription(task.description ?? '')
-    setEditEstimatedHours(task.estimatedHours !== null ? String(task.estimatedHours) : '')
-    setEditDeadline(toDateInputValue(task.deadline))
-    setEditStartDate(toDateInputValue(task.startDate))
-    setEditDurationDays(task.durationDays !== null ? String(task.durationDays) : '')
+    setEditDates(datesValueFrom(task))
     setEditFeatured(task.featuredAsQuickTask)
   }, [task, initialized])
 
@@ -75,7 +76,11 @@ export default function TaskDetailPage({
           ? TASK_REQUESTED_MESSAGE
           : variables.data.status === TaskStatus.in_progress
             ? PROJECT_TASK_CLAIMED_MESSAGE
-            : 'Task updated!',
+            : variables.data.isAnchor === true
+              ? 'This is now the key date.'
+              : variables.data.isAnchor === false
+                ? 'No longer the key date.'
+                : 'Task updated!',
         'success',
       )
       setIsEditing(false)
@@ -88,6 +93,17 @@ export default function TaskDetailPage({
 
   const invalidateTask = () =>
     queryClient.invalidateQueries({ queryKey: orpc.projects.getTask.key() })
+
+  const reassignMutation = useMutation({
+    ...orpc.projects.assignTask.mutationOptions(),
+    onSuccess: () => {
+      showToast('Reassigned. The previous assignee has been told.', 'success')
+      setReassignTo('')
+      void invalidateTask()
+    },
+    onError: (err: unknown) =>
+      showToast(err instanceof Error ? err.message : 'Failed to reassign', 'error'),
+  })
 
   const acceptMutation = useMutation({
     ...orpc.projects.acceptTask.mutationOptions(),
@@ -150,10 +166,7 @@ export default function TaskDetailPage({
       data: {
         title: editTitle.trim(),
         description: editDescription.trim() || null,
-        estimatedHours: editEstimatedHours ? parseFloat(editEstimatedHours) : null,
-        deadline: fromDateInputValue(editDeadline),
-        startDate: fromDateInputValue(editStartDate),
-        durationDays: editDurationDays ? parseInt(editDurationDays, 10) : null,
+        ...datesPayload(editDates),
         featuredAsQuickTask: editFeatured,
       },
     })
@@ -214,46 +227,124 @@ export default function TaskDetailPage({
           </div>
         </div>
 
-        <div className="flex gap-3 mb-4 flex-wrap">
-          {task.assignedToName && (
-            <span className="text-text-light text-sm self-center">
-              Assigned to {task.assignedToName}
-            </span>
-          )}
-          {task.assignedToId !== null &&
-            task.assignedToId !== user.id &&
-            task.assigneeContactable && (
+        {/* The form below holds the same dates, so the summary steps aside while it is open. */}
+        {!isEditing && (
+          <TaskDatesSummary
+            timing={task.timing}
+            durationDays={task.durationDays}
+            estimatedHours={task.estimatedHours}
+            deadline={task.deadline}
+            placement={task.placement}
+            assigneeName={task.assignedToName}
+            startedAt={task.startedAt}
+            completedAt={task.completedAt}
+            hasPosted={task.assigneeHasPosted}
+          />
+        )}
+        {task.pastPlanDays !== null && task.canManage && !isEditing && (
+          <section
+            aria-label="Past plan"
+            className="border-warning-text mb-4 rounded-lg border p-4 text-sm"
+          >
+            <p className="mt-0 mb-3">
+              <strong>{plural(task.pastPlanDays, 'day')} past plan.</strong> {task.assignedToName}{' '}
+              has it. Replan it, give it to someone else, or open it up again.
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <Button size="sm" onClick={() => setReplanning(true)}>
+                Replan
+              </Button>
+              <div className="w-64">
+                <VolunteerSelect
+                  id="reassign-task"
+                  label="Reassign to"
+                  ariaLabel="Reassign to"
+                  value={reassignTo}
+                  onChange={setReassignTo}
+                />
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={!reassignTo || reassignMutation.isPending}
+                onClick={() =>
+                  reassignMutation.mutate({
+                    projectId,
+                    taskId,
+                    assigneeId: parseInt(reassignTo, 10),
+                  })
+                }
+              >
+                Reassign
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={updateMutation.isPending}
+                onClick={() =>
+                  updateMutation.mutate({ projectId, taskId, data: { status: TaskStatus.open } })
+                }
+              >
+                Release
+              </Button>
+            </div>
+          </section>
+        )}
+        {task.pastPlanDays !== null && !task.canManage && task.assignedToId === user.id && (
+          <p role="status" className="border-warning-text mb-4 rounded-lg border p-3 text-sm">
+            <strong>{plural(task.pastPlanDays, 'day')} past plan.</strong> The owner has been told.
+            Post an update below, or submit your work if it is done.
+          </p>
+        )}
+        {replanning && task.placement && (
+          <ReplanDialog
+            projectId={projectId}
+            taskId={taskId}
+            taskTitle={task.title}
+            plannedEnd={new Date(task.placement.end)}
+            deadline={task.deadline ? new Date(task.deadline) : null}
+            onClose={() => setReplanning(false)}
+          />
+        )}
+        {(task.isAnchor || task.canSetKeyDate) && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
+            {task.isAnchor ? (
+              <span style={{ color: 'var(--gantt-anchor)' }}>
+                ★ Key date: the date this project is planned around
+              </span>
+            ) : (
+              <span className="text-text-light">
+                The event itself? Make it the key date and the plan is read as work before it and
+                work after it.
+              </span>
+            )}
+            {task.canSetKeyDate && (
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={updateMutation.isPending}
+                onClick={() =>
+                  updateMutation.mutate({
+                    projectId,
+                    taskId,
+                    data: { isAnchor: !task.isAnchor },
+                  })
+                }
+              >
+                {task.isAnchor ? 'Stop using this as the key date' : 'Make this the key date'}
+              </Button>
+            )}
+          </div>
+        )}
+        {task.assignedToId !== null &&
+          task.assignedToId !== user.id &&
+          task.assigneeContactable && (
+            <div className="mb-4">
               <Button size="sm" variant="secondary" onClick={() => setMessaging(true)}>
                 Message {task.assignedToName}
               </Button>
-            )}
-          {task.estimatedHours !== null && (
-            <span className="text-text-light text-sm self-center">
-              ~{task.estimatedHours}h estimated
-            </span>
+            </div>
           )}
-          {task.deadline && (
-            <span className="text-text-light text-sm self-center">
-              Due {formatDate(task.deadline)}
-            </span>
-          )}
-          {task.startDate && (
-            <span className="text-text-light text-sm self-center">
-              Planned {formatDate(task.startDate)}
-              {task.durationDays !== null &&
-                ` · ${task.durationDays} day${task.durationDays === 1 ? '' : 's'}`}
-            </span>
-          )}
-          {task.startedAt && (
-            <span className="text-text-light text-sm self-center">
-              {task.status === TaskStatus.completed || task.assigneeHasPosted
-                ? 'Started'
-                : 'Claimed on'}{' '}
-              {formatDate(task.startedAt)}
-              {task.completedAt && ` · finished ${formatDate(task.completedAt)}`}
-            </span>
-          )}
-        </div>
 
         {task.description && (
           <p className="whitespace-pre-wrap mb-0">
@@ -346,57 +437,17 @@ export default function TaskDetailPage({
               />
             </div>
 
-            <div className="flex gap-3 flex-wrap mb-5">
-              <div>
-                <label htmlFor="edit-task-hours">Estimated hours</label>
-                <input
-                  id="edit-task-hours"
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={editEstimatedHours}
-                  onChange={(e) => setEditEstimatedHours(e.target.value)}
-                  placeholder="e.g. 3"
-                  className="w-30"
-                />
-              </div>
-              <div>
-                <label htmlFor="edit-task-deadline">Deadline</label>
-                <input
-                  id="edit-task-deadline"
-                  type="date"
-                  value={editDeadline}
-                  onChange={(e) => setEditDeadline(e.target.value)}
-                />
-              </div>
-              <div>
-                <label htmlFor="edit-task-start">Start date</label>
-                <input
-                  id="edit-task-start"
-                  type="date"
-                  value={editStartDate}
-                  onChange={(e) => setEditStartDate(e.target.value)}
-                />
-              </div>
-              <div>
-                <label htmlFor="edit-task-duration">Duration (days)</label>
-                <input
-                  id="edit-task-duration"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={editDurationDays}
-                  onChange={(e) => setEditDurationDays(e.target.value)}
-                  placeholder="e.g. 5"
-                  className="w-30"
-                />
-              </div>
+            <div className="mb-3">
+              <DatesBlock
+                id="edit-task"
+                value={editDates}
+                onChange={setEditDates}
+                followsTitle={task.predecessors[0]?.predecessorTitle ?? null}
+                derivedStart={
+                  task.placement && task.startDate === null ? new Date(task.placement.start) : null
+                }
+              />
             </div>
-
-            <p className="text-text-light -mt-2 mb-5 text-sm">
-              Leave the start date empty to have this task follow whatever it depends on. Set one to
-              pin it to that date instead.
-            </p>
 
             <div className="mb-5">
               <Checkbox checked={editFeatured} onChange={(e) => setEditFeatured(e.target.checked)}>
@@ -417,12 +468,7 @@ export default function TaskDetailPage({
                   setIsEditing(false)
                   setEditTitle(task.title)
                   setEditDescription(task.description ?? '')
-                  setEditEstimatedHours(
-                    task.estimatedHours !== null ? String(task.estimatedHours) : '',
-                  )
-                  setEditDeadline(toDateInputValue(task.deadline))
-                  setEditStartDate(toDateInputValue(task.startDate))
-                  setEditDurationDays(task.durationDays !== null ? String(task.durationDays) : '')
+                  setEditDates(datesValueFrom(task))
                   setEditFeatured(task.featuredAsQuickTask)
                 }}
               >

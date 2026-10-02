@@ -9,6 +9,7 @@ import {
   RemoteEligibility,
   TaskStatus,
   WorkItemType,
+  TaskTiming,
 } from '@/generated/prisma/enums'
 
 // ── Comment access ────────────────────────────────────────────────────────────
@@ -407,6 +408,7 @@ export type EnrichedProject = ScheduleFieldsLike & {
   outcome: string | null
   outcomeNotes: string | null
   completedAt: Date | null
+  deadline: Date | null
   createdAt: Date | null
   updatedAt: Date | null
   country: string | null
@@ -455,6 +457,7 @@ export function withProjectExtras(
     outcome: p.outcome,
     outcomeNotes: p.outcomeNotes,
     completedAt: p.completedAt,
+    deadline: p.deadline,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
     country: p.country,
@@ -527,6 +530,7 @@ export type ScheduleFieldsLike = {
   scheduleUpdatedAt: Date | null
   startedAt: Date | null
   isAnchor?: boolean
+  timing?: TaskTiming
 }
 
 export function serializeScheduleFields(t: ScheduleFieldsLike) {
@@ -539,6 +543,7 @@ export function serializeScheduleFields(t: ScheduleFieldsLike) {
     scheduleUpdatedAt: t.scheduleUpdatedAt,
     startedAt: t.startedAt,
     isAnchor: t.isAnchor ?? false,
+    timing: t.timing ?? TaskTiming.flexible,
   }
 }
 
@@ -656,6 +661,7 @@ export type StarterTaskLike = {
   reviewedById: number | null
   reviewedAt: Date | null
   estimatedHours: number | null
+  deadline: Date | null
   createdAt: Date | null
   updatedAt: Date | null
   changesRequestedNote: string | null
@@ -676,6 +682,7 @@ export function serializeStarterTask(t: StarterTaskLike) {
     reviewedById: t.reviewedById,
     reviewedAt: t.reviewedAt,
     estimatedHours: t.estimatedHours,
+    deadline: t.deadline,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
     submission: serializeSubmission(t),

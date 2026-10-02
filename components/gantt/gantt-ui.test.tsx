@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { DragEndEvent } from '@dnd-kit/core'
 import type { ScheduledItem } from '@/lib/schedule'
 import GanttChart, { lockYForBarDrags } from './GanttChart'
-import GanttLegend from './GanttLegend'
+import GanttLegend, { PlanningTools } from './GanttLegend'
 import GanttItemPanel from './GanttItemPanel'
 import BaselineDialog from './BaselineDialog'
 import GanttDependencyLayer from './GanttDependencyLayer'
@@ -29,8 +29,12 @@ function placed(
     end: day(end),
     isPinned: false,
     isDerived: false,
+    deadline: null,
+    daysLate: null,
     breachesDeadline: false,
     pinnedBeforePredecessor: false,
+    pinConflictDays: null,
+    pinConflictWith: null,
     isCritical: false,
     isAnchor: false,
     isMilestone: false,
@@ -54,6 +58,7 @@ const rows: GanttRow[] = [
       baseline: { start: day('2026-05-30'), end: day('2026-06-01') },
       actual: { start: day('2026-06-01'), end: day('2026-06-04') },
       startVarianceDays: 2,
+      finishVarianceDays: 2,
     }),
   },
   {
@@ -62,10 +67,13 @@ const rows: GanttRow[] = [
     status: 'in_progress',
     placement: placed(2, '2026-06-04', '2026-06-06', {
       isCritical: true,
+      deadline: day('2026-06-05'),
+      daysLate: 1,
       breachesDeadline: true,
       actual: { start: day('2026-06-04'), end: null },
       baseline: { start: day('2026-06-05'), end: day('2026-06-07') },
       startVarianceDays: -1,
+      finishVarianceDays: -1,
     }),
   },
   {
@@ -76,6 +84,8 @@ const rows: GanttRow[] = [
       isMilestone: true,
       isAnchor: true,
       pinnedBeforePredecessor: true,
+      pinConflictDays: 3,
+      pinConflictWith: 2,
     }),
   },
   { id: 4, label: 'Wrap up', status: 'on_hold', placement: placed(4, '2026-09-01', '2026-09-02') },
@@ -170,22 +180,29 @@ describe('GanttChart', () => {
     )
     expect(
       screen.getByRole('button', {
-        name: /Book venue: 1 June 2026 – 3 June 2026, 2 days later than planned, on the critical path/,
+        name: /Book venue: 1 June 2026 – 3 June 2026, 2 days later than the original plan, on the critical path/,
       }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: /Launch: milestone on 8 June 2026, anchor/ }),
+      screen.getByRole('button', { name: /Launch: milestone on 8 June 2026, key date/ }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: /Print flyers.*1 day earlier than planned/ }),
+      screen.getByRole('button', { name: /Print flyers.*1 day earlier than the original plan/ }),
     ).toBeInTheDocument()
     expect(screen.getByText(/Too many days to label/)).toBeInTheDocument()
+    expect(screen.getByTitle('1 day late (Deadline 5 Jun 2026)')).toHaveTextContent('+1d')
+    expect(
+      screen.getByTitle('“Print flyers” finishes 2 days after the key date.'),
+    ).toBeInTheDocument()
     await user.click(
       screen.getByRole('button', {
-        name: 'Print flyers: 4 June 2026 – 6 June 2026, 1 day earlier than planned, on the critical path',
+        name: 'Print flyers: 4 June 2026 – 6 June 2026, deadline 5 June 2026, 1 day late, 1 day earlier than the original plan, on the critical path',
       }),
     )
     expect(onSelect).toHaveBeenCalledWith(2)
+    // A short bar is mostly grip, so a click there selects too.
+    await user.click(screen.getByRole('button', { name: /^Resize Book venue/ }))
+    expect(onSelect).toHaveBeenLastCalledWith(1)
 
     await user.click(screen.getByRole('button', { name: 'Day' }))
     expect(screen.getByRole('button', { name: 'Day' })).toHaveAttribute('aria-pressed', 'true')
@@ -201,6 +218,42 @@ describe('GanttChart', () => {
     await user.click(screen.getByRole('button', { name: 'Month' }))
     await user.click(screen.getByRole('button', { name: '90 days' }))
     expect(screen.getByTitle('Today')).toBeInTheDocument()
+  })
+
+  it('draws a flexible window faint with its hours, and set dates solid with an edge', () => {
+    render(
+      <GanttChart
+        rows={[
+          {
+            id: 7,
+            label: 'Print flyers',
+            status: 'open',
+            timing: 'flexible',
+            effortHours: 6,
+            placement: placed(7, '2026-06-01', '2026-06-07'),
+          },
+          {
+            id: 8,
+            label: 'Staff the stall',
+            status: 'open',
+            timing: 'fixed',
+            effortHours: null,
+            placement: placed(8, '2026-06-08', '2026-06-08'),
+          },
+        ]}
+        edges={[]}
+        rangeStart={day('2026-06-01')}
+        rangeEnd={day('2026-06-08')}
+        editable
+      />,
+    )
+    const flexible = screen.getByRole('button', {
+      name: /^Print flyers: .*any time in this window, about 6 hours of work/,
+    })
+    expect(flexible).toHaveTextContent('6h')
+    expect(flexible.style.background).toContain('color-mix')
+    const fixed = screen.getByRole('button', { name: /^Staff the stall: .*on this day/ })
+    expect(fixed.style.boxShadow).toContain('var(--gantt-finish)')
   })
 
   it('highlights related rows on hover and syncs the header scroll', async () => {
@@ -231,9 +284,12 @@ describe('GanttChart', () => {
         edges={[]}
         rangeStart={day('2026-05-01')}
         rangeEnd={day('2026-06-04')}
+        deadline={day('2026-06-01')}
       />,
     )
     expect(screen.getByText('Overran by').nextSibling).toHaveTextContent('1 day')
+    expect(screen.getByText('Deadline').nextSibling).toHaveTextContent('1 Jun 2026')
+    expect(screen.getByText('Against the deadline').nextSibling).toHaveTextContent('3 days late')
   })
 
   it('translates drag gestures into reschedules and links when editable', () => {
@@ -300,7 +356,8 @@ describe('GanttChart', () => {
       screen.getByRole('button', { name: 'Remove dependency Book venue → Print flyers' }),
     )
     expect(onUnlink).toHaveBeenCalledWith(10)
-    expect(screen.getByText(/Drag a bar to move it/)).toBeInTheDocument()
+    // The how-to lives in Planning tools, not under the chart.
+    expect(screen.queryByText(/Drag a bar to move it/)).toBeNull()
   })
 
   it('measures its container with ResizeObserver', () => {
@@ -398,23 +455,36 @@ describe('GanttDependencyLayer', () => {
 })
 
 describe('GanttLegend / BaselineDialog', () => {
-  it('lists every mark, with hover hints, and the editing help when editable', async () => {
+  it('lists every mark, with hover hints, and the critical path only while highlighted', async () => {
     const user = userEvent.setup({ advanceTimers: () => {} })
-    render(<GanttLegend editable />)
-    await user.hover(screen.getByText('Anchor', { selector: 'span span' }))
+    const { rerender } = render(<GanttLegend editable />)
+    await user.hover(screen.getByText('Key date', { selector: 'span span' }))
     expect(screen.getByRole('tooltip')).toBeInTheDocument()
-    expect(screen.getByText(/Drag a bar/)).toBeInTheDocument()
+    expect(screen.getByText('Critical path', { selector: 'span span' })).toBeInTheDocument()
+    rerender(<GanttLegend editable highlightCritical={false} />)
+    expect(screen.queryByText('Critical path', { selector: 'span span' })).toBeNull()
   })
 
-  it('leaves the planning marks out of a read-only legend', () => {
+  it('folds the planner’s help into Planning tools', async () => {
+    render(
+      <PlanningTools>
+        <button type="button">Extra control</button>
+      </PlanningTools>,
+    )
+    expect(screen.getByText('Planning tools')).toBeInTheDocument()
+    expect(screen.getByText(/Drag a bar/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Extra control' })).toBeInTheDocument()
+  })
+
+  it('leaves the planning marks out of a read-only legend, but not the key date', () => {
     render(<GanttLegend editable={false} />)
-    for (const mark of ['Planned', 'Anchor', 'Critical path']) {
+    for (const mark of ['Original plan', 'Critical path']) {
       expect(screen.queryByText(mark, { selector: 'span span' })).toBeNull()
     }
-    expect(screen.queryByText(/The fixed point the plan is built around/)).toBeNull()
+    expect(screen.getByText('Key date', { selector: 'span span' })).toBeInTheDocument()
     expect(screen.queryByText(/Drag a bar/)).toBeNull()
     expect(screen.getByText('Today')).toBeInTheDocument()
-    expect(screen.getByText('Past deadline')).toBeInTheDocument()
+    expect(screen.getByText(/^Deadline/)).toBeInTheDocument()
   })
 
   it('explains first-time versus replacement baselines', async () => {
@@ -429,9 +499,9 @@ describe('GanttLegend / BaselineDialog', () => {
         onClose={onClose}
       />,
     )
-    expect(screen.getByText('Set the baseline')).toBeInTheDocument()
+    expect(screen.getByText('Set the original plan')).toBeInTheDocument()
     expect(screen.getByText(/1 dated task,/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Set baseline' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Set original plan' }))
     expect(onConfirm).toHaveBeenCalled()
     rerender(
       <BaselineDialog
@@ -443,9 +513,9 @@ describe('GanttLegend / BaselineDialog', () => {
         onClose={onClose}
       />,
     )
-    expect(screen.getByText('Replace the baseline?')).toBeInTheDocument()
+    expect(screen.getByText('Replace the original plan?')).toBeInTheDocument()
     expect(screen.getByText('1 May 2026')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Replace baseline' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Replace original plan' })).toBeDisabled()
     fireEvent.click(screen.getByLabelText('Close'))
     expect(onClose).toHaveBeenCalled()
   })
@@ -454,12 +524,15 @@ describe('GanttLegend / BaselineDialog', () => {
 describe('GanttItemPanel', () => {
   const baseProps = {
     row: rows[1],
-    startDate: day('2026-06-04'),
-    durationDays: 3,
+    dates: {
+      timing: 'flexible' as const,
+      startDate: '2026-06-04',
+      durationDays: '3',
+      estimatedHours: '1',
+      deadline: '2026-06-05',
+    },
     description: 'Print them',
     assigneeName: null,
-    deadline: day('2026-06-05'),
-    estimatedHours: 1,
     siblings: [
       { id: 1, title: 'Book venue' },
       { id: 2, title: 'Print flyers' },
@@ -481,11 +554,13 @@ describe('GanttItemPanel', () => {
     expect(screen.getByText('In progress')).toBeInTheDocument()
     // Planning aids are for those who can change the plan.
     expect(screen.queryByText('Critical path')).toBeNull()
-    expect(screen.getByText('Past deadline')).toBeInTheDocument()
+    expect(screen.getByText('1 day late')).toBeInTheDocument()
     expect(screen.getByText('Print them')).toBeInTheDocument()
-    expect(screen.getByText('Deadline').nextSibling).toHaveTextContent('5 Jun 2026')
+    expect(screen.getByText('Deadline').nextSibling).toHaveTextContent('5 Jun 2026 · 1 day late')
     expect(screen.getByText('Effort').nextSibling).toHaveTextContent('1 hour of work')
-    expect(screen.getByText('Variance').nextSibling).toHaveTextContent('1 day early')
+    expect(screen.getByText('Moved').nextSibling).toHaveTextContent(
+      '1 day earlier (7 Jun 2026 → 6 Jun 2026)',
+    )
     expect(screen.getByText('Actual').nextSibling).toHaveTextContent('in progress')
     expect(screen.queryByText('Dates')).toBeNull()
     expect(screen.getByLabelText(/Lag/)).toBeDisabled()
@@ -500,11 +575,14 @@ describe('GanttItemPanel', () => {
       <GanttItemPanel
         {...baseProps}
         row={{ ...rows[2], href: '/t/3' }}
-        startDate={null}
-        durationDays={0}
+        dates={{
+          timing: 'fixed',
+          startDate: '',
+          durationDays: '0',
+          estimatedHours: '2',
+          deadline: '',
+        }}
         description={null}
-        deadline={null}
-        estimatedHours={2}
         assigneeName="Ann"
         predecessors={[]}
         canManage={false}
@@ -519,10 +597,13 @@ describe('GanttItemPanel', () => {
       />,
     )
     expect(screen.getByText('Milestone')).toBeInTheDocument()
-    expect(screen.queryByText('★ Anchor')).toBeNull()
+    // Everyone sees the key date; only the critical path is a manager's aid.
+    expect(screen.getByText('★ Key date')).toBeInTheDocument()
     expect(screen.getByText('2 hours of work')).toBeInTheDocument()
-    expect(screen.queryByText(/No baseline set/)).toBeNull()
-    expect(screen.getByText(/Pinned earlier/)).toBeInTheDocument()
+    expect(screen.queryByText(/No original plan saved/)).toBeNull()
+    expect(
+      screen.getByText('The work before it finishes 2 days after the key date.'),
+    ).toBeInTheDocument()
     expect(screen.getByText('Nothing — can start whenever.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open task →' })).toHaveAttribute('href', '/t/3')
     expect(screen.getByText('Ann')).toBeInTheDocument()
@@ -541,25 +622,48 @@ describe('GanttItemPanel', () => {
       onClaim: vi.fn(),
       onUnassign: vi.fn(),
     }
-    const late = { ...rows[0], placement: { ...rows[0].placement, startVarianceDays: 1 } }
+    const late = {
+      ...rows[0],
+      placement: {
+        ...rows[0].placement,
+        finishVarianceDays: 1,
+        pinnedBeforePredecessor: true,
+        pinConflictDays: 2,
+        pinConflictWith: 1,
+      },
+    }
     const { rerender } = render(
       <GanttItemPanel {...baseProps} row={late} canManage assignment={assignment} />,
     )
-    expect(screen.getByText('Variance').nextSibling).toHaveTextContent('1 day late')
-    expect(screen.getByText(/Pinned to this date/)).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2026-06-09' } })
-    fireEvent.change(screen.getByLabelText('Duration'), { target: { value: '5' } })
-    fireEvent.submit(screen.getByLabelText('Duration').closest('form')!)
+    expect(screen.getByText('Moved').nextSibling).toHaveTextContent('1 day later')
+    expect(
+      screen.getByText(
+        'Starts 2 days too early for “Book venue”. Move it, or clear its start date to follow it.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/Starts on this date even if “Book venue” runs late/),
+    ).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-06-09' } })
+    fireEvent.change(screen.getByLabelText('Days'), { target: { value: '5' } })
+    fireEvent.submit(screen.getByLabelText('Days').closest('form')!)
     expect(baseProps.onSaveDates).toHaveBeenCalledWith({
+      timing: 'flexible',
       startDate: day('2026-06-09'),
       durationDays: 5,
+      estimatedHours: 1,
+      deadline: day('2026-06-05'),
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Unpin' }))
-    expect(baseProps.onSaveDates).toHaveBeenLastCalledWith({ startDate: null, durationDays: 5 })
-    expect(screen.getByText(/Following its dependencies/)).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Duration'), { target: { value: '' } })
-    fireEvent.submit(screen.getByLabelText('Duration').closest('form')!)
-    expect(baseProps.onSaveDates).toHaveBeenLastCalledWith({ startDate: null, durationDays: null })
+    fireEvent.click(screen.getByRole('button', { name: 'Follow “Book venue” instead' }))
+    expect(baseProps.onSaveDates).toHaveBeenLastCalledWith(
+      expect.objectContaining({ startDate: null, durationDays: 5 }),
+    )
+    expect(screen.getByText(/Starts when “Book venue” finishes/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Days'), { target: { value: '' } })
+    fireEvent.submit(screen.getByLabelText('Days').closest('form')!)
+    expect(baseProps.onSaveDates).toHaveBeenLastCalledWith(
+      expect.objectContaining({ startDate: null, durationDays: null }),
+    )
     await user.click(screen.getByRole('checkbox'))
     expect(baseProps.onSetAnchor).toHaveBeenCalledWith(true)
 
@@ -598,8 +702,7 @@ describe('GanttItemPanel', () => {
       <GanttItemPanel
         {...baseProps}
         row={late}
-        startDate={null}
-        durationDays={null}
+        dates={{ ...baseProps.dates, startDate: '', durationDays: '' }}
         assigneeName="Zed"
         canManage
         assignment={assignment}

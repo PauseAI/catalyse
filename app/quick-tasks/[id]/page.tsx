@@ -8,6 +8,7 @@ import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import Button from '@/components/Button'
 import { Badge } from '@/components/Badge'
+import DeadlineChip from '@/components/DeadlineChip'
 import CommentThread from '@/components/CommentThread'
 import { QUICK_TASK_STATUS_LABELS } from '@/lib/status-labels'
 import Linkify from '@/components/Linkify'
@@ -107,6 +108,14 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
           {task.estimatedHours && (
             <span className="text-text-light text-sm self-center">
               ~{task.estimatedHours}h estimated
+            </span>
+          )}
+          {task.deadline && (
+            <span className="flex items-center gap-2 self-center">
+              <DeadlineChip
+                deadline={task.deadline}
+                done={task.status === QuickTaskStatus.completed}
+              />
             </span>
           )}
           {task.projectTitle && task.projectId && (

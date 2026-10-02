@@ -11,7 +11,12 @@
  * exactly as it will on the server.
  */
 
-import { computeSchedule, type ScheduleEdge, type ScheduledItem } from '@/lib/schedule'
+import {
+  computeSchedule,
+  type ScheduleEdge,
+  type ScheduleInput,
+  type ScheduledItem,
+} from '@/lib/schedule'
 
 /** The stored columns the scheduler reads, as they arrive on the client. */
 export type ClientSchedulable = {
@@ -37,6 +42,21 @@ function asDate(value: Date | string | null): Date | null {
   return value === null ? null : value instanceof Date ? value : new Date(value)
 }
 
+/** A task as it arrives on the client, in the shape the scheduler reads. */
+export function toClientScheduleInput(t: ClientSchedulable): ScheduleInput {
+  return {
+    id: t.id,
+    startDate: asDate(t.startDate),
+    durationDays: t.durationDays,
+    deadline: asDate(t.deadline),
+    baselineStartDate: asDate(t.baselineStartDate),
+    baselineDurationDays: t.baselineDurationDays,
+    startedAt: asDate(t.startedAt),
+    completedAt: asDate(t.completedAt),
+    isAnchor: t.isAnchor ?? false,
+  }
+}
+
 /**
  * The schedule as it will be once `patches` are saved. `origin` must be the same origin the
  * server used (`scopeOrigin` on the timeline payload) — derived items count from it, so a
@@ -52,16 +72,11 @@ export function scheduleWithPatches(
 
   const items = tasks.map((t) => {
     const patch = patchById.get(t.id)
+    const item = toClientScheduleInput(t)
     return {
-      id: t.id,
-      startDate: patch ? asDate(patch.startDate) : asDate(t.startDate),
+      ...item,
+      startDate: patch ? asDate(patch.startDate) : item.startDate,
       durationDays: patch && patch.durationDays !== undefined ? patch.durationDays : t.durationDays,
-      deadline: asDate(t.deadline),
-      baselineStartDate: asDate(t.baselineStartDate),
-      baselineDurationDays: t.baselineDurationDays,
-      startedAt: asDate(t.startedAt),
-      completedAt: asDate(t.completedAt),
-      isAnchor: t.isAnchor ?? false,
     }
   })
 

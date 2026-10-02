@@ -213,12 +213,15 @@ describe('settings — notifications and privacy tabs', () => {
     await userEvent.click(updates)
     await userEvent.click(needs)
     await userEvent.click(needs)
+    expect(screen.getByRole('radio', { name: 'Email and in-app' })).toBeChecked()
+    await userEvent.click(screen.getByRole('radio', { name: 'In-app only' }))
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
     await screen.findByText('Profile updated!')
     expect(await me(vol.id)).toMatchObject({
       emailDigest: 'fortnightly',
       notifyRemoteProjects: true,
       emailMutedCategories: ['update'],
+      dailySummary: 'in_app_only',
     })
 
     await userEvent.click(screen.getByRole('tab', { name: 'Privacy & Data' }))

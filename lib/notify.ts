@@ -31,6 +31,23 @@ export async function clearNotifications(type: string, entityId: number): Promis
     .catch((e) => console.error('[NOTIFY CLEAR ERROR]', e))
 }
 
+/**
+ * One notification per person, type and thing, refreshed in place: the old copy goes and a new
+ * unread one takes its place, so a daily reminder is one row that comes back to the top rather
+ * than a new row every day.
+ */
+export async function refreshNotification(
+  volunteerId: number,
+  type: string,
+  title: string,
+  body: string | null,
+  link: string,
+  entityId: number,
+): Promise<void> {
+  await prisma.notification.deleteMany({ where: { volunteerId, type, entityId } })
+  await createNotification(volunteerId, type, title, body, link, entityId)
+}
+
 type NotifyEmailPayload =
   | {
       subject?: string

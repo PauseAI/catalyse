@@ -26,6 +26,7 @@ describe('quick task detail', () => {
       skillId: skill.id,
       estimatedHours: 2,
       contextProjectId: project.id,
+      deadline: new Date('2099-03-04T00:00:00Z'),
     })
     const page = () =>
       renderApp(<QuickTaskDetailPage params={Promise.resolve({ id: String(task.id) })} />, {
@@ -35,6 +36,7 @@ describe('quick task detail', () => {
     await screen.findByRole('heading', { name: 'Detail task' })
     expect(screen.getByText(skill.name)).toBeInTheDocument()
     expect(screen.getByText('~2h estimated')).toBeInTheDocument()
+    expect(screen.getByText('Deadline 4 Mar 2099')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Related project: Ctx project' })).toHaveAttribute(
       'href',
       `/projects/${project.id}`,

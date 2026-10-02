@@ -294,6 +294,15 @@ describe('what a deputy can do', () => {
       taskId: task.id,
       data: { isAnchor: true },
     })
+    // The UI is told the same, so a deputy is never offered the key-date control.
+    expect(
+      (await deputy.projects.getTask({ projectId: project.id, taskId: task.id })).canSetKeyDate,
+    ).toBe(false)
+    expect((await deputy.projects.listTasks({ projectId: project.id })).canSetKeyDate).toBe(false)
+    expect(
+      (await clientAs(owner).projects.getTask({ projectId: project.id, taskId: task.id }))
+        .canSetKeyDate,
+    ).toBe(true)
     await expect(deputy.projects.setBaseline({ projectId: project.id })).rejects.toMatchObject(
       forbidden,
     )
