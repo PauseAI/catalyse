@@ -256,3 +256,40 @@ describe('settings — notifications and privacy tabs', () => {
     )
   })
 })
+
+describe('settings — bug reports tab', () => {
+  it('lists only reports the volunteer filed themselves, linking to the detail page', async () => {
+    const vol = await createVolunteer({ name: 'Bea Buggy' })
+    const fixer = await createVolunteer({ name: 'Fiona Fixer' })
+    const mine = await prisma.bugReport.create({
+      data: {
+        title: 'Broken button',
+        description: 'It does nothing at all',
+        category: 'bug',
+        severity: 'high',
+        status: 'resolved',
+        resolutionNotes: 'Shipped',
+        reporterId: vol.id,
+        assigneeId: fixer.id,
+      },
+    })
+    await prisma.bugReport.create({
+      data: { title: 'Not mine', description: 'Someone else filed this', reporterId: fixer.id },
+    })
+    await renderApp(<SettingsPage />, { as: vol, url: '/settings?tab=bug-reports' })
+    const card = (
+      await screen.findByRole('heading', { name: 'Broken button' })
+    ).closest<HTMLElement>('.card')!
+    expect(card).toHaveTextContent('bug· high')
+    expect(card).toHaveTextContent('Assigned to: Fiona Fixer')
+    expect(card).toHaveTextContent('Resolution: Shipped')
+    expect(card).toHaveAttribute('href', `/bugs/${mine.id}`)
+    expect(screen.queryByText('Not mine')).toBeNull()
+  })
+
+  it('shows an empty state when the volunteer has filed nothing', async () => {
+    const vol = await createVolunteer()
+    await renderApp(<SettingsPage />, { as: vol, url: '/settings?tab=bug-reports' })
+    await screen.findByText("You haven't reported anything yet.")
+  })
+})
