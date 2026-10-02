@@ -340,7 +340,9 @@ export const projectsRouter = {
 
       if (input.search) {
         const like = `%${input.search}%`
-        conditions.push(Prisma.sql`(title ILIKE ${like} OR description ILIKE ${like})`)
+        conditions.push(
+          Prisma.sql`(unaccent(title) ILIKE unaccent(${like}) OR unaccent(description) ILIKE unaccent(${like}))`,
+        )
       }
 
       if (input.urgency) conditions.push(Prisma.sql`urgency = ${input.urgency}`)
@@ -466,7 +468,9 @@ export const projectsRouter = {
       }
       if (input.search) {
         const like = `%${input.search}%`
-        sharedConditions.push(Prisma.sql`(title ILIKE ${like} OR description ILIKE ${like})`)
+        sharedConditions.push(
+          Prisma.sql`(unaccent(title) ILIKE unaccent(${like}) OR unaccent(description) ILIKE unaccent(${like}))`,
+        )
       }
       if (input.urgency) sharedConditions.push(Prisma.sql`urgency = ${input.urgency}`)
       if (input.country) sharedConditions.push(Prisma.sql`country = ${input.country}`)

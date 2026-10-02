@@ -2236,25 +2236,20 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </div>
 
             {canManageProject && (
-              <details className={card}>
-                <summary className="cursor-pointer font-semibold">Manage</summary>
-                <div className="flex flex-col items-start gap-2 mt-3">
+              <div className={card}>
+                <p className="font-semibold mb-3">Manage</p>
+                <div className="flex flex-col items-start gap-2">
                   <Button href={`/projects/${idParam}/edit`} variant="secondary" size="sm">
                     Edit Project
                   </Button>
-                  <details>
-                    <summary className="cursor-pointer text-sm">More</summary>
-                    <div className="flex flex-col items-start gap-2 mt-2">
-                      <Button variant="secondary" size="sm" onClick={() => setShowPorting(true)}>
-                        Export / Import
-                      </Button>
-                      {isAdmin && (
-                        <SaveAsTemplateButton projectId={project.id} defaultTitle={project.title} />
-                      )}
-                    </div>
-                  </details>
+                  <Button variant="secondary" size="sm" onClick={() => setShowPorting(true)}>
+                    Export / Import
+                  </Button>
+                  {isAdmin && (
+                    <SaveAsTemplateButton projectId={project.id} defaultTitle={project.title} />
+                  )}
                 </div>
-              </details>
+              </div>
             )}
 
             {/* Admin triage */}

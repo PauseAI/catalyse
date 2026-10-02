@@ -505,13 +505,12 @@ describe('project page — owner', () => {
     expect(screen.getByText(/^Past \(/)).toBeInTheDocument()
     expect(interestCard('Otto Other')).toHaveTextContent('Invited, cancelled')
 
-    // Owner tools sit in the folded Manage panel, with the rarer ones under More.
-    await userEvent.click(screen.getByText('Manage'))
+    // Owner tools sit visible in the Manage panel.
+    expect(screen.getByText('Manage')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Edit/ })).toHaveAttribute(
       'href',
       `/projects/${project.id}/edit`,
     )
-    await userEvent.click(screen.getByText('More'))
     await userEvent.click(screen.getByRole('button', { name: 'Export / Import' }))
     expect(screen.getByRole('dialog', { name: 'Export and import' })).toBeInTheDocument()
     await userEvent.keyboard('{Escape}')
