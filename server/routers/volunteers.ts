@@ -40,19 +40,19 @@ export const volunteersRouter = {
       if (input.search) {
         const like = `%${input.search}%`
         textConditions.push(
-          Prisma.sql`(unaccent(name) ILIKE unaccent(${like}) OR unaccent(COALESCE(bio, '')) ILIKE unaccent(${like}))`,
+          Prisma.sql`(public.unaccent(name) ILIKE public.unaccent(${like}) OR public.unaccent(COALESCE(bio, '')) ILIKE public.unaccent(${like}))`,
         )
       }
       if (input.country) {
         const like = `%${input.country}%`
         textConditions.push(
-          Prisma.sql`(country = ${input.country} OR (country IS NULL AND unaccent(COALESCE(location, '')) ILIKE unaccent(${like})))`,
+          Prisma.sql`(country = ${input.country} OR (country IS NULL AND public.unaccent(COALESCE(location, '')) ILIKE public.unaccent(${like})))`,
         )
       }
       if (input.localGroup) {
         const like = `%${input.localGroup}%`
         textConditions.push(
-          Prisma.sql`(local_group = ${input.localGroup} OR (local_group IS NULL AND unaccent(COALESCE(location, '')) ILIKE unaccent(${like})))`,
+          Prisma.sql`(local_group = ${input.localGroup} OR (local_group IS NULL AND public.unaccent(COALESCE(location, '')) ILIKE public.unaccent(${like})))`,
         )
       }
       const matchingIds = textConditions.length
