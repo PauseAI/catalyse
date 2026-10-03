@@ -355,9 +355,3 @@ export async function joinProject(
   if (opts.message) await dialog.getByLabel('Message (optional)').fill(opts.message)
   await dialog.getByRole('button', { name: 'Send request' }).click()
 }
-
-/** Opens the owner's folded Manage panel and its More section on the project page. */
-export async function openManageMore(page: Page): Promise<void> {
-  await page.locator('summary', { hasText: 'Manage' }).click()
-  await page.locator('summary', { hasText: 'More' }).click()
-}

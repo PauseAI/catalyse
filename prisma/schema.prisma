@@ -1,7 +1,8 @@
 generator client {
-  provider      = "prisma-client"
-  output        = "../generated/prisma"
-  binaryTargets = ["native"]
+  provider        = "prisma-client"
+  output          = "../generated/prisma"
+  binaryTargets   = ["native"]
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 generator zod {
@@ -12,8 +13,9 @@ generator zod {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [unaccent]
 }
 
 // Lifecycle position only. Whether a project wants an owner or more help is not a
