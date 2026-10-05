@@ -93,7 +93,7 @@ test.describe('Roadmap', () => {
     expect(created.status, JSON.stringify(created.body)).toBe(200)
 
     await adminPage.goto(`${baseUrl}/projects/gantt`)
-    await expect(adminPage.getByRole('heading', { name: 'Roadmap' })).toBeVisible({
+    await expect(adminPage.getByRole('heading', { name: 'Projects', exact: true })).toBeVisible({
       timeout: 10_000,
     })
     await expect(

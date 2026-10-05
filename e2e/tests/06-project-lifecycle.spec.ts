@@ -1,4 +1,4 @@
-import { test, expect, getAlert, readAdminToken, createApprovedVolunteer } from '../fixtures'
+import { test, expect, getAlert } from '../fixtures'
 import { goToInbox } from '../actions/dashboard'
 import { fake } from '../fake'
 import {

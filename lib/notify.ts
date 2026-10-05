@@ -52,12 +52,17 @@ export async function notifyUser(
 ): Promise<void> {
   // The row is awaited so a caller can rely on it being there when this
   // resolves; only the email is left to run on its own.
-  const notification = await createNotification(volunteerId, type, title, body, link, entityId).catch(
-    (e) => {
-      console.error('[NOTIFY ERROR]', e)
-      return null
-    },
-  )
+  const notification = await createNotification(
+    volunteerId,
+    type,
+    title,
+    body,
+    link,
+    entityId,
+  ).catch((e) => {
+    console.error('[NOTIFY ERROR]', e)
+    return null
+  })
   if (!email) return
 
   const vol = await prisma.volunteer.findFirst({

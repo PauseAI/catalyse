@@ -217,8 +217,10 @@ describe('suggestions', () => {
 
     const suggested = async () =>
       (
-        (await clientAs(matcher).dashboard.get()) as { suggestedProjects: { id: number }[] }
-      ).suggestedProjects.map((p) => p.id)
+        (await clientAs(matcher).dashboard.get()) as {
+          find: { matches: { items: { id: number }[] } }
+        }
+      ).find.matches.items.map((p) => p.id)
     expect(await suggested()).not.toContain(proposed.id)
 
     await clientAs(await createAdmin()).admin.projects.review({

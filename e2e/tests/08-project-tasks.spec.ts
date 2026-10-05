@@ -181,29 +181,7 @@ test.describe('Project Tasks', () => {
     const taskId = (taskCreated.body as { id: number }).id
 
     // A fresh volunteer signs up, gets approved, and claims the task
-    const person = fake.person()
-    const api = createApiClient(baseUrl)
-    const signup = await api.auth.signup({
-      body: {
-        name: person.name,
-        email: person.email,
-        password: 'testpassword1',
-        bio: 'e2e test bio, at least twenty characters long',
-        country: 'UK',
-        availabilityHoursPerWeek: 5,
-        applicationMessage: 'e2e test application message',
-        consentMakeProfileVisibleInDirectory: true,
-        consentContactableByProjectOwners: true,
-      },
-    })
-    expect(signup.status).toBe(200)
-    const {
-      id: volId,
-      token: volToken,
-      emailVerificationToken,
-    } = signup.body as { id: number; token: string; emailVerificationToken?: string }
-    if (emailVerificationToken) await confirmVolunteerEmail(baseUrl, emailVerificationToken)
-    await approveVolunteer(baseUrl, volId, volToken)
+    const { id: volId, token: volToken } = await createApprovedVolunteer(baseUrl)
     const volApi = createApiClient(baseUrl, volToken)
 
     const claim = await adminApi.projects.assignTask({
