@@ -8,7 +8,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import Radio from '@/components/Radio'
-import SkillPicker from '@/components/SkillPicker'
+import SignupSkills from '@/components/SignupSkills'
 import { useAuth } from '@/lib/auth-context'
 import { orpc } from '@/lib/orpc'
 import {
@@ -34,15 +34,18 @@ interface PendingGoogleAuth {
   email: string
 }
 
-// Reads plain text/textarea fields from the actual submitted DOM via FormData
-// rather than React state, so browser/password-manager autofill that sets
-// input.value without firing a React-visible change event can't silently
-// submit empty optional fields (autofill bypasses onChange, but never bypasses
+// Each step reads its fields from the submitted DOM via FormData rather than React state,
+// so browser/password-manager autofill that sets input.value without firing a React-visible
+// change event can't silently drop a value (autofill bypasses onChange, but never bypasses
 // what's actually in the DOM at submit time).
-function textField(formData: FormData, key: string): string | undefined {
+function textField(formData: FormData, key: string): string {
   const value = formData.get(key)
-  return typeof value === 'string' && value !== '' ? value : undefined
+  return typeof value === 'string' ? value : ''
 }
+
+const DRAFT_KEY = 'signup_draft'
+const STEPS = ['Account', 'About you', 'Skills and privacy'] as const
+type Step = 1 | 2 | 3
 
 type ContactMethod = 'email' | 'discord' | 'signal' | 'whatsapp'
 
@@ -88,17 +91,21 @@ export default function SignupPage() {
   const router = useRouter()
   const { user, loading, setToken } = useAuth()
   const [error, setError] = useState('')
+  // The error shows above the form, so pressing Next at the bottom would otherwise hide it.
+  useEffect(() => {
+    if (error) document.getElementById('signup-error')?.scrollIntoView({ block: 'center' })
+  }, [error])
   const [submitting, setSubmitting] = useState(false)
   const [googleClientId, setGoogleClientId] = useState('')
   const [googleStub, setGoogleStub] = useState(false)
   const [skills, setSkills] = useState<SelectedSkill[]>([])
+  const [step, setStep] = useState<Step>(1)
+  const [restored, setRestored] = useState(false)
+  const [draftRecovered, setDraftRecovered] = useState(false)
 
   // Form fields
   const [applicationPending, setApplicationPending] = useState(false)
   const [pendingGoogleAuth, setPendingGoogleAuth] = useState<PendingGoogleAuth | null>(null)
-  const [googleApplicationStep, setGoogleApplicationStep] = useState(false)
-  const [googleApplicationMessage, setGoogleApplicationMessage] = useState('')
-  const [googleApplicationSubmitting, setGoogleApplicationSubmitting] = useState(false)
   const [resendSent, setResendSent] = useState(false)
   const [resendCooldown, setResendCooldown] = useState(0)
   const [name, setName] = useState('')
@@ -118,8 +125,6 @@ export default function SignupPage() {
   const [otherSkills, setOtherSkills] = useState('')
   const [applicationMessage, setApplicationMessage] = useState('')
   const [consentVisible, setConsentVisible] = useState(true)
-  const [consentContact, setConsentContact] = useState(true)
-  const [shareDirectly, setShareDirectly] = useState(false)
   const [consentAnalytics, setConsentAnalytics] = useState(false)
   const {
     value: emailDigest,
@@ -133,6 +138,7 @@ export default function SignupPage() {
     ],
     'match',
   )
+  const isGoogle = pendingGoogleAuth !== null
 
   useEffect(() => {
     if (!loading && user) router.replace('/dashboard')
@@ -141,41 +147,126 @@ export default function SignupPage() {
   const { data: localGroupsData } = useQuery(orpc.localGroups.list.queryOptions({ input: {} }))
   const allLocalGroups: LocalGroupOption[] = localGroupsData?.groups ?? []
 
-  // Restore pending Google application from sessionStorage (survives refresh)
+  // Restore a pending Google identity and the answers so far (both survive a refresh). The
+  // password is never kept, so an email sign-up resumes at the first step.
   useEffect(() => {
-    const stored = sessionStorage.getItem('google_pending_auth')
-    if (stored) {
+    let google: PendingGoogleAuth | null = null
+    const storedAuth = sessionStorage.getItem('google_pending_auth')
+    if (storedAuth) {
       try {
-        const parsed = JSON.parse(stored) as PendingGoogleAuth
+        google = JSON.parse(storedAuth) as PendingGoogleAuth
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        setPendingGoogleAuth(parsed)
-        setName(parsed.name)
-        setGoogleApplicationStep(true)
+        setPendingGoogleAuth(google)
+        setName(google.name)
+        setStep(2)
       } catch {
         sessionStorage.removeItem('google_pending_auth')
       }
     }
+    const storedDraft = sessionStorage.getItem(DRAFT_KEY)
+    if (storedDraft) {
+      try {
+        const d = JSON.parse(storedDraft) as Record<string, unknown>
+        const str = (k: string) => (typeof d[k] === 'string' ? (d[k] as string) : '')
+        if (!google) setName(str('name'))
+        setEmail(str('email'))
+        setApplicationMessage(str('applicationMessage'))
+        setBio(str('bio'))
+        setDiscord(str('discord'))
+        setSignal(str('signal'))
+        setWhatsapp(str('whatsapp'))
+        setContactPref(str('contactPref') as ContactMethod | '')
+        setContactNotes(str('contactNotes'))
+        setAvailability(str('availability'))
+        setLocation(str('location'))
+        setCountryValue(str('countryValue'))
+        setLocalGroupValue(str('localGroupValue'))
+        setOtherSkills(str('otherSkills'))
+        if (Array.isArray(d.skills)) setSkills(d.skills as SelectedSkill[])
+        if (typeof d.consentVisible === 'boolean') setConsentVisible(d.consentVisible)
+        if (typeof d.consentAnalytics === 'boolean') setConsentAnalytics(d.consentAnalytics)
+        if (typeof d.emailDigest === 'string') setEmailDigest(d.emailDigest)
+        if (google && (d.step === 2 || d.step === 3)) setStep(d.step)
+        setDraftRecovered(true)
+      } catch {
+        sessionStorage.removeItem(DRAFT_KEY)
+      }
+    }
+    setRestored(true)
+    // setEmailDigest is stable for this purpose: the draft is read once, on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Keep the answers so far, without the password, for the length of the browser session.
+  useEffect(() => {
+    if (!restored || applicationPending) return
+    sessionStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({
+        step,
+        name,
+        email,
+        applicationMessage,
+        bio,
+        discord,
+        signal,
+        whatsapp,
+        contactPref,
+        contactNotes,
+        availability,
+        location,
+        countryValue,
+        localGroupValue,
+        otherSkills,
+        skills,
+        consentVisible,
+        consentAnalytics,
+        emailDigest,
+      }),
+    )
+  }, [
+    restored,
+    applicationPending,
+    step,
+    name,
+    email,
+    applicationMessage,
+    bio,
+    discord,
+    signal,
+    whatsapp,
+    contactPref,
+    contactNotes,
+    availability,
+    location,
+    countryValue,
+    localGroupValue,
+    otherSkills,
+    skills,
+    consentVisible,
+    consentAnalytics,
+    emailDigest,
+  ])
 
   // Persist/clear pending Google identity in sessionStorage
   useEffect(() => {
-    if (googleApplicationStep && pendingGoogleAuth) {
+    if (pendingGoogleAuth) {
       sessionStorage.setItem('google_pending_auth', JSON.stringify(pendingGoogleAuth))
     } else {
       sessionStorage.removeItem('google_pending_auth')
     }
-  }, [googleApplicationStep, pendingGoogleAuth])
+  }, [pendingGoogleAuth])
 
-  // Warn before leaving while application form is open
+  // Warn before leaving while a Google application is open
   useEffect(() => {
-    if (!googleApplicationStep) return
+    if (!pendingGoogleAuth) return
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       e.returnValue = ''
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [googleApplicationStep])
+  }, [pendingGoogleAuth])
 
   useEffect(() => {
     if (resendCooldown <= 0) return
@@ -207,7 +298,8 @@ export default function SignupPage() {
           email: data.email,
         })
         setName(data.name)
-        setGoogleApplicationStep(true)
+        setError('')
+        setStep(2)
       } else if (data.token) {
         await setToken(data.token)
         router.push('/dashboard')
@@ -253,65 +345,106 @@ export default function SignupPage() {
     setLocalGroupValue('')
   }
 
-  async function handleGoogleApplicationSubmit(
-    e: FormEvent<HTMLFormElement>,
-    googleAuth: PendingGoogleAuth,
-  ) {
+  function goTo(next: Step) {
+    setError('')
+    setStep(next)
+    window.scrollTo?.({ top: 0 })
+  }
+
+  function handleAccountStep(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const formData = new FormData(e.currentTarget)
+    const fd = new FormData(e.currentTarget)
+    const nameValue = textField(fd, 'name').trim()
+    const emailValue = textField(fd, 'email').trim()
+    const passwordValue = textField(fd, 'password')
+    setName(nameValue)
+    setEmail(emailValue)
+    setPassword(passwordValue)
+    setPasswordConfirm(textField(fd, 'password_confirm'))
+    if (!nameValue) return setError('Your name is required')
+    if (!/^\S+@\S+\.\S+$/.test(emailValue)) return setError('Enter a valid email address')
+    if (passwordValue !== textField(fd, 'password_confirm')) {
+      return setError('Passwords do not match')
+    }
+    if (passwordValue.length < 8) return setError('Password must be at least 8 characters')
+    goTo(2)
+  }
 
-    const bioValue = textField(formData, 'bio')
-    if (!bioValue || bioValue.trim().length < 20) {
-      setError('About You must be at least 20 characters')
-      return
+  function handleAboutStep(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    const application = textField(fd, 'applicationMessage')
+    const bioValue = textField(fd, 'bio')
+    const availabilityValue = textField(fd, 'availabilityHoursPerWeek')
+    setApplicationMessage(application)
+    setBio(bioValue)
+    setDiscord(textField(fd, 'discordHandle'))
+    setSignal(textField(fd, 'signalNumber'))
+    setWhatsapp(textField(fd, 'whatsappNumber'))
+    setContactNotes(textField(fd, 'contactNotes'))
+    setAvailability(availabilityValue)
+    setLocation(textField(fd, 'location'))
+    if (application.trim().length < 20) {
+      return setError('Your application must be at least 20 characters')
     }
-    if (!countryValue) {
-      setError('Country is required')
-      return
-    }
-    const availabilityValue = textField(formData, 'availabilityHoursPerWeek')
-    if (!availabilityValue) {
-      setError('Availability is required')
-      return
+    if (bioValue.trim().length < 20) return setError('About You must be at least 20 characters')
+    if (!availabilityValue) return setError('Availability is required')
+    if (!countryValue) return setError('Country is required')
+    goTo(3)
+  }
+
+  async function handleFinish(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError('')
+    const fd = new FormData(e.currentTarget)
+    const otherSkillsValue = textField(fd, 'otherSkills')
+    setOtherSkills(otherSkillsValue)
+    const optional = (v: string) => v || undefined
+    // Owners can always reach the people on their project, so sign-up no longer asks; the
+    // contact rule itself is settled in R-11.
+    const application = {
+      applicationMessage,
+      bio,
+      discordHandle: optional(discord),
+      signalNumber: optional(signal),
+      whatsappNumber: optional(whatsapp),
+      contactPreference: contactPref || undefined,
+      contactNotes: optional(contactNotes),
+      availabilityHoursPerWeek: Number(availability),
+      location: optional(location),
+      country: countryValue,
+      localGroup:
+        localGroupValue && localGroupValue !== NO_LOCAL_GROUP ? localGroupValue : undefined,
+      otherSkills: optional(otherSkillsValue),
+      skillIds: skills.map((s) => s.skillId),
+      consentMakeProfileVisibleInDirectory: consentVisible,
+      consentContactableByProjectOwners: true,
+      consentShareContactInfoWithProjectOwner: false,
+      cookieConsentAnalytics: consentAnalytics,
+      emailDigest,
     }
 
-    setGoogleApplicationSubmitting(true)
+    setSubmitting(true)
     try {
-      const data = await completeGoogleSignupMutation.mutateAsync({
-        credential: googleAuth.credential,
-        stub: googleAuth.stub,
-        applicationMessage: formData.get('applicationMessage') as string,
-        bio: bioValue,
-        discordHandle: textField(formData, 'discordHandle'),
-        signalNumber: textField(formData, 'signalNumber'),
-        whatsappNumber: textField(formData, 'whatsappNumber'),
-        contactPreference: contactPref || undefined,
-        contactNotes: textField(formData, 'contactNotes'),
-        availabilityHoursPerWeek: Number(availabilityValue),
-        location: textField(formData, 'location'),
-        country: countryValue,
-        localGroup:
-          localGroupValue && localGroupValue !== NO_LOCAL_GROUP ? localGroupValue : undefined,
-        otherSkills: textField(formData, 'otherSkills'),
-        skillIds: skills.map((s) => s.skillId),
-        consentMakeProfileVisibleInDirectory: consentVisible,
-        consentContactableByProjectOwners: consentContact,
-        consentShareContactInfoWithProjectOwner: shareDirectly,
-        cookieConsentAnalytics: consentAnalytics,
-        emailDigest,
-      })
-      sessionStorage.removeItem('google_pending_auth')
-      setGoogleApplicationStep(false)
+      const data = pendingGoogleAuth
+        ? await completeGoogleSignupMutation.mutateAsync({
+            credential: pendingGoogleAuth.credential,
+            stub: pendingGoogleAuth.stub,
+            ...application,
+          })
+        : await signupMutation.mutateAsync({ name, email, password, ...application })
+      sessionStorage.removeItem(DRAFT_KEY)
       if (data.pending) {
         setApplicationPending(true)
       } else if (data.token) {
+        sessionStorage.removeItem('google_pending_auth')
         await setToken(data.token)
         router.push('/dashboard')
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit application')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Signup failed')
     } finally {
-      setGoogleApplicationSubmitting(false)
+      setSubmitting(false)
     }
   }
 
@@ -343,90 +476,10 @@ export default function SignupPage() {
     initGoogleButton()
   }, [initGoogleButton])
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setError('')
-
-    const formData = new FormData(e.currentTarget)
-    const password = formData.get('password') as string
-    const passwordConfirmValue = formData.get('password_confirm') as string
-
-    if (password !== passwordConfirmValue) {
-      setError('Passwords do not match')
-      return
-    }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters')
-      return
-    }
-
-    const bioValue = textField(formData, 'bio')
-    if (!bioValue || bioValue.trim().length < 20) {
-      setError('About You must be at least 20 characters')
-      return
-    }
-    if (!countryValue) {
-      setError('Country is required')
-      return
-    }
-    const availabilityValue = textField(formData, 'availabilityHoursPerWeek')
-    if (!availabilityValue) {
-      setError('Availability is required')
-      return
-    }
-
-    setSubmitting(true)
-    try {
-      const data = await signupMutation.mutateAsync({
-        name: formData.get('name') as string,
-        email: (formData.get('email') as string).trim(),
-        password,
-        applicationMessage: formData.get('applicationMessage') as string,
-        bio: bioValue,
-        discordHandle: textField(formData, 'discordHandle'),
-        signalNumber: textField(formData, 'signalNumber'),
-        whatsappNumber: textField(formData, 'whatsappNumber'),
-        contactPreference: contactPref || undefined,
-        contactNotes: textField(formData, 'contactNotes'),
-        availabilityHoursPerWeek: Number(availabilityValue),
-        location: textField(formData, 'location'),
-        country: countryValue,
-        localGroup:
-          localGroupValue && localGroupValue !== NO_LOCAL_GROUP ? localGroupValue : undefined,
-        otherSkills: textField(formData, 'otherSkills'),
-        skillIds: skills.map((s) => s.skillId),
-        consentMakeProfileVisibleInDirectory: consentVisible,
-        consentContactableByProjectOwners: consentContact,
-        consentShareContactInfoWithProjectOwner: shareDirectly,
-        cookieConsentAnalytics: consentAnalytics,
-        emailDigest,
-      })
-      if (data.pending) {
-        setApplicationPending(true)
-      } else {
-        await setToken(data.token)
-        router.push('/dashboard')
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Signup failed')
-      setSubmitting(false)
-    }
-  }
-
-  // Everything both sign-up routes ask after the account details. A plain function rather
-  // than a component, so its inputs keep focus across the page's re-renders; `prefix` keeps
-  // the two forms' element ids apart.
-  function applicationFields({
-    prefix,
-    application,
-    onApplicationChange,
-    contactEmail,
-  }: {
-    prefix: string
-    application: string
-    onApplicationChange: (value: string) => void
-    contactEmail: string
-  }) {
+  // The About you step, shared by both routes; `prefix` keeps the element ids of the email
+  // and Google forms apart. A plain function rather than a component, so its inputs keep
+  // focus across the page's re-renders.
+  function aboutFields(prefix: string, contactEmail: string) {
     const contactField = (
       method: 'discord' | 'signal' | 'whatsapp',
       label: string,
@@ -478,8 +531,8 @@ export default function SignupPage() {
             rows={6}
             aria-describedby={`${prefix}applicationMessage-hint`}
             placeholder="e.g. I joined the Discord in March and would like to help run local events…"
-            value={application}
-            onChange={(e) => onApplicationChange(e.target.value)}
+            value={applicationMessage}
+            onChange={(e) => setApplicationMessage(e.target.value)}
           />
         </div>
 
@@ -506,7 +559,7 @@ export default function SignupPage() {
 
         <h3 className="mt-6">Contact Preferences</h3>
         <p className="text-sm text-text-light mt-1 mb-4">
-          Add ways for project owners to reach you. All optional.
+          Add ways for the people you work with to reach you. All optional.
         </p>
 
         <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-5">
@@ -620,73 +673,6 @@ export default function SignupPage() {
           </div>
         )}
 
-        <h3 className="mt-6">Your Skills</h3>
-        <p className="text-sm text-text-light mt-1 mb-3">
-          Select skills you can contribute. This helps match you with projects.
-        </p>
-        <SkillPicker value={skills} onChange={setSkills} />
-
-        <div className="mb-5 mt-4">
-          <label htmlFor={`${prefix}otherSkills`}>Other Skills</label>
-          <input
-            type="text"
-            id={`${prefix}otherSkills`}
-            name="otherSkills"
-            autoComplete="off"
-            placeholder="Any skills not listed above…"
-            value={otherSkills}
-            onChange={(e) => setOtherSkills(e.target.value)}
-          />
-        </div>
-
-        <div className="mt-6">
-          <h3>Privacy &amp; Consent</h3>
-          <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2 font-normal">
-              <input
-                type="checkbox"
-                checked={consentVisible}
-                onChange={(e) => setConsentVisible(e.target.checked)}
-              />
-              Make my profile visible in the volunteer directory
-            </label>
-            <label className="flex items-center gap-2 font-normal">
-              <input
-                type="checkbox"
-                checked={consentContact}
-                onChange={(e) => setConsentContact(e.target.checked)}
-              />
-              Allow project owners to contact me about opportunities
-            </label>
-            <label
-              className={`flex items-center gap-2 font-normal ml-6 ${consentContact ? 'opacity-100' : 'opacity-50'}`}
-            >
-              <input
-                type="checkbox"
-                checked={shareDirectly}
-                disabled={!consentContact}
-                onChange={(e) => setShareDirectly(e.target.checked)}
-              />
-              Share my contact info directly with project owners
-            </label>
-            <label className="flex items-center gap-2 font-normal mt-2">
-              <input
-                type="checkbox"
-                id={`${prefix}consent_analytics`}
-                checked={consentAnalytics}
-                onChange={(e) => setConsentAnalytics(e.target.checked)}
-              />
-              Allow Google Analytics to help us improve the platform
-            </label>
-          </div>
-          <p className="text-sm text-text-light mt-3">
-            You can change these settings or delete your account at any time.{' '}
-            <Link href="/privacy" target="_blank">
-              Read our privacy policy
-            </Link>
-          </p>
-        </div>
-
         <h3 className="mt-6">Email Notifications</h3>
         <div className="mb-5">
           <FilterDropdown
@@ -702,102 +688,76 @@ export default function SignupPage() {
     )
   }
 
+  const stepIndicator = (
+    <ol aria-label="Sign-up steps" className="flex flex-wrap gap-2 list-none p-0 mb-4 text-sm">
+      {STEPS.map((label, i) => {
+        const n = (i + 1) as Step
+        const done = n < step || (n === 1 && isGoogle)
+        return (
+          <li
+            key={label}
+            aria-current={n === step ? 'step' : undefined}
+            className={`px-3 py-1 rounded-full border ${
+              n === step
+                ? 'border-primary text-primary font-semibold'
+                : done
+                  ? 'border-brand-border text-text-light'
+                  : 'border-brand-border text-text-light opacity-70'
+            }`}
+          >
+            {done ? '✓ ' : `${n}. `}
+            {n === 1 && isGoogle ? 'Account (Google)' : label}
+          </li>
+        )
+      })}
+    </ol>
+  )
+
+  const errorAlert = error && (
+    <div
+      id="signup-error"
+      role="alert"
+      className="flex items-center gap-3 p-4 rounded-lg mb-4 bg-red-100 text-red-800 border border-red-300 dark:bg-red-900 dark:text-red-300 dark:border-red-600"
+    >
+      {error}
+    </div>
+  )
+
+  const footer = (
+    <p className="text-center text-sm text-text-light mt-6">
+      <Link href="/privacy" className="text-text-light">
+        Privacy Policy
+      </Link>
+      {' · '}
+      <a href="mailto:matilda@pauseai.info" className="text-text-light">
+        Contact Support
+      </a>
+    </p>
+  )
+
+  const formCard = 'bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word'
+  const prefix = isGoogle ? 'g_' : ''
+
   if (loading) return null
 
-  if (googleApplicationStep && pendingGoogleAuth) {
-    return (
-      <>
-        {googleClientId && (
-          <Script
-            src="https://accounts.google.com/gsi/client"
-            strategy="afterInteractive"
-            onLoad={initGoogleButton}
-          />
-        )}
-        <main className="container py-5 pb-15">
-          <div className="max-w-2xl mx-auto">
-            <h1>Complete your application</h1>
-            <p className="text-text-light mb-6">
-              Your Google account is verified. Fill in your details to apply.
-            </p>
-            {error && (
-              <div
-                role="alert"
-                className="flex items-center gap-3 p-4 rounded-lg mb-4 bg-red-100 text-red-800 border border-red-300 dark:bg-red-900 dark:text-red-300 dark:border-red-600"
-              >
-                {error}
-              </div>
-            )}
-            <form
-              className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word"
-              onSubmit={(e) => handleGoogleApplicationSubmit(e, pendingGoogleAuth)}
-            >
-              <div className="mb-5">
-                <label htmlFor="g_name">Your Name</label>
-                <input type="text" id="g_name" value={name} disabled />
-                <p className="text-sm text-text-light mt-1">
-                  From your Google account. To use a different name, change it on your Google
-                  account or update it later in your profile settings.
-                </p>
-              </div>
-
-              {applicationFields({
-                prefix: 'g_',
-                application: googleApplicationMessage,
-                onApplicationChange: setGoogleApplicationMessage,
-                contactEmail: pendingGoogleAuth.email ?? '',
-              })}
-
-              <div className="mt-3">
-                <Button type="submit" className="w-full" disabled={googleApplicationSubmitting}>
-                  {googleApplicationSubmitting ? 'Submitting…' : 'Submit Application'}
-                </Button>
-              </div>
-            </form>
-
-            <p className="text-center text-sm text-text-light mt-6">
-              <Link href="/privacy" className="text-text-light">
-                Privacy Policy
-              </Link>
-              {' · '}
-              <a href="mailto:matilda@pauseai.info" className="text-text-light">
-                Contact Support
-              </a>
-            </p>
-          </div>
-        </main>
-      </>
-    )
-  }
-
   if (applicationPending) {
-    const isGoogleSignup = !!pendingGoogleAuth
     return (
       <main className="container py-5 pb-15">
         <div className="max-w-2xl mx-auto">
           {/* role="status" so a screen reader announces that the form went through. */}
           <div role="status" className="bg-surface rounded-xl shadow p-8 text-center">
-            {isGoogleSignup ? (
-              <>
-                <h1>Application submitted</h1>
-                <p className="text-text-light mt-4 mb-2">Thanks for applying! What happens next:</p>
-                <ol className="list-decimal pl-5 text-left text-text-light inline-block mb-6">
-                  <li>A member of the team reviews your application.</li>
-                  <li>We email you when it&#39;s approved, and you can pick your first task.</li>
-                </ol>
-              </>
+            <h1>Application received</h1>
+            <p className="text-text-light mt-4 mb-2">
+              Thanks for applying! A member of the team usually reviews applications within a few
+              days, and we email you when yours is approved.
+            </p>
+            {isGoogle ? (
+              <p className="text-text-light">Your Google email is already confirmed.</p>
             ) : (
               <>
-                <h1>Check your email</h1>
-                <p className="text-text-light mt-4 mb-2">
-                  Thanks for applying! We&#39;ve sent a confirmation link to {email}. What happens
-                  next:
+                <p className="text-text-light">
+                  Meanwhile, confirm your email: we&#39;ve sent a link to {email}.
                 </p>
-                <ol className="list-decimal pl-5 text-left text-text-light inline-block mb-4">
-                  <li>Open the link in that email to confirm your address.</li>
-                  <li>A member of the team reviews your application.</li>
-                  <li>We email you when it&#39;s approved, and you can pick your first task.</li>
-                </ol>
                 <div className="mt-6 pt-6 border-t border-border">
                   {resendSent ? (
                     <p className="text-text-light text-sm">
@@ -843,23 +803,24 @@ export default function SignupPage() {
       )}
       <main className="container py-5 pb-15">
         <div className="max-w-2xl mx-auto">
-          <h1>Join Catalyse</h1>
+          <h1>{isGoogle ? 'Complete your application' : 'Join Catalyse'}</h1>
           <p className="text-text-light mb-6">
-            Connect with PauseAI projects and fellow volunteers.
+            {isGoogle
+              ? 'Your Google account is verified. Fill in your details to apply.'
+              : 'Connect with PauseAI projects and fellow volunteers.'}
           </p>
 
-          {error && (
-            <div
-              role="alert"
-              className="flex items-center gap-3 p-4 rounded-lg mb-4 bg-red-100 text-red-800 border border-red-300 dark:bg-red-900 dark:text-red-300 dark:border-red-600"
-            >
-              {error}
-            </div>
+          {stepIndicator}
+          {errorAlert}
+          {draftRecovered && !isGoogle && step === 1 && (
+            <p className="text-sm text-text-light">
+              Your answers so far were kept. Enter your password again to carry on.
+            </p>
           )}
 
-          {(googleClientId || googleStub) && (
+          {step === 1 && (googleClientId || googleStub) && (
             <>
-              <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word text-center">
+              <div className={`${formCard} text-center`}>
                 <p className="text-text-light mb-4">Quick sign up with your Google account:</p>
                 {googleClientId && <div id="g_signup_btn" className="flex justify-center" />}
                 {googleStub && (
@@ -880,110 +841,190 @@ export default function SignupPage() {
             </>
           )}
 
-          <form
-            method="post"
-            className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word"
-            onSubmit={handleSubmit}
-          >
-            <div className="mb-5">
-              <label htmlFor="name" className="required">
-                Your Name
-              </label>
-              <input
-                type="text"
-                id="name"
-                name="name"
-                autoComplete="name"
-                required
-                placeholder="How should we call you?"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
+          {step === 1 && (
+            <form method="post" className={formCard} onSubmit={handleAccountStep} noValidate>
+              <h2 className="mt-0">Account</h2>
+              <div className="mb-5">
+                <label htmlFor="name" className="required">
+                  Your Name
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  autoComplete="name"
+                  required
+                  placeholder="How should we call you?"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
 
-            <div className="mb-5">
-              <label htmlFor="email" className="required">
-                Email
-              </label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                autoComplete="email"
-                required
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value)
-                  if (e.target.value.trim() === '' && contactPref === 'email') setContactPref('')
-                }}
-              />
-              <p className="text-sm text-text-light mt-1">
-                Used for login and notifications. Not shown publicly: see contact settings below.
-              </p>
-            </div>
+              <div className="mb-5">
+                <label htmlFor="email" className="required">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  autoComplete="email"
+                  required
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    if (e.target.value.trim() === '' && contactPref === 'email') setContactPref('')
+                  }}
+                />
+                <p className="text-sm text-text-light mt-1">
+                  Used for login and notifications. Not shown publicly. We send a link to confirm it
+                  as soon as you apply.
+                </p>
+              </div>
 
-            <div className="mb-5">
-              <label htmlFor="password" className="required">
-                Password
-              </label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                autoComplete="new-password"
-                required
-                minLength={8}
-                placeholder="At least 8 characters"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+              <div className="mb-5">
+                <label htmlFor="password" className="required">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  id="password"
+                  name="password"
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                  placeholder="At least 8 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
 
-            <div className="mb-5">
-              <label htmlFor="password_confirm" className="required">
-                Confirm Password
-              </label>
-              <input
-                type="password"
-                id="password_confirm"
-                name="password_confirm"
-                autoComplete="new-password"
-                required
-                minLength={8}
-                placeholder="Type your password again"
-                value={passwordConfirm}
-                onChange={(e) => setPasswordConfirm(e.target.value)}
-              />
-            </div>
+              <div className="mb-5">
+                <label htmlFor="password_confirm" className="required">
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  id="password_confirm"
+                  name="password_confirm"
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                  placeholder="Type your password again"
+                  value={passwordConfirm}
+                  onChange={(e) => setPasswordConfirm(e.target.value)}
+                />
+              </div>
 
-            {applicationFields({
-              prefix: '',
-              application: applicationMessage,
-              onApplicationChange: setApplicationMessage,
-              contactEmail: email,
-            })}
-
-            <div className="mt-3">
-              <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting ? 'Creating account…' : 'Create Account'}
+              <Button type="submit" className="w-full">
+                Next: About you
               </Button>
-            </div>
+              <p className="text-center text-text-light mt-4">
+                Already have an account? <Link href="/login">Login</Link>
+              </p>
+            </form>
+          )}
 
-            <p className="text-center text-text-light mt-4">
-              Already have an account? <Link href="/login">Login</Link>
-            </p>
-          </form>
+          {step === 2 && (
+            <form className={formCard} onSubmit={handleAboutStep} noValidate>
+              <h2 className="mt-0">About you</h2>
+              {isGoogle && (
+                <div className="mb-5">
+                  <label htmlFor="g_name">Your Name</label>
+                  <input type="text" id="g_name" value={name} disabled />
+                  <p className="text-sm text-text-light mt-1">
+                    From your Google account. To use a different name, change it on your Google
+                    account or update it later in your profile settings.
+                  </p>
+                </div>
+              )}
+              {aboutFields(prefix, pendingGoogleAuth?.email ?? email)}
+              <div className="flex gap-2 mt-3">
+                {!isGoogle && (
+                  <Button type="button" variant="secondary" onClick={() => goTo(1)}>
+                    Back
+                  </Button>
+                )}
+                <Button type="submit" className="flex-1">
+                  Next: Skills and privacy
+                </Button>
+              </div>
+            </form>
+          )}
 
-          <p className="text-center text-sm text-text-light mt-6">
-            <Link href="/privacy" className="text-text-light">
-              Privacy Policy
-            </Link>
-            {' · '}
-            <a href="mailto:matilda@pauseai.info" className="text-text-light">
-              Contact Support
-            </a>
-          </p>
+          {step === 3 && (
+            <form className={formCard} onSubmit={handleFinish} noValidate>
+              <h2 className="mt-0">Skills and privacy</h2>
+              <p className="text-sm text-text-light mt-1 mb-3">
+                Pick skills you can contribute. This helps match you with projects.
+              </p>
+              <SignupSkills value={skills} onChange={setSkills} />
+
+              <div className="mb-5 mt-4">
+                <label htmlFor={`${prefix}otherSkills`}>Other Skills</label>
+                <input
+                  type="text"
+                  id={`${prefix}otherSkills`}
+                  name="otherSkills"
+                  autoComplete="off"
+                  placeholder="Any skills not listed above…"
+                  value={otherSkills}
+                  onChange={(e) => setOtherSkills(e.target.value)}
+                />
+              </div>
+
+              <h3 className="mt-6">Privacy</h3>
+              <div className="flex flex-col gap-3">
+                <div>
+                  <label className="flex items-center gap-2 font-normal m-0">
+                    <input
+                      type="checkbox"
+                      checked={consentVisible}
+                      onChange={(e) => setConsentVisible(e.target.checked)}
+                    />
+                    Show me in the volunteer directory
+                  </label>
+                  <p className="text-sm text-text-light mt-1 mb-0 ml-6">
+                    Other volunteers can find you and ask to see your contact details. Turn this off
+                    and they can&apos;t.
+                  </p>
+                </div>
+                <div>
+                  <label className="flex items-center gap-2 font-normal m-0">
+                    <input
+                      type="checkbox"
+                      id={`${prefix}consent_analytics`}
+                      checked={consentAnalytics}
+                      onChange={(e) => setConsentAnalytics(e.target.checked)}
+                    />
+                    Allow Google Analytics (recommended)
+                  </label>
+                  <p className="text-sm text-text-light mt-1 mb-0 ml-6">
+                    Anonymous usage figures that help us improve the platform.
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm text-text-light mt-3">
+                People on the projects you join can always reach you. You can change these settings
+                or delete your account at any time.{' '}
+                <Link href="/privacy" target="_blank">
+                  Read our privacy policy
+                </Link>
+              </p>
+
+              <div className="flex gap-2 mt-3">
+                <Button type="button" variant="secondary" onClick={() => goTo(2)}>
+                  Back
+                </Button>
+                <Button type="submit" className="flex-1" disabled={submitting}>
+                  {submitting ? 'Submitting…' : 'Submit Application'}
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {footer}
         </div>
       </main>
     </>

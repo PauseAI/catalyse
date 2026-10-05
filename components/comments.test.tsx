@@ -1,5 +1,6 @@
+import type { ComponentProps } from 'react'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import { createVolunteer, createProject, createTask } from '@/test/factories'
@@ -8,6 +9,7 @@ import { clientAs } from '@/test/rpc'
 import CommentThread from './CommentThread'
 import BugReportCommentThread from './BugReportCommentThread'
 import CommentThreadView from './CommentThreadView'
+import CommentComposer from './CommentComposer'
 import Footer from './Footer'
 import AiEditingHelp from './AiEditingHelp'
 import { ToastProvider } from '@/lib/toast'
@@ -170,6 +172,211 @@ describe('CommentThreadView', () => {
   })
 })
 
+describe('CommentComposer', () => {
+  const members = [
+    { id: 1, name: 'Olive Owner' },
+    { id: 2, name: 'Oscar (UK)' },
+    { id: 3, name: 'Hal Helper' },
+  ]
+
+  it('suggests members after @ and submits their mentions as tokens', async () => {
+    const onSubmit = vi.fn(async () => true)
+    render(
+      <CommentComposer
+        label="Add a comment"
+        submitLabel="Post"
+        busyLabel="Posting…"
+        isSubmitting={false}
+        onSubmit={onSubmit}
+        mentionable={members}
+      />,
+    )
+    const box = screen.getByLabelText('Add a comment')
+    // Keys do nothing special while no list is open.
+    await userEvent.type(box, 'hi{ArrowDown} @o')
+    expect(box).toHaveAttribute('aria-expanded', 'true')
+    let options = screen.getAllByRole('option')
+    expect(options.map((o) => o.textContent)).toEqual(['Olive Owner', 'Oscar (UK)'])
+    expect(options[0]).toHaveAttribute('aria-selected', 'true')
+    await userEvent.keyboard('{ArrowDown}')
+    options = screen.getAllByRole('option')
+    expect(options[1]).toHaveAttribute('aria-selected', 'true')
+    await userEvent.keyboard('{ArrowDown}{ArrowUp}')
+    expect(screen.getAllByRole('option')[1]).toHaveAttribute('aria-selected', 'true')
+    await userEvent.keyboard('{Enter}')
+    expect(box).toHaveValue('hi @Oscar UK ')
+    expect(screen.queryByRole('listbox')).toBeNull()
+
+    // Tab picks too; a click picks; Escape and blur close without picking.
+    await userEvent.type(box, 'and @hal')
+    await userEvent.keyboard('{Tab}')
+    expect(box).toHaveValue('hi @Oscar UK and @Hal Helper ')
+    await userEvent.type(box, '@Oli')
+    fireEvent.mouseDown(screen.getByRole('option', { name: 'Olive Owner' }))
+    await userEvent.type(box, '@Oli')
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('listbox')).toBeNull()
+    await userEvent.type(box, ' x @zz')
+    expect(screen.queryByRole('listbox')).toBeNull()
+    await userEvent.type(box, '{Backspace}{Backspace}H')
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    fireEvent.blur(box)
+    expect(screen.queryByRole('listbox')).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Post' }))
+    expect(onSubmit).toHaveBeenCalledWith(
+      'hi @[Oscar UK](2) and @[Hal Helper](3) @[Olive Owner](1) @Oli x @H',
+    )
+    await waitFor(() => expect(box).toHaveValue(''))
+  })
+
+  it('starts from saved text and offers Cancel', async () => {
+    const onCancel = vi.fn()
+    const onSubmit = vi.fn(async () => false)
+    render(
+      <CommentComposer
+        label="Edit comment"
+        submitLabel="Save"
+        busyLabel="Saving…"
+        isSubmitting={false}
+        onSubmit={onSubmit}
+        onCancel={onCancel}
+        initialText="hey @Olive Owner"
+        initialPicked={[members[0]]}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSubmit).toHaveBeenCalledWith('hey @[Olive Owner](1)')
+    expect(screen.getByLabelText('Edit comment')).toHaveValue('hey @Olive Owner')
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onCancel).toHaveBeenCalled()
+  })
+})
+
+describe('CommentThreadView discussion actions', () => {
+  const thread = [
+    {
+      id: 10,
+      content: 'Who has banners? @[Olive Owner](1)',
+      authorName: 'Hal',
+      createdAt: new Date('2026-01-02T10:00:00Z'),
+      editedAt: new Date('2026-01-02T11:00:00Z'),
+      canEdit: true,
+      canDelete: true,
+      replies: [
+        { id: 11, content: 'I do', authorName: 'Olive', createdAt: null, canDelete: true },
+        { id: 12, content: '', authorName: 'Otto', createdAt: null, deleted: true },
+      ],
+    },
+    {
+      id: 13,
+      content: '',
+      authorName: 'Gone',
+      createdAt: null,
+      deleted: true,
+      replies: [{ id: 14, content: 'orphan reply', authorName: 'Olive', createdAt: null }],
+    },
+  ]
+
+  function renderThread(overrides: Partial<ComponentProps<typeof CommentThreadView>> = {}) {
+    const handlers = {
+      onSubmit: vi.fn(async (_content: string, _parentId?: number) => true),
+      onEdit: vi.fn(async (_id: number, _content: string) => true),
+      onDelete: vi.fn(async (_id: number) => true),
+    }
+    render(
+      <ToastProvider>
+        <CommentThreadView
+          comments={thread}
+          canPost
+          canReply
+          isPending={false}
+          isSubmitting={false}
+          {...handlers}
+          {...overrides}
+        />
+      </ToastProvider>,
+    )
+    return handlers
+  }
+
+  it('renders mentions, edits, removed comments and nested replies', () => {
+    renderThread()
+    expect(screen.getByText('@Olive Owner')).toHaveClass('text-primary')
+    expect(screen.getByText('(edited)')).toBeInTheDocument()
+    expect(screen.getAllByText('Comment removed')).toHaveLength(2)
+    expect(screen.getByText('orphan reply')).toBeInTheDocument()
+    // Reply only on live top-level comments; Edit/Delete only where allowed.
+    expect(screen.getAllByRole('button', { name: 'Reply' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Edit' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Delete' })).toHaveLength(2)
+  })
+
+  it('posts a reply under its thread', async () => {
+    const { onSubmit } = renderThread()
+    await userEvent.click(screen.getByRole('button', { name: 'Reply' }))
+    await userEvent.type(screen.getByLabelText('Write a reply'), 'On it')
+    await userEvent.click(screen.getAllByRole('button', { name: 'Reply' })[1])
+    expect(onSubmit).toHaveBeenCalledWith('On it', 10)
+    await waitFor(() => expect(screen.queryByLabelText('Write a reply')).toBeNull())
+
+    // A failed reply keeps the box; Cancel closes it.
+    onSubmit.mockResolvedValueOnce(false)
+    await userEvent.click(screen.getByRole('button', { name: 'Reply' }))
+    await userEvent.type(screen.getByLabelText('Write a reply'), 'Again')
+    await userEvent.click(screen.getAllByRole('button', { name: 'Reply' })[1])
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2))
+    expect(screen.getByLabelText('Write a reply')).toHaveValue('Again')
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByLabelText('Write a reply')).toBeNull()
+  })
+
+  it('edits a comment in place, keeping its mentions', async () => {
+    const { onEdit } = renderThread()
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    const box = screen.getByLabelText('Edit comment')
+    expect(box).toHaveValue('Who has banners? @Olive Owner')
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
+    onEdit.mockResolvedValueOnce(false)
+    await userEvent.type(box, '!')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onEdit).toHaveBeenCalledWith(10, 'Who has banners? @[Olive Owner](1)!')
+    expect(screen.getByLabelText('Edit comment')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.queryByLabelText('Edit comment')).toBeNull())
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByLabelText('Edit comment')).toBeNull()
+  })
+
+  it('deletes after confirming', async () => {
+    const { onDelete } = renderThread()
+    await userEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0])
+    const dialog = screen.getByRole('dialog', { name: 'Delete this comment?' })
+    expect(dialog).toHaveTextContent('Comment removed')
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onDelete).not.toHaveBeenCalled()
+
+    onDelete.mockResolvedValueOnce(false)
+    await userEvent.click(screen.getAllByRole('button', { name: 'Delete' })[1])
+    await userEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }),
+    )
+    expect(onDelete).toHaveBeenCalledWith(11)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    await userEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }),
+    )
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(onDelete).toHaveBeenCalledTimes(2)
+  })
+
+  it('offers no actions without the handlers, or replies when not allowed', () => {
+    renderThread({ onEdit: undefined, onDelete: undefined, canReply: false })
+    expect(screen.queryByRole('button', { name: /^(Reply|Edit|Delete)$/ })).toBeNull()
+  })
+})
+
 describe('CommentThread / BugReportCommentThread', () => {
   it('load and post work-item comments through the API', async () => {
     const owner = await createVolunteer()
@@ -183,6 +390,60 @@ describe('CommentThread / BugReportCommentThread', () => {
     expect(await screen.findByText('Comment added')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText('A comment')).toBeInTheDocument())
     expect(await prisma.workItemComment.count({ where: { workItemId: task.id } })).toBe(1)
+  })
+
+  it('replies, edits and deletes work-item comments through the API', async () => {
+    const owner = await createVolunteer()
+    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    await clientAs(owner).workItemComments.add({ workItemId: project.id, content: 'Kick-off' })
+    await renderApp(<CommentThread workItemId={project.id} />, { as: owner })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Reply' }))
+    await userEvent.type(screen.getByLabelText('Write a reply'), 'Agenda soon')
+    await userEvent.click(screen.getAllByRole('button', { name: 'Reply' })[1])
+    expect(await screen.findByText('Agenda soon')).toBeInTheDocument()
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
+    const box = screen.getByLabelText('Edit comment')
+    await userEvent.clear(box)
+    await userEvent.type(box, 'Kick-off moved')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('Comment updated')).toBeInTheDocument()
+    expect(await screen.findByText('Kick-off moved')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByLabelText('Edit comment')).toBeNull())
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Delete' })[1])
+    await userEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }),
+    )
+    expect(await screen.findByText('Comment deleted')).toBeInTheDocument()
+    expect(await screen.findByText('Comment removed')).toBeInTheDocument()
+    const reply = await prisma.workItemComment.findFirstOrThrow({
+      where: { workItemId: project.id, parentId: { not: null } },
+    })
+    expect(reply.deletedAt).not.toBeNull()
+  })
+
+  it('edits and deletes bug report comments', async () => {
+    const reporter = await createVolunteer()
+    const { id } = await clientAs(reporter).bugReports.create({
+      title: 'B',
+      description: 'Ten characters at least',
+    })
+    await clientAs(reporter).bugReportComments.add({ bugReportId: id, content: 'Typo' })
+    await renderApp(<BugReportCommentThread bugReportId={id} />, { as: reporter })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    await userEvent.type(screen.getByLabelText('Edit comment'), ' fixed')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('Typo fixed')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByLabelText('Edit comment')).toBeNull())
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await userEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }),
+    )
+    expect(await screen.findByText('Comment removed')).toBeInTheDocument()
   })
 
   it('surfaces a failed post as an error toast', async () => {

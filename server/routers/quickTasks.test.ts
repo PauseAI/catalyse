@@ -239,19 +239,31 @@ describe('quickTasks claim / submit / review', () => {
       message: 'This task has already been claimed',
     })
 
-    await expect(clientAs(other).quickTasks.submit({ id: q.id })).rejects.toMatchObject({
+    await expect(clientAs(other).quickTasks.submit({ id: q.id, note: 'x' })).rejects.toMatchObject({
       code: 'NOT_FOUND',
     })
     await expect(
       clientAs(admin).quickTasks.review({ id: q.id, reviewRating: 'good' }),
     ).rejects.toMatchObject({ message: 'Task is not awaiting review' })
-    // No creator (self-claimed) → nobody to notify on submit.
-    expect(await clientAs(vol).quickTasks.submit({ id: q.id })).toEqual({
+    await expect(clientAs(vol).quickTasks.submit({ id: q.id })).rejects.toMatchObject({
+      message: 'Say what you did or add a link to it',
+    })
+    // No creator (self-claimed) → every admin is told.
+    expect(await clientAs(vol).quickTasks.submit({ id: q.id, note: 'Translated it' })).toEqual({
       message: 'Task submitted for review',
     })
-    expect((await prisma.workItem.findUniqueOrThrow({ where: { id: q.id } })).status).toBe(
-      'under_review',
-    )
+    expect(await prisma.workItem.findUniqueOrThrow({ where: { id: q.id } })).toMatchObject({
+      status: 'under_review',
+      submissionNote: 'Translated it',
+    })
+    await notified(admin.id, 'quick_task_submitted', {
+      title: `Submitted for review: '${q.title}'`,
+      body: `${vol.name}: Translated it`,
+      entityId: q.id,
+    })
+    await expect(
+      clientAs(vol).quickTasks.submit({ id: q.id, note: 'again' }),
+    ).rejects.toMatchObject({ message: 'Only a task in progress can be submitted' })
 
     await expect(
       clientAs(admin).quickTasks.review({ id: 999_999, reviewRating: 'good' }),
@@ -290,8 +302,8 @@ describe('quickTasks claim / submit / review', () => {
     // Assigned by an admin → submit notifies the assigner; 'good' → verified endorsement (upsert path).
     const q2 = await createQuickTask({ skillId: skill.id })
     await clientAs(admin).quickTasks.assign({ id: q2.id, volunteerId: vol.id })
-    await clientAs(vol).quickTasks.submit({ id: q2.id })
-    await notified(admin.id, 'quick_task_submitted')
+    await clientAs(vol).quickTasks.submit({ id: q2.id, url: 'https://example.org/done' })
+    await notified(admin.id, 'quick_task_submitted', { entityId: q2.id })
     await clientAs(admin).quickTasks.review({ id: q2.id, reviewRating: 'good' })
     expect(
       await prisma.skillEndorsement.findFirst({
@@ -313,6 +325,87 @@ describe('quickTasks claim / submit / review', () => {
     const q4 = await createQuickTask({ status: 'under_review' })
     expect(await clientAs(admin).quickTasks.review({ id: q4.id, reviewRating: 'good' })).toEqual({
       message: 'Task reviewed',
+    })
+  })
+})
+
+describe('quickTasks.requestChanges', () => {
+  it('sends a submission back to the assignee with the message, until they submit again', async () => {
+    const admin = await createAdmin()
+    const vol = await createVolunteer()
+    const q = await createQuickTask({ assigneeId: vol.id, status: 'in_progress' })
+    const c = clientAs(admin)
+
+    await expect(c.quickTasks.requestChanges({ id: 999_999, message: 'x' })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    })
+    await expect(c.quickTasks.requestChanges({ id: q.id, message: 'x' })).rejects.toMatchObject({
+      message: 'Task is not awaiting review',
+    })
+    await expect(
+      clientAs(vol).quickTasks.requestChanges({ id: q.id, message: 'x' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+
+    await clientAs(vol).quickTasks.submit({ id: q.id, note: 'Draft' })
+    expect(await c.quickTasks.requestChanges({ id: q.id, message: 'Cite sources' })).toEqual({
+      message: 'Changes requested',
+    })
+    expect(await prisma.workItem.findUniqueOrThrow({ where: { id: q.id } })).toMatchObject({
+      status: 'in_progress',
+      changesRequestedNote: 'Cite sources',
+      reviewedById: admin.id,
+    })
+    expect(
+      await prisma.notification.count({ where: { type: 'quick_task_submitted', entityId: q.id } }),
+    ).toBe(0)
+    await notified(vol.id, 'task_changes_requested', {
+      title: `Changes requested: '${q.title}'`,
+      body: 'Cite sources',
+      link: `/quick-tasks/${q.id}`,
+    })
+    expect(await clientAs(vol).quickTasks.get({ id: q.id })).toMatchObject({
+      changesRequested: 'Cite sources',
+      reviewedByName: admin.name,
+      submission: { note: 'Draft', url: null },
+    })
+
+    await clientAs(vol).quickTasks.submit({ id: q.id, note: 'With sources' })
+    expect(
+      await prisma.notification.count({
+        where: { type: 'task_changes_requested', entityId: q.id },
+      }),
+    ).toBe(0)
+    await c.quickTasks.review({ id: q.id, reviewRating: 'good' })
+    expect(await prisma.workItem.findUniqueOrThrow({ where: { id: q.id } })).toMatchObject({
+      status: 'completed',
+      changesRequestedNote: null,
+      submissionNote: 'With sources',
+    })
+
+    // Sending back a task nobody holds any more notifies no one.
+    const orphan = await createQuickTask({ status: 'under_review' })
+    await c.quickTasks.requestChanges({ id: orphan.id, message: 'Redo' })
+    expect((await prisma.workItem.findUniqueOrThrow({ where: { id: orphan.id } })).status).toBe(
+      'in_progress',
+    )
+  })
+
+  it('forgets the submission when an admin unassigns the task', async () => {
+    const admin = await createAdmin()
+    const vol = await createVolunteer()
+    const q = await createQuickTask({
+      assigneeId: vol.id,
+      status: 'in_progress',
+      submissionNote: 'Half',
+      submittedAt: new Date(),
+      changesRequestedNote: 'More',
+    })
+    await clientAs(admin).quickTasks.unassign({ id: q.id })
+    expect(await prisma.workItem.findUniqueOrThrow({ where: { id: q.id } })).toMatchObject({
+      status: 'open',
+      submissionNote: null,
+      submittedAt: null,
+      changesRequestedNote: null,
     })
   })
 })

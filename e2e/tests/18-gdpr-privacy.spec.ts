@@ -9,8 +9,13 @@ import {
 } from '../fixtures'
 import { fake } from '../fake'
 import { createSkillViaApi } from '../actions/skills'
-import { adminCreateProjectViaApi, transferProjectOwnership } from '../actions/projects'
+import {
+  adminCreateProjectViaApi,
+  transferProjectOwnership,
+  joinProject,
+} from '../actions/projects'
 import { createApiClient } from '../client'
+import { connectVolunteers } from '../actions/contacts'
 
 test.describe('GDPR & Privacy', () => {
   test('Volunteer exports their personal data', async ({
@@ -52,10 +57,7 @@ test.describe('GDPR & Privacy', () => {
       'GDPR test seeking-help project',
     )
     await volunteer.page.goto(`${baseUrl}/projects/${seekingProjectId}`)
-    await expect(volunteer.page.getByRole('button', { name: 'Express Interest' })).toBeVisible({
-      timeout: 10_000,
-    })
-    await volunteer.page.getByRole('button', { name: 'Express Interest' }).click()
+    await joinProject(volunteer.page)
     await expect(getAlert(volunteer.page)).toContainText(
       "You'll get a notification when they reply",
       { timeout: 10_000 },
@@ -86,6 +88,9 @@ test.describe('GDPR & Privacy', () => {
     // A project page is closed to an unconfirmed email.
     if (vol2EmailToken) await confirmVolunteerEmail(baseUrl, vol2EmailToken)
     await approveVolunteer(baseUrl, vol2Id, vol2Token)
+    // Messaging needs a working relationship or an accepted contact request.
+    const volunteerToken = await volunteer.page.evaluate(() => localStorage.getItem('authToken'))
+    await connectVolunteers(baseUrl, vol2Token, volunteerToken!)
 
     // Admin creates a project and transfers ownership to vol2 so it has a contactable owner
     const contactProjectId = await adminCreateProjectViaApi(
@@ -97,10 +102,10 @@ test.describe('GDPR & Privacy', () => {
 
     // Volunteer contacts vol2 on that project — creates a messagesSent record
     await volunteer.page.goto(`${baseUrl}/projects/${contactProjectId}`)
-    await expect(volunteer.page.getByRole('button', { name: 'Contact Owner' })).toBeVisible({
+    await expect(volunteer.page.getByRole('button', { name: 'Message owner' })).toBeVisible({
       timeout: 10_000,
     })
-    await volunteer.page.getByRole('button', { name: 'Contact Owner' }).click()
+    await volunteer.page.getByRole('button', { name: 'Message owner' }).click()
     const outboundDialog = volunteer.page.getByRole('dialog')
     await expect(outboundDialog.getByLabel('Subject')).toBeVisible({ timeout: 10_000 })
     await outboundDialog.getByLabel('Subject').fill(fake.messageSubject())
@@ -117,7 +122,7 @@ test.describe('GDPR & Privacy', () => {
     try {
       await vol2Page.goto(`${baseUrl}/projects/${volunteerProjectId}`)
       await expect(vol2Page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
-      await vol2Page.getByRole('button', { name: 'Contact Owner' }).click()
+      await vol2Page.getByRole('button', { name: 'Message owner' }).click()
       const inboundDialog = vol2Page.getByRole('dialog')
       await expect(inboundDialog.getByLabel('Subject')).toBeVisible({ timeout: 10_000 })
       await inboundDialog.getByLabel('Subject').fill(fake.messageSubject())
@@ -155,7 +160,7 @@ test.describe('GDPR & Privacy', () => {
     expect(data.messagesReceived.length).toBeGreaterThan(0)
   })
 
-  test('Volunteer with contact sharing disabled does not expose contact handles', async ({
+  test('Contact handles stay hidden from a stranger until they accept a contact request', async ({
     volunteer,
     browser,
     baseUrl,
@@ -200,10 +205,8 @@ test.describe('GDPR & Privacy', () => {
       // Switch to Privacy & Data tab to configure visibility and contact sharing
       await page2.getByRole('tab', { name: 'Privacy & Data' }).click()
 
-      // Ensure profile is publicly visible
-      await page2.getByLabel(/Make my profile visible/).check()
-      // Keep consent_share_contact_info_with_project_owner unchecked (contact sharing disabled — this is the default)
-      await expect(page2.getByLabel(/Share my contact info directly/)).not.toBeChecked()
+      // Listed in the directory, so others can find them and ask to connect.
+      await page2.getByLabel('Show me in the volunteer directory').check()
 
       await page2.getByRole('button', { name: 'Save Changes' }).click()
       await expect(getAlert(page2)).toContainText('Profile updated!', { timeout: 10_000 })
@@ -227,6 +230,24 @@ test.describe('GDPR & Privacy', () => {
       await expect(volunteer.page.getByText(discordHandle)).not.toBeVisible()
       await expect(volunteer.page.getByText(signalNumber)).not.toBeVisible()
       await expect(volunteer.page.getByText(whatsappNumber)).not.toBeVisible()
+
+      // The stranger asks to connect; vol2 accepts from their Inbox; the handles appear.
+      await volunteer.page.getByRole('button', { name: 'Request contact' }).click()
+      const ask = volunteer.page.getByRole('dialog', { name: `Connect with ${vol2.name}` })
+      await ask
+        .getByLabel('Why would you like to connect?')
+        .fill('I run a stall nearby and would like to work together.')
+      await ask.getByRole('button', { name: 'Send request' }).click()
+      await expect(getAlert(volunteer.page)).toContainText('Request sent', { timeout: 10_000 })
+
+      await page2.goto(`${baseUrl}/inbox`)
+      const row = page2.getByRole('listitem').filter({ hasText: 'would like to connect' })
+      await row.getByRole('button', { name: 'Accept' }).click()
+      await expect(getAlert(page2)).toContainText('Answer sent', { timeout: 10_000 })
+
+      await volunteer.page.reload()
+      await expect(volunteer.page.getByText(discordHandle)).toBeVisible({ timeout: 10_000 })
+      await expect(volunteer.page.getByRole('button', { name: 'Message' })).toBeVisible()
     } finally {
       await ctx2.close()
     }

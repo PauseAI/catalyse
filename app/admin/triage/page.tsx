@@ -131,7 +131,7 @@ export default function TriagePage() {
               key: 'needs_discussion',
               label: (
                 <>
-                  {`Needs Discussion`}
+                  {`Needs Changes`}
                   {discussion.length > 0 && (
                     <span className="bg-primary text-gray-900 text-xs px-2 py-0.5 rounded-full ml-2">
                       {discussion.length}

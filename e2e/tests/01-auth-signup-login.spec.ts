@@ -18,7 +18,7 @@ test.describe('Authentication: Signup & Login', () => {
     try {
       const person = fake.person()
       await signup(baseUrl, page, person.name, person.email, 'testpassword1')
-      await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible({
+      await expect(page.getByRole('heading', { name: 'Application received' })).toBeVisible({
         timeout: 10_000,
       })
     } finally {
@@ -76,12 +76,14 @@ test.describe('Authentication: Signup & Login', () => {
       await page.getByLabel('Email', { exact: true }).fill(volunteer.email)
       await page.getByLabel('Password', { exact: true }).fill('testpassword1')
       await page.getByLabel('Confirm Password').fill('testpassword1')
+      await page.getByRole('button', { name: 'Next: About you' }).click()
       await page.getByLabel('Your Application').fill('e2e test application message')
       await page.getByLabel('About You').fill('e2e test bio, at least twenty characters long')
       await page.getByLabel('Hours per Week').fill('5')
       await selectFilterDropdown(page, 'Select country', 'United Kingdom')
-      await page.getByRole('button', { name: 'Create Account' }).click()
-      await expect(getAlert(page)).toBeVisible({ timeout: 10_000 })
+      await page.getByRole('button', { name: 'Next: Skills and privacy' }).click()
+      await page.getByRole('button', { name: 'Submit Application' }).click()
+      await expect(getAlert(page)).toContainText('Email already registered', { timeout: 10_000 })
     } finally {
       await context.close()
     }
@@ -103,12 +105,10 @@ test.describe('Authentication: Signup & Login', () => {
       })
       await page.getByLabel('Password', { exact: true }).fill('abc')
       await page.getByLabel('Confirm Password').fill('abc')
-      await page.getByLabel('Your Application').fill('e2e test application message')
-      await page.getByLabel('About You').fill('e2e test bio, at least twenty characters long')
-      await page.getByLabel('Hours per Week').fill('5')
-      await selectFilterDropdown(page, 'Select country', 'United Kingdom')
-      await page.getByRole('button', { name: 'Create Account' }).click()
-      await expect(getAlert(page)).toBeVisible({ timeout: 10_000 })
+      // The account step checks the password before moving on.
+      await page.getByRole('button', { name: 'Next: About you' }).click()
+      await expect(getAlert(page)).toContainText('at least 8 characters', { timeout: 10_000 })
+      await expect(page.getByRole('heading', { level: 2, name: 'Account' })).toBeVisible()
     } finally {
       await context.close()
     }
@@ -169,10 +169,16 @@ test.describe('Authentication: Signup & Login', () => {
       // Approval is announced once, in a dialog that points at the next step.
       const welcome = page.getByRole('dialog', { name: /You're approved/ })
       await expect(welcome).toBeVisible({ timeout: 10_000 })
+      // The dialog closes at once; the read is saved in the background, so wait for it
+      // before reloading.
+      const markedRead = page.waitForResponse(
+        (resp) => resp.url().includes('/api/rpc/notifications/markRead') && resp.ok(),
+      )
       await welcome.getByRole('button', { name: 'Not now' }).click()
       await expect(welcome).not.toBeVisible()
+      await markedRead
       await page.reload()
-      await expect(page.getByRole('heading', { name: /Welcome back/ })).toBeVisible({
+      await expect(page.getByRole('heading', { level: 1, name: /^Hi / })).toBeVisible({
         timeout: 10_000,
       })
       await expect(welcome).not.toBeVisible()
@@ -198,7 +204,7 @@ test.describe('Authentication: Signup & Login', () => {
     try {
       const person = fake.person()
       await signup(baseUrl, page, person.name, person.email, 'testpassword1')
-      await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible({
+      await expect(page.getByRole('heading', { name: 'Application received' })).toBeVisible({
         timeout: 10_000,
       })
       await page.getByRole('button', { name: 'Resend confirmation email' }).click()
@@ -376,9 +382,10 @@ test.describe('Authentication: Signup & Login', () => {
       await page.getByLabel('About You').fill('e2e test bio, at least twenty characters long')
       await page.getByLabel('Hours per Week').fill('5')
       await selectFilterDropdown(page, 'Select country', 'United Kingdom')
+      await page.getByRole('button', { name: 'Next: Skills and privacy' }).click()
       await page.getByRole('button', { name: 'Submit Application' }).click()
 
-      await expect(page.getByRole('heading', { name: 'Application submitted' })).toBeVisible({
+      await expect(page.getByRole('heading', { name: 'Application received' })).toBeVisible({
         timeout: 10_000,
       })
     } finally {

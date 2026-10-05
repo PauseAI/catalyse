@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures'
 import { submitBugReportViaApi } from '../actions/bugs'
-import { goToDashboardNotifications } from '../actions/dashboard'
+import { goToInbox } from '../actions/dashboard'
 import { createApiClient } from '../client'
 import { fake } from '../fake'
 
@@ -42,13 +42,17 @@ test.describe('Bug Report Detail Page', () => {
     await adminPage.getByRole('button', { name: 'Post Comment' }).click()
     await expect(adminPage.getByText('Looking into it now')).toBeVisible({ timeout: 10_000 })
 
-    await goToDashboardNotifications(baseUrl, volunteer.page)
+    await goToInbox(baseUrl, volunteer.page)
     await expect(
       volunteer.page
         .locator('strong')
         .filter({ hasText: `New reply on your bug report: ${title}` }),
     ).toBeVisible({ timeout: 10_000 })
-    await volunteer.page.getByRole('link', { name: 'View' }).first().click()
+    await volunteer.page
+      .getByRole('listitem')
+      .filter({ hasText: `New reply on your bug report: ${title}` })
+      .getByRole('link', { name: 'Open' })
+      .click()
     await expect(volunteer.page.getByText('Looking into it now')).toBeVisible({ timeout: 10_000 })
   })
 

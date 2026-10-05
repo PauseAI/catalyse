@@ -36,6 +36,38 @@ describe('createNotification / clearNotifications', () => {
   })
 })
 
+describe('notifyUser email preferences', () => {
+  const payload = { message: 'm', projectId: 1, projectTitle: 'P' }
+
+  it('skips the email for a muted category but still notifies in the app', async () => {
+    const vol = await createVolunteer({ emailMutedCategories: ['update'] })
+    await notifyUser(vol.id, 'project_approved', 'Approved', null, null, payload)
+    expect(emails.to(vol.email!)).toEqual([])
+    await vi.waitFor(async () =>
+      expect(await prisma.notification.count({ where: { volunteerId: vol.id } })).toBe(1),
+    )
+    // Needs-action email still goes.
+    await notifyUser(vol.id, 'new_interest', 'Someone wants to help', null, null, payload)
+    expect(emails.lastTo(vol.email!)).toMatchObject({ subject: 'Someone wants to help' })
+  })
+
+  it('records when a notification was emailed', async () => {
+    const vol = await createVolunteer()
+    await notifyUser(vol.id, 'project_approved', 'Approved', null, null, payload)
+    await vi.waitFor(async () =>
+      expect(
+        (await prisma.notification.findFirstOrThrow({ where: { volunteerId: vol.id } })).emailedAt,
+      ).not.toBeNull(),
+    )
+    // An in-app notice that failed to save leaves nothing to stamp.
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(prisma.notification, 'create').mockRejectedValueOnce(new Error('db') as never)
+    await notifyUser(vol.id, 'project_approved', 'Again', null, null, payload)
+    await vi.waitFor(() => expect(error).toHaveBeenCalledWith('[NOTIFY ERROR]', expect.any(Error)))
+    expect(emails.lastTo(vol.email!)).toMatchObject({ subject: 'Again' })
+  })
+})
+
 describe('notifyUser', () => {
   it('creates the notification and emails a project or admin-alert payload', async () => {
     const vol = await createVolunteer()

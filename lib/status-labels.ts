@@ -24,16 +24,18 @@ export const QUICK_TASK_STATUS_VARIANTS: Record<string, BadgeVariant> = {
   completed: 'success',
 }
 
-/** Project tasks have no review step: they are claimed and then finished. */
+/** Project tasks: claimed, then submitted, and accepted by the owner unless they auto-accept. */
 export const TASK_STATUS_LABELS: Record<string, string> = {
   open: 'Not started',
   in_progress: 'In progress',
+  under_review: 'Submitted for review',
   completed: 'Done',
 }
 
 export const TASK_STATUS_VARIANTS: Record<string, BadgeVariant> = {
   open: 'neutral',
   in_progress: 'info',
+  under_review: 'caution',
   completed: 'success',
 }
 
@@ -44,23 +46,32 @@ export const INTEREST_STATUS_LABELS: Record<string, string> = {
   declined: 'Declined',
   withdrawn: 'Withdrawn',
   removed: 'Removed',
+  invited: 'Invited',
+  cancelled: 'Cancelled',
+}
+
+const INTEREST_ORIGINS: Record<string, string> = {
+  applied: 'Applied',
+  added: 'Added',
+  invited: 'Invited',
 }
 
 const INTEREST_ENDINGS: Record<string, string> = {
   declined: 'declined',
   removed: 'removed',
   withdrawn: 'withdrew',
+  cancelled: 'cancelled',
 }
 
 /**
  * How someone came to a project and how they left it, for the project owner: "Applied,
- * declined", "Added, removed", "Applied, withdrew". Null while they are still on it or
+ * declined", "Added, removed", "Invited, cancelled". Null while they are still on it or
  * waiting.
  */
 export function interestHistoryLabel(origin: string, status: string): string | null {
   const ending = INTEREST_ENDINGS[status]
   if (!ending) return null
-  return `${origin === 'added' ? 'Added' : 'Applied'}, ${ending}`
+  return `${INTEREST_ORIGINS[origin] ?? 'Applied'}, ${ending}`
 }
 
 /** A proposed team or local group, waiting on an admin. */

@@ -10,7 +10,6 @@ import Alert from './ui/Alert'
 import ConfirmDialog from './ui/ConfirmDialog'
 import DescriptionTips from './DescriptionTips'
 import Tooltip from './Tooltip'
-import { ApprovalStepper } from './ApprovalStepper'
 import Tabs from './Tabs'
 import Skeleton from './Skeleton'
 import EmptyState from './EmptyState'
@@ -142,22 +141,6 @@ describe('DescriptionTips / Tooltip', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('More info')
     await userEvent.unhover(screen.getByText('hover me'))
     expect(screen.queryByRole('tooltip')).toBeNull()
-  })
-})
-
-describe('ApprovalStepper', () => {
-  it('colours the three steps by status', () => {
-    const { rerender } = render(<ApprovalStepper status="pending" />)
-    const badges = () => screen.getAllByText(/Applied|Under Review|Approved|Rejected/)
-    expect(badges()[1]).toHaveClass('bg-gray-100')
-    rerender(<ApprovalStepper status="under_review" />)
-    expect(badges()[1]).toHaveClass('bg-blue-100')
-    rerender(<ApprovalStepper status="needs_info" />)
-    expect(badges()[1]).toHaveClass('bg-blue-100')
-    rerender(<ApprovalStepper status="approved" />)
-    expect(badges()[2]).toHaveClass('bg-emerald-100')
-    rerender(<ApprovalStepper status="rejected" />)
-    expect(badges()[2]).toHaveTextContent('Rejected')
   })
 })
 

@@ -16,7 +16,7 @@ import { ProjectStatus } from '@/generated/prisma/enums'
 export const PROJECT_STATUS_CONFIG: Record<string, { label: string; variant: BadgeVariant }> = {
   draft: { label: 'Draft', variant: 'neutral' },
   pending_review: { label: 'Pending Review', variant: 'warning' },
-  needs_discussion: { label: 'Needs Discussion', variant: 'neutral' },
+  needs_discussion: { label: 'Needs Changes', variant: 'neutral' },
   ready: { label: 'Ready', variant: 'caution' },
   in_progress: { label: 'In Progress', variant: 'info' },
   on_hold: { label: 'On Hold', variant: 'neutral' },
@@ -32,9 +32,11 @@ export function projectStatusLabel(status: string): string {
   return PROJECT_STATUS_LABELS[status] ?? status.replace(/_/g, ' ')
 }
 
-/** Statuses a project owner may set directly. Admins may set any status. */
+/**
+ * Statuses a project owner may set directly. Admins may set any status. Ready (approved, not
+ * started) is an admin's: a project leaves it by itself when it gains an owner.
+ */
 export const OWNER_ALLOWED_STATUSES: ProjectStatus[] = [
-  ProjectStatus.ready,
   ProjectStatus.in_progress,
   ProjectStatus.on_hold,
   ProjectStatus.completed,

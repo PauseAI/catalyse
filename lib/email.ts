@@ -550,12 +550,18 @@ export async function sendLocalGroupSuggestionEmail({
   return sendEmail(to, subject, buildLocalGroupSuggestionHtml(name, action, groupName, adminNotes))
 }
 
+/**
+ * A message relayed from one volunteer to another. `threadUrl` is where to reply on Catalyse;
+ * `repliesByEmail` says whether the sender shared their address as the reply-to.
+ */
 export function buildRelayMessageHtml(
   toName: string,
   fromName: string,
   subject: string,
   message: string,
-  projectTitle?: string,
+  projectTitle: string | undefined,
+  threadUrl: string,
+  repliesByEmail: boolean,
 ): string {
   const to = escapeHtml(toName)
   const from = escapeHtml(fromName)
@@ -576,34 +582,45 @@ export function buildRelayMessageHtml(
     <p style="font-weight: 500; margin-bottom: 8px;">${subj}</p>
     <p>${msg}</p>
   </div>
-  <p>You can reply directly to this email to respond to ${from}.</p>
+  <p><a href="${threadUrl}" class="button">Reply on Catalyse</a></p>
+  ${repliesByEmail ? `<p>You can also reply to this email to write to ${from} directly.</p>` : ''}
   ${footer()}
 </div></body></html>`
 }
 
+/**
+ * Emails a copy of a message. The sender's address is the reply-to only when they chose to
+ * share it; otherwise the recipient replies on Catalyse.
+ */
 export async function sendRelayMessage({
   to,
   toName,
   fromName,
-  fromEmail,
+  replyTo,
   subject,
   message,
   projectTitle,
+  threadId,
 }: {
   to: string
   toName: string
   fromName: string
-  fromEmail: string
+  replyTo: string | null
   subject: string
   message: string
   projectTitle?: string
+  threadId: number
 }): Promise<boolean> {
-  return sendEmail(
-    to,
-    `[Catalyse] ${subject}`,
-    buildRelayMessageHtml(toName, fromName, subject, message, projectTitle),
-    fromEmail,
+  const html = buildRelayMessageHtml(
+    toName,
+    fromName,
+    subject,
+    message,
+    projectTitle,
+    `${env.APP_URL}/inbox/messages/${threadId}`,
+    replyTo !== null,
   )
+  return sendEmail(to, `[Catalyse] ${subject}`, html, replyTo ?? undefined)
 }
 
 export function buildDigestHtml(

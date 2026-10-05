@@ -2,7 +2,13 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { DependencyBodySchema } from '@/lib/schemas'
-import { canManageProject, canViewWorkItem, resolveProjectPrivy } from '@/lib/work-item'
+import {
+  canManageProject,
+  canManageProjectTasks,
+  canViewWorkItem,
+  isProjectDeputy,
+  resolveProjectPrivy,
+} from '@/lib/work-item'
 import { loadProjectEdges, loadTaskEdges } from '@/lib/project-schedule'
 import { findDependencyCycle, type ScheduleEdge } from '@/lib/schedule'
 import { approvedProcedure } from '../procedures'
@@ -100,9 +106,11 @@ async function resolveLink(
         })
       : null
     if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
-    if (!canManageProject(project, volunteer)) {
+    if (
+      !canManageProjectTasks(project, volunteer, await isProjectDeputy(project.id, volunteer.id))
+    ) {
       throw new ORPCError('FORBIDDEN', {
-        message: 'Only the project owner or an admin can link its tasks',
+        message: 'Only the project owner, a deputy or an admin can link its tasks',
       })
     }
   } else {

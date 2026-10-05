@@ -166,7 +166,7 @@ export default function BugReportDetailPage({ params }: { params: Promise<{ id: 
       </div>
 
       <div className="bg-surface rounded-xl shadow p-6">
-        <h2 className="text-lg mb-4">Comments</h2>
+        <h2 className="text-lg mb-4">Discussion</h2>
         <BugReportCommentThread bugReportId={report.id} />
       </div>
     </main>

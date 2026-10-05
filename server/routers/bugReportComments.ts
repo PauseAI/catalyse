@@ -5,6 +5,18 @@ import { notifyUser, notifyAdmins } from '@/lib/notify'
 import { canViewBugReport, canPostBugReportComment } from '@/lib/bug-report-access'
 import { authedProcedure } from '../procedures'
 
+/** Loads a comment and its report, or NOT_FOUND if the comment is gone or deleted. */
+async function loadComment(id: number) {
+  const comment = await prisma.bugReportComment.findUnique({
+    where: { id },
+    include: { bugReport: { select: { reporterId: true } } },
+  })
+  if (!comment || comment.deletedAt) {
+    throw new ORPCError('NOT_FOUND', { message: 'Comment not found' })
+  }
+  return comment
+}
+
 export const bugReportCommentsRouter = {
   list: authedProcedure
     .input(z.object({ bugReportId: z.number().int() }))
@@ -25,17 +37,26 @@ export const bugReportCommentsRouter = {
         include: { author: { select: { name: true } } },
         orderBy: { createdAt: 'asc' },
       })
+      const canPost = canPostBugReportComment(report, viewer)
 
       return {
-        canPost: canPostBugReportComment(report, viewer),
-        comments: comments.map((c) => ({
-          id: c.id,
-          bugReportId: c.bugReportId,
-          authorId: c.authorId,
-          authorName: c.author?.name ?? null,
-          content: c.content,
-          createdAt: c.createdAt,
-        })),
+        canPost,
+        comments: comments.map((c) => {
+          const deleted = c.deletedAt !== null
+          const isAuthor = c.authorId === viewer.id
+          return {
+            id: c.id,
+            bugReportId: c.bugReportId,
+            authorId: c.authorId,
+            authorName: c.author?.name ?? null,
+            content: deleted ? '' : c.content,
+            createdAt: c.createdAt,
+            editedAt: c.editedAt,
+            deleted,
+            canEdit: !deleted && isAuthor && canPost,
+            canDelete: !deleted && (isAuthor || viewer.isAdmin),
+          }
+        }),
       }
     }),
 
@@ -83,5 +104,39 @@ export const bugReportCommentsRouter = {
       }
 
       return { id: comment.id, message: 'Comment added' }
+    }),
+
+  edit: authedProcedure
+    .input(z.object({ id: z.number().int(), content: z.string().min(1) }))
+    .handler(async ({ input, context }) => {
+      const volunteer = context.volunteer
+      const comment = await loadComment(input.id)
+      const viewer = { id: volunteer.id, isAdmin: Boolean(volunteer.isAdmin) }
+      if (
+        comment.authorId !== volunteer.id ||
+        !canPostBugReportComment(comment.bugReport, viewer)
+      ) {
+        throw new ORPCError('FORBIDDEN', { message: 'You can only edit your own comments' })
+      }
+      await prisma.bugReportComment.update({
+        where: { id: comment.id },
+        data: { content: input.content.trim(), editedAt: new Date() },
+      })
+      return { message: 'Comment updated' }
+    }),
+
+  delete: authedProcedure
+    .input(z.object({ id: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      const volunteer = context.volunteer
+      const comment = await loadComment(input.id)
+      if (comment.authorId !== volunteer.id && !volunteer.isAdmin) {
+        throw new ORPCError('FORBIDDEN', { message: 'You can only delete your own comments' })
+      }
+      await prisma.bugReportComment.update({
+        where: { id: comment.id },
+        data: { deletedAt: new Date() },
+      })
+      return { message: 'Comment deleted' }
     }),
 }

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { DragEndEvent } from '@dnd-kit/core'
 import { prisma } from '@/lib/prisma'
 import {
+  connect,
   createVolunteer,
   createAdmin,
   createProject,
@@ -12,6 +13,7 @@ import {
   createTeam,
 } from '@/test/factories'
 import { renderApp } from '@/test/render'
+import { clientAs } from '@/test/rpc'
 import { navigation } from '@/test/next-navigation'
 import ProjectDetailPage from './page'
 import { queryClient } from '@/lib/query-client'
@@ -24,6 +26,7 @@ const listDrag = () => drags.find((p) => p.collisionDetection !== undefined)
 const ganttDrag = () => drags.find((p) => p.collisionDetection === undefined)
 
 const row = (id: number) => prisma.workItem.findUniqueOrThrow({ where: { id } })
+const openTab = (name: RegExp) => userEvent.click(screen.getByRole('tab', { name }))
 const mount = (id: number, as: Awaited<ReturnType<typeof createVolunteer>>, hash = '') =>
   renderApp(<ProjectDetailPage params={Promise.resolve({ id: String(id) })} />, {
     as,
@@ -34,6 +37,8 @@ describe('project page — visitor', () => {
   it('shows the project, lets a volunteer express then withdraw interest, and claim tasks', async () => {
     const me = await createVolunteer()
     const owner = await createVolunteer({ name: 'Olive Owner' })
+    // Connected earlier, so I can message the owner whatever my place on the project.
+    await connect(me, owner)
     const skill = await createSkill()
     const team = await createTeam({ name: 'Crew' })
     await prisma.teamMembership.create({ data: { teamId: team.id, volunteerId: me.id } })
@@ -78,16 +83,26 @@ describe('project page — visitor', () => {
     })
     await mount(project.id, me)
     await screen.findByRole('heading', { name: 'Visible project' })
+    // Overview first: the description, skills and the doc link.
+    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('link', { name: 'Open Project Doc →' })).toHaveAttribute(
       'href',
       'https://doc.example',
     )
+    expect(screen.getByText('Olive Owner')).toBeInTheDocument()
+    expect(screen.getByText('You match 0 of 1 skill')).toBeInTheDocument()
+
+    await openTab(/^Tasks/)
+    expect(window.location.hash).toBe('#tasks')
     expect(screen.getByText('Overdue')).toBeInTheDocument()
     expect(screen.getByLabelText('1 comment')).toBeInTheDocument()
-    expect(screen.getByText('Olive Owner')).toBeInTheDocument()
 
     // Only people on the project can post, so there is no comment box until the claim.
+    await openTab(/^Discussion/)
+    await screen.findByRole('heading', { name: 'Discussion' })
     expect(screen.queryByLabelText('Add a comment')).toBeNull()
+    await openTab(/^Tasks/)
+    // A member of the project's team is already on it, so Claim takes the task at once.
     await userEvent.click(await screen.findByRole('button', { name: 'Claim' }))
     await screen.findByText(/Task claimed\. Post an update/)
     await waitFor(async () => expect((await row(open.id)).assigneeId).toBe(me.id))
@@ -98,35 +113,44 @@ describe('project page — visitor', () => {
         .map((l) => l.textContent)
         .filter((t) => t?.endsWith(' task'))
     expect(taskOrder()).toEqual(['Open task', 'Ongoing task', 'Done task'])
-    await userEvent.click(await screen.findByRole('button', { name: 'Done' }))
-    await screen.findByText('Task completed!')
+    await userEvent.click(await screen.findByRole('button', { name: 'Submit work' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Submit your work' })
+    expect(within(dialog).getByText(/This marks the task done/)).toBeInTheDocument()
+    await userEvent.type(within(dialog).getByLabelText('What did you do?'), 'Did it')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Submit work' }))
+    await screen.findByText('Task done. What you did is saved on the task.')
     // The finished task stays where it was; the server's order applies on the next load.
     await waitFor(() => expect(screen.getAllByText('done')).toHaveLength(2))
     expect(taskOrder()).toEqual(['Open task', 'Ongoing task', 'Done task'])
+    await openTab(/^Discussion/)
     expect(await screen.findByLabelText('Add a comment')).toBeInTheDocument()
 
-    // Interest: the claim made me an accepted helper; withdrawing releases that, and the
-    // comment box goes with it.
-    await userEvent.click(await screen.findByRole('button', { name: 'Withdraw Interest' }))
+    // The claim put me on the project; leaving releases that, and the comment box goes too.
+    await screen.findByText("You're on this project")
+    await userEvent.click(screen.getByRole('button', { name: 'Leave project' }))
     await userEvent.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Withdraw' }),
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Leave' }),
     )
     await screen.findByText(/You've left the project/)
     await waitFor(() => expect(screen.queryByLabelText('Add a comment')).toBeNull())
+    await userEvent.click(await screen.findByRole('button', { name: 'Join this project' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Join this project' }))
     await userEvent.type(await screen.findByLabelText('Message (optional)'), 'Pick me')
-    await userEvent.click(screen.getByRole('button', { name: 'Express Interest' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Send request' }))
     await screen.findByText(/You'll get a notification when they reply/)
+    await screen.findByText('Request sent: waiting for the owner')
 
-    const contact = screen.getByRole('button', { name: /Contact/ })
+    const contact = screen.getByRole('button', { name: 'Message owner' })
     await userEvent.click(contact)
     // It says how the message is delivered, and Escape closes it with focus back on the button.
     expect(
-      within(screen.getByRole('dialog', { name: 'Contact Owner' })).getByText(
-        `${owner.name} will get this by email and in their notifications. Your email address is shared so they can reply.`,
+      within(screen.getByRole('dialog', { name: 'Message owner' })).getByText(
+        `${owner.name} will see this in their Inbox and get a copy by email. You can both reply on Catalyse; your email address stays private unless you share it below.`,
       ),
     ).toBeInTheDocument()
     await userEvent.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', { name: 'Contact Owner' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Message owner' })).toBeNull()
     expect(contact).toHaveFocus()
     await userEvent.click(contact)
     await userEvent.type(screen.getByLabelText('Subject'), 'Hello')
@@ -136,13 +160,13 @@ describe('project page — visitor', () => {
     expect(
       await prisma.message.count({ where: { fromVolunteerId: me.id, toVolunteerId: owner.id } }),
     ).toBe(1)
-    await userEvent.click(screen.getByRole('button', { name: /Contact/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Message owner' }))
     await userEvent.click(screen.getByLabelText('Close'))
-    await userEvent.click(screen.getByRole('button', { name: /Contact/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Message owner' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    await userEvent.click(screen.getByRole('button', { name: /Contact/ }))
-    fireEvent.click(screen.getByRole('dialog', { name: 'Contact Owner' }).parentElement!)
-    expect(screen.queryByRole('dialog', { name: 'Contact Owner' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Message owner' }))
+    fireEvent.click(screen.getByRole('dialog', { name: 'Message owner' }).parentElement!)
+    expect(screen.queryByRole('dialog', { name: 'Message owner' })).toBeNull()
   })
 
   it('redirects for unknown projects and drafts, and shows want-to-own interest with a response', async () => {
@@ -156,11 +180,20 @@ describe('project page — visitor', () => {
       expect(navigation.replace).toHaveBeenCalledWith(`/projects/${draft.id}/edit`),
     )
     cleanup()
-    const project = await createProject({ title: 'Ownerless', status: 'ready' })
+    // A doc link that is not http(s), however it got into the row, is never rendered.
+    const project = await createProject({
+      title: 'Ownerless',
+      status: 'ready',
+      collaborationLink: 'javascript:alert(1)',
+    })
     await mount(project.id, me)
     await screen.findByRole('heading', { name: 'Ownerless' })
-    await userEvent.click(screen.getByLabelText(/I want to own/))
-    await userEvent.click(screen.getByRole('button', { name: 'Express Interest' }))
+    expect(screen.queryByRole('link', { name: 'Open Project Doc →' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Join this project' }))
+    await userEvent.click(screen.getByLabelText('Lead the project'))
+    await userEvent.click(screen.getByLabelText('Help out on the project'))
+    await userEvent.click(screen.getByLabelText('Lead the project'))
+    await userEvent.click(screen.getByRole('button', { name: 'Send request' }))
     await screen.findByText(/You'll get a notification when they reply/)
     const interest = await prisma.workItemInterest.findFirstOrThrow({
       where: { workItemId: project.id, volunteerId: me.id },
@@ -173,7 +206,8 @@ describe('project page — visitor', () => {
     cleanup()
     await mount(project.id, me)
     await screen.findByText(/Sorry, no/)
-    expect(screen.queryByRole('button', { name: 'Withdraw Interest' })).toBeNull()
+    expect(screen.getByText(/The owner declined your request/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Withdraw request' })).toBeNull()
     // A failed withdrawal is reported.
     await prisma.workItemInterest.update({
       where: { id: interest.id },
@@ -181,7 +215,7 @@ describe('project page — visitor', () => {
     })
     cleanup()
     await mount(project.id, me)
-    const withdraw = await screen.findByRole('button', { name: 'Withdraw Interest' })
+    const withdraw = await screen.findByRole('button', { name: 'Withdraw request' })
     localStorage.setItem('authToken', 'stale')
     await userEvent.click(withdraw)
     await userEvent.click(
@@ -190,30 +224,119 @@ describe('project page — visitor', () => {
     await screen.findByText('Unauthorized')
   })
 
-  it('calls the panel "Your place" for someone the owner added, and says what to do once removed', async () => {
+  it('says a volunteer is on the project, or what to do once removed', async () => {
     const me = await createVolunteer()
     const project = await createProject({ title: 'Added to it', status: 'ready' })
     const interest = await prisma.workItemInterest.create({
       data: {
         workItemId: project.id,
         volunteerId: me.id,
-        interestType: 'want_to_contribute',
+        interestType: 'want_to_own',
         origin: 'added',
         status: 'accepted',
       },
     })
     await mount(project.id, me)
-    await screen.findByRole('heading', { name: 'Your place on this project' })
-    expect(screen.getByText(/Your place:/)).toBeInTheDocument()
-    expect(screen.queryByText(/Your interest status/)).toBeNull()
+    await screen.findByText("You're on this project as its lead")
+    expect(screen.queryByRole('button', { name: 'Join this project' })).toBeNull()
     cleanup()
     await prisma.workItemInterest.update({
       where: { id: interest.id },
       data: { status: 'removed' },
     })
     await mount(project.id, me)
-    await screen.findByText('Contact the owner if you would like to rejoin.')
-    expect(screen.queryByRole('button', { name: 'Withdraw Interest' })).toBeNull()
+    await screen.findByText(/You were taken off this project/)
+    expect(screen.queryByRole('button', { name: 'Leave project' })).toBeNull()
+  })
+})
+
+describe('project page — submitted work', () => {
+  it('names the owner as reviewer, and shows the owner what is waiting', async () => {
+    const owner = await createVolunteer()
+    const me = await createVolunteer()
+    const project = await createProject({
+      title: 'Reviewed project',
+      assigneeId: owner.id,
+      status: 'in_progress',
+      autoAcceptTasks: false,
+    })
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: project.id,
+        volunteerId: me.id,
+        interestType: 'want_to_contribute',
+        status: 'accepted',
+      },
+    })
+    await createTask(project.id, { title: 'Mine', status: 'in_progress', assigneeId: me.id })
+    const waiting = await createTask(project.id, {
+      title: 'Waiting',
+      status: 'under_review',
+      assigneeId: me.id,
+    })
+    await mount(project.id, me, '#tasks')
+    await userEvent.click(await screen.findByRole('button', { name: 'Submit work' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Submit your work' })
+    expect(within(dialog).getByText(/The project owner will look at it/)).toBeInTheDocument()
+    expect(screen.getByText('Submitted for review')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Review' })).toBeNull()
+
+    cleanup()
+    await mount(project.id, owner, '#tasks')
+    expect(await screen.findByRole('link', { name: 'Review' })).toHaveAttribute(
+      'href',
+      `/projects/${project.id}/tasks/${waiting.id}`,
+    )
+  })
+})
+
+describe('project page — joining and held tasks', () => {
+  it('holds a task for someone not yet on the project, and summarises the people', async () => {
+    const owner = await createVolunteer({ name: 'Omar Owner' })
+    const me = await createVolunteer({ name: 'Mo Newcomer' })
+    const project = await createProject({
+      title: 'Busy project',
+      assigneeId: owner.id,
+      status: 'in_progress',
+      isSeekingHelp: true,
+    })
+    for (let i = 1; i <= 6; i++) {
+      const v = await createVolunteer({ name: `Helper ${i}` })
+      await prisma.workItemInterest.create({
+        data: {
+          workItemId: project.id,
+          volunteerId: v.id,
+          interestType: 'want_to_contribute',
+          status: 'accepted',
+        },
+      })
+    }
+    const t = await createTask(project.id, { title: 'Poster task' })
+
+    await mount(project.id, me, '#tasks')
+    await screen.findByRole('heading', { name: 'Busy project' })
+    expect(screen.getByRole('tab', { name: 'People (7)' })).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('list', { name: 'Helpers' })).getAllByRole('listitem'),
+    ).toHaveLength(5)
+    expect(screen.getByText('and 1 more')).toBeInTheDocument()
+    await userEvent.click(await screen.findByRole('button', { name: 'Join and claim' }))
+    await screen.findByText(/^Requested\. The task is held for you/)
+    await screen.findByText('Held for you: waiting for the owner')
+    await screen.findByText('Request sent: waiting for the owner')
+    expect(await row(t.id)).toMatchObject({ requestedById: me.id, assigneeId: null })
+    await userEvent.click(screen.getByRole('button', { name: 'See everyone' }))
+    expect(screen.getByRole('tab', { name: 'People (7)' })).toHaveAttribute('aria-selected', 'true')
+    expect(
+      within(screen.getByRole('region', { name: 'People on this project' })).getByText('Helper 6'),
+    ).toBeInTheDocument()
+
+    cleanup()
+    await mount(project.id, owner, '#tasks')
+    await screen.findByText('Requested by Mo Newcomer')
+    await screen.findByText('1 waiting for an answer')
+    await userEvent.click(screen.getByRole('button', { name: 'Manage people' }))
+    expect(window.location.hash).toBe('#people')
   })
 })
 
@@ -241,10 +364,10 @@ describe('project page — owner', () => {
     await prisma.workItemInterest.create({
       data: { workItemId: project.id, volunteerId: other.id, interestType: 'want_to_own' },
     })
-    await mount(project.id, owner)
+    await mount(project.id, owner, '#tasks')
     await screen.findByRole('heading', { name: 'Owned project' })
 
-    await userEvent.click(screen.getByRole('button', { name: 'Add Task' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Add Task' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     await userEvent.click(screen.getByRole('button', { name: 'Add Task' }))
     await userEvent.type(screen.getByLabelText('Task title'), 'Third task')
@@ -260,8 +383,11 @@ describe('project page — owner', () => {
     expect(t3).toMatchObject({ estimatedHours: 2, durationDays: 3, featuredAsQuickTask: true })
 
     // Accept one interest, decline the other with a message.
+    await openTab(/^People/)
     const interestCard = (name: string) =>
-      screen.getByText(name).closest('li, div[class*="border"]') as HTMLElement
+      within(screen.getByRole('region', { name: 'People on this project' }))
+        .getByText(name)
+        .closest('li') as HTMLElement
     await userEvent.click(
       within(interestCard('Hana Helper')).getByRole('button', { name: 'Accept' }),
     )
@@ -288,6 +414,7 @@ describe('project page — owner', () => {
     )
 
     // The drag handle and the task menu say what they are.
+    await openTab(/^Tasks/)
     expect(screen.getByLabelText('Drag to reorder First task')).toBeInTheDocument()
     expect(screen.getByLabelText('Task actions for First task')).toHaveAttribute(
       'title',
@@ -306,6 +433,7 @@ describe('project page — owner', () => {
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Unassign' }))
     await screen.findByText('Task unassigned!')
     // The owner sees how each person came and went.
+    await openTab(/^People/)
     expect(interestCard('Otto Other')).toHaveTextContent('Applied, declined')
     expect(interestCard('Otto Other')).not.toHaveTextContent('wanted to')
     // An accepted helper is removed, not declined, and the dialog and toast say so.
@@ -320,6 +448,7 @@ describe('project page — owner', () => {
     await screen.findByText("Removed Hana Helper. They've been notified.")
     await waitFor(() => expect(interestCard('Hana Helper')).toHaveTextContent('Applied, removed'))
     // Clicking outside closes the menu.
+    await openTab(/^Tasks/)
     await userEvent.click(screen.getByLabelText('Task actions for First task'))
     fireEvent.mouseDown(document.body)
     expect(screen.queryByRole('menu')).toBeNull()
@@ -351,22 +480,33 @@ describe('project page — owner', () => {
     await screen.findByText('Status updated!')
     await waitFor(async () => expect((await row(project.id)).status).toBe('on_hold'))
 
-    // Enter submits the assign form even while its button is disabled.
-    fireEvent.submit(screen.getByRole('button', { name: 'Volunteer to assign' }).closest('form')!)
-    await userEvent.click(screen.getByRole('button', { name: 'Volunteer to assign' }))
+    // Enter submits the invite form even while its button is disabled.
+    await openTab(/^People/)
+    const picker = () => screen.getByRole('button', { name: 'Volunteer to invite' })
+    fireEvent.submit(picker().closest('form')!)
+    await userEvent.click(picker())
     await userEvent.click(await screen.findByRole('option', { name: 'Otto Other' }))
-    fireEvent.submit(screen.getByRole('button', { name: 'Volunteer to assign' }).closest('form')!)
-    await screen.findByText(/^Added to the project\./)
-    // The picker empties once the volunteer is added, and says what adding does.
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Volunteer to assign' })).not.toHaveTextContent(
-        'Otto Other',
-      ),
-    )
+    await userEvent.type(screen.getByLabelText('Note with the invite (optional)'), 'Leaflets?')
+    await userEvent.click(screen.getByRole('button', { name: 'Invite' }))
+    await screen.findByText('Invite sent')
+    // The picker empties, and the person waits under Invited until they answer.
+    await waitFor(() => expect(picker()).not.toHaveTextContent('Otto Other'))
     expect(
-      screen.getByText('They are added straight away and get a notification.'),
+      screen.getByText('They get an invite and join once they accept.', { exact: false }),
     ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add now' })).toBeNull()
+    const invited = await screen.findByRole('region', { name: 'Invited' })
+    expect(within(invited).getByText('Invited by Owen Owner')).toBeInTheDocument()
+    expect(within(invited).getByText('Leaflets?')).toBeInTheDocument()
+    await userEvent.click(within(invited).getByRole('button', { name: 'Cancel invite' }))
+    await screen.findByText('Invite cancelled.')
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Invited' })).toBeNull())
+    // Everyone who has left sits folded away under Past.
+    expect(screen.getByText(/^Past \(/)).toBeInTheDocument()
+    expect(interestCard('Otto Other')).toHaveTextContent('Invited, cancelled')
 
+    // Owner tools sit visible in the Manage panel.
+    expect(screen.getByText('Manage')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Edit/ })).toHaveAttribute(
       'href',
       `/projects/${project.id}/edit`,
@@ -389,10 +529,18 @@ describe('project page — owner', () => {
     await prisma.workItemInterest.create({
       data: { workItemId: project.id, volunteerId: helper.id, interestType: 'want_to_contribute' },
     })
-    await mount(project.id, owner)
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: project.id,
+        volunteerId: (await createVolunteer()).id,
+        interestType: 'want_to_contribute',
+        status: 'invited',
+      },
+    })
+    await mount(project.id, owner, '#tasks')
     await screen.findByRole('heading', { name: 'Fragile' })
     await prisma.workItem.delete({ where: { id: t1.id } })
-    await userEvent.click(screen.getByLabelText('Task actions for Doomed task'))
+    await userEvent.click(await screen.findByLabelText('Task actions for Doomed task'))
     await userEvent.click(
       await screen.findByRole('button', { name: 'Assign volunteer to Doomed task' }),
     )
@@ -411,17 +559,222 @@ describe('project page — owner', () => {
     await prisma.workItem.delete({ where: { id: project.id } })
     fireEvent.submit(screen.getByLabelText('Task title').closest('form')!)
     await screen.findByText('Project not found')
+    await openTab(/^People/)
     await userEvent.click(screen.getByRole('button', { name: 'Accept' }))
     await screen.findByText('Not authorized')
-    await userEvent.click(screen.getByRole('button', { name: 'Volunteer to assign' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel invite' }))
+    await waitFor(() => expect(screen.getAllByText('Not authorized')).toHaveLength(2))
+    await userEvent.click(screen.getByRole('button', { name: 'Volunteer to invite' }))
     await userEvent.click((await screen.findAllByRole('option', { name: 'Hana Helper' }))[0])
-    fireEvent.submit(screen.getByRole('button', { name: 'Volunteer to assign' }).closest('form')!)
+    fireEvent.submit(screen.getByRole('button', { name: 'Volunteer to invite' }).closest('form')!)
     await waitFor(() => expect(screen.getAllByText('Project not found').length).toBeGreaterThan(1))
     await userEvent.click(screen.getByRole('button', { name: 'project status' }))
     await userEvent.click(screen.getByRole('option', { name: 'Completed' }))
     await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
     await waitFor(() => expect(screen.getAllByText('Project not found').length).toBeGreaterThan(2))
+    await openTab(/^Tasks/)
     act(() => listDrag()({ active: { id: t1.id }, over: { id: t1.id + 1 } } as DragEndEvent))
+  })
+})
+
+describe('project page — deputies', () => {
+  async function deputyProject() {
+    const owner = await createVolunteer({ name: 'Owen Owner' })
+    const helper = await createVolunteer({ name: 'Hana Helper' })
+    const project = await createProject({
+      title: 'Shared project',
+      assigneeId: owner.id,
+      status: 'in_progress',
+      autoAcceptTasks: false,
+    })
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: project.id,
+        volunteerId: helper.id,
+        interestType: 'want_to_contribute',
+        status: 'accepted',
+      },
+    })
+    return { owner, helper, project }
+  }
+  const personCard = (name: string) =>
+    within(screen.getByRole('region', { name: 'People on this project' }))
+      .getByText(name)
+      .closest('li') as HTMLElement
+
+  it('lets the owner make a helper a deputy and take it back', async () => {
+    const { owner, helper, project } = await deputyProject()
+    await mount(project.id, owner, '#people')
+    await userEvent.click(
+      await within(
+        await screen.findByRole('region', { name: 'People on this project' }),
+      ).findByRole('button', { name: 'Make deputy' }),
+    )
+    const dialog = await screen.findByRole('dialog', { name: 'Make Hana Helper a deputy?' })
+    expect(within(dialog).getByText(/cannot edit the project/)).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Make deputy' }))
+    await screen.findByText('Deputy appointed')
+    await waitFor(() => expect(personCard('Hana Helper')).toHaveTextContent('Deputy'))
+    expect(await prisma.projectDeputy.count({ where: { volunteerId: helper.id } })).toBe(1)
+
+    await userEvent.click(
+      within(personCard('Hana Helper')).getByRole('button', { name: 'Remove deputy' }),
+    )
+    const removeDialog = await screen.findByRole('dialog', {
+      name: 'Remove Hana Helper as a deputy?',
+    })
+    await userEvent.click(within(removeDialog).getByRole('button', { name: 'Remove deputy' }))
+    await screen.findByText('Deputy removed')
+    await waitFor(() => expect(personCard('Hana Helper')).toHaveTextContent('Helper'))
+  })
+
+  it('shows why a deputy change failed, and lets the owner back out of the dialog', async () => {
+    const { owner, helper, project } = await deputyProject()
+    await prisma.projectDeputy.create({ data: { projectId: project.id, volunteerId: helper.id } })
+    await mount(project.id, owner, '#people')
+    const remove = await within(
+      await screen.findByRole('region', { name: 'People on this project' }),
+    ).findByRole('button', { name: 'Remove deputy' })
+    await userEvent.click(remove)
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }),
+    )
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    await prisma.projectDeputy.deleteMany({ where: { projectId: project.id } })
+    await userEvent.click(remove)
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove deputy' }),
+    )
+    await screen.findByText('Deputy not found')
+  })
+
+  it('gives a deputy the task controls but not the people ones, and lets them step down', async () => {
+    const { owner, helper, project } = await deputyProject()
+    await prisma.projectDeputy.create({ data: { projectId: project.id, volunteerId: helper.id } })
+    const worker = await createVolunteer()
+    await createTask(project.id, { title: 'Open one', sortOrder: 1 })
+    const waiting = await createTask(project.id, {
+      title: 'Waiting one',
+      sortOrder: 2,
+      status: 'under_review',
+      assigneeId: worker.id,
+    })
+    await mount(project.id, helper, '#tasks')
+    expect(await screen.findByLabelText('Drag to reorder Open one')).toBeInTheDocument()
+    expect(screen.getByLabelText('Task actions for Open one')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Review' })).toHaveAttribute(
+      'href',
+      `/projects/${project.id}/tasks/${waiting.id}`,
+    )
+    expect(screen.getByText('Deputy')).toBeInTheDocument()
+    // The Manage panel is the owner's: a deputy has no project-level controls.
+    expect(screen.queryByText('Manage')).toBeNull()
+
+    await openTab(/^People/)
+    expect(screen.queryByRole('button', { name: 'Make deputy' })).toBeNull()
+    expect(screen.queryByText('+ Invite')).toBeNull()
+    expect(within(personCard('Hana Helper')).getByText('Deputy')).toBeInTheDocument()
+    await userEvent.click(
+      within(personCard('Hana Helper')).getByRole('button', { name: 'Step down' }),
+    )
+    const dialog = await screen.findByRole('dialog', { name: 'Step down as a deputy?' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Step down' }))
+    await screen.findByText('You are no longer a deputy')
+    expect(await prisma.projectDeputy.count({ where: { projectId: project.id } })).toBe(0)
+    expect((await prisma.notification.findMany({ where: { volunteerId: owner.id } })).length).toBe(
+      1,
+    )
+  })
+})
+
+describe('project page — invites', () => {
+  it('lets an admin add someone straight away, and reports a failed add', async () => {
+    const admin = await createAdmin()
+    const owner = await createVolunteer()
+    const vol = await createVolunteer({ name: 'Addie Added' })
+    const gone = await createVolunteer({ name: 'Gina Gone' })
+    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    await mount(project.id, admin, '#people')
+    const picker = () => screen.getByRole('button', { name: 'Volunteer to invite' })
+    await userEvent.click(await screen.findByRole('button', { name: 'Volunteer to invite' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Addie Added' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add now' }))
+    await screen.findByText(/^Added to the project\./)
+    await waitFor(async () =>
+      expect(
+        (await prisma.workItemInterest.findFirstOrThrow({ where: { volunteerId: vol.id } })).status,
+      ).toBe('accepted'),
+    )
+    await userEvent.click(picker())
+    await userEvent.click(await screen.findByRole('option', { name: 'Gina Gone' }))
+    await prisma.volunteer.update({ where: { id: gone.id }, data: { deletedAt: new Date() } })
+    await userEvent.click(screen.getByRole('button', { name: 'Add now' }))
+    await screen.findByText('Volunteer not found')
+  })
+
+  it('shows an invite to the person invited, who accepts or declines it there', async () => {
+    const owner = await createVolunteer({ name: 'Ola Owner' })
+    const me = await createVolunteer()
+    const project = await createProject({
+      title: 'Invite project',
+      assigneeId: owner.id,
+      status: 'in_progress',
+      isSeekingHelp: true,
+    })
+    await clientAs(owner).projects.invite({
+      projectId: project.id,
+      volunteerId: me.id,
+      message: 'See https://example.org/brief',
+    })
+    await mount(project.id, me)
+    const banner = await screen.findByRole('region', {
+      name: 'Ola Owner invited you to help on this project',
+    })
+    expect(within(banner).getByRole('link', { name: 'https://example.org/brief' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Join this project' })).toBeNull()
+    await userEvent.click(within(banner).getByRole('button', { name: 'Decline' }))
+    await screen.findByText('Invite declined.')
+    // Declining leaves the way open to apply.
+    await screen.findByRole('button', { name: 'Join this project' })
+    expect(screen.queryByRole('region', { name: /invited you/ })).toBeNull()
+
+    await clientAs(owner).projects.invite({ projectId: project.id, volunteerId: me.id })
+    cleanup()
+    await mount(project.id, me)
+    const again = await screen.findByRole('region', {
+      name: 'Ola Owner invited you to help on this project',
+    })
+    await userEvent.click(within(again).getByRole('button', { name: 'Accept' }))
+    await screen.findByText("You're on the project. Welcome!")
+    await waitFor(async () =>
+      expect(
+        (await prisma.workItemInterest.findFirstOrThrow({ where: { volunteerId: me.id } })).status,
+      ).toBe('accepted'),
+    )
+  })
+
+  it('reports an invite that has gone, and names the owner when the inviter is unknown', async () => {
+    const me = await createVolunteer()
+    const project = await createProject({ assigneeId: (await createVolunteer()).id })
+    const invite = await prisma.workItemInterest.create({
+      data: {
+        workItemId: project.id,
+        volunteerId: me.id,
+        interestType: 'want_to_contribute',
+        status: 'invited',
+      },
+    })
+    await mount(project.id, me)
+    const banner = await screen.findByRole('region', {
+      name: 'The owner invited you to help on this project',
+    })
+    await prisma.workItemInterest.update({
+      where: { id: invite.id },
+      data: { status: 'cancelled' },
+    })
+    await userEvent.click(within(banner).getByRole('button', { name: 'Accept' }))
+    await screen.findByText('No invite found')
   })
 })
 
@@ -439,10 +792,10 @@ describe('project page — admin', () => {
     await mount(pending.id, admin)
     await screen.findByRole('heading', { name: 'Proposal' })
     expect(screen.getByText('Pat Proposer')).toBeInTheDocument()
-    await userEvent.click(screen.getByLabelText(/discussion/i))
+    await userEvent.click(screen.getByLabelText('Ask for changes'))
     await userEvent.type(screen.getByLabelText('Message to Proposer'), 'Tell us more')
     fireEvent.submit(screen.getByLabelText('Message to Proposer').closest('form')!)
-    await screen.findByText('Project sent for discussion.')
+    await screen.findByText('Changes requested.')
     await waitFor(async () => expect((await row(pending.id)).status).toBe('needs_discussion'))
     cleanup()
     await mount(pending.id, admin)
@@ -550,7 +903,7 @@ describe('project page — timeline tab', () => {
     expect(screen.getByText(/Baseline set/)).toBeInTheDocument()
 
     // Tab switching pushes history; the popstate/hashchange listeners read it back.
-    await userEvent.click(screen.getByRole('tab', { name: 'List' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Overview' }))
     expect(window.location.hash).toBe('')
     await userEvent.click(screen.getByRole('tab', { name: 'Timeline' }))
     await userEvent.click(screen.getByRole('tab', { name: 'Timeline' }))
@@ -559,7 +912,13 @@ describe('project page — timeline tab', () => {
       window.history.pushState(null, '', `/projects/${project.id}`)
       window.dispatchEvent(new PopStateEvent('popstate'))
     })
-    expect(screen.getByRole('tab', { name: 'List' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
+    // An unknown hash opens the Overview.
+    act(() => {
+      window.location.hash = '#nonsense'
+      window.dispatchEvent(new HashChangeEvent('hashchange'))
+    })
+    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
     act(() => {
       window.location.hash = '#timeline'
       window.dispatchEvent(new HashChangeEvent('hashchange'))
@@ -730,9 +1089,9 @@ describe('project page — remaining edges', () => {
       status: 'in_progress',
       creatorId: owner.id,
     })
-    await mount(project.id, admin)
+    await mount(project.id, admin, '#tasks')
     await screen.findByRole('heading', { name: 'Edge project' })
-    await userEvent.click(screen.getByRole('button', { name: 'Add Task' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Add Task' }))
     fireEvent.submit(screen.getByLabelText('Task title').closest('form')!)
     expect(await prisma.workItem.count({ where: { parentId: project.id } })).toBe(0)
     await userEvent.click(screen.getByRole('button', { name: 'project status' }))
@@ -756,16 +1115,31 @@ describe('project page — remaining edges', () => {
     })
     await mount(pending.id, admin)
     await screen.findByRole('heading', { name: 'Approve me' })
-    await userEvent.click(screen.getByLabelText(/discussion/i))
+    await userEvent.click(screen.getByLabelText('Ask for changes'))
     await userEvent.click(screen.getByLabelText(/approve/i))
     await prisma.workItem.delete({ where: { id: pending.id } })
     fireEvent.submit(screen.getByLabelText(/approve/i).closest('form')!)
     await screen.findByText('Project not found')
   })
 
-  it('a visitor can switch interest type back to contribute, and sees errors for interest, contact and outcome', async () => {
+  it('shows the owner of a proposal its status without a control until an admin approves it', async () => {
+    const owner = await createVolunteer()
+    const project = await createProject({
+      title: 'Under review',
+      status: 'needs_discussion',
+      assigneeId: owner.id,
+      creatorId: owner.id,
+    })
+    await mount(project.id, owner)
+    await screen.findByRole('heading', { name: 'Under review' })
+    expect(screen.getByLabelText('project status')).toHaveTextContent('Needs Changes')
+    expect(screen.queryByRole('button', { name: 'project status' })).toBeNull()
+  })
+
+  it('a visitor can only ask to help on an owned project, and sees errors for interest, contact and outcome', async () => {
     const me = await createVolunteer()
     const owner = await createVolunteer()
+    await connect(me, owner)
     const project = await createProject({
       title: 'Interest edges',
       assigneeId: owner.id,
@@ -774,22 +1148,25 @@ describe('project page — remaining edges', () => {
     })
     await mount(project.id, me)
     await screen.findByRole('heading', { name: 'Interest edges' })
-    await userEvent.click(screen.getByLabelText(/I want to own/))
-    await userEvent.click(screen.getByLabelText(/contribute|help/i))
+    await userEvent.click(screen.getByRole('button', { name: 'Join this project' }))
+    // It has an owner, so there is no lead to ask to be.
+    expect(screen.getByLabelText('Help out on the project')).toBeChecked()
+    expect(screen.queryByLabelText('Lead the project')).toBeNull()
+    await userEvent.keyboard('{Escape}')
     // Claiming a task that no longer exists, then declining the withdraw confirmation.
     const gone = await createTask(project.id, { title: 'Gone task' })
     cleanup()
-    await mount(project.id, me)
-    await screen.findByRole('button', { name: 'Claim' })
+    await mount(project.id, me, '#tasks')
+    await screen.findByRole('button', { name: 'Join and claim' })
     await prisma.workItem.delete({ where: { id: gone.id } })
-    await userEvent.click(screen.getByRole('button', { name: 'Claim' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Join and claim' }))
     await screen.findByText('Project or task not found')
     await prisma.workItemInterest.create({
       data: { workItemId: project.id, volunteerId: me.id, interestType: 'want_to_contribute' },
     })
     cleanup()
     await mount(project.id, me)
-    await userEvent.click(await screen.findByRole('button', { name: 'Withdraw Interest' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Withdraw request' }))
     await userEvent.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }),
     )
@@ -799,19 +1176,17 @@ describe('project page — remaining edges', () => {
     await prisma.workItemInterest.deleteMany({ where: { volunteerId: me.id } })
     cleanup()
     await mount(project.id, me)
-    await screen.findByLabelText(/I want to own/)
+    await userEvent.click(await screen.findByRole('button', { name: 'Join this project' }))
     await prisma.workItem.update({ where: { id: project.id }, data: { isSeekingHelp: false } })
-    await userEvent.click(screen.getByRole('button', { name: 'Express Interest' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Send request' }))
     await screen.findByText('This project is not currently seeking volunteers')
-    await userEvent.click(screen.getByRole('button', { name: /Contact/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Message owner' }))
     await userEvent.type(screen.getByLabelText('Subject'), 'Hi')
     await userEvent.type(screen.getByLabelText('Message'), 'There')
-    await prisma.volunteer.update({
-      where: { id: owner.id },
-      data: { consentContactableByProjectOwners: false },
-    })
+    // The connection is gone by the time the message is sent.
+    await prisma.contactRequest.deleteMany({ where: { fromVolunteerId: me.id } })
     fireEvent.submit(screen.getByLabelText('Subject').closest('form')!)
-    await screen.findByText(/doesn't accept messages/)
+    await screen.findByText(/Send them a contact request first/)
 
     cleanup()
     const admin = await createAdmin()
@@ -835,9 +1210,8 @@ describe('project page — remaining edges', () => {
       discordHandle: 'own#1',
       signalNumber: '+1',
       whatsappNumber: '+2',
-      consentContactableByProjectOwners: true,
-      consentShareContactInfoWithProjectOwner: true,
     })
+    await connect(me, owner)
     const project = await createProject({
       title: 'Contact edge',
       assigneeId: owner.id,
@@ -845,7 +1219,7 @@ describe('project page — remaining edges', () => {
     })
     await mount(project.id, me)
     await screen.findByRole('heading', { name: 'Contact edge' })
-    await userEvent.click(screen.getByRole('button', { name: /Contact/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Message owner' }))
     await screen.findByText(/own#1/)
 
     cleanup()

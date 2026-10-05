@@ -1,169 +1,182 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
-import { useRequireAuth } from '@/lib/hooks/auth'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import Button from '@/components/Button'
-import CommentThread from '@/components/CommentThread'
+import ResendConfirmation from '@/components/ResendConfirmation'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useRequireAuth } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
-import { ProjectList, statusBadgeClasses } from '@/components/ProjectCard'
-import {
-  INTEREST_STATUS_LABELS,
-  QUICK_TASK_STATUS_LABELS,
-  TASK_STATUS_LABELS,
-} from '@/lib/status-labels'
-import { Badge } from '@/components/Badge'
-import { daysQuiet } from '@/lib/staleness'
-import Linkify from '@/components/Linkify'
-import SubmitForReviewButton from '@/components/SubmitForReviewButton'
-import Tabs from '@/components/Tabs'
+import Button from '@/components/Button'
+import { Badge, type BadgeVariant } from '@/components/Badge'
 import Modal from '@/components/ui/Modal'
-import { ApprovalStatus, InterestStatus, QuickTaskStatus } from '@/generated/prisma/enums'
-import { ApprovalStepper } from '@/components/ApprovalStepper'
-import { friendlyDate } from '@/lib/format-date'
 import Skeleton from '@/components/Skeleton'
+import { ApprovalStatus } from '@/generated/prisma/enums'
+import type { AppRouter } from '@/server/router'
+import type { InferRouterOutputs } from '@orpc/server'
 
-function QuietNote({ updatedAt }: { updatedAt: string | Date | null }) {
-  const days = daysQuiet(updatedAt)
-  if (days === null) return null
-  return <div className="text-sm text-warning-text mt-1">No update for {days} days</div>
+type Home = InferRouterOutputs<AppRouter>['dashboard']['get']
+type WorkRow = Home['work'][number]
+type FindRow = NonNullable<Home['find']>['quickTasks']
+
+const WORK_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'project', label: 'Projects' },
+  { key: 'task', label: 'Tasks' },
+  { key: 'team', label: 'Teams' },
+] as const
+type WorkFilter = (typeof WORK_FILTERS)[number]['key']
+
+const ROLE_VARIANTS: Record<WorkRow['role'], BadgeVariant> = {
+  Lead: 'success',
+  Deputy: 'success',
+  Helper: 'info',
+  Proposed: 'warning',
+  Task: 'caution',
+  Member: 'neutral',
 }
 
-const NOTIFICATIONS_PAGE_SIZE = 20
-type NotificationFilter = 'all' | 'unread' | 'read'
-
-// Current work first, discovery last.
-const TAB_ORDER = ['projects', 'applications', 'notifications', 'suggested'] as const
-type TabKey = (typeof TAB_ORDER)[number]
-
-const TAB_LABELS: Record<TabKey, string> = {
-  projects: 'My projects',
-  applications: 'Applications',
-  notifications: 'Notifications',
-  suggested: 'Suggested for You',
+// Links into the old tabbed dashboard still land somewhere sensible.
+const PROJECT_HASHES = ['#tab-projects', '#tab-owned', '#tab-interests', '#tab-proposed']
+const LEGACY_HASHES: Record<string, { section: string; filter?: WorkFilter }> = {
+  ...Object.fromEntries(PROJECT_HASHES.map((h) => [h, { section: 'my-work', filter: 'project' }])),
+  '#tab-applications': { section: 'my-work', filter: 'project' },
+  '#tab-suggested': { section: 'find' },
 }
 
-/** The tab a `#tab-<key>` hash asks for, or null when it names none. */
-function tabFromHash(hash: string): TabKey | null {
-  const key = hash.startsWith('#tab-') ? hash.slice('#tab-'.length) : ''
-  return TAB_ORDER.find((t) => t === key) ?? null
-}
-
-function TabCount({ count }: { count: number }) {
-  if (count === 0) return null
+function Count({ n }: { n: number }) {
+  if (n === 0) return null
   return (
-    <span className="bg-accent text-secondary-dark text-xs px-2 py-0.5 rounded-full ml-1 dark:bg-gray-700 dark:text-gray-300">
-      {count}
+    <span className="bg-accent text-secondary-dark text-xs px-2 py-0.5 rounded-full ml-2 align-middle dark:bg-gray-700 dark:text-gray-300">
+      {n}
     </span>
   )
 }
 
-export default function DashboardPage() {
+function GettingStarted({
+  steps,
+  email,
+}: {
+  steps: NonNullable<Home['gettingStarted']>
+  email: string | null
+}) {
+  const items = [
+    {
+      done: steps.approved,
+      label: 'Application approved',
+      todo: 'Application under review',
+      href: null,
+    },
+    {
+      done: steps.emailConfirmed,
+      label: 'Email confirmed',
+      todo: 'Confirm your email',
+      href: '/verify-email',
+    },
+    {
+      done: steps.firstTask,
+      label: 'First task claimed',
+      todo: 'Pick a first task',
+      href: steps.approved ? '/quick-tasks' : null,
+    },
+  ]
+  return (
+    <section
+      aria-labelledby="getting-started"
+      className="bg-surface rounded-xl shadow p-5 mb-6 wrap-break-word"
+    >
+      <h2 id="getting-started" className="text-lg mt-0 mb-3">
+        Getting started
+      </h2>
+      {!steps.approved && (
+        <p className="text-sm text-text-light mt-0 mb-3">
+          Your account is pending approval. You&apos;ll be able to browse and join projects once an
+          admin reviews your application.
+        </p>
+      )}
+      <ol className="list-none p-0 m-0 flex flex-col gap-2 sm:flex-row sm:gap-6">
+        {items.map((s) => (
+          <li key={s.label} className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className={s.done ? 'text-success font-bold' : 'text-text-light'}
+            >
+              {s.done ? '✔' : '○'}
+            </span>
+            {s.done ? (
+              <span>{s.label}</span>
+            ) : s.href ? (
+              <Link href={s.href}>{s.todo}</Link>
+            ) : (
+              <span className="text-text-light">{s.todo}</span>
+            )}
+            <span className="sr-only">{s.done ? '(done)' : '(to do)'}</span>
+          </li>
+        ))}
+      </ol>
+      {!steps.emailConfirmed && email && (
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+          <span className="text-text-light">No confirmation email from us yet?</span>
+          <ResendConfirmation email={email} />
+        </div>
+      )}
+    </section>
+  )
+}
+
+function FindRowView({
+  label,
+  row,
+  seeAll,
+  empty,
+}: {
+  label: string
+  row: FindRow
+  seeAll: string
+  empty: React.ReactNode
+}) {
+  return (
+    <div className="py-3 border-b border-brand-border last:border-0">
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <h3 className="text-base m-0">
+          {label}
+          <Count n={row.count} />
+        </h3>
+        {row.count > 0 && (
+          <Link href={seeAll} className="text-sm">
+            See all →
+          </Link>
+        )}
+      </div>
+      {row.items.length === 0 ? (
+        <p className="text-sm text-text-light m-0">{empty}</p>
+      ) : (
+        <ul className="list-none p-0 m-0">
+          {row.items.map((item) => (
+            <li key={item.id} className="text-sm py-1">
+              <Link href={item.href}>{item.title}</Link>
+              {item.reason && <span className="text-text-light"> · {item.reason}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+export default function HomePage() {
   const { user, loading } = useRequireAuth()
   const queryClient = useQueryClient()
-  // The tab the hash names; without one the page picks a default from what the volunteer has.
-  const [requestedTab, setRequestedTab] = useState<TabKey | null>(() =>
-    typeof window === 'undefined' ? null : tabFromHash(window.location.hash),
-  )
-  const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set())
+  const router = useRouter()
+  const [filter, setFilter] = useState<WorkFilter>('all')
+  const [findOpen, setFindOpen] = useState<boolean | null>(null)
+  const [finishedOpen, setFinishedOpen] = useState(false)
   const [emailBannerDismissed, setEmailBannerDismissed] = useState(false)
-  const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>('all')
-  const [notificationPage, setNotificationPage] = useState(1)
   const [welcomeDismissed, setWelcomeDismissed] = useState(false)
-
-  function setNotificationFilterAndResetPage(filter: NotificationFilter) {
-    setNotificationFilter(filter)
-    setNotificationPage(1)
-  }
-
-  useEffect(() => {
-    function syncFromHash() {
-      setRequestedTab(tabFromHash(window.location.hash))
-    }
-    // Re-read the hash on mount too: Next.js client-side navigation does not
-    // reliably reflect the new hash in window.location.hash by the time this
-    // page's useState initializer runs, so the initial value can be stale.
-    syncFromHash()
-    window.addEventListener('hashchange', syncFromHash)
-    return () => window.removeEventListener('hashchange', syncFromHash)
-  }, [])
 
   const { data, isPending: loadingData } = useQuery({
     ...orpc.dashboard.get.queryOptions(),
     enabled: !!user,
-  })
-
-  const unreadCount = data?.unreadNotificationCount ?? 0
-  const ownedProjects = data?.ownedProjects ?? []
-  const ownedIds = new Set(ownedProjects.map((p) => p.id))
-  const interests = data?.myInterests ?? []
-  const myProjects = [
-    ...ownedProjects,
-    ...interests.filter((i) => i.interestStatus === InterestStatus.accepted && !ownedIds.has(i.id)),
-  ]
-  const proposedProjects = data?.proposedProjects ?? []
-  const applications = interests.filter((i) => i.interestStatus !== InterestStatus.accepted)
-  const suggestedProjects = data?.suggestedProjects ?? []
-  // Until approved there are no projects to join or propose, so only notifications show.
-  const isMember = Boolean(
-    user && (user.approvalStatus === ApprovalStatus.approved || user.isAdmin),
-  )
-  const visibleTabs: readonly TabKey[] = isMember ? TAB_ORDER : ['notifications']
-  const defaultTab: TabKey = !isMember
-    ? 'notifications'
-    : myProjects.length + proposedProjects.length > 0
-      ? 'projects'
-      : applications.length > 0
-        ? 'applications'
-        : unreadCount > 0
-          ? 'notifications'
-          : 'suggested'
-  const activeTab = requestedTab && visibleTabs.includes(requestedTab) ? requestedTab : defaultTab
-
-  useEffect(() => {
-    document.title = `Catalyse | ${TAB_LABELS[activeTab]}`
-    return () => {
-      document.title = 'Catalyse | Dashboard'
-    }
-  }, [activeTab])
-
-  const { data: quickTasksRaw = [] } = useQuery({
-    ...orpc.my.quickTasks.queryOptions(),
-    enabled: !!user,
-  })
-  const quickTasks = quickTasksRaw.filter(
-    (t) => t.status === QuickTaskStatus.in_progress || t.status === QuickTaskStatus.under_review,
-  )
-  const { data: projectTasks = [] } = useQuery({
-    ...orpc.my.projectTasks.queryOptions(),
-    enabled: !!user,
-  })
-
-  const { data: notificationsData } = useQuery({
-    ...orpc.notifications.list.queryOptions({
-      input: {
-        filter: notificationFilter,
-        limit: NOTIFICATIONS_PAGE_SIZE,
-        offset: (notificationPage - 1) * NOTIFICATIONS_PAGE_SIZE,
-      },
-    }),
-    enabled: !!user && activeTab === 'notifications',
-    placeholderData: keepPreviousData,
-  })
-  const notifications = notificationsData?.notifications ?? []
-  const notificationsTotal = notificationsData?.total ?? 0
-  const notificationsTotalPages = Math.max(
-    1,
-    Math.ceil(notificationsTotal / NOTIFICATIONS_PAGE_SIZE),
-  )
-
-  const readAllMutation = useMutation({
-    ...orpc.notifications.readAll.mutationOptions(),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: orpc.notifications.list.key() })
-      void queryClient.invalidateQueries({ queryKey: orpc.dashboard.get.key() })
-    },
   })
 
   const markReadMutation = useMutation({
@@ -174,97 +187,78 @@ export default function DashboardPage() {
     },
   })
 
-  const markUnreadMutation = useMutation({
-    ...orpc.notifications.markUnread.mutationOptions(),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: orpc.notifications.list.key() })
-      void queryClient.invalidateQueries({ queryKey: orpc.dashboard.get.key() })
-    },
-  })
+  useEffect(() => {
+    document.title = 'Catalyse | Home'
+  }, [])
 
-  function toggleTask(id: number) {
-    setExpandedTasks((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  function handleTabClick(tab: TabKey) {
-    setRequestedTab(tab)
-    window.location.hash = `tab-${tab}`
-  }
+  // Old `#tab-…` links pick a filter or open a section, then scroll to it once it exists;
+  // the notifications tab is the Inbox now.
+  useEffect(() => {
+    if (window.location.hash === '#tab-notifications') router.replace('/inbox')
+  }, [router])
+  useEffect(() => {
+    if (loadingData) return
+    function follow() {
+      const target = LEGACY_HASHES[window.location.hash]
+      if (!target) return
+      if (target.filter) setFilter(target.filter)
+      if (target.section === 'find') setFindOpen(true)
+      document.getElementById(target.section)?.scrollIntoView({ block: 'start' })
+    }
+    follow()
+    window.addEventListener('hashchange', follow)
+    return () => window.removeEventListener('hashchange', follow)
+  }, [loadingData])
 
   if (loading || !user) return null
 
-  if (loadingData) {
+  if (loadingData || !data) {
     return (
-      <>
-        <main className="container py-5 pb-15">
-          <Skeleton label="Loading dashboard…" />
-        </main>
-      </>
+      <main className="container py-5 pb-15">
+        <Skeleton label="Loading your home page…" />
+      </main>
     )
   }
 
-  const welcome = welcomeDismissed ? null : (data?.approvalWelcome ?? null)
+  const isMember = user.approvalStatus === ApprovalStatus.approved || Boolean(user.isAdmin)
+  const welcome = welcomeDismissed ? null : data.approvalWelcome
+  const current = data.work.filter((w) => !w.done)
+  const finished = data.work.filter((w) => w.done)
+  const work = current.filter((w) => filter === 'all' || w.kind === filter)
+  // Discovery waits until someone has nothing of their own to get on with.
+  const showFind = findOpen ?? current.length === 0
+
+  const workList = (rows: typeof work) => (
+    <ul className="list-none p-0 m-0 bg-surface rounded-xl shadow">
+      {rows.map((w) => (
+        <li
+          key={w.key}
+          className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-brand-border last:border-0 wrap-break-word"
+        >
+          <div className="min-w-0">
+            <Link href={w.href} className="font-semibold">
+              {w.title}
+            </Link>
+            {w.context && <span className="text-sm text-text-light"> in {w.context}</span>}
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant={ROLE_VARIANTS[w.role]}>{w.role}</Badge>
+            {w.status && <span className="text-sm text-text-light">{w.status}</span>}
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
 
   function dismissWelcome(notificationId: number) {
     setWelcomeDismissed(true)
-    // Clear the cached welcome now, so coming back to the dashboard before the read has
+    // Clear the cached welcome now, so coming back to the page before the read has
     // been confirmed does not show it again.
     queryClient.setQueryData(orpc.dashboard.get.queryOptions().queryKey, (old) =>
       old ? { ...old, approvalWelcome: null } : old,
     )
     markReadMutation.mutate({ id: notificationId })
   }
-
-  const showEmailBanner = !user.emailDigest && !emailBannerDismissed
-
-  const tabs: { key: TabKey; label: React.ReactNode; 'data-tab'?: string }[] = [
-    {
-      key: 'projects',
-      label: (
-        <>
-          {TAB_LABELS.projects}
-          <TabCount count={myProjects.length + proposedProjects.length} />
-        </>
-      ),
-    },
-    {
-      key: 'applications',
-      label: (
-        <>
-          {TAB_LABELS.applications}
-          <TabCount count={applications.length} />
-        </>
-      ),
-    },
-    {
-      key: 'notifications',
-      'data-tab': 'notifications',
-      label: (
-        <>
-          {TAB_LABELS.notifications}
-          {unreadCount > 0 && (
-            <span className="notification-badge bg-primary text-gray-900 text-xs px-2 py-0.5 rounded-full ml-1">
-              {unreadCount}
-            </span>
-          )}
-        </>
-      ),
-    },
-    {
-      key: 'suggested',
-      label: (
-        <>
-          {TAB_LABELS.suggested}
-          <TabCount count={suggestedProjects.length} />
-        </>
-      ),
-    },
-  ]
 
   return (
     <>
@@ -295,23 +289,10 @@ export default function DashboardPage() {
       )}
       <main className="container py-5 pb-15">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 role="heading">Welcome back, {user.name}!</h1>
+          <h1 role="heading">Hi {user.name}</h1>
           {isMember && <Button href="/suggest">Propose a project</Button>}
         </div>
 
-        {/* Pending approval banner */}
-        {(user.approvalStatus === ApprovalStatus.pending ||
-          user.approvalStatus === ApprovalStatus.under_review) && (
-          <div className="flex flex-col gap-3 p-4 rounded-lg mb-5 bg-yellow-100 text-yellow-800 border border-yellow-300 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800">
-            <span>
-              Your account is pending approval. You&apos;ll be able to browse and join projects once
-              an admin reviews your application.
-            </span>
-            <ApprovalStepper status={user.approvalStatus} />
-          </div>
-        )}
-
-        {/* Needs info banner */}
         {user.approvalStatus === ApprovalStatus.needs_info && (
           <div className="flex items-center justify-between gap-3 p-4 rounded-lg mb-5 bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
             <span>We need a bit more information before we can review your application.</span>
@@ -321,8 +302,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Email notification preference banner */}
-        {showEmailBanner && (
+        {!user.emailDigest && !emailBannerDismissed && (
           <div className="flex items-center justify-between gap-3 p-4 rounded-lg mb-5 bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-600">
             <span>
               Stay in the loop: set your email notification preference in your{' '}
@@ -342,271 +322,169 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Quick Tasks and claimed project tasks */}
-        {quickTasks.length + projectTasks.length > 0 && (
-          <section aria-label="Your tasks" className="mb-8">
-            <h2>Your tasks</h2>
-            {projectTasks.map((task) => (
-              <div
-                key={`project-${task.id}`}
-                role="article"
-                className="bg-surface rounded-xl shadow p-6 mb-3 overflow-hidden wrap-break-word"
-              >
-                <div className="flex justify-between items-center gap-3">
-                  <div>
-                    <Link href={`/projects/${task.projectId}/tasks/${task.id}`}>
-                      <strong>{task.title}</strong>
-                    </Link>
-                    <span className="ml-2 text-sm text-text-light">
-                      in <Link href={`/projects/${task.projectId}`}>{task.projectTitle}</Link>
-                    </span>
-                    <QuietNote updatedAt={task.updatedAt} />
-                  </div>
-                  <span role="status" className={statusBadgeClasses(task.status)}>
-                    {TASK_STATUS_LABELS[task.status] ?? task.status}
-                  </span>
-                </div>
-              </div>
-            ))}
-            {quickTasks.map((task) => (
-              <div
-                key={task.id}
-                role="article"
-                className="bg-surface rounded-xl shadow p-6 mb-3 overflow-hidden wrap-break-word"
-              >
-                <div
-                  className="flex justify-between items-center cursor-pointer"
-                  onClick={() => toggleTask(task.id)}
-                >
-                  <div>
-                    <strong>{task.title}</strong>
-                    {task.skillName && (
-                      <span className="ml-2 text-sm text-text-light">{task.skillName}</span>
-                    )}
-                    <QuietNote updatedAt={task.updatedAt} />
-                  </div>
-                  <span role="status" className={statusBadgeClasses(task.status)}>
-                    {QUICK_TASK_STATUS_LABELS[task.status] ?? task.status}
-                  </span>
-                </div>
-                {expandedTasks.has(task.id) && (
-                  <div className="mt-3">
-                    <p className="text-text-light text-sm mb-3 whitespace-pre-wrap">
-                      <Linkify text={task.description} />
-                    </p>
-                    {task.status === QuickTaskStatus.in_progress && (
-                      <SubmitForReviewButton taskId={task.id} size="sm" />
-                    )}
-                    <div className="mt-3">
-                      <strong className="text-sm">Comments</strong>
-                      <CommentThread workItemId={task.id} />
+        {data.gettingStarted && (
+          <GettingStarted steps={data.gettingStarted} email={user.email ?? null} />
+        )}
+
+        {isMember && (
+          <section aria-labelledby="attention" className="mb-8">
+            <h2 id="attention">
+              Needs your attention
+              <Count n={data.attention.length} />
+            </h2>
+            {data.attention.length === 0 ? (
+              <p className="text-text-light">Nothing is waiting on you right now.</p>
+            ) : (
+              <ul className="list-none p-0 m-0 bg-surface rounded-xl shadow">
+                {data.attention.map((a) => (
+                  <li
+                    key={a.key}
+                    className="flex items-start justify-between gap-3 p-4 border-b border-brand-border last:border-0 wrap-break-word"
+                  >
+                    <div className="min-w-0">
+                      <span className="text-primary mr-2" aria-hidden="true">
+                        ●
+                      </span>
+                      <strong>{a.title}</strong>
+                      {a.detail && (
+                        <p className="text-sm text-text-light m-0 mt-1 line-clamp-2">{a.detail}</p>
+                      )}
                     </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                    <Button
+                      href={a.href}
+                      size="sm"
+                      variant="secondary"
+                      aria-label={`${a.action}: ${a.title}`}
+                      onClick={() => {
+                        if (a.notificationId !== null) {
+                          markReadMutation.mutate({ id: a.notificationId })
+                        }
+                      }}
+                    >
+                      {a.action}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         )}
 
-        {/* Tabs */}
-        {/* [test hook] active class added to active tab; notification-badge class used as test selector */}
-        <Tabs
-          tabs={tabs.filter((t) => visibleTabs.includes(t.key))}
-          activeTab={activeTab}
-          onChange={handleTabClick}
-        />
-
-        {/* Tab content */}
-        {activeTab === 'projects' && (
-          <div>
-            {myProjects.length === 0 ? (
-              <p className="text-text-light">
-                You don&apos;t own or help on any projects yet.{' '}
-                <Link href="/projects">Browse projects that match your skills →</Link>
-              </p>
-            ) : (
-              <ProjectList projects={myProjects} />
-            )}
-            {proposedProjects.length > 0 && (
-              <section aria-labelledby="proposed-projects" className="mt-8">
-                <h2 id="proposed-projects" className="text-lg">
-                  Projects you proposed
-                </h2>
-                <ProjectList projects={proposedProjects} />
-              </section>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'applications' && (
-          <div>
-            {applications.length === 0 ? (
-              <p className="text-text-light">
-                You haven&apos;t applied to any projects yet.{' '}
-                <Link href="/projects">Browse projects →</Link>
-              </p>
-            ) : (
-              <ProjectList
-                projects={applications}
-                userSkillIds={new Set(user.skills?.map((s) => s.id) ?? [])}
-                badgeFor={(a) => (
-                  <Badge variant="info">
-                    {INTEREST_STATUS_LABELS[a.interestStatus] ?? a.interestStatus}
-                  </Badge>
-                )}
-              />
-            )}
-          </div>
-        )}
-
-        {activeTab === 'suggested' && (
-          <div>
-            {!user.skills?.length ? (
-              <p className="text-text-light">
-                Add skills to your profile to get suggestions.{' '}
-                <Link href="/settings">Add skills →</Link>
-              </p>
-            ) : suggestedProjects.length === 0 ? (
-              <p className="text-text-light">
-                No suggested projects matching your skills right now.{' '}
-                <Link href="/quick-tasks">Browse Quick Tasks →</Link>
-              </p>
-            ) : (
-              <>
-                <p className="mb-4 text-text-light">
-                  Based on your skills, these projects might be a good fit:
-                </p>
-                <ProjectList
-                  projects={suggestedProjects}
-                  userSkillIds={new Set(user.skills?.map((s) => s.id) ?? [])}
-                />
-              </>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'notifications' && (
-          <div>
-            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-              <div className="flex gap-2">
-                <Button
-                  variant={notificationFilter === 'unread' ? 'primary' : 'outline'}
-                  size="sm"
-                  onClick={() =>
-                    setNotificationFilterAndResetPage(
-                      notificationFilter === 'unread' ? 'all' : 'unread',
-                    )
-                  }
-                >
-                  Unread
-                </Button>
-                <Button
-                  variant={notificationFilter === 'read' ? 'primary' : 'outline'}
-                  size="sm"
-                  onClick={() =>
-                    setNotificationFilterAndResetPage(
-                      notificationFilter === 'read' ? 'all' : 'read',
-                    )
-                  }
-                >
-                  Read
-                </Button>
-              </div>
-              {unreadCount > 0 && (
-                <Button size="sm" onClick={() => readAllMutation.mutate({})}>
-                  Mark all as read
-                </Button>
-              )}
-            </div>
-            {!notifications.length ? (
-              <p className="text-text-light">
-                No notifications
-                {notificationFilter !== 'all' ? ` marked ${notificationFilter}` : ''}.
-              </p>
-            ) : (
-              <>
-                {notifications.map((n, i) => (
-                  <React.Fragment key={n.id}>
-                    {notificationFilter === 'all' && i === 0 && !n.readAt && (
-                      <h3 className="text-sm text-text-light mb-2 mt-0">Unread</h3>
-                    )}
-                    {notificationFilter === 'all' &&
-                      n.readAt &&
-                      i > 0 &&
-                      !notifications[i - 1].readAt && (
-                        <h3 className="text-sm text-text-light mb-2 mt-4">Earlier</h3>
-                      )}
-                    <div
-                      className={`bg-surface rounded-xl shadow p-5 mb-3 wrap-break-word ${!n.readAt ? 'border-l-4 border-primary' : ''}`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <strong className={!n.readAt ? 'text-brand-text' : 'text-text-light'}>
-                          {n.title}
-                        </strong>
-                        <span className="text-xs text-text-light whitespace-nowrap">
-                          {n.createdAt ? friendlyDate(n.createdAt) : ''}
-                        </span>
-                      </div>
-                      <p className="text-sm mt-1 mb-0">{n.body}</p>
-                      <div className="flex items-center gap-3 mt-2">
-                        {n.link && (
-                          <Link
-                            href={n.link}
-                            className="text-sm underline"
-                            onClick={() => {
-                              if (!n.readAt) markReadMutation.mutate({ id: n.id })
-                            }}
-                          >
-                            View
-                          </Link>
-                        )}
-                        {n.readAt ? (
-                          <button
-                            type="button"
-                            className="text-sm underline text-text-light cursor-pointer bg-transparent border-0 p-0"
-                            onClick={() => markUnreadMutation.mutate({ id: n.id })}
-                          >
-                            Mark as unread
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="text-sm underline text-text-light cursor-pointer bg-transparent border-0 p-0"
-                            onClick={() => markReadMutation.mutate({ id: n.id })}
-                          >
-                            Mark as read
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </React.Fragment>
+        {isMember && (
+          <section id="my-work" aria-labelledby="my-work-heading" className="mb-8 scroll-mt-20">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+              <h2 id="my-work-heading" className="m-0">
+                My work
+              </h2>
+              <div role="group" aria-label="Show" className="flex flex-wrap gap-2">
+                {WORK_FILTERS.map((f) => (
+                  <Button
+                    key={f.key}
+                    size="sm"
+                    variant={filter === f.key ? 'primary' : 'outline'}
+                    aria-pressed={filter === f.key}
+                    onClick={() => setFilter(f.key)}
+                  >
+                    {f.label}
+                  </Button>
                 ))}
-                {notificationsTotalPages > 1 && (
-                  <div className="flex items-center justify-center gap-4 mt-6">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={notificationPage <= 1}
-                      onClick={() => setNotificationPage((p) => p - 1)}
-                    >
-                      Previous
-                    </Button>
-                    <span className="text-sm text-text-light">
-                      Page {notificationPage} of {notificationsTotalPages}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={notificationPage >= notificationsTotalPages}
-                      onClick={() => setNotificationPage((p) => p + 1)}
-                    >
-                      Next
-                    </Button>
-                  </div>
+              </div>
+            </div>
+            {work.length === 0 ? (
+              <p className="text-text-light">
+                {current.length === 0 ? (
+                  <>
+                    {finished.length > 0
+                      ? 'Nothing on the go right now.'
+                      : "You're not working on anything yet."}{' '}
+                    <Link href="/quick-tasks">Pick up a Quick Task</Link> or{' '}
+                    <Link href="/projects">browse projects</Link>.
+                  </>
+                ) : (
+                  'Nothing here. Try another filter.'
                 )}
-              </>
+              </p>
+            ) : (
+              workList(work)
             )}
-          </div>
+          </section>
+        )}
+
+        {isMember && data.find && (
+          <section id="find" aria-labelledby="find-heading" className="mb-8 scroll-mt-20">
+            <h2 id="find-heading">
+              <button
+                type="button"
+                aria-expanded={showFind}
+                aria-controls="find-body"
+                onClick={() => setFindOpen(!showFind)}
+                className="cursor-pointer bg-transparent border-0 p-0 text-inherit font-inherit"
+              >
+                <span aria-hidden="true" className="inline-block w-5">
+                  {showFind ? '▾' : '▸'}
+                </span>
+                Find something to do
+              </button>
+            </h2>
+            {showFind && (
+              <div id="find-body" className="bg-surface rounded-xl shadow px-5 py-2">
+                <FindRowView
+                  label="Quick Tasks"
+                  row={data.find.quickTasks}
+                  seeAll="/quick-tasks"
+                  empty="No open Quick Tasks right now."
+                />
+                <FindRowView
+                  label="Matches your skills"
+                  row={data.find.matches}
+                  seeAll="/projects?sort=match"
+                  empty={
+                    data.hasSkills ? (
+                      'No projects match your skills right now.'
+                    ) : (
+                      <>
+                        <Link href="/settings">Add skills</Link> to see projects that match them.
+                      </>
+                    )
+                  }
+                />
+                <FindRowView
+                  label="Near you"
+                  row={data.find.nearYou}
+                  seeAll="/projects"
+                  empty={
+                    user.country ? (
+                      'No projects in your country right now.'
+                    ) : (
+                      <>
+                        <Link href="/settings">Add your country</Link> to see projects near you.
+                      </>
+                    )
+                  }
+                />
+              </div>
+            )}
+          </section>
+        )}
+
+        {isMember && finished.length > 0 && (
+          <section id="finished" aria-labelledby="finished-heading" className="mb-8 scroll-mt-20">
+            <h2 id="finished-heading">
+              <button
+                type="button"
+                aria-expanded={finishedOpen}
+                aria-controls="finished-body"
+                onClick={() => setFinishedOpen(!finishedOpen)}
+                className="cursor-pointer bg-transparent border-0 p-0 text-inherit font-inherit"
+              >
+                <span aria-hidden="true" className="inline-block w-5">
+                  {finishedOpen ? '▾' : '▸'}
+                </span>
+                Finished ({finished.length})
+              </button>
+            </h2>
+            {finishedOpen && <div id="finished-body">{workList(finished)}</div>}
+          </section>
         )}
       </main>
     </>

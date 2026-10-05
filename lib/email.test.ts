@@ -152,16 +152,15 @@ describe('email transports', () => {
     expect(await resend.send(message)).toBe(false)
   })
 
-  it('relays a message with the sender as reply-to', async () => {
-    await e.sendRelayMessage({
-      to: 'a@b.c',
-      toName: 'A',
-      fromName: 'B',
-      fromEmail: 'b@x',
-      subject: 'Hi',
-      message: 'm',
-    })
-    expect(emails.last).toMatchObject({ subject: '[Catalyse] Hi', replyTo: 'b@x' })
+  it('relays a message with a link to reply, and the sender as reply-to only if shared', async () => {
+    const relay = { to: 'a@b.c', toName: 'A', fromName: 'B', subject: 'Hi', message: 'm' }
+    await e.sendRelayMessage({ ...relay, replyTo: null, threadId: 7 })
+    expect(emails.last).toMatchObject({ subject: '[Catalyse] Hi', replyTo: undefined })
+    expect(emails.last.html).toContain(`${env.APP_URL}/inbox/messages/7`)
+    expect(emails.last.html).not.toContain('reply to this email')
+    await e.sendRelayMessage({ ...relay, replyTo: 'b@x', threadId: 7 })
+    expect(emails.last).toMatchObject({ replyTo: 'b@x' })
+    expect(emails.last.html).toContain('reply to this email')
   })
 })
 
@@ -195,8 +194,12 @@ describe('templates', () => {
       'has been reviewed',
     )
     expect(e.buildLocalGroupSuggestionHtml('A', 'weird', 'G', 'note')).toContain('<em>note</em>')
-    expect(e.buildRelayMessageHtml('A', 'B', 'S', 'M')).not.toContain('about the project')
-    expect(e.buildRelayMessageHtml('A', 'B', 'S', 'M', 'P')).toContain('about the project')
+    expect(e.buildRelayMessageHtml('A', 'B', 'S', 'M', undefined, '/t', false)).not.toContain(
+      'about the project',
+    )
+    expect(e.buildRelayMessageHtml('A', 'B', 'S', 'M', 'P', '/t', false)).toContain(
+      'about the project',
+    )
 
     const long = 'x'.repeat(200)
     const digest = e.buildDigestHtml('A', app, [

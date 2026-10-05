@@ -185,7 +185,7 @@ describe('triage', () => {
       `/projects/${pending.id}`,
     )
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Needs Discussion1' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Needs Changes1' }))
     await screen.findByRole('link', { name: 'Talk about it' })
     await userEvent.click(await screen.findByRole('tab', { name: 'No Open Tasks1' }))
     await screen.findByRole('link', { name: 'All done really' })
@@ -241,7 +241,7 @@ describe('triage', () => {
     })
     await renderApp(<TriagePage />, { as: admin })
     await screen.findByText('No projects awaiting review.')
-    await userEvent.click(screen.getByRole('tab', { name: 'Needs Discussion' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Needs Changes' }))
     await screen.findByText('No projects awaiting discussion.')
     await userEvent.click(screen.getByRole('tab', { name: 'No Open Tasks' }))
     await screen.findByText('No in-progress projects with all tasks completed.')

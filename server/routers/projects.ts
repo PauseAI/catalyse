@@ -15,6 +15,10 @@ import {
   serializeTask,
   applyScheduleWrite,
   canManageProject,
+  canManageProjectTasks,
+  isProjectDeputy,
+  submissionData,
+  CLEARED_SUBMISSION,
   canCreateProjectTask,
   canDeleteProjectTask,
   resolveProjectMembership,
@@ -27,12 +31,16 @@ import {
 } from '@/lib/project-schedule'
 import { notifyMatchingVolunteers } from '@/lib/project-match-notify'
 import { html } from '@/lib/email'
+import { awaitsOwnerReview } from '@/lib/task-review'
+import { canReach } from '@/lib/contact'
 import {
   CreateProjectSchema,
   UpdateProjectSchema,
   ProjectInterestBodySchema,
   CreateProjectTaskSchema,
   UpdateProjectTaskSchema,
+  SubmitWorkSchema,
+  RequestChangesSchema,
 } from '@/lib/schemas'
 import {
   authedProcedure,
@@ -106,6 +114,10 @@ async function isBlockedFromClaiming(projectId: number, volunteerId: number): Pr
  */
 async function releaseTasksHeldBy(projectId: number, volunteerId: number): Promise<void> {
   await prisma.workItem.updateMany({
+    where: { parentId: projectId, type: WorkItemType.TASK, requestedById: volunteerId },
+    data: { requestedById: null },
+  })
+  await prisma.workItem.updateMany({
     where: {
       parentId: projectId,
       type: WorkItemType.TASK,
@@ -118,15 +130,144 @@ async function releaseTasksHeldBy(projectId: number, volunteerId: number): Promi
       updatedAt: new Date(),
       nudgeSentAt: null,
       finalWarningSentAt: null,
+      ...CLEARED_SUBMISSION,
     },
   })
 }
 
-// open and in_progress share a bucket so claiming/assigning a task doesn't
+/** Tells a project's owner that someone wants to help or lead it. */
+async function notifyOwnerOfInterest(
+  project: { id: number; title: string; assigneeId: number | null },
+  volunteer: { name: string },
+  interestType: string,
+  message: string | null,
+  interestId: number,
+): Promise<void> {
+  if (!project.assigneeId) return
+  const role = interestType === 'want_to_own' ? 'lead' : 'help out on'
+  await notifyUser(
+    project.assigneeId,
+    'new_interest',
+    `Someone's interested in '${project.title}'!`,
+    `${volunteer.name} asked to ${role} the project`,
+    `/projects/${project.id}`,
+    {
+      subject: `${volunteer.name} wants to ${role} '${project.title}'`,
+      message: html`<strong>${volunteer.name}</strong> has expressed interest in your project
+        <strong>${project.title}</strong>.`,
+      projectTitle: project.title,
+      projectId: project.id,
+      extraHtml: message
+        ? html`<div style="padding: 12px; background: #f7fafc; border-radius: 8px; margin: 16px 0;">
+            <strong>Their message:</strong> ${message}
+          </div>`
+        : undefined,
+    },
+    interestId,
+  )
+}
+
+/**
+ * Hands someone the tasks held for them while their request to join waited, now that they
+ * are on the project.
+ */
+async function assignHeldTasks(projectId: number, volunteerId: number): Promise<void> {
+  const now = new Date()
+  await prisma.workItem.updateMany({
+    where: {
+      parentId: projectId,
+      type: WorkItemType.TASK,
+      requestedById: volunteerId,
+      status: TaskStatus.open,
+      assigneeId: null,
+    },
+    data: {
+      assigneeId: volunteerId,
+      status: TaskStatus.in_progress,
+      requestedById: null,
+      startedAt: now,
+      updatedAt: now,
+      nudgeSentAt: null,
+      finalWarningSentAt: null,
+    },
+  })
+}
+
+async function findProjectTask(projectId: number, taskId: number) {
+  const [project, task] = await Promise.all([
+    prisma.workItem.findFirst({ where: { id: projectId, type: WorkItemType.PROJECT } }),
+    prisma.workItem.findFirst({
+      where: { id: taskId, parentId: projectId, type: WorkItemType.TASK },
+    }),
+  ])
+  if (!project || !task) throw new ORPCError('NOT_FOUND', { message: 'Project or task not found' })
+  return { project, task }
+}
+
+/** A submitted task the volunteer may accept or send back: the project's owner, a deputy or an admin. */
+async function findTaskToReview(
+  projectId: number,
+  taskId: number,
+  volunteer: { id: number; isAdmin: boolean | null },
+) {
+  const found = await findProjectTask(projectId, taskId)
+  const isDeputy = await isProjectDeputy(projectId, volunteer.id)
+  if (!canManageProjectTasks(found.project, volunteer, isDeputy)) {
+    throw new ORPCError('FORBIDDEN', {
+      message: 'Only the project owner or a deputy can review this task',
+    })
+  }
+  if (found.task.status !== TaskStatus.under_review) {
+    throw new ORPCError('BAD_REQUEST', { message: 'This task is not waiting for review' })
+  }
+  return { ...found, isDeputy }
+}
+
+/** How a person is named on something they did as a manager: a deputy says so. */
+function actorLabel(volunteer: { name: string }, isDeputy: boolean): string {
+  return isDeputy ? `${volunteer.name} (deputy)` : volunteer.name
+}
+
+/** Accepted helpers the owner has made deputies, minus `exceptId`. */
+async function deputyIdsOf(projectId: number, exceptId: number | null = null): Promise<number[]> {
+  const rows = await prisma.projectDeputy.findMany({
+    where: {
+      projectId,
+      volunteer: {
+        workItemInterests: { some: { workItemId: projectId, status: InterestStatus.accepted } },
+      },
+    },
+    select: { volunteerId: true },
+  })
+  return rows.map((r) => r.volunteerId).filter((id) => id !== exceptId)
+}
+
+/** A helper who leaves or is removed stops being a deputy; the owner is told. */
+async function endDeputyRole(
+  project: { id: number; title: string; assigneeId: number | null },
+  volunteerId: number,
+  volunteerName: string,
+): Promise<void> {
+  const removed = await prisma.projectDeputy.deleteMany({
+    where: { projectId: project.id, volunteerId },
+  })
+  if (removed.count > 0 && project.assigneeId !== null) {
+    await notifyUser(
+      project.assigneeId,
+      'deputy_removed',
+      `${volunteerName} is no longer a deputy on '${project.title}'`,
+      'They are no longer a helper on the project.',
+      `/projects/${project.id}#people`,
+    )
+  }
+}
+
+// Unfinished tasks share a bucket so claiming, assigning or submitting a task doesn't
 // disturb its priority position — only completed tasks sink to the bottom.
 const TASK_ORDER: Record<string, number> = {
   [TaskStatus.open]: 0,
   [TaskStatus.in_progress]: 0,
+  [TaskStatus.under_review]: 0,
   [TaskStatus.completed]: 1,
 }
 
@@ -199,7 +340,9 @@ export const projectsRouter = {
 
       if (input.search) {
         const like = `%${input.search}%`
-        conditions.push(Prisma.sql`(title ILIKE ${like} OR description ILIKE ${like})`)
+        conditions.push(
+          Prisma.sql`(public.unaccent(title) ILIKE public.unaccent(${like}) OR public.unaccent(description) ILIKE public.unaccent(${like}))`,
+        )
       }
 
       if (input.urgency) conditions.push(Prisma.sql`urgency = ${input.urgency}`)
@@ -325,7 +468,9 @@ export const projectsRouter = {
       }
       if (input.search) {
         const like = `%${input.search}%`
-        sharedConditions.push(Prisma.sql`(title ILIKE ${like} OR description ILIKE ${like})`)
+        sharedConditions.push(
+          Prisma.sql`(public.unaccent(title) ILIKE public.unaccent(${like}) OR public.unaccent(description) ILIKE public.unaccent(${like}))`,
+        )
       }
       if (input.urgency) sharedConditions.push(Prisma.sql`urgency = ${input.urgency}`)
       if (input.country) sharedConditions.push(Prisma.sql`country = ${input.country}`)
@@ -653,6 +798,7 @@ export const projectsRouter = {
         include: {
           assignee: { select: { name: true } },
           creator: { select: { name: true } },
+          requestedBy: { select: { name: true } },
           _count: { select: { comments: true } },
         },
       })
@@ -669,6 +815,7 @@ export const projectsRouter = {
         ...serializeTask(t),
         assignedToName: t.assignee?.name ?? null,
         createdByName: t.creator?.name ?? null,
+        requestedByName: t.requestedBy?.name ?? null,
         sortOrder: t.sortOrder,
         commentCount: t._count.comments,
         featuredAsQuickTask: t.featuredAsQuickTask ?? false,
@@ -686,6 +833,7 @@ export const projectsRouter = {
             responseMessage: string | null
             createdAt: Date | null
             respondedAt: Date | null
+            invitedByName: string | null
             volunteerName: string
             volunteerBio: string | null
             volunteerSkills: Array<{
@@ -702,6 +850,7 @@ export const projectsRouter = {
         const rawInterests = await prisma.workItemInterest.findMany({
           where: { workItemId: input.id },
           include: {
+            invitedBy: { select: { name: true } },
             volunteer: {
               select: {
                 id: true,
@@ -724,6 +873,7 @@ export const projectsRouter = {
           responseMessage: i.responseMessage,
           createdAt: i.createdAt,
           respondedAt: i.respondedAt,
+          invitedByName: i.invitedBy?.name ?? null,
           volunteerName: i.volunteer.name,
           volunteerBio: i.volunteer.bio,
           volunteerSkills: i.volunteer.skills.map((vs) => ({
@@ -741,6 +891,7 @@ export const projectsRouter = {
           volunteerId: volunteer.id,
           status: { not: InterestStatus.withdrawn },
         },
+        include: { invitedBy: { select: { name: true } } },
       })
       const myInterest = rawMyInterest
         ? {
@@ -754,6 +905,7 @@ export const projectsRouter = {
             responseMessage: rawMyInterest.responseMessage,
             createdAt: rawMyInterest.createdAt,
             respondedAt: rawMyInterest.respondedAt,
+            invitedByName: rawMyInterest.invitedBy?.name ?? null,
           }
         : null
 
@@ -775,6 +927,7 @@ export const projectsRouter = {
         include: { volunteer: { select: { name: true } } },
         orderBy: { respondedAt: 'asc' },
       })
+      const deputyIds = new Set(await deputyIdsOf(input.id))
       const helpers = helperRows
         .filter((h) => h.volunteerId !== project.assigneeId)
         .map((h) => ({
@@ -782,7 +935,29 @@ export const projectsRouter = {
           volunteerId: h.volunteerId,
           volunteerName: h.volunteer.name,
           interestType: h.interestType,
+          isDeputy: deputyIds.has(h.volunteerId),
         }))
+      const isDeputy = deputyIds.has(volunteer.id)
+      const canManageTasks = canManageProjectTasks(project, volunteer, isDeputy)
+
+      // Change requests are between the admins and whoever proposed or runs the project.
+      const canSeeReview =
+        isAssignee || project.creatorId === volunteer.id || Boolean(volunteer.isAdmin)
+      const reviewRequests = canSeeReview
+        ? (
+            await prisma.projectReviewRequest.findMany({
+              where: { projectId: input.id },
+              include: { requestedBy: { select: { name: true } } },
+              orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            })
+          ).map((r) => ({
+            id: r.id,
+            message: r.message,
+            requestedByName: r.requestedBy?.name ?? null,
+            createdAt: r.createdAt,
+            resolvedAt: r.resolvedAt,
+          }))
+        : []
 
       return {
         ...base,
@@ -792,7 +967,61 @@ export const projectsRouter = {
         myInterest,
         canClaimTasks,
         canCreateTasks,
+        canManageTasks,
+        isDeputy,
+        isMember,
+        canMessageOwner:
+          project.assigneeId !== null &&
+          project.assigneeId !== volunteer.id &&
+          (await canReach(volunteer, project.assigneeId)),
+        reviewRequests,
       }
+    }),
+
+  resubmit: approvedProcedure
+    .input(z.object({ id: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      const volunteer = context.volunteer
+      const project = await prisma.workItem.findFirst({
+        where: { id: input.id, type: WorkItemType.PROJECT },
+      })
+      if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
+      if (project.creatorId !== volunteer.id && project.assigneeId !== volunteer.id) {
+        throw new ORPCError('FORBIDDEN', { message: 'Not authorized to resubmit this project' })
+      }
+      if (project.status !== ProjectStatus.needs_discussion) {
+        throw new ORPCError('BAD_REQUEST', { message: 'No changes have been requested' })
+      }
+
+      const open = await prisma.projectReviewRequest.findFirst({
+        where: { projectId: project.id, resolvedAt: null },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        include: { requestedBy: { select: { id: true, deletedAt: true } } },
+      })
+      await prisma.workItem.update({
+        where: { id: project.id },
+        data: { status: ProjectStatus.pending_review, updatedAt: new Date() },
+      })
+      await prisma.projectReviewRequest.updateMany({
+        where: { projectId: project.id, resolvedAt: null },
+        data: { resolvedAt: new Date() },
+      })
+      await clearNotifications('project_needs_discussion', project.id)
+
+      // The admin who asked hears back; with nobody to tell, every admin does.
+      const args = [
+        'project_resubmitted',
+        `Resubmitted: '${project.title}' is ready for another look`,
+        `${volunteer.name} made the changes you asked for`,
+        `/projects/${project.id}`,
+        undefined,
+        project.id,
+      ] as const
+      const requester = open?.requestedBy
+      if (requester && !requester.deletedAt) await notifyUser(requester.id, ...args)
+      else await notifyAdmins(...args)
+
+      return { message: 'Project resubmitted for review' }
     }),
 
   update: approvedProcedure
@@ -922,22 +1151,26 @@ export const projectsRouter = {
       }
 
       if (body.isSeekingHelp !== undefined) data.isSeekingHelp = body.isSeekingHelp
+      // Whether helpers' work needs the owner's review is the owner's call, not the proposer's.
+      if (body.autoAcceptTasks !== undefined && body.autoAcceptTasks !== project.autoAcceptTasks) {
+        if (!canReassign) {
+          throw new ORPCError('FORBIDDEN', {
+            message: 'Only the project owner or an admin can change how submitted work is accepted',
+          })
+        }
+        data.autoAcceptTasks = body.autoAcceptTasks
+      }
 
-      // Gaining an owner starts the work; losing one hands the project back to `ready`
-      // rather than leaving it in_progress with nobody on it. isSeekingOwner needs no
-      // maintenance here — it is derived from exactly these two fields.
+      // Gaining an owner starts the work. Losing one leaves the status as it is: the work is
+      // still where it was, and the derived isSeekingOwner shows the project needs an owner.
       const resultingAssigneeId =
         body.assigneeId !== undefined ? body.assigneeId : project.assigneeId
-      if (data.status === undefined && !TERMINAL_STATUSES.includes(project.status)) {
-        if (resultingAssigneeId !== null && project.status === ProjectStatus.ready) {
-          data.status = ProjectStatus.in_progress
-        } else if (
-          resultingAssigneeId === null &&
-          project.status !== ProjectStatus.ready &&
-          !UNAPPROVED_STATUSES.includes(project.status)
-        ) {
-          data.status = ProjectStatus.ready
-        }
+      if (
+        data.status === undefined &&
+        resultingAssigneeId !== null &&
+        project.status === ProjectStatus.ready
+      ) {
+        data.status = ProjectStatus.in_progress
       }
 
       if (TERMINAL_STATUSES.includes(data.status as string)) {
@@ -1050,7 +1283,18 @@ export const projectsRouter = {
       const existing = await prisma.workItemInterest.findFirst({
         where: { workItemId: input.projectId, volunteerId: volunteer.id },
       })
-      if (existing && existing.status !== InterestStatus.withdrawn) {
+      if (existing?.status === InterestStatus.invited) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: "You've been invited to this project: accept the invite instead",
+        })
+      }
+      // Withdrawing, or turning down or losing an invite, leaves the way open to apply.
+      const canApplyAgain =
+        existing?.status === InterestStatus.withdrawn ||
+        (existing?.origin === InterestOrigin.invited &&
+          (existing.status === InterestStatus.declined ||
+            existing.status === InterestStatus.cancelled))
+      if (existing && !canApplyAgain) {
         throw new ORPCError('BAD_REQUEST', { message: "You've already expressed interest" })
       }
 
@@ -1068,6 +1312,7 @@ export const projectsRouter = {
               origin: InterestOrigin.applied,
               respondedAt: null,
               responseMessage: null,
+              invitedById: null,
             },
           })
         : await prisma.workItemInterest.create({
@@ -1081,32 +1326,7 @@ export const projectsRouter = {
             },
           })
 
-      const interestLabel = interestType === 'want_to_own' ? 'own / lead' : 'contribute to'
-
-      if (project.assigneeId) {
-        await notifyUser(
-          project.assigneeId,
-          'new_interest',
-          `Someone's interested in '${project.title}'!`,
-          `${volunteer.name} wants to ${interestLabel}`,
-          `/projects/${input.projectId}`,
-          {
-            subject: `${volunteer.name} wants to ${interestLabel} '${project.title}'`,
-            message: html`<strong>${volunteer.name}</strong> has expressed interest in your project
-              <strong>${project.title}</strong>.`,
-            projectTitle: project.title,
-            projectId: input.projectId,
-            extraHtml: message
-              ? html`<div
-                  style="padding: 12px; background: #f7fafc; border-radius: 8px; margin: 16px 0;"
-                >
-                  <strong>Their message:</strong> ${message}
-                </div>`
-              : undefined,
-          },
-          interest.id,
-        )
-      }
+      await notifyOwnerOfInterest(project, volunteer, interestType, message, interest.id)
 
       return { message: 'Interest expressed successfully' }
     }),
@@ -1125,6 +1345,11 @@ export const projectsRouter = {
       if (result.count === 0) throw new ORPCError('NOT_FOUND', { message: 'No interest found' })
 
       await releaseTasksHeldBy(input.projectId, context.volunteer.id)
+      const project = await prisma.workItem.findFirst({
+        where: { id: input.projectId, type: WorkItemType.PROJECT },
+        select: { id: true, title: true, assigneeId: true },
+      })
+      if (project) await endDeputyRole(project, context.volunteer.id, context.volunteer.name)
 
       return { message: 'Interest withdrawn' }
     }),
@@ -1150,9 +1375,15 @@ export const projectsRouter = {
 
       const interest = await prisma.workItemInterest.findFirst({
         where: { id: input.interestId, workItemId: input.projectId },
-        include: { volunteer: { select: { approvalStatus: true } } },
+        include: { volunteer: { select: { approvalStatus: true, name: true } } },
       })
       if (!interest) throw new ORPCError('NOT_FOUND', { message: 'Interest not found' })
+      // An invite is the invitee's to answer; only an admin puts someone on a project unasked.
+      if (interest.status === InterestStatus.invited) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: 'They have been invited and have not answered yet. Cancel the invite instead.',
+        })
+      }
       if (
         input.status === InterestStatus.accepted &&
         interest.volunteer.approvalStatus !== ApprovalStatus.approved
@@ -1179,11 +1410,22 @@ export const projectsRouter = {
 
       await clearNotifications('new_interest', input.interestId)
 
-      if (status !== InterestStatus.accepted) {
+      if (status === InterestStatus.removed) {
+        await endDeputyRole(project, interest.volunteerId, interest.volunteer.name)
+      }
+
+      if (status === InterestStatus.accepted) {
+        await assignHeldTasks(input.projectId, interest.volunteerId)
+      } else {
         await releaseTasksHeldBy(input.projectId, interest.volunteerId)
       }
 
-      if (input.status === InterestStatus.accepted && interest.interestType === 'want_to_own') {
+      // A project that already has an owner changes hands only through a transfer.
+      if (
+        input.status === InterestStatus.accepted &&
+        interest.interestType === 'want_to_own' &&
+        project.assigneeId === null
+      ) {
         await prisma.workItem.update({
           where: { id: input.projectId },
           data: {
@@ -1225,6 +1467,178 @@ export const projectsRouter = {
       return { message: `Interest ${status}` }
     }),
 
+  /**
+   * The owner or an admin asks a volunteer to help. They are not on the project until they
+   * accept. Someone who already applied has said yes, so they are simply accepted.
+   */
+  invite: authedProcedure
+    .input(
+      z.object({
+        projectId: z.number().int(),
+        volunteerId: z.number().int(),
+        message: z.string().trim().max(1000).optional().nullable(),
+      }),
+    )
+    .handler(async ({ input, context }) => {
+      const inviter = context.volunteer
+      const project = await prisma.workItem.findFirst({
+        where: { id: input.projectId, type: WorkItemType.PROJECT },
+      })
+      if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
+      if (project.assigneeId !== inviter.id && !inviter.isAdmin) {
+        throw new ORPCError('FORBIDDEN', {
+          message: 'Only the project owner or an admin can invite volunteers',
+        })
+      }
+      if (input.volunteerId === project.assigneeId) {
+        throw new ORPCError('BAD_REQUEST', { message: 'They already own this project' })
+      }
+      const target = await prisma.volunteer.findFirst({
+        where: { id: input.volunteerId, deletedAt: null },
+      })
+      if (!target) throw new ORPCError('BAD_REQUEST', { message: 'Volunteer not found' })
+      if (target.approvalStatus !== ApprovalStatus.approved) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: 'Cannot invite a volunteer who is not yet approved',
+        })
+      }
+
+      const existing = await prisma.workItemInterest.findFirst({
+        where: { workItemId: input.projectId, volunteerId: input.volunteerId },
+      })
+      if (existing?.status === InterestStatus.accepted) {
+        throw new ORPCError('BAD_REQUEST', { message: 'They are already on this project' })
+      }
+      if (existing?.status === InterestStatus.invited) {
+        throw new ORPCError('BAD_REQUEST', { message: 'They have already been invited' })
+      }
+      const link = `/projects/${input.projectId}`
+
+      if (existing?.status === InterestStatus.pending) {
+        await prisma.workItemInterest.update({
+          where: { id: existing.id },
+          data: { status: InterestStatus.accepted, respondedAt: new Date() },
+        })
+        await clearNotifications('new_interest', existing.id)
+        await assignHeldTasks(input.projectId, input.volunteerId)
+        await notifyUser(
+          input.volunteerId,
+          'interest_accepted',
+          `Accepted: your interest in '${project.title}'`,
+          null,
+          link,
+        )
+        return { message: 'They had already applied, so they are now on the project' }
+      }
+
+      const note = input.message || null
+      const data = {
+        status: InterestStatus.invited,
+        origin: InterestOrigin.invited,
+        interestType: 'want_to_contribute',
+        message: note,
+        invitedById: inviter.id,
+        respondedAt: null,
+        responseMessage: null,
+      }
+      const interest = existing
+        ? await prisma.workItemInterest.update({ where: { id: existing.id }, data })
+        : await prisma.workItemInterest.create({
+            data: { ...data, volunteerId: input.volunteerId, workItemId: input.projectId },
+          })
+
+      await notifyUser(
+        input.volunteerId,
+        'project_invite',
+        `Invited: help on '${project.title}'`,
+        note ?? `${inviter.name} would like you to help`,
+        link,
+        {
+          subject: `${inviter.name} invited you to help on '${project.title}'`,
+          message: html`<strong>${inviter.name}</strong> has invited you to help on the project
+            <strong>${project.title}</strong>. Accept or decline from your Inbox or the project
+            page.`,
+          projectTitle: project.title,
+          projectId: input.projectId,
+          extraHtml: note
+            ? html`<div
+                style="padding: 12px; background: #f7fafc; border-radius: 8px; margin: 16px 0;"
+              >
+                <strong>Their note:</strong> ${note}
+              </div>`
+            : undefined,
+        },
+        interest.id,
+      )
+      return { message: 'Invite sent' }
+    }),
+
+  /** The invited volunteer says yes or no; whoever invited them is told. */
+  respondToInvite: authedProcedure
+    .input(z.object({ projectId: z.number().int(), accept: z.boolean() }))
+    .handler(async ({ input, context }) => {
+      const me = context.volunteer
+      const interest = await prisma.workItemInterest.findFirst({
+        where: {
+          workItemId: input.projectId,
+          volunteerId: me.id,
+          status: InterestStatus.invited,
+        },
+        include: { workItem: { select: { title: true, assigneeId: true } } },
+      })
+      if (!interest) throw new ORPCError('NOT_FOUND', { message: 'No invite found' })
+
+      await prisma.workItemInterest.update({
+        where: { id: interest.id },
+        data: {
+          status: input.accept ? InterestStatus.accepted : InterestStatus.declined,
+          respondedAt: new Date(),
+        },
+      })
+      await clearNotifications('project_invite', interest.id)
+
+      const tell = interest.invitedById ?? interest.workItem.assigneeId
+      if (tell !== null) {
+        const title = interest.workItem.title
+        notifyUser(
+          tell,
+          input.accept ? 'invite_accepted' : 'invite_declined',
+          input.accept
+            ? `Accepted: ${me.name} joined '${title}'`
+            : `Declined: ${me.name} won't join '${title}'`,
+          null,
+          `/projects/${input.projectId}`,
+        )
+      }
+      return { message: input.accept ? "You're on the project" : 'Invite declined' }
+    }),
+
+  /** The owner or an admin takes back an invite nobody has answered yet. */
+  cancelInvite: authedProcedure
+    .input(z.object({ projectId: z.number().int(), interestId: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      const volunteer = context.volunteer
+      const project = await prisma.workItem.findFirst({
+        where: { id: input.projectId, type: WorkItemType.PROJECT },
+      })
+      if (!project || (project.assigneeId !== volunteer.id && !volunteer.isAdmin)) {
+        throw new ORPCError('FORBIDDEN', { message: 'Not authorized' })
+      }
+      const cancelled = await prisma.workItemInterest.updateMany({
+        where: {
+          id: input.interestId,
+          workItemId: input.projectId,
+          status: InterestStatus.invited,
+        },
+        data: { status: InterestStatus.cancelled, respondedAt: new Date() },
+      })
+      if (cancelled.count === 0) {
+        throw new ORPCError('BAD_REQUEST', { message: 'This invite has already been answered' })
+      }
+      await clearNotifications('project_invite', input.interestId)
+      return { message: 'Invite cancelled' }
+    }),
+
   assign: authedProcedure
     .input(
       z.object({
@@ -1240,9 +1654,10 @@ export const projectsRouter = {
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
 
-      if (project.assigneeId !== volunteer.id && !volunteer.isAdmin) {
+      // Owners invite (see `invite`); only an admin puts someone on a project without asking.
+      if (!volunteer.isAdmin) {
         throw new ORPCError('FORBIDDEN', {
-          message: 'Only project owner or admin can assign volunteers',
+          message: 'Only an admin can add a volunteer directly; invite them instead',
         })
       }
 
@@ -1271,7 +1686,10 @@ export const projectsRouter = {
           data: { status: InterestStatus.accepted, respondedAt: new Date() },
         })
       } else if (existing) {
-        // Declined, removed or withdrawn earlier: this time the owner added them.
+        // Declined, removed, withdrawn or invited earlier: this time an admin added them.
+        if (existing.status === InterestStatus.invited) {
+          await clearNotifications('project_invite', existing.id)
+        }
         await prisma.workItemInterest.update({
           where: { id: existing.id },
           data: {
@@ -1293,6 +1711,8 @@ export const projectsRouter = {
           },
         })
       }
+
+      await assignHeldTasks(input.projectId, input.volunteerId)
 
       // Assigning someone as owner has to actually set the owner. This previously only
       // cleared the (now derived) isSeekingOwner flag, leaving the project ownerless and
@@ -1400,7 +1820,11 @@ export const projectsRouter = {
         scopeEnd: schedule.end,
         // Sent so the client can recompute this exact schedule while a drag is in flight.
         scopeOrigin: origin,
-        canManageTasks: canManageProject(project, volunteer),
+        canManageTasks: canManageProjectTasks(
+          project,
+          volunteer,
+          await isProjectDeputy(project.id, volunteer.id),
+        ),
         canCreateTasks: canCreateProjectTask(
           project,
           volunteer,
@@ -1424,6 +1848,8 @@ export const projectsRouter = {
         include: {
           assignee: { select: { name: true } },
           creator: { select: { name: true } },
+          reviewedBy: { select: { name: true } },
+          requestedBy: { select: { name: true } },
         },
       })
       if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
@@ -1468,16 +1894,42 @@ export const projectsRouter = {
         }),
       ])
 
+      const canManage = canManageProjectTasks(
+        project,
+        volunteer,
+        await isProjectDeputy(project.id, volunteer.id),
+      )
+      // A reviewer's request for changes is between them and the assignee.
+      const changesRequested =
+        task.changesRequestedNote !== null && (canManage || task.assigneeId === volunteer.id)
+          ? {
+              message: task.changesRequestedNote,
+              byName: task.reviewedBy
+                ? actorLabel(
+                    task.reviewedBy,
+                    task.reviewedById !== null &&
+                      task.reviewedById !== project.assigneeId &&
+                      (await isProjectDeputy(project.id, task.reviewedById)),
+                  )
+                : null,
+            }
+          : null
+
       return {
         ...serializeTask(task),
         // The assignee has said something on the task, so it reads as under way.
         assigneeHasPosted: assigneeUpdates > 0,
+        changesRequested,
+        autoAcceptTasks: project.autoAcceptTasks,
         projectTitle: project.title,
         projectOwnerId: project.assigneeId,
         canClaim,
-        canManage: canManageProject(project, volunteer),
+        canManage,
         assignedToName: task.assignee?.name ?? null,
+        assigneeContactable:
+          task.assigneeId !== null && (await canReach(volunteer, task.assigneeId)),
         createdByName: task.creator?.name ?? null,
+        requestedByName: task.requestedBy?.name ?? null,
         featuredAsQuickTask: task.featuredAsQuickTask ?? false,
         predecessors: predecessorRows.map((r) => ({
           dependencyId: r.id,
@@ -1552,7 +2004,13 @@ export const projectsRouter = {
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
 
-      assertCanManageProject(project, volunteer, 'Only project owner or admin can reorder tasks')
+      if (
+        !canManageProjectTasks(project, volunteer, await isProjectDeputy(project.id, volunteer.id))
+      ) {
+        throw new ORPCError('FORBIDDEN', {
+          message: 'Only the project owner, a deputy or an admin can reorder tasks',
+        })
+      }
 
       await prisma.$transaction(
         input.items.map(({ id, sortOrder }) =>
@@ -1697,8 +2155,8 @@ export const projectsRouter = {
       if (!project || !task)
         throw new ORPCError('NOT_FOUND', { message: 'Project or task not found' })
 
-      const isAssignee = project.assigneeId === volunteer.id
-      const isTaskAssignee = task.assigneeId === volunteer.id
+      const isAssignee =
+        project.assigneeId === volunteer.id || (await isProjectDeputy(project.id, volunteer.id))
 
       const newStatus = input.data.status
       const newAssigneeId = input.data.assigneeId
@@ -1719,16 +2177,15 @@ export const projectsRouter = {
         newStatus === TaskStatus.in_progress &&
         newAssigneeId === volunteer.id &&
         task.status === TaskStatus.open
-      const isMarkingDone =
-        onlyTouchesStatusAndAssignee &&
-        newStatus === TaskStatus.completed &&
-        isTaskAssignee &&
-        task.status === TaskStatus.in_progress
 
       const isDraftCreator =
         project.creatorId === volunteer.id && project.status === ProjectStatus.draft
-      if (!isAssignee && !volunteer.isAdmin && !isSelfClaim && !isMarkingDone && !isDraftCreator) {
+      if (!isAssignee && !volunteer.isAdmin && !isSelfClaim && !isDraftCreator) {
         throw new ORPCError('FORBIDDEN', { message: 'Not authorized to update this task' })
+      }
+
+      if (input.data.isAnchor !== undefined && !canManageProject(project, volunteer)) {
+        throw new ORPCError('FORBIDDEN', { message: 'Only the project owner can set the key date' })
       }
 
       if (isSelfClaim && !isAssignee && !volunteer.isAdmin) {
@@ -1740,6 +2197,50 @@ export const projectsRouter = {
         }
         if (!(await canReachProject(project, volunteer))) {
           throw new ORPCError('NOT_FOUND', { message: 'Project or task not found' })
+        }
+        const interest = await prisma.workItemInterest.findFirst({
+          where: { workItemId: input.projectId, volunteerId: volunteer.id },
+        })
+        if (interest?.status === InterestStatus.invited) {
+          // Claiming answers the invite: they have said yes.
+          await prisma.workItemInterest.update({
+            where: { id: interest.id },
+            data: { status: InterestStatus.accepted, respondedAt: new Date() },
+          })
+          await clearNotifications('project_invite', interest.id)
+        } else if (!(await resolveProjectMembership(project.teamId, project.id, volunteer.id))) {
+          // Not on the project yet: ask the owner, and hold the task until they answer.
+          const held = await prisma.workItem.updateMany({
+            where: {
+              id: input.taskId,
+              status: TaskStatus.open,
+              assigneeId: null,
+              requestedById: null,
+            },
+            data: { requestedById: volunteer.id, updatedAt: new Date() },
+          })
+          if (held.count === 0) {
+            throw new ORPCError('BAD_REQUEST', { message: 'This task has already been claimed' })
+          }
+          if (interest?.status !== InterestStatus.pending) {
+            const message = `Asked to take '${task.title}'`
+            const request = {
+              interestType: 'want_to_contribute',
+              message,
+              status: InterestStatus.pending,
+              origin: InterestOrigin.applied,
+              respondedAt: null,
+              responseMessage: null,
+              invitedById: null,
+            }
+            const row = interest
+              ? await prisma.workItemInterest.update({ where: { id: interest.id }, data: request })
+              : await prisma.workItemInterest.create({
+                  data: { ...request, volunteerId: volunteer.id, workItemId: input.projectId },
+                })
+            await notifyOwnerOfInterest(project, volunteer, 'want_to_contribute', message, row.id)
+          }
+          return { message: 'Task requested', requested: true }
         }
       }
 
@@ -1761,9 +2262,12 @@ export const projectsRouter = {
           if (task.startedAt === null) data.startedAt = new Date()
         } else if (input.data.status === TaskStatus.open) {
           data.assigneeId = null
+          data.requestedById = null
           data.completedAt = null
-          // Back to unstarted: the actuals describe work that is no longer claimed.
+          // Back to unstarted: the actuals and any submission describe work that is no
+          // longer claimed.
           data.startedAt = null
+          Object.assign(data, CLEARED_SUBMISSION)
         }
       }
       if (input.data.assigneeId !== undefined) data.assigneeId = input.data.assigneeId
@@ -1775,7 +2279,12 @@ export const projectsRouter = {
         // Two volunteers hitting claim at once must not both win — only the update that
         // still sees the task open and unheld takes it.
         const claimed = await prisma.workItem.updateMany({
-          where: { id: input.taskId, status: TaskStatus.open, assigneeId: null },
+          where: {
+            id: input.taskId,
+            status: TaskStatus.open,
+            assigneeId: null,
+            requestedById: null,
+          },
           data,
         })
         if (claimed.count === 0) {
@@ -1803,7 +2312,157 @@ export const projectsRouter = {
         }
       }
 
-      return { message: 'Task updated' }
+      return { message: 'Task updated', requested: false }
+    }),
+
+  /**
+   * The assignee hands in their work. It waits for the owner as Submitted for review, unless
+   * the project auto-accepts, has no owner to review it, or the submitter could accept it.
+   */
+  submitTask: approvedProcedure
+    .input(
+      z.object({ projectId: z.number().int(), taskId: z.number().int() }).merge(SubmitWorkSchema),
+    )
+    .handler(async ({ input, context }) => {
+      const volunteer = context.volunteer
+      const { project, task } = await findProjectTask(input.projectId, input.taskId)
+      if (task.assigneeId !== volunteer.id) {
+        throw new ORPCError('FORBIDDEN', {
+          message: 'Only the person doing this task can submit it',
+        })
+      }
+      if (task.status !== TaskStatus.in_progress) {
+        throw new ORPCError('BAD_REQUEST', { message: 'Only a task in progress can be submitted' })
+      }
+      const submission = submissionData(input)
+      if (!submission) {
+        throw new ORPCError('BAD_REQUEST', { message: 'Say what you did or add a link to it' })
+      }
+
+      const reviewerId = project.assigneeId
+      const accepted = !awaitsOwnerReview(
+        { autoAcceptTasks: project.autoAcceptTasks, ownerId: reviewerId },
+        canManageProjectTasks(project, volunteer, await isProjectDeputy(project.id, volunteer.id)),
+      )
+      await prisma.workItem.update({
+        where: { id: task.id },
+        data: {
+          ...submission,
+          status: accepted ? TaskStatus.completed : TaskStatus.under_review,
+          ...(accepted ? { completedAt: submission.submittedAt } : {}),
+          updatedAt: new Date(),
+          nudgeSentAt: null,
+          finalWarningSentAt: null,
+        },
+      })
+      await clearNotifications('task_changes_requested', task.id)
+
+      const link = `/projects/${project.id}/tasks/${task.id}`
+      const said = submission.submissionNote ?? submission.submissionUrl
+      if (accepted) {
+        if (reviewerId !== null && reviewerId !== volunteer.id) {
+          notifyUser(
+            reviewerId,
+            'task_done',
+            `Done: '${task.title}'`,
+            `${volunteer.name}: ${said}`,
+            link,
+          )
+        }
+      } else {
+        const reviewers = [
+          ...(reviewerId === null ? [] : [reviewerId]),
+          ...(await deputyIdsOf(project.id)),
+        ].filter((id) => id !== volunteer.id)
+        for (const id of new Set(reviewers)) {
+          await notifyUser(
+            id,
+            'task_submitted',
+            `Submitted for review: '${task.title}'`,
+            `${volunteer.name}: ${said}`,
+            link,
+            {
+              message: html`${volunteer.name} submitted the task <strong>${task.title}</strong> on
+                <strong>${project.title}</strong> for your review.`,
+              projectTitle: project.title,
+              projectId: project.id,
+            },
+            task.id,
+          )
+        }
+      }
+
+      return {
+        message: accepted ? 'Task done' : 'Task submitted for review',
+        status: accepted ? TaskStatus.completed : TaskStatus.under_review,
+      }
+    }),
+
+  acceptTask: approvedProcedure
+    .input(z.object({ projectId: z.number().int(), taskId: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      const volunteer = context.volunteer
+      const { task, isDeputy } = await findTaskToReview(input.projectId, input.taskId, volunteer)
+      const now = new Date()
+      await prisma.workItem.update({
+        where: { id: task.id },
+        data: {
+          status: TaskStatus.completed,
+          completedAt: now,
+          reviewedById: volunteer.id,
+          reviewedAt: now,
+          changesRequestedNote: null,
+          updatedAt: now,
+        },
+      })
+      await clearNotifications('task_submitted', task.id)
+      if (task.assigneeId !== null) {
+        notifyUser(
+          task.assigneeId,
+          'task_accepted',
+          `Accepted: '${task.title}'`,
+          `${actorLabel(volunteer, isDeputy)} accepted your work`,
+          `/projects/${input.projectId}/tasks/${task.id}`,
+        )
+      }
+      return { message: 'Task accepted' }
+    }),
+
+  requestTaskChanges: approvedProcedure
+    .input(
+      z
+        .object({ projectId: z.number().int(), taskId: z.number().int() })
+        .merge(RequestChangesSchema),
+    )
+    .handler(async ({ input, context }) => {
+      const volunteer = context.volunteer
+      const { task, isDeputy } = await findTaskToReview(input.projectId, input.taskId, volunteer)
+      const now = new Date()
+      await prisma.workItem.update({
+        where: { id: task.id },
+        data: {
+          status: TaskStatus.in_progress,
+          changesRequestedNote: input.message,
+          reviewedById: volunteer.id,
+          reviewedAt: now,
+          updatedAt: now,
+        },
+      })
+      await clearNotifications('task_submitted', task.id)
+      if (task.assigneeId !== null) {
+        notifyUser(
+          task.assigneeId,
+          'task_changes_requested',
+          isDeputy
+            ? `Changes requested by ${actorLabel(volunteer, isDeputy)}: '${task.title}'`
+            : `Changes requested: '${task.title}'`,
+          input.message,
+          `/projects/${input.projectId}/tasks/${task.id}`,
+          undefined,
+          task.id,
+        )
+      }
+      return { message: 'Changes requested' }
     }),
 
   assignTask: approvedProcedure
@@ -1825,8 +2484,11 @@ export const projectsRouter = {
       if (!project || !task)
         throw new ORPCError('NOT_FOUND', { message: 'Project or task not found' })
 
-      if (project.assigneeId !== volunteer.id && !volunteer.isAdmin) {
-        throw new ORPCError('FORBIDDEN', { message: 'Only project owner or admin can assign' })
+      const isDeputy = await isProjectDeputy(project.id, volunteer.id)
+      if (project.assigneeId !== volunteer.id && !volunteer.isAdmin && !isDeputy) {
+        throw new ORPCError('FORBIDDEN', {
+          message: 'Only the project owner, a deputy or an admin can assign',
+        })
       }
       if (task.status === TaskStatus.completed) {
         throw new ORPCError('BAD_REQUEST', { message: 'Cannot assign a completed task' })
@@ -1846,6 +2508,7 @@ export const projectsRouter = {
         where: { id: input.taskId },
         data: {
           assigneeId: input.assigneeId,
+          requestedById: null,
           status: TaskStatus.in_progress,
           updatedAt: new Date(),
           nudgeSentAt: null,
@@ -1858,7 +2521,9 @@ export const projectsRouter = {
       await notifyUser(
         input.assigneeId,
         'task_assigned',
-        `Assigned: a task on '${project.title}'`,
+        isDeputy
+          ? `Assigned by ${actorLabel(volunteer, isDeputy)}: a task on '${project.title}'`
+          : `Assigned: a task on '${project.title}'`,
         task.title,
         `/projects/${input.projectId}`,
         {
@@ -1887,9 +2552,11 @@ export const projectsRouter = {
       })
       if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
 
-      if (!canDeleteProjectTask(project, task, volunteer)) {
+      const isDeputy = await isProjectDeputy(project.id, volunteer.id)
+      if (!canDeleteProjectTask(project, task, volunteer, isDeputy)) {
         throw new ORPCError('FORBIDDEN', {
-          message: 'Only project owner, admin, or the task creator can delete this task',
+          message:
+            'Only the project owner, a deputy, an admin or the task creator can delete this task',
         })
       }
 
@@ -1898,5 +2565,97 @@ export const projectsRouter = {
       })
       if (deleted.count === 0) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
       return { message: 'Task deleted' }
+    }),
+
+  /** The owner (or an admin) hands an accepted helper the management of the project's tasks. */
+  appointDeputy: approvedProcedure
+    .input(z.object({ projectId: z.number().int(), volunteerId: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      const volunteer = context.volunteer
+      const project = await prisma.workItem.findFirst({
+        where: { id: input.projectId, type: WorkItemType.PROJECT },
+      })
+      if (!project || (project.assigneeId !== volunteer.id && !volunteer.isAdmin)) {
+        throw new ORPCError('FORBIDDEN', { message: 'Only the project owner can appoint a deputy' })
+      }
+      const helper = await prisma.workItemInterest.findFirst({
+        where: {
+          workItemId: input.projectId,
+          volunteerId: input.volunteerId,
+          status: InterestStatus.accepted,
+        },
+      })
+      if (!helper || input.volunteerId === project.assigneeId) {
+        throw new ORPCError('BAD_REQUEST', { message: 'Only an accepted helper can be a deputy' })
+      }
+      const existing = await prisma.projectDeputy.findFirst({
+        where: { projectId: input.projectId, volunteerId: input.volunteerId },
+      })
+      if (existing) throw new ORPCError('BAD_REQUEST', { message: 'They are already a deputy' })
+
+      await prisma.projectDeputy.create({
+        data: {
+          projectId: input.projectId,
+          volunteerId: input.volunteerId,
+          appointedById: volunteer.id,
+        },
+      })
+      await notifyUser(
+        input.volunteerId,
+        'deputy_appointed',
+        `${volunteer.name} made you a deputy on '${project.title}'`,
+        'You can now manage its tasks.',
+        `/projects/${project.id}#tasks`,
+      )
+      return { message: 'Deputy appointed' }
+    }),
+
+  removeDeputy: approvedProcedure
+    .input(z.object({ projectId: z.number().int(), volunteerId: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      const volunteer = context.volunteer
+      const project = await prisma.workItem.findFirst({
+        where: { id: input.projectId, type: WorkItemType.PROJECT },
+      })
+      if (!project || (project.assigneeId !== volunteer.id && !volunteer.isAdmin)) {
+        throw new ORPCError('FORBIDDEN', { message: 'Only the project owner can remove a deputy' })
+      }
+      const removed = await prisma.projectDeputy.deleteMany({
+        where: { projectId: input.projectId, volunteerId: input.volunteerId },
+      })
+      if (removed.count === 0) throw new ORPCError('NOT_FOUND', { message: 'Deputy not found' })
+      await notifyUser(
+        input.volunteerId,
+        'deputy_removed',
+        `You are no longer a deputy on '${project.title}'`,
+        `${volunteer.name} took back the management of its tasks.`,
+        `/projects/${project.id}`,
+      )
+      return { message: 'Deputy removed' }
+    }),
+
+  stepDownAsDeputy: approvedProcedure
+    .input(z.object({ projectId: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      const volunteer = context.volunteer
+      const project = await prisma.workItem.findFirst({
+        where: { id: input.projectId, type: WorkItemType.PROJECT },
+      })
+      const removed = await prisma.projectDeputy.deleteMany({
+        where: { projectId: input.projectId, volunteerId: volunteer.id },
+      })
+      if (!project || removed.count === 0) {
+        throw new ORPCError('NOT_FOUND', { message: 'You are not a deputy on this project' })
+      }
+      if (project.assigneeId !== null) {
+        await notifyUser(
+          project.assigneeId,
+          'deputy_removed',
+          `${volunteer.name} stepped down as a deputy on '${project.title}'`,
+          null,
+          `/projects/${project.id}#people`,
+        )
+      }
+      return { message: 'You are no longer a deputy' }
     }),
 }

@@ -136,6 +136,8 @@ const EMAIL_PREVIEW_REGISTRY: Record<string, { subject: string; build: () => str
         'Collaboration on AI Safety Explainer Series',
         'Hi Alex,\n\nI came across your profile and think your writing skills would be a great fit.\n\nThanks,\nJamie',
         'AI Safety Explainer Series',
+        `${env.APP_URL}/inbox/messages/1`,
+        false,
       ),
   },
   'digest-match': {

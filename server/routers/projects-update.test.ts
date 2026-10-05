@@ -169,14 +169,15 @@ describe('projects.update fields and status', () => {
       expect(notified[0].title).toBe(`'${project.title}' is now On Hold`)
     })
 
-    // Dropping the owner sends it back to ready; giving a ready project an owner starts it.
+    // Dropping the owner keeps the status; giving a ready project an owner starts it.
     expect(
       (await clientAs(admin).projects.update({ id: project.id, assigneeId: null })).status,
-    ).toBe('ready')
+    ).toBe('on_hold')
     await expect(
       clientAs(admin).projects.update({ id: project.id, status: 'in_progress' }),
     ).rejects.toMatchObject({ message: expect.stringContaining('without at least one open task') })
     await createTask(project.id)
+    await prisma.workItem.update({ where: { id: project.id }, data: { status: 'ready' } })
     expect(
       (await clientAs(admin).projects.update({ id: project.id, assigneeId: owner.id })).status,
     ).toBe('in_progress')
@@ -278,12 +279,13 @@ describe('projects awaiting triage', () => {
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
 
-    // An interest recorded before the project went back to review hands over ownership
-    // when accepted, but the status stays with the admins.
+    // On an ownerless proposal, an interest recorded before it went back to review hands
+    // over ownership when accepted, but the status stays with the admins.
+    await prisma.workItem.update({ where: { id: project.id }, data: { assigneeId: null } })
     const interest = await prisma.workItemInterest.create({
       data: { workItemId: project.id, volunteerId: friend.id, interestType: 'want_to_own' },
     })
-    await clientAs(proposer).projects.respondToInterest({
+    await clientAs(await createAdmin()).projects.respondToInterest({
       projectId: project.id,
       interestId: interest.id,
       status: 'accepted',

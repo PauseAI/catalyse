@@ -175,8 +175,8 @@ describe('projects directory', () => {
     // No search or filters, templates or roadmap while there is nothing to search.
     expect(screen.queryByLabelText('Search')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Status filter' })).toBeNull()
-    expect(screen.queryByText('Project templates')).toBeNull()
-    expect(screen.queryByRole('link', { name: /Roadmap/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Start from a template' })).toBeNull()
+    expect(screen.queryByRole('navigation', { name: 'Project views' })).toBeNull()
     expect(screen.getByText(`We sent a link to ${unconfirmed.email}.`)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Change email' })).toHaveAttribute('href', '/settings')
     await userEvent.click(screen.getByRole('button', { name: 'Send it again' }))
@@ -208,6 +208,29 @@ describe('projects directory', () => {
     cleanup()
     await renderApp(<ProjectsPage />, { as: await createSuperAdmin(), url: '/projects' })
     expect(await screen.findByRole('link', { name: /Review applications/ })).toBeInTheDocument()
+  })
+
+  it('switches between List and Timeline, and offers templates only once one exists', async () => {
+    const me = await createVolunteer()
+    await renderApp(<ProjectsPage />, { as: me, url: '/projects' })
+    const views = await screen.findByRole('navigation', { name: 'Project views' })
+    expect(within(views).getByRole('link', { name: 'List' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(within(views).getByRole('link', { name: 'Timeline' })).toHaveAttribute(
+      'href',
+      '/projects/gantt',
+    )
+    expect(screen.queryByRole('link', { name: 'Start from a template' })).toBeNull()
+    cleanup()
+
+    await prisma.template.create({ data: { title: 'Stall kit', structure: '{}' } })
+    await renderApp(<ProjectsPage />, { as: me, url: '/projects' })
+    expect(await screen.findByRole('link', { name: 'Start from a template' })).toHaveAttribute(
+      'href',
+      '/templates',
+    )
   })
 
   it('keeps unapproved volunteers out, showing a loading state until they leave', async () => {

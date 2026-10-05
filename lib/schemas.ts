@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MUTABLE_EMAIL_CATEGORIES } from './notification-categories'
 import {
   AdminInviteSchema,
   AdminNoteSchema,
@@ -189,9 +190,25 @@ const PROJECT_INPUT_FIELDS = {
   ...SCHEDULE_INPUT_FIELDS,
 } as const
 
+const HTTP_URL_RE = /^https?:\/\/\S+$/i
+
+/** A link the app will render as an href: http(s) only, so it can never run script. */
+export const isHttpUrl = (value: string | null | undefined): value is string =>
+  typeof value === 'string' && HTTP_URL_RE.test(value)
+
+/** A user-supplied link, empty allowed; the caller decides whether empty means null. */
+export const HttpUrlSchema = z
+  .string()
+  .trim()
+  .max(2000)
+  .refine((u) => u === '' || isHttpUrl(u), {
+    message: 'The link must start with http:// or https://',
+  })
+
 export const CreateProjectSchema = WorkItemSchema.pick(PROJECT_INPUT_FIELDS)
   .partial({ remoteEligibility: true, teamId: true, ...SCHEDULE_INPUT_FIELDS })
   .extend({
+    collaborationLink: HttpUrlSchema.nullable(),
     tasks: z.array(TaskInputSchema).optional().default([]),
     wantToOwn: z.boolean().optional().default(false),
     skillIds: z.array(z.number().int()).optional().default([]),
@@ -205,9 +222,11 @@ export const UpdateProjectSchema = WorkItemSchema.pick({
   assigneeId: true,
   outcome: true,
   outcomeNotes: true,
+  autoAcceptTasks: true,
 })
   .partial()
   .extend({
+    collaborationLink: HttpUrlSchema.nullable().optional(),
     skillIds: z.array(z.number().int()).optional(),
     skillRequiredMap: z.record(z.string(), z.boolean()).optional(),
   })
@@ -418,6 +437,16 @@ export const AssignQuickTaskSchema = z.object({
   volunteerId: z.number().int({ message: 'volunteerId is required' }),
 })
 
+/** Handing in a task. At least one of the two is required; `submissionData` checks that. */
+export const SubmitWorkSchema = z.object({
+  note: z.string().trim().max(5000).optional().nullable(),
+  url: HttpUrlSchema.optional().nullable(),
+})
+
+export const RequestChangesSchema = z.object({
+  message: z.string().trim().min(1, { message: 'Say what needs changing' }).max(5000),
+})
+
 export const ReviewQuickTaskSchema = z.object({
   reviewRating: z.enum(['excellent', 'good', 'needs_improvement'], {
     error: 'reviewRating must be excellent, good, or needs_improvement',
@@ -476,4 +505,5 @@ export const UpdateVolunteerSchema = VolunteerSchema.omit({
       .nullable()
       .optional(),
     availabilityHoursPerWeek: AvailabilitySchema.nullable().optional(),
+    emailMutedCategories: z.array(z.enum(MUTABLE_EMAIL_CATEGORIES)).optional(),
   })

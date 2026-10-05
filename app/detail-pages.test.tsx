@@ -49,27 +49,62 @@ describe('quick task detail', () => {
       'href',
       '/quick-tasks',
     )
-    // Submitting asks first, and backing out leaves the task in progress.
-    await userEvent.click(await screen.findByRole('button', { name: 'Submit for review' }))
-    const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveTextContent(
-      'Post a link or note to your work as a comment first, then submit. An admin will look at it.',
-    )
+    // Submitting asks what was done, and backing out leaves the task in progress.
+    await userEvent.click(await screen.findByRole('button', { name: 'Submit work' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Submit your work' })
+    expect(dialog).toHaveTextContent('An admin will look at it, then accept it or ask for changes.')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect((await row(task.id)).status).toBe('in_progress')
-    await userEvent.click(screen.getByRole('button', { name: 'Submit for review' }))
-    await userEvent.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Submit for review' }),
+    await userEvent.click(screen.getByRole('button', { name: 'Submit work' }))
+    const again = await screen.findByRole('dialog', { name: 'Submit your work' })
+    await userEvent.type(
+      within(again).getByLabelText('Link to your work (optional)'),
+      'https://example.org/mine',
     )
+    await userEvent.click(within(again).getByRole('button', { name: 'Submit work' }))
     await screen.findByText(/Submitted\. An admin will review it/)
     await waitFor(async () => expect((await row(task.id)).status).toBe('under_review'))
-    await screen.findAllByText(/Submitted for review/)
-    await clientAs(await createAdmin()).quickTasks.review({
-      id: task.id,
-      reviewRating: 'excellent',
-      reviewNotes: 'top',
-    })
+    await screen.findByText('Your submission is awaiting review.')
+    expect(screen.getByRole('link', { name: 'https://example.org/mine' })).toBeInTheDocument()
+
+    // An admin sends it back; the volunteer sees why and submits again.
+    const admin = await createAdmin({ name: 'Ada Admin' })
+    const asAdmin = () =>
+      renderApp(<QuickTaskDetailPage params={Promise.resolve({ id: String(task.id) })} />, {
+        as: admin,
+      })
+    cleanup()
+    await asAdmin()
+    await userEvent.click(await screen.findByRole('button', { name: 'Ask for changes' }))
+    const ask = await screen.findByRole('dialog', { name: 'Ask for changes' })
+    await userEvent.type(within(ask).getByLabelText('What needs changing?'), 'Add a caption')
+    await userEvent.click(within(ask).getByRole('button', { name: 'Send back' }))
+    await screen.findByText('Sent back to the assignee with your message.')
+    cleanup()
+    await page()
+    await screen.findByRole('heading', { name: 'Changes requested by Ada Admin' })
+    expect(screen.getByText('Add a caption')).toBeInTheDocument()
+    await userEvent.click(await screen.findByRole('button', { name: 'Submit work' }))
+    const third = await screen.findByRole('dialog', { name: 'Submit your work' })
+    await userEvent.type(within(third).getByLabelText('What did you do?'), 'Captioned')
+    await userEvent.click(within(third).getByRole('button', { name: 'Submit work' }))
+    await screen.findByText(/Submitted\. An admin will review it/)
+
+    cleanup()
+    await asAdmin()
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept…' }))
+    await userEvent.click(
+      within(screen.getByRole('dialog', { name: 'Review Task' })).getByRole('button', {
+        name: 'Cancel',
+      }),
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Accept…' }))
+    const review = screen.getByRole('dialog', { name: 'Review Task' })
+    await userEvent.click(within(review).getByLabelText(/Excellent/))
+    await userEvent.click(within(review).getByRole('button', { name: 'Accept' }))
+    await screen.findByText('Accepted. The task is done.')
+    await waitFor(async () => expect((await row(task.id)).status).toBe('completed'))
     cleanup()
     await page()
     await screen.findByText('Excellent')
@@ -94,12 +129,12 @@ describe('quick task detail', () => {
     await renderApp(<QuickTaskDetailPage params={Promise.resolve({ id: String(mine.id) })} />, {
       as: me,
     })
-    await screen.findByRole('button', { name: 'Submit for review' })
+    await screen.findByRole('button', { name: 'Submit work' })
     await prisma.workItem.update({ where: { id: mine.id }, data: { assigneeId: rival.id } })
-    await userEvent.click(screen.getByRole('button', { name: 'Submit for review' }))
-    await userEvent.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Submit for review' }),
-    )
+    await userEvent.click(screen.getByRole('button', { name: 'Submit work' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Submit your work' })
+    await userEvent.type(within(dialog).getByLabelText('What did you do?'), 'Done')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Submit work' }))
     await screen.findByText('Task not found or not assigned to you')
     cleanup()
     // An admin looking at someone else's task has nothing to submit and no "your" wording.
@@ -108,7 +143,7 @@ describe('quick task detail', () => {
       as: admin,
     })
     await screen.findByRole('link', { name: '← Back to Quick Tasks' })
-    expect(screen.queryByRole('button', { name: 'Submit for review' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Submit work' })).toBeNull()
     cleanup()
     await prisma.workItem.update({ where: { id: mine.id }, data: { status: 'under_review' } })
     await renderApp(<QuickTaskDetailPage params={Promise.resolve({ id: String(mine.id) })} />, {

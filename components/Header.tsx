@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -10,6 +10,7 @@ import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { ThemeToggle } from './ThemeToggle'
 import BugReportDialog from './BugReportDialog'
+import InboxPopover from './InboxPopover'
 
 function MobileNavLink({
   href,
@@ -40,73 +41,34 @@ function MobileNavSection({ children, admin }: { children: React.ReactNode; admi
   )
 }
 
-function DashboardNavButtons({ unreadCount }: { unreadCount: number }) {
-  const pathname = usePathname()
-  const [hash, setHash] = useState(() =>
-    typeof window !== 'undefined' ? window.location.hash : '',
-  )
+/** `path` is `base` or a page below it. */
+const under = (path: string, base: string) => path === base || path.startsWith(`${base}/`)
 
-  useEffect(() => {
-    function onHashChange() {
-      setHash(window.location.hash)
-    }
-    window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
-  }, [])
+type NavItem = { href: string; label: string; active: (path: string) => boolean }
 
-  // Sync hash when pathname changes (navigating to/from dashboard)
-  useEffect(() => {
-    // Re-reads window.location.hash after Next.js client navigation — the router does not track the hash fragment.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHash(typeof window !== 'undefined' ? window.location.hash : '')
-  }, [pathname])
+const NAV_ITEMS: NavItem[] = [
+  { href: '/dashboard', label: 'Home', active: (p) => p === '/dashboard' },
+  {
+    href: '/projects',
+    label: 'Projects',
+    active: (p) => under(p, '/projects') || under(p, '/templates') || under(p, '/suggest'),
+  },
+  { href: '/quick-tasks', label: 'Tasks', active: (p) => under(p, '/quick-tasks') },
+  {
+    href: '/volunteers',
+    label: 'People',
+    active: (p) => under(p, '/volunteers') || under(p, '/teams') || under(p, '/suggest-team'),
+  },
+  { href: '/inbox', label: 'Inbox', active: (p) => under(p, '/inbox') },
+]
 
-  const onDashboard = pathname === '/dashboard'
-  const activeTab = onDashboard && hash.startsWith('#tab-') ? hash.slice('#tab-'.length) : ''
-
-  function goToTab(tab: string) {
-    if (tab) {
-      window.location.hash = `tab-${tab}`
-    } else {
-      history.pushState(null, '', '/dashboard')
-      window.dispatchEvent(new HashChangeEvent('hashchange'))
-    }
-  }
-
+function WaitingBadge({ count }: { count: number }) {
+  if (count === 0) return null
   return (
-    <>
-      <Button
-        href="/dashboard"
-        variant={onDashboard && activeTab !== 'notifications' ? 'primary' : 'ghost'}
-        size="sm"
-        onClick={(e) => {
-          if (onDashboard) {
-            e.preventDefault()
-            goToTab('')
-          }
-        }}
-      >
-        My Projects
-      </Button>
-      <Button
-        href="/dashboard#tab-notifications"
-        variant={activeTab === 'notifications' ? 'primary' : 'ghost'}
-        size="sm"
-        onClick={(e) => {
-          if (onDashboard) {
-            e.preventDefault()
-            goToTab('notifications')
-          }
-        }}
-      >
-        Notifications
-        {unreadCount > 0 && (
-          <span className="bg-primary text-[#111827] text-xs px-2 py-0.5 rounded-full ml-1">
-            {unreadCount}
-          </span>
-        )}
-      </Button>
-    </>
+    <span className="bg-primary text-[#111827] text-xs px-2 py-0.5 rounded-full ml-1">
+      <span className="sr-only">, waiting for you: </span>
+      {count}
+    </span>
   )
 }
 
@@ -127,14 +89,30 @@ export default function Header() {
     setMounted(true)
   }, [])
 
-  const { data: notificationsData } = useQuery({
-    ...orpc.notifications.list.queryOptions({ input: { filter: 'unread', limit: 1 } }),
+  const { data: counts } = useQuery({
+    ...orpc.notifications.counts.queryOptions(),
     enabled: !!user,
   })
-  const unreadCount = notificationsData?.total ?? 0
+  // What is waiting on the viewer: things to act on and messages to read, not updates.
+  const waiting = (counts?.needs_action ?? 0) + (counts?.message ?? 0)
+  const [inboxOpen, setInboxOpen] = useState(false)
+  const closeInbox = useCallback(() => setInboxOpen(false), [])
+
+  // Acting on something (accepting work, answering an invite) can clear what the badge counts.
+  useEffect(() => {
+    if (!user) return
+    return queryClient.getMutationCache().subscribe((event) => {
+      if (event.type === 'updated' && event.action.type === 'success') {
+        void queryClient.invalidateQueries({ queryKey: orpc.notifications.counts.key() })
+      }
+    })
+  }, [user, queryClient])
 
   useEffect(() => {
-    if (user) void queryClient.invalidateQueries({ queryKey: orpc.notifications.list.key() })
+    if (user) void queryClient.invalidateQueries({ queryKey: orpc.notifications.counts.key() })
+    // Following a link out of the popover closes it.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInboxOpen(false)
   }, [pathname, user, queryClient])
 
   useEffect(() => {
@@ -155,17 +133,9 @@ export default function Header() {
     setMobileMenuOpen(false)
   }, [pathname])
 
-  const navLinks = [
-    { href: '/projects', label: 'Projects' },
-    { href: '/teams', label: 'Teams' },
-    { href: '/volunteers', label: 'Volunteers' },
-    { href: '/quick-tasks', label: 'Quick Tasks' },
-    { href: '/templates', label: 'Templates' },
-  ]
-
-  // Signed-in volunteers expect the wordmark to take them into the app; signed-out
-  // visitors should land on the public explainer at /.
-  const homeHref = user ? '/projects' : '/'
+  // Signed-in volunteers expect the wordmark to take them Home; signed-out visitors
+  // should land on the public explainer at /.
+  const homeHref = user ? '/dashboard' : '/'
 
   return (
     <>
@@ -178,22 +148,38 @@ export default function Header() {
             Catalyse
           </Link>
 
-          <nav className="hidden xl:flex gap-2 flex-wrap">
-            {mounted && !loading && user && (
-              <>
-                {navLinks.map(({ href, label }) => (
+          <nav aria-label="Main" className="hidden xl:flex gap-2 flex-wrap">
+            {mounted &&
+              !loading &&
+              user &&
+              NAV_ITEMS.map(({ href, label, active }) =>
+                href === '/inbox' ? (
+                  <div key={href} className="relative">
+                    <Button
+                      variant={active(pathname) || inboxOpen ? 'primary' : 'ghost'}
+                      aria-current={active(pathname) ? 'page' : undefined}
+                      aria-expanded={inboxOpen}
+                      aria-haspopup="dialog"
+                      size="sm"
+                      onClick={() => setInboxOpen((o) => !o)}
+                    >
+                      {label}
+                      <WaitingBadge count={waiting} />
+                    </Button>
+                    {inboxOpen && <InboxPopover onClose={closeInbox} />}
+                  </div>
+                ) : (
                   <Button
                     key={href}
                     href={href}
-                    variant={pathname === href ? 'primary' : 'ghost'}
+                    variant={active(pathname) ? 'primary' : 'ghost'}
+                    aria-current={active(pathname) ? 'page' : undefined}
                     size="sm"
                   >
                     {label}
                   </Button>
-                ))}
-                <DashboardNavButtons unreadCount={unreadCount} />
-              </>
-            )}
+                ),
+              )}
           </nav>
 
           <div className="hidden xl:flex gap-2 items-center">
@@ -235,12 +221,6 @@ export default function Header() {
                         className="block px-4 py-3 text-brand-text no-underline"
                       >
                         Settings
-                      </Link>
-                      <Link
-                        href="/privacy"
-                        className="block px-4 py-3 text-brand-text no-underline"
-                      >
-                        Privacy &amp; Data
                       </Link>
                       {user.isAdmin && (
                         <Link
@@ -310,7 +290,7 @@ export default function Header() {
               aria-label="Open menu"
               onClick={() => setMobileMenuOpen(true)}
             >
-              {mounted && !loading && user && !user.locationConfirmedAt && (
+              {mounted && !loading && user && (!user.locationConfirmedAt || waiting > 0) && (
                 <span
                   className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-primary"
                   aria-hidden="true"
@@ -371,9 +351,10 @@ export default function Header() {
           {/* Nav links */}
           <div className="flex-1 overflow-y-auto">
             {user &&
-              navLinks.map(({ href, label }) => (
-                <MobileNavLink key={href} href={href} active={pathname === href}>
+              NAV_ITEMS.map(({ href, label, active }) => (
+                <MobileNavLink key={href} href={href} active={active(pathname)}>
                   {label}
+                  {href === '/inbox' && <WaitingBadge count={waiting} />}
                 </MobileNavLink>
               ))}
 
@@ -393,18 +374,8 @@ export default function Header() {
                       Confirm your location
                     </button>
                   )}
-                  <MobileNavLink href="/dashboard">Dashboard</MobileNavLink>
-                  <MobileNavLink href="/dashboard#tab-notifications">
-                    Notifications
-                    {unreadCount > 0 && (
-                      <span className="bg-primary text-[#111827] text-xs px-2 py-0.5 rounded-full ml-1">
-                        {unreadCount}
-                      </span>
-                    )}
-                  </MobileNavLink>
                   <MobileNavLink href={`/volunteers/${user.id}`}>My profile</MobileNavLink>
                   <MobileNavLink href="/settings">Settings</MobileNavLink>
-                  <MobileNavLink href="/privacy">Privacy &amp; Data</MobileNavLink>
 
                   {user.isAdmin && (
                     <>

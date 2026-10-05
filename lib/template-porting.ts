@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod'
+import { HttpUrlSchema } from '@/lib/schemas'
 import type { CurrentTask, CurrentDependency, LocalRef } from '@/lib/project-porting'
 import { fromYmd } from '@/lib/project-porting'
 
@@ -62,7 +63,7 @@ const ProjectTemplateStructureSchema = z.object({
   estimatedDuration: z.string().nullable().default(null),
   timeCommitmentHoursPerWeek: z.number().int().min(0).max(1000).nullable().default(null),
   urgency: z.string().nullable().default('medium'),
-  collaborationLink: z.string().nullable().default(null),
+  collaborationLink: HttpUrlSchema.nullable().default(null),
   remoteEligibility: z.enum(['NONE', 'COUNTRY', 'GLOBAL']).default('NONE'),
   /** Project's own scheduled start, relative to itself: always 0 when set, null if unscheduled. */
   startOffsetDays: z.number().int().min(0).max(0).nullable().default(null),

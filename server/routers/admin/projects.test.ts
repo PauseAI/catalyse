@@ -226,11 +226,56 @@ describe('admin.projects.review', () => {
         title: `Changes requested: '${p.title}'`,
         body: 'Please expand',
         link: `/projects/${p.id}`,
+        entityId: p.id,
       }),
     )
+    expect(await prisma.projectReviewRequest.findMany({ where: { projectId: p.id } })).toEqual([
+      expect.objectContaining({
+        message: 'Please expand',
+        requestedById: admin.id,
+        resolvedAt: null,
+      }),
+    ])
     const orphan = await createProject({ status: 'pending_review' })
     await c.admin.projects.review({ id: orphan.id, status: 'needs_discussion' })
     expect(await prisma.workItemComment.count({ where: { workItemId: orphan.id } })).toBe(0)
+    expect(
+      await prisma.projectReviewRequest.findFirst({ where: { projectId: orphan.id } }),
+    ).toMatchObject({ message: 'A team lead would like some changes to your proposal.' })
+  })
+
+  it('keeps one open request per round, and approval closes it', async () => {
+    const admin = await createAdmin()
+    const creator = await createVolunteer()
+    const c = clientAs(admin)
+    const p = await createProject({ status: 'pending_review', creatorId: creator.id })
+    await c.admin.projects.review({ id: p.id, status: 'needs_discussion', comment: 'One' })
+    await c.admin.projects.review({ id: p.id, status: 'needs_discussion', comment: 'Two' })
+    const rounds = await prisma.projectReviewRequest.findMany({
+      where: { projectId: p.id },
+      orderBy: { id: 'asc' },
+    })
+    expect(rounds.map((r) => [r.message, r.resolvedAt === null])).toEqual([
+      ['One', false],
+      ['Two', true],
+    ])
+    await vi.waitFor(async () =>
+      expect(
+        await prisma.notification.count({
+          where: { volunteerId: creator.id, type: 'project_needs_discussion', entityId: p.id },
+        }),
+      ).toBe(2),
+    )
+
+    await c.admin.projects.review({ id: p.id, status: 'approved' })
+    expect(
+      await prisma.projectReviewRequest.count({ where: { projectId: p.id, resolvedAt: null } }),
+    ).toBe(0)
+    expect(
+      await prisma.notification.count({
+        where: { type: 'project_needs_discussion', entityId: p.id },
+      }),
+    ).toBe(0)
   })
 })
 

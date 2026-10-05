@@ -1,6 +1,6 @@
 'use client'
 
-import { use } from 'react'
+import { use, useState } from 'react'
 import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRequireApproved } from '@/lib/hooks/auth'
@@ -11,7 +11,10 @@ import { Badge } from '@/components/Badge'
 import CommentThread from '@/components/CommentThread'
 import { QUICK_TASK_STATUS_LABELS } from '@/lib/status-labels'
 import Linkify from '@/components/Linkify'
-import SubmitForReviewButton from '@/components/SubmitForReviewButton'
+import SubmitWorkButton from '@/components/SubmitWorkButton'
+import SubmittedWork from '@/components/SubmittedWork'
+import RequestChangesButton from '@/components/RequestChangesButton'
+import QuickTaskReviewDialog from '@/components/QuickTaskReviewDialog'
 import { QUICK_TASK_CLAIMED_MESSAGE } from '@/lib/action-messages'
 import { QuickTaskStatus } from '@/generated/prisma/enums'
 import PageLoading from '@/components/PageLoading'
@@ -35,6 +38,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
   const { user, loading } = useRequireApproved()
   const showToast = useToast()
   const queryClient = useQueryClient()
+  const [reviewing, setReviewing] = useState(false)
 
   const { data: task, isLoading } = useQuery({
     ...orpc.quickTasks.get.queryOptions({ input: { id } }),
@@ -140,17 +144,41 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
           </Button>
         )}
 
+        <SubmittedWork
+          submission={task.submission}
+          changesRequested={
+            task.changesRequested
+              ? { message: task.changesRequested, byName: task.reviewedByName }
+              : null
+          }
+        />
+
         {mine && task.status === QuickTaskStatus.in_progress && (
-          <SubmitForReviewButton taskId={task.id} />
+          <div className="mt-4">
+            <SubmitWorkButton target={{ kind: 'quick', taskId: task.id }} reviewer="An admin" />
+          </div>
         )}
 
         {mine && task.status === QuickTaskStatus.under_review && (
-          <p className="text-text-light text-sm">Your submission is awaiting review.</p>
+          <p className="text-text-light text-sm mt-4 mb-0">Your submission is awaiting review.</p>
+        )}
+
+        {user.isAdmin && task.status === QuickTaskStatus.under_review && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            <Button onClick={() => setReviewing(true)}>Accept…</Button>
+            <RequestChangesButton target={{ kind: 'quick', taskId: task.id }} assigneeName={null} />
+          </div>
         )}
       </div>
+      {reviewing && (
+        <QuickTaskReviewDialog
+          task={{ id: task.id, title: task.title, assignedToName: null }}
+          onClose={() => setReviewing(false)}
+        />
+      )}
 
       <div className="bg-surface rounded-xl shadow p-6">
-        <h2 className="text-lg mb-4">Comments</h2>
+        <h2 className="text-lg mb-4">Discussion</h2>
         <CommentThread workItemId={task.id} />
       </div>
     </main>

@@ -314,6 +314,35 @@ export function canManageProject(
 }
 
 /**
+ * May `viewer` manage this project's tasks: create, edit, assign, reorder, link, replan and
+ * review them? Whoever manages the project, plus a deputy. Project-level checks (editing the
+ * project, its people, status, key date, deadline and original plan) stay on
+ * `canManageProject`.
+ */
+export function canManageProjectTasks(
+  project: { creatorId: number | null; assigneeId: number | null; status: string },
+  viewer: { id: number; isAdmin: boolean | null },
+  isDeputy: boolean,
+): boolean {
+  return canManageProject(project, viewer) || isDeputy
+}
+
+/** Has the owner made `volunteerId` a deputy on this project, and are they still a helper? */
+export async function isProjectDeputy(projectId: number, volunteerId: number): Promise<boolean> {
+  const deputy = await prisma.projectDeputy.findFirst({
+    where: {
+      projectId,
+      volunteerId,
+      volunteer: {
+        workItemInterests: { some: { workItemId: projectId, status: InterestStatus.accepted } },
+      },
+    },
+    select: { id: true },
+  })
+  return deputy !== null
+}
+
+/**
  * May `viewer` add a task to this project? Anyone who can manage the project, plus any
  * member — team membership or an accepted `WorkItemInterest` (the same signal as
  * `resolveTeamPrivy`). Members were previously blocked from adding tasks at all; this was
@@ -337,8 +366,9 @@ export function canDeleteProjectTask(
   project: { creatorId: number | null; assigneeId: number | null; status: string },
   task: { creatorId: number | null },
   viewer: { id: number; isAdmin: boolean | null },
+  isDeputy: boolean,
 ): boolean {
-  return canManageProject(project, viewer) || task.creatorId === viewer.id
+  return canManageProjectTasks(project, viewer, isDeputy) || task.creatorId === viewer.id
 }
 
 export type WorkItemSkillWithRelations = {
@@ -373,6 +403,7 @@ export type EnrichedProject = ScheduleFieldsLike & {
   reviewedById: number | null
   reviewedAt: Date | null
   collaborationLink: string | null
+  autoAcceptTasks: boolean
   outcome: string | null
   outcomeNotes: string | null
   completedAt: Date | null
@@ -428,6 +459,7 @@ export function withProjectExtras(
     updatedAt: p.updatedAt,
     country: p.country,
     isSeekingHelp: p.isSeekingHelp,
+    autoAcceptTasks: p.autoAcceptTasks,
     // Derived, not stored — see isSeekingOwner() in lib/project-status.ts.
     isSeekingOwner: isSeekingOwner(p),
     // An owned project with an empty backlog. Surfaced as a badge rather than a status:
@@ -517,12 +549,49 @@ export type TaskLike = ScheduleFieldsLike & {
   description: string | null
   assigneeId: number | null
   creatorId: number | null
+  requestedById: number | null
   status: string
   estimatedHours: number | null
   deadline: Date | null
   completedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
+} & SubmissionLike
+
+type SubmissionLike = {
+  submissionNote: string | null
+  submissionUrl: string | null
+  submittedAt: Date | null
+}
+
+/** What the assignee handed in, or null before they first submit. */
+export function serializeSubmission(t: SubmissionLike) {
+  if (t.submittedAt === null) return null
+  return { note: t.submissionNote, url: t.submissionUrl, submittedAt: t.submittedAt }
+}
+
+/** Writes that forget a submission, for a task going back to nobody's. */
+export const CLEARED_SUBMISSION = {
+  submissionNote: null,
+  submissionUrl: null,
+  submittedAt: null,
+  changesRequestedNote: null,
+} as const
+
+/**
+ * The columns a submission writes, or null when it holds neither a note nor a link. Blank
+ * strings count as absent.
+ */
+export function submissionData(input: { note?: string | null; url?: string | null }) {
+  const note = input.note?.trim() || null
+  const url = input.url?.trim() || null
+  if (note === null && url === null) return null
+  return {
+    submissionNote: note,
+    submissionUrl: url,
+    submittedAt: new Date(),
+    changesRequestedNote: null,
+  }
 }
 
 export function serializeTask(t: TaskLike) {
@@ -533,12 +602,14 @@ export function serializeTask(t: TaskLike) {
     description: t.description,
     assignedToId: t.assigneeId,
     createdById: t.creatorId,
+    requestedById: t.requestedById,
     status: t.status,
     estimatedHours: t.estimatedHours,
     deadline: t.deadline,
     completedAt: t.completedAt,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
+    submission: serializeSubmission(t),
     ...serializeScheduleFields(t),
   }
 }
@@ -587,7 +658,8 @@ export type StarterTaskLike = {
   estimatedHours: number | null
   createdAt: Date | null
   updatedAt: Date | null
-}
+  changesRequestedNote: string | null
+} & SubmissionLike
 
 export function serializeStarterTask(t: StarterTaskLike) {
   return {
@@ -606,5 +678,7 @@ export function serializeStarterTask(t: StarterTaskLike) {
     estimatedHours: t.estimatedHours,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
+    submission: serializeSubmission(t),
+    changesRequested: t.changesRequestedNote,
   }
 }

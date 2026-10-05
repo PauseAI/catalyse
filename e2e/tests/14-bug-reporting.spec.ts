@@ -1,6 +1,6 @@
 import { test, expect, dismissCookieConsentScript } from '../fixtures'
 import { openBugReportForm, fillAndSubmitBugReport } from '../actions/bugs'
-import { goToDashboardNotifications } from '../actions/dashboard'
+import { goToInbox } from '../actions/dashboard'
 import { fake } from '../fake'
 
 test.describe('Bug Reporting', () => {
@@ -14,7 +14,7 @@ test.describe('Bug Reporting', () => {
     const title = fake.bugTitle()
 
     await volunteer.page.goto(`${baseUrl}/dashboard`)
-    await expect(volunteer.page.getByRole('heading', { name: /Welcome back/ })).toBeVisible({
+    await expect(volunteer.page.getByRole('heading', { level: 1, name: /^Hi / })).toBeVisible({
       timeout: 10_000,
     })
 
@@ -32,7 +32,7 @@ test.describe('Bug Reporting', () => {
       timeout: 10_000,
     })
 
-    await goToDashboardNotifications(baseUrl, volunteer.page)
+    await goToInbox(baseUrl, volunteer.page)
     await expect(
       volunteer.page.locator('strong').filter({ hasText: 'Bug report submitted' }),
     ).toBeVisible({ timeout: 10_000 })
@@ -62,7 +62,7 @@ test.describe('Bug Reporting', () => {
     baseUrl,
   }) => {
     await volunteer.page.goto(`${baseUrl}/dashboard`)
-    await expect(volunteer.page.getByRole('heading', { name: /Welcome back/ })).toBeVisible({
+    await expect(volunteer.page.getByRole('heading', { level: 1, name: /^Hi / })).toBeVisible({
       timeout: 10_000,
     })
 

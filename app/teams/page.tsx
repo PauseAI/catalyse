@@ -9,6 +9,7 @@ import { useToast } from '@/lib/toast'
 import { teamApplicationSentMessage } from '@/lib/action-messages'
 import Skeleton from '@/components/Skeleton'
 import EmptyState from '@/components/EmptyState'
+import ViewSwitch, { PEOPLE_VIEWS } from '@/components/ViewSwitch'
 
 export default function TeamsPage() {
   const { user, loading } = useRequireAuth()
@@ -44,6 +45,7 @@ export default function TeamsPage() {
           </Button>
         </Link>
       </div>
+      <ViewSwitch label="People" views={PEOPLE_VIEWS} current="/teams" className="mb-4" />
       <p className="text-text-light mb-6">
         Teams are groups that collaborate on a particular kind of project, such as a country or
         region, or a function like communications. Joining a team lets you see its projects and work

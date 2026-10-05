@@ -12,8 +12,15 @@ import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import VolunteerSelect from '@/components/VolunteerSelect'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import Linkify from '@/components/Linkify'
-import SubmitForReviewButton from '@/components/SubmitForReviewButton'
-import { PROJECT_TASK_CLAIMED_MESSAGE, QUICK_TASK_CLAIMED_MESSAGE } from '@/lib/action-messages'
+import SubmitWorkButton from '@/components/SubmitWorkButton'
+import SubmittedWork, { type Submission } from '@/components/SubmittedWork'
+import RequestChangesButton from '@/components/RequestChangesButton'
+import QuickTaskReviewDialog from '@/components/QuickTaskReviewDialog'
+import {
+  PROJECT_TASK_CLAIMED_MESSAGE,
+  QUICK_TASK_CLAIMED_MESSAGE,
+  TASK_REQUESTED_MESSAGE,
+} from '@/lib/action-messages'
 import {
   QUICK_TASK_STATUS_LABELS,
   QUICK_TASK_STATUS_VARIANTS,
@@ -27,6 +34,7 @@ import { QuickTaskStatus, TaskStatus } from '@/generated/prisma/enums'
 import PageLoading from '@/components/PageLoading'
 import Skeleton from '@/components/Skeleton'
 import EmptyState from '@/components/EmptyState'
+import Tabs from '@/components/Tabs'
 
 interface Skill {
   id: number
@@ -48,6 +56,9 @@ interface AdminQuickTask {
   reviewNotes: string | null
   estimatedHours: number | null
   createdAt: string
+  submission: Submission | null
+  changesRequested: string | null
+  reviewedByName: string | null
 }
 
 interface FeaturedProjectTask {
@@ -156,11 +167,16 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
     void queryClient.invalidateQueries({ queryKey: orpc.my.quickTasks.key() })
   }
 
+  // Opens on my own tasks when there are any; a claim moves me there to see it land.
+  const [chosenTab, setChosenTab] = useState<'mine' | 'open' | null>(null)
+  const tab = chosenTab ?? (tasks.length > 0 ? 'mine' : 'open')
+
   const claimQuickMutation = useMutation({
     ...orpc.quickTasks.claim.mutationOptions(),
     onSuccess: () => {
       showToast(QUICK_TASK_CLAIMED_MESSAGE, 'success')
       invalidateAvailable()
+      setChosenTab('mine')
     },
     onError: (err: unknown) =>
       showToast(err instanceof Error ? err.message : 'Failed to claim task', 'error'),
@@ -171,8 +187,8 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
   // page where the thing they just claimed has silently vanished.
   const claimProjectTaskMutation = useMutation({
     ...orpc.projects.updateTask.mutationOptions(),
-    onSuccess: (_data, variables) => {
-      showToast(PROJECT_TASK_CLAIMED_MESSAGE, 'success')
+    onSuccess: (data, variables) => {
+      showToast(data.requested ? TASK_REQUESTED_MESSAGE : PROJECT_TASK_CLAIMED_MESSAGE, 'success')
       invalidateAvailable()
       router.push(`/projects/${variables.projectId}/tasks/${variables.taskId}`)
     },
@@ -183,94 +199,53 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
   return (
     <>
       <main className="container py-5 pb-15">
-        {/* The two lists are separate landmarks, not one run of cards under two headings: a
-            task moves between them when it is claimed, and both refetch independently, so
-            anything addressing "the card for task X" needs to say which list it means. */}
-        <section aria-labelledby="my-quick-tasks">
-          <h1 id="my-quick-tasks">My Quick Tasks</h1>
-          <p className="text-text-light mb-6">
-            Small, self-contained tasks to help you get started and make an impact quickly.
-          </p>
+        <h1>Quick Tasks</h1>
+        <p className="text-text-light mb-4">
+          Small, self-contained tasks to help you get started and make an impact quickly.
+        </p>
+        <Tabs
+          tabs={[
+            { key: 'mine', label: `Mine${tasks.length ? ` (${tasks.length})` : ''}` },
+            {
+              key: 'open',
+              label: `Open${availableTasks.length ? ` (${availableTasks.length})` : ''}`,
+            },
+          ]}
+          activeTab={tab}
+          onChange={setChosenTab}
+        />
 
-          {loadingTasks ? (
-            <Skeleton label="Loading tasks…" count={1} />
-          ) : tasks.length === 0 ? (
-            <EmptyState
-              title="No tasks assigned yet"
-              body="Claim one from the list below, or browse projects for other ways to contribute."
-              action={
-                <Button href="/projects" variant="outline">
-                  Browse projects
-                </Button>
-              }
-            />
-          ) : (
-            tasks.map((task) => (
-              <QuickTaskCard
-                key={task.id}
-                anchorId={`task-${task.id}`}
-                title={task.title}
-                titleHref={`/quick-tasks/${task.id}`}
-                status={task.status}
-                statusVariant={QUICK_TASK_STATUS_VARIANTS[task.status] ?? 'neutral'}
-                statusLabel={QUICK_TASK_STATUS_LABELS[task.status] ?? task.status}
-                description={task.description}
-                meta={[
-                  task.skillName && (
-                    <span key="skill" className={SKILL_CHIP_CLASSES}>
-                      {task.skillName}
-                    </span>
-                  ),
-                  task.estimatedHours && (
-                    <span key="hours" className="text-text-light text-sm">
-                      ~{task.estimatedHours}h
-                    </span>
-                  ),
-                  task.projectTitle && (
-                    <span key="project" className="text-text-light text-sm">
-                      Related: {task.projectTitle}
-                    </span>
-                  ),
-                ]}
-              >
-                {task.status === QuickTaskStatus.in_progress && (
-                  <SubmitForReviewButton taskId={task.id} />
-                )}
-              </QuickTaskCard>
-            ))
-          )}
-        </section>
+        {/* The two lists are separate landmarks: a task moves between them when it is
+            claimed, and both refetch independently, so anything addressing "the card for
+            task X" needs to say which list it means. */}
+        {tab === 'mine' && (
+          <section aria-labelledby="my-quick-tasks">
+            <h2 id="my-quick-tasks" className="mt-0">
+              My Quick Tasks
+            </h2>
 
-        <section aria-labelledby="browse-quick-tasks">
-          <h2 id="browse-quick-tasks" className="mt-8">
-            Browse Quick Tasks
-          </h2>
-          <p className="text-text-light mb-6">
-            Open tasks to pick up right now, no need to browse projects first.
-          </p>
-
-          {loadingAvailable ? (
-            <Skeleton label="Loading tasks…" />
-          ) : availableTasks.length === 0 ? (
-            <EmptyState
-              title="No open Quick Tasks right now"
-              body="Check back soon, or find a project that needs a hand."
-              action={
-                <Button href="/projects" variant="outline">
-                  Browse projects
-                </Button>
-              }
-            />
-          ) : (
-            availableTasks.map((task) =>
-              task.kind === 'quick' ? (
+            {loadingTasks ? (
+              <Skeleton label="Loading tasks…" count={1} />
+            ) : tasks.length === 0 ? (
+              <EmptyState
+                title="No tasks assigned yet"
+                body="Claim one from the Open tab, or browse projects for other ways to contribute."
+                action={
+                  <Button variant="outline" onClick={() => setChosenTab('open')}>
+                    See open tasks
+                  </Button>
+                }
+              />
+            ) : (
+              tasks.map((task) => (
                 <QuickTaskCard
-                  key={`quick-${task.id}`}
+                  key={task.id}
+                  anchorId={`task-${task.id}`}
                   title={task.title}
                   titleHref={`/quick-tasks/${task.id}`}
-                  status="open"
-                  statusVariant={QUICK_TASK_STATUS_VARIANTS.open}
-                  statusLabel={QUICK_TASK_STATUS_LABELS.open}
+                  status={task.status}
+                  statusVariant={QUICK_TASK_STATUS_VARIANTS[task.status] ?? 'neutral'}
+                  statusLabel={QUICK_TASK_STATUS_LABELS[task.status] ?? task.status}
                   description={task.description}
                   meta={[
                     task.skillName && (
@@ -278,70 +253,140 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                         {task.skillName}
                       </span>
                     ),
-                    task.estimatedHours !== null && (
+                    task.estimatedHours && (
                       <span key="hours" className="text-text-light text-sm">
                         ~{task.estimatedHours}h
                       </span>
                     ),
-                  ]}
-                >
-                  <Button
-                    onClick={() => claimQuickMutation.mutate({ id: task.id })}
-                    disabled={
-                      claimQuickMutation.isPending && claimQuickMutation.variables?.id === task.id
-                    }
-                  >
-                    {claimQuickMutation.isPending && claimQuickMutation.variables?.id === task.id
-                      ? 'Claiming…'
-                      : 'Claim'}
-                  </Button>
-                </QuickTaskCard>
-              ) : (
-                <QuickTaskCard
-                  key={`project-task-${task.id}`}
-                  title={task.title}
-                  titleHref={`/projects/${task.projectId}/tasks/${task.id}`}
-                  status="open"
-                  statusVariant={TASK_STATUS_VARIANTS.open}
-                  statusLabel={TASK_STATUS_LABELS.open}
-                  description={task.description}
-                  meta={[
                     task.projectTitle && (
                       <span key="project" className="text-text-light text-sm">
-                        Part of:{' '}
-                        <Link href={`/projects/${task.projectId}`}>{task.projectTitle}</Link>
-                      </span>
-                    ),
-                    task.estimatedHours !== null && (
-                      <span key="hours" className="text-text-light text-sm">
-                        ~{task.estimatedHours}h
+                        Related: {task.projectTitle}
                       </span>
                     ),
                   ]}
                 >
-                  <Button
-                    onClick={() =>
-                      claimProjectTaskMutation.mutate({
-                        projectId: task.projectId,
-                        taskId: task.id,
-                        data: { status: TaskStatus.in_progress, assigneeId: user.id },
-                      })
-                    }
-                    disabled={
-                      claimProjectTaskMutation.isPending &&
-                      claimProjectTaskMutation.variables?.taskId === task.id
-                    }
-                  >
-                    {claimProjectTaskMutation.isPending &&
-                    claimProjectTaskMutation.variables?.taskId === task.id
-                      ? 'Claiming…'
-                      : 'Claim'}
-                  </Button>
+                  {task.status === QuickTaskStatus.in_progress && (
+                    <>
+                      {task.changesRequested && (
+                        <p className="text-sm mt-0 mb-3">
+                          <strong>Changes requested:</strong> {task.changesRequested}
+                        </p>
+                      )}
+                      <SubmitWorkButton
+                        target={{ kind: 'quick', taskId: task.id }}
+                        reviewer="An admin"
+                      />
+                    </>
+                  )}
                 </QuickTaskCard>
-              ),
-            )
-          )}
-        </section>
+              ))
+            )}
+          </section>
+        )}
+
+        {tab === 'open' && (
+          <section aria-labelledby="browse-quick-tasks">
+            <h2 id="browse-quick-tasks" className="mt-0">
+              Browse Quick Tasks
+            </h2>
+            <p className="text-text-light mb-6">
+              Open tasks to pick up right now, no need to browse projects first.
+            </p>
+
+            {loadingAvailable ? (
+              <Skeleton label="Loading tasks…" />
+            ) : availableTasks.length === 0 ? (
+              <EmptyState
+                title="No open Quick Tasks right now"
+                body="Check back soon, or find a project that needs a hand."
+                action={
+                  <Button href="/projects" variant="outline">
+                    Browse projects
+                  </Button>
+                }
+              />
+            ) : (
+              availableTasks.map((task) =>
+                task.kind === 'quick' ? (
+                  <QuickTaskCard
+                    key={`quick-${task.id}`}
+                    title={task.title}
+                    titleHref={`/quick-tasks/${task.id}`}
+                    status="open"
+                    statusVariant={QUICK_TASK_STATUS_VARIANTS.open}
+                    statusLabel={QUICK_TASK_STATUS_LABELS.open}
+                    description={task.description}
+                    meta={[
+                      task.skillName && (
+                        <span key="skill" className={SKILL_CHIP_CLASSES}>
+                          {task.skillName}
+                        </span>
+                      ),
+                      task.estimatedHours !== null && (
+                        <span key="hours" className="text-text-light text-sm">
+                          ~{task.estimatedHours}h
+                        </span>
+                      ),
+                    ]}
+                  >
+                    <Button
+                      onClick={() => claimQuickMutation.mutate({ id: task.id })}
+                      disabled={
+                        claimQuickMutation.isPending && claimQuickMutation.variables?.id === task.id
+                      }
+                    >
+                      {claimQuickMutation.isPending && claimQuickMutation.variables?.id === task.id
+                        ? 'Claiming…'
+                        : 'Claim'}
+                    </Button>
+                  </QuickTaskCard>
+                ) : (
+                  <QuickTaskCard
+                    key={`project-task-${task.id}`}
+                    title={task.title}
+                    titleHref={`/projects/${task.projectId}/tasks/${task.id}`}
+                    status="open"
+                    statusVariant={TASK_STATUS_VARIANTS.open}
+                    statusLabel={TASK_STATUS_LABELS.open}
+                    description={task.description}
+                    meta={[
+                      task.projectTitle && (
+                        <span key="project" className="text-text-light text-sm">
+                          Part of:{' '}
+                          <Link href={`/projects/${task.projectId}`}>{task.projectTitle}</Link>
+                        </span>
+                      ),
+                      task.estimatedHours !== null && (
+                        <span key="hours" className="text-text-light text-sm">
+                          ~{task.estimatedHours}h
+                        </span>
+                      ),
+                    ]}
+                  >
+                    <Button
+                      onClick={() =>
+                        claimProjectTaskMutation.mutate({
+                          projectId: task.projectId,
+                          taskId: task.id,
+                          data: { status: TaskStatus.in_progress, assigneeId: user.id },
+                        })
+                      }
+                      disabled={
+                        claimProjectTaskMutation.isPending &&
+                        claimProjectTaskMutation.variables?.taskId === task.id
+                      }
+                    >
+                      {claimProjectTaskMutation.isPending &&
+                      claimProjectTaskMutation.variables?.taskId === task.id
+                        ? 'Claiming…'
+                        : 'Claim'}
+                    </Button>
+                  </QuickTaskCard>
+                ),
+              )
+            )}
+          </section>
+        )}
       </main>
     </>
   )
@@ -393,11 +438,6 @@ function AdminQuickTasksView() {
   // Review modal
   const [reviewModal, setReviewModal] = useState<AdminQuickTask | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AdminQuickTask | null>(null)
-  const [reviewRating, setReviewRating] = useState<'excellent' | 'good' | 'needs_improvement'>(
-    'good',
-  )
-  const [reviewFeedback, setReviewFeedback] = useState('')
-  const [reviewNotes, setReviewNotes] = useState('')
 
   const { data: tasksRaw = [], isPending: loadingData } = useQuery({
     ...orpc.quickTasks.list.queryOptions({
@@ -527,17 +567,6 @@ function AdminQuickTasksView() {
       toast(err instanceof Error ? err.message : 'Failed to delete task', 'error'),
   })
 
-  const reviewTaskMutation = useMutation({
-    ...orpc.quickTasks.review.mutationOptions(),
-    onSuccess: () => {
-      toast('Task reviewed!', 'success')
-      setReviewModal(null)
-      void queryClient.invalidateQueries({ queryKey: orpc.quickTasks.list.key() })
-    },
-    onError: (err: unknown) =>
-      toast(err instanceof Error ? err.message : 'Failed to review', 'error'),
-  })
-
   function openEdit(task: AdminQuickTask) {
     setEditModal(task)
     setEditTitle(task.title)
@@ -602,16 +631,6 @@ function AdminQuickTasksView() {
     } catch {
       toast('Could not copy the link', 'error')
     }
-  }
-
-  function reviewTask(e: React.FormEvent, task: AdminQuickTask) {
-    e.preventDefault()
-    reviewTaskMutation.mutate({
-      id: task.id,
-      reviewRating,
-      comment: reviewFeedback || null,
-      reviewNotes: reviewNotes || null,
-    })
   }
 
   return (
@@ -687,7 +706,18 @@ function AdminQuickTasksView() {
               )}
 
               <div className="mb-3">
-                <strong className="text-sm">Comments</strong>
+                <SubmittedWork
+                  submission={task.submission}
+                  changesRequested={
+                    task.changesRequested
+                      ? { message: task.changesRequested, byName: task.reviewedByName }
+                      : null
+                  }
+                />
+              </div>
+
+              <div className="mb-3">
+                <strong className="text-sm">Discussion</strong>
                 <CommentThread workItemId={task.id} />
               </div>
 
@@ -744,17 +774,16 @@ function AdminQuickTasksView() {
                     </Button>
                   )}
                   {task.status === QuickTaskStatus.under_review && (
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setReviewModal(task)
-                        setReviewRating('good')
-                        setReviewFeedback('')
-                        setReviewNotes('')
-                      }}
-                    >
-                      Review
-                    </Button>
+                    <>
+                      <RequestChangesButton
+                        target={{ kind: 'quick', taskId: task.id }}
+                        assigneeName={task.assignedToName}
+                        size="sm"
+                      />
+                      <Button size="sm" onClick={() => setReviewModal(task)}>
+                        Review
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -1027,83 +1056,8 @@ function AdminQuickTasksView() {
         </div>
       )}
 
-      {/* Review Task Modal */}
       {reviewModal !== null && (
-        <div
-          className="fixed inset-0 bg-[rgba(29,53,87,0.5)] flex items-center justify-center z-1000 p-5"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setReviewModal(null)
-          }}
-        >
-          <div
-            role="dialog"
-            aria-labelledby="review-dialog-title"
-            className="bg-surface rounded-xl shadow-lg max-w-150 w-full max-h-[90vh] overflow-y-auto"
-          >
-            <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 id="review-dialog-title">Review Task</h2>
-            </div>
-            <div className="p-6">
-              <h3 className="mb-1">{reviewModal.title}</h3>
-              {reviewModal.assignedToName && (
-                <p className="text-text-light mb-4">Submitted by: {reviewModal.assignedToName}</p>
-              )}
-              <form onSubmit={(e) => reviewTask(e, reviewModal)}>
-                <div className="mb-5">
-                  <label>Rating</label>
-                  <div className="flex flex-col gap-2 mt-2">
-                    {(['excellent', 'good', 'needs_improvement'] as const).map((r) => (
-                      <label key={r} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          value={r}
-                          checked={reviewRating === r}
-                          onChange={() => setReviewRating(r)}
-                        />
-                        <span>
-                          <strong>{RATING_LABELS[r]}</strong>
-                          {r === 'excellent'
-                            ? ': Exceeded expectations'
-                            : r === 'good'
-                              ? ': Met expectations'
-                              : ': Not quite there yet'}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div className="mb-5">
-                  <label htmlFor="rv-notes">Internal Notes (admin only)</label>
-                  <textarea
-                    id="rv-notes"
-                    rows={2}
-                    value={reviewNotes}
-                    onChange={(e) => setReviewNotes(e.target.value)}
-                    placeholder="Your assessment…"
-                  />
-                </div>
-                <div className="mb-5">
-                  <label htmlFor="rv-feedback">{"Feedback to Volunteer (they'll see this)"}</label>
-                  <textarea
-                    id="rv-feedback"
-                    rows={3}
-                    value={reviewFeedback}
-                    onChange={(e) => setReviewFeedback(e.target.value)}
-                    placeholder="Constructive feedback…"
-                  />
-                </div>
-                <div className="px-0 py-4 border-t border-brand-border flex gap-3 justify-end">
-                  <Button type="button" variant="secondary" onClick={() => setReviewModal(null)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={reviewTaskMutation.isPending}>
-                    Submit Review
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
+        <QuickTaskReviewDialog task={reviewModal} onClose={() => setReviewModal(null)} />
       )}
 
       {deleteTarget && (

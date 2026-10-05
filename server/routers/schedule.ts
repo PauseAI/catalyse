@@ -1,7 +1,12 @@
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
-import { applyScheduleWrite, canManageProject } from '@/lib/work-item'
+import {
+  applyScheduleWrite,
+  canManageProject,
+  canManageProjectTasks,
+  isProjectDeputy,
+} from '@/lib/work-item'
 import { approvedProcedure } from '../procedures'
 import { WorkItemType } from '@/generated/prisma/enums'
 
@@ -45,9 +50,22 @@ export const scheduleRouter = {
         where: { id: { in: [...new Set(projectIdFor.values())] }, type: WorkItemType.PROJECT },
       })
       const projectById = new Map(projects.map((p) => [p.id, p]))
+      // A deputy reschedules tasks, never the project's own dates.
+      const projectItemIds = new Set(
+        items.filter((w) => w.type === WorkItemType.PROJECT).map((w) => w.id),
+      )
       for (const projectId of new Set(projectIdFor.values())) {
         const project = projectById.get(projectId)
-        if (!project || !canManageProject(project, volunteer)) {
+        const allowed =
+          project &&
+          (projectItemIds.has(projectId)
+            ? canManageProject(project, volunteer)
+            : canManageProjectTasks(
+                project,
+                volunteer,
+                await isProjectDeputy(projectId, volunteer.id),
+              ))
+        if (!allowed) {
           throw new ORPCError('FORBIDDEN', {
             message: 'You cannot reschedule work on this project',
           })

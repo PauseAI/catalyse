@@ -1,7 +1,7 @@
 import { test, expect, readAdminToken, confirmVolunteerEmail, approveVolunteer } from '../fixtures'
 import { fake } from '../fake'
 import { createApiClient } from '../client'
-import { goToDashboardNotifications } from '../actions/dashboard'
+import { goToInbox } from '../actions/dashboard'
 import type { RouterClient } from '@orpc/server'
 import type { appRouter } from '@/server/router'
 
@@ -78,11 +78,11 @@ test.describe('Task Reordering', () => {
     await adminApi.projects.createTask({ body: { projectId, title: 'Task A' } })
     await adminApi.projects.createTask({ body: { projectId, title: 'Task B' } })
 
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(adminPage.getByText('Task A')).toBeVisible({ timeout: 10_000 })
     await expect(adminPage.getByTitle('Drag to reorder').first()).toBeVisible({ timeout: 10_000 })
 
-    await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
+    await volunteer.page.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(volunteer.page.getByText('Task A')).toBeVisible({ timeout: 10_000 })
     await expect(volunteer.page.getByTitle('Drag to reorder')).toHaveCount(0)
   })
@@ -113,7 +113,7 @@ test.describe('Task Reordering', () => {
     })
     expect(reorder.status).toBe(200)
 
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(adminPage.getByText('Third')).toBeVisible({ timeout: 10_000 })
 
     const taskTitles = await adminPage.locator('ul > li > span.flex-1').allTextContents()
@@ -139,7 +139,7 @@ test.describe('Task Reordering', () => {
     })
     expect(assign.status).toBe(200)
 
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(adminPage.getByText('Third')).toBeVisible({ timeout: 10_000 })
     const taskTitles = await adminPage.locator('ul > li > span.flex-1').allTextContents()
     expect(taskTitles).toEqual(['First', 'Second', 'Third'])
@@ -158,7 +158,7 @@ test.describe('Task Assignment', () => {
 
     const volunteer = await signupApprovedVolunteer(baseUrl)
 
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(adminPage.getByText('Assign me')).toBeVisible({ timeout: 10_000 })
 
     const taskItem = adminPage.locator('li').filter({ hasText: 'Assign me' })
@@ -198,7 +198,7 @@ test.describe('Task Assignment', () => {
     }, volunteer.token)
     const volPage = await context.newPage()
 
-    await goToDashboardNotifications(baseUrl, volPage)
+    await goToInbox(baseUrl, volPage)
     await expect(volPage.getByText(/assigned/i).first()).toBeVisible({ timeout: 10_000 })
 
     await context.close()
@@ -222,7 +222,7 @@ test.describe('Task Assignment', () => {
       body: { projectId, interestType: 'want_to_contribute' },
     })
 
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(adminPage.getByText('Group test task')).toBeVisible({ timeout: 10_000 })
 
     const taskItem = adminPage.locator('li').filter({ hasText: 'Group test task' })
@@ -252,7 +252,7 @@ test.describe('Task Deadlines', () => {
     const futureDeadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     const deadlineValue = futureDeadline.toISOString().slice(0, 10)
 
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await adminPage.getByRole('button', { name: 'Add Task' }).click()
     await adminPage.getByLabel('Task title').fill('Task with deadline')
     await adminPage.getByLabel('Estimated hours').fill('4')
@@ -287,7 +287,7 @@ test.describe('Task Deadlines', () => {
       body: { projectId, taskId: doneTaskId, data: { status: 'completed' } },
     })
 
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     const overdueItem = adminPage.locator('li').filter({ hasText: 'Overdue task' })
     await expect(overdueItem.getByText('Overdue', { exact: true })).toBeVisible({
       timeout: 10_000,

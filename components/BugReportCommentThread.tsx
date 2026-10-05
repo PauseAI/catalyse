@@ -1,7 +1,7 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import CommentThreadView from './CommentThreadView'
+import CommentThreadView, { succeeded } from './CommentThreadView'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 
@@ -23,14 +23,24 @@ export default function BugReportCommentThread({
     ...orpc.bugReportComments.list.queryOptions({ input: { bugReportId } }),
   })
 
-  const addMutation = useMutation({
-    ...orpc.bugReportComments.add.mutationOptions(),
+  const handlers = (done: string, failed: string) => ({
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: orpc.bugReportComments.list.key() })
-      showToast('Comment added', 'success')
+      showToast(done, 'success')
     },
-    onError: (err: unknown) =>
-      showToast(err instanceof Error ? err.message : 'Failed to add comment', 'error'),
+    onError: (err: unknown) => showToast(err instanceof Error ? err.message : failed, 'error'),
+  })
+  const addMutation = useMutation({
+    ...orpc.bugReportComments.add.mutationOptions(),
+    ...handlers('Comment added', 'Failed to add comment'),
+  })
+  const editMutation = useMutation({
+    ...orpc.bugReportComments.edit.mutationOptions(),
+    ...handlers('Comment updated', 'Failed to update comment'),
+  })
+  const deleteMutation = useMutation({
+    ...orpc.bugReportComments.delete.mutationOptions(),
+    ...handlers('Comment deleted', 'Failed to delete comment'),
   })
 
   return (
@@ -39,14 +49,9 @@ export default function BugReportCommentThread({
       canPost={data?.canPost ?? false}
       isPending={isPending}
       isSubmitting={addMutation.isPending}
-      onSubmit={async (content) => {
-        try {
-          await addMutation.mutateAsync({ bugReportId, content })
-          return true
-        } catch {
-          return false
-        }
-      }}
+      onSubmit={(content) => succeeded(() => addMutation.mutateAsync({ bugReportId, content }))}
+      onEdit={(id, content) => succeeded(() => editMutation.mutateAsync({ id, content }))}
+      onDelete={(id) => succeeded(() => deleteMutation.mutateAsync({ id }))}
       emptyText={emptyText}
       placeholder={placeholder}
     />

@@ -50,6 +50,7 @@ export const myRouter = {
       reviewNotes: t.reviewNotes,
       reviewedById: t.reviewedById,
       reviewedAt: t.reviewedAt,
+      changesRequested: t.changesRequestedNote,
       estimatedHours: t.estimatedHours,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,

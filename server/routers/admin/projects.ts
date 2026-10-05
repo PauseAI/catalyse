@@ -151,6 +151,12 @@ export const adminProjectsRouter = {
           })
         }
 
+        await prisma.projectReviewRequest.updateMany({
+          where: { projectId: input.id, resolvedAt: null },
+          data: { resolvedAt: new Date() },
+        })
+        await clearNotifications('project_needs_discussion', input.id)
+
         if (project.creatorId) {
           await notifyUser(
             project.creatorId,
@@ -193,8 +199,17 @@ export const adminProjectsRouter = {
           })
         }
 
+        const feedback = comment?.trim() || 'A team lead would like some changes to your proposal.'
+        // A new round replaces any earlier request still open.
+        await prisma.projectReviewRequest.updateMany({
+          where: { projectId: input.id, resolvedAt: null },
+          data: { resolvedAt: new Date() },
+        })
+        await prisma.projectReviewRequest.create({
+          data: { projectId: input.id, message: feedback, requestedById: admin.id },
+        })
+
         if (project.creatorId) {
-          const feedback = comment || 'A team lead wants to chat about your proposal.'
           await notifyUser(
             project.creatorId,
             'project_needs_discussion',
@@ -203,7 +218,7 @@ export const adminProjectsRouter = {
             `/projects/${input.id}`,
             {
               message:
-                'A team lead would like to discuss your project proposal before it goes live.',
+                'A team lead has asked for changes to your project proposal before it goes live. Make the changes, then press Resubmit for review on the project page.',
               projectTitle: project.title,
               projectId: input.id,
               extraHtml: html`<div
@@ -212,11 +227,13 @@ export const adminProjectsRouter = {
                 <strong>Feedback:</strong> ${feedback}
               </div>`,
             },
+            input.id,
           )
         }
       }
 
       await clearNotifications('new_project_proposal', input.id)
+      await clearNotifications('project_resubmitted', input.id)
 
       return { message: `Project marked as ${status}` }
     }),

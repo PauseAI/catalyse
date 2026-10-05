@@ -1,5 +1,5 @@
 import { test, expect, getAlert } from '../fixtures'
-import { goToDashboardNotifications } from '../actions/dashboard'
+import { goToInbox } from '../actions/dashboard'
 import {
   submitLocalGroupSuggestion,
   submitLocalGroupSuggestionViaApi,
@@ -247,13 +247,17 @@ test.describe('Local Group Suggestions', () => {
     await adminReviewSuggestion(adminPage, groupName, 'accept')
     await expect(getAlert(adminPage)).toContainText('accepted', { timeout: 10_000 })
 
-    await goToDashboardNotifications(baseUrl, volunteer.page)
+    await goToInbox(baseUrl, volunteer.page)
     await expect(
       volunteer.page
         .locator('strong')
         .filter({ hasText: `Approved: your local group suggestion "${groupName}"` }),
     ).toBeVisible({ timeout: 10_000 })
-    await volunteer.page.getByRole('link', { name: 'View' }).first().click()
+    await volunteer.page
+      .getByRole('listitem')
+      .filter({ hasText: `Approved: your local group suggestion "${groupName}"` })
+      .getByRole('link', { name: 'Open' })
+      .click()
 
     await expect(volunteer.page).toHaveURL(/\/local-groups\/\d+$/)
     await expect(volunteer.page.getByRole('heading', { name: groupName, level: 1 })).toBeVisible({

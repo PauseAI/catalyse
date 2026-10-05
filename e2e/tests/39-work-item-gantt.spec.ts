@@ -185,9 +185,9 @@ test.describe('Work item scheduling and dependencies', () => {
     await expect(panel.getByRole('button', { name: 'Save' })).toBeVisible()
     await expect(panel.getByRole('link', { name: 'Open task' })).toBeVisible()
 
-    // Leaving the tab clears the hash, so Back returns to the list.
-    await adminPage.getByRole('tab', { name: 'List' }).click()
-    await expect(adminPage).toHaveURL(new RegExp(`/projects/${projectId}$`))
+    // Each tab has its own address, so Back returns to the timeline.
+    await adminPage.getByRole('tab', { name: /^Tasks/ }).click()
+    await expect(adminPage).toHaveURL(new RegExp(`/projects/${projectId}#tasks$`))
     await adminPage.goBack()
     await expect(adminPage.getByRole('button', { name: /Visible task:/ })).toBeVisible()
   })

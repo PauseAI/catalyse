@@ -81,13 +81,16 @@ test.describe('Task Detail Page', () => {
       volunteer.page.getByRole('heading', { name: 'Claim me from the detail page', level: 1 }),
     ).toBeVisible({ timeout: 10_000 })
 
+    // Not on the project yet: the claim asks the owner and holds the task meanwhile.
     await volunteer.page.getByRole('button', { name: 'Claim' }).click()
-    await expect(getAlert(volunteer.page)).toContainText('Task claimed. Post an update', {
+    await expect(getAlert(volunteer.page)).toContainText('Requested. The task is held for you', {
       timeout: 10_000,
     })
-    await expect(volunteer.page.getByText(`Assigned to ${volunteer.name}`)).toBeVisible({
-      timeout: 10_000,
-    })
+    await expect(
+      volunteer.page.getByText('Held for you until the owner accepts you onto the project.', {
+        exact: true,
+      }),
+    ).toBeVisible({ timeout: 10_000 })
     await expect(volunteer.page.getByRole('button', { name: 'Claim' })).not.toBeVisible()
   })
 
@@ -138,7 +141,7 @@ test.describe('Task Detail Page', () => {
       body: { projectId, taskId, assigneeId: targetVolunteer.id },
     })
 
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(adminPage.getByText('Unassign me')).toBeVisible({ timeout: 10_000 })
 
     const taskItem = adminPage.locator('li').filter({ hasText: 'Unassign me' })

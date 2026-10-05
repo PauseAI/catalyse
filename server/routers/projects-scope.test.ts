@@ -66,7 +66,7 @@ describe('country-scoped projects', () => {
         data: { assigneeId: inUk.id, status: 'in_progress' },
       }),
     ).rejects.toMatchObject(notFound)
-    const suggested = titles((await uk.dashboard.get()).suggestedProjects)
+    const suggested = titles((await uk.dashboard.get()).find?.matches.items ?? [])
     expect(suggested).toContain('Scope anywhere')
     expect(suggested).not.toContain('Scope Swedish')
     expect(titles((await uk.volunteers.getById({ id: owner.id })).projects)).toEqual([
@@ -81,12 +81,12 @@ describe('country-scoped projects', () => {
       'Scope Swedish',
     )
     expect((await se.projects.getById({ id: swedish.id })).title).toBe('Scope Swedish')
-    expect(titles((await se.dashboard.get()).suggestedProjects)).toContain('Scope Swedish')
+    expect(titles((await se.dashboard.get()).find?.matches.items ?? [])).toContain('Scope Swedish')
   })
 
   it('stay visible to someone the owner added, or who holds one of its tasks', async () => {
     const { owner, inUk, swedish, task } = await setup()
-    await clientAs(owner).projects.assign({ projectId: swedish.id, volunteerId: inUk.id })
+    await clientAs(owner).projects.invite({ projectId: swedish.id, volunteerId: inUk.id })
     const uk = clientAs(inUk)
     expect((await uk.projects.getById({ id: swedish.id })).title).toBe('Scope Swedish')
     expect(titles((await uk.projects.list({ search: 'Scope' })).projects)).toContain(

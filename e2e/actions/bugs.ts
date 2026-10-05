@@ -49,7 +49,9 @@ export async function submitBugReport(
   description: string,
 ): Promise<void> {
   await page.goto(`${baseUrl}/dashboard`)
-  await expect(page.getByRole('heading', { name: /Welcome back/ })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { level: 1, name: /^Hi / })).toBeVisible({
+    timeout: 10_000,
+  })
   await openBugReportForm(page)
   await fillAndSubmitBugReport(page, { title, description })
   await expect(

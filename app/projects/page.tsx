@@ -20,6 +20,7 @@ import PageLoading from '@/components/PageLoading'
 import ResendConfirmation from '@/components/ResendConfirmation'
 import Skeleton from '@/components/Skeleton'
 import EmptyState from '@/components/EmptyState'
+import ViewSwitch, { PROJECT_VIEWS } from '@/components/ViewSwitch'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All' },
@@ -124,6 +125,12 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
   const localGroups: LocalGroupOption[] = localGroupsData?.groups ?? []
 
   const { data: teamsData } = useQuery({ ...orpc.teams.list.queryOptions(), enabled: !!user })
+  // The template button only shows once there is a template to start from.
+  const { data: templates = [] } = useQuery({
+    ...orpc.templates.list.queryOptions({ input: {} }),
+    enabled: !!user,
+  })
+  const hasTemplates = templates.length > 0
   const allTeamsList = teamsData?.teams ?? []
   const myTeams = allTeamsList.filter((t) => t.viewerRole !== null)
   const teamOptions = user.isAdmin
@@ -271,15 +278,18 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
       <main className="container py-5 pb-15">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 role="heading">Projects</h1>
-          <div className="flex items-center gap-4">
-            {!needsConfirmation && (
-              <Link href="/projects/gantt" className="text-primary-text text-sm underline">
-                Roadmap →
-              </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {!needsConfirmation && hasTemplates && (
+              <Button href="/templates" variant="secondary">
+                Start from a template
+              </Button>
             )}
             <Button href="/suggest">Propose a project</Button>
           </div>
         </div>
+        {!needsConfirmation && (
+          <ViewSwitch label="Project views" views={PROJECT_VIEWS} current="/projects" />
+        )}
 
         {turnedAway && (
           <div
@@ -289,20 +299,6 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
             <span>{turnedAway.text}</span>
             <Button variant="ghost" icon onClick={turnedAway.dismiss} aria-label="Dismiss">
               ×
-            </Button>
-          </div>
-        )}
-
-        {!needsConfirmation && (
-          <div className="border-brand-border bg-surface mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
-            <div>
-              <h2 className="m-0 text-base">Project templates</h2>
-              <p className="text-text-light m-0 text-sm">
-                Templates for projects to help you replicate success in your area.
-              </p>
-            </div>
-            <Button href="/templates" variant="secondary" size="sm">
-              Browse templates
             </Button>
           </div>
         )}

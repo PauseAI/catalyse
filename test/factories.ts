@@ -105,3 +105,16 @@ export async function createLocalGroup(
   const n = nextSeq()
   return prisma.localGroup.create({ data: { name: `Group ${n}`, country: 'UK', ...overrides } })
 }
+
+/** Two volunteers who have accepted a contact request, so they may message each other. */
+export function connect(a: { id: number }, b: { id: number }) {
+  return prisma.contactRequest.create({
+    data: {
+      fromVolunteerId: a.id,
+      toVolunteerId: b.id,
+      message: 'We met at a meeting and would like to talk.',
+      status: 'accepted',
+      respondedAt: new Date(),
+    },
+  })
+}

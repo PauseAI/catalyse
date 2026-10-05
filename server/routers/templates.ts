@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { HttpUrlSchema } from '@/lib/schemas'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { loadTaskEdges } from '@/lib/project-schedule'
@@ -39,7 +40,7 @@ const ScratchTemplateSchema = z.object({
   estimatedDuration: z.string().nullable().optional(),
   timeCommitmentHoursPerWeek: z.number().int().min(0).max(1000).nullable().optional(),
   urgency: z.string().nullable().optional(),
-  collaborationLink: z.string().nullable().optional(),
+  collaborationLink: HttpUrlSchema.nullable().optional(),
   remoteEligibility: z.enum(['NONE', 'COUNTRY', 'GLOBAL']).optional(),
   durationDays: z.number().int().min(0).max(3650).nullable().optional(),
   tasks: z.array(ScratchTaskSchema).max(1000).optional(),

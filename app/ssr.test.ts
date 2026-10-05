@@ -39,7 +39,7 @@ describe('server rendering of client pages', () => {
   it('renders the dashboard shell without a window', async () => {
     const { default: DashboardPage } = await import('./dashboard/page')
     // Signed out on the server: the page renders nothing but the toast container.
-    expect(await ssr(DashboardPage)).not.toContain('Welcome back')
+    expect(await ssr(DashboardPage)).not.toContain('Needs your attention')
   })
 
   it('renders the root layout shell around its children', async () => {

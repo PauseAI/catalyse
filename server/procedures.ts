@@ -1,6 +1,7 @@
 import { os, ORPCError } from '@orpc/server'
 import { ApprovalStatus } from '@/generated/prisma/enums'
 import { isSuperAdmin } from '@/lib/auth'
+import { touchLastActive } from '@/lib/activity'
 import { inputLimitViolation } from '@/lib/input-limits'
 import { canBypassMaintenance, isMaintenanceMode } from '@/lib/maintenance'
 import { MAINTENANCE_MESSAGE } from '@/lib/maintenance-message'
@@ -33,8 +34,9 @@ const base = os.$context<Context>().use(async ({ context, next, path }, input) =
 
 export const publicProcedure = base
 
-export const authedProcedure = base.use(({ context, next }) => {
+export const authedProcedure = base.use(async ({ context, next }) => {
   if (!context.volunteer) throw new ORPCError('UNAUTHORIZED')
+  await touchLastActive(context.volunteer)
   return next({ context: { volunteer: context.volunteer, token: context.token } })
 })
 

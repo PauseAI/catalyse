@@ -248,6 +248,20 @@ describe('templates.instantiate / canInstantiate', () => {
     await expect(c.templates.instantiate({ templateId: corrupt.id })).rejects.toMatchObject({
       message: expect.stringContaining('unrecognised structure'),
     })
+    // A stored doc link is rendered as an href, so a non-http(s) scheme is not a template.
+    const scripted = await prisma.template.create({
+      data: {
+        title: 'Scripted',
+        structure: JSON.stringify({
+          sourceType: 'PROJECT',
+          title: 'Scripted',
+          collaborationLink: 'javascript:alert(1)',
+        }),
+      },
+    })
+    await expect(c.templates.instantiate({ templateId: scripted.id })).rejects.toMatchObject({
+      message: expect.stringContaining('unrecognised structure'),
+    })
     // A structure can pass the schema yet carry a dangling dependency ref.
     const dangling = await prisma.template.create({
       data: {

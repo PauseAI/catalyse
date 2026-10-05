@@ -22,8 +22,47 @@ async function upsertAccount(
   )
 }
 
-export async function seedDevAccounts(db: Client): Promise<void> {
-  await upsertAccount(db, 'Dev Volunteer', 'volunteer@example.com', 'password1', false)
-  await upsertAccount(db, 'Dev Admin', 'admin@example.com', 'password1', true)
-  await upsertAccount(db, 'Dev Super Admin', 'superadmin@example.com', 'password1', true)
+export interface DevAccountCounts {
+  volunteer: number
+  admin: number
+  superadmin: number
+}
+
+const ROLES = [
+  { key: 'volunteer', label: 'Dev Volunteer', isAdmin: false },
+  { key: 'admin', label: 'Dev Admin', isAdmin: true },
+  { key: 'superadmin', label: 'Dev Super Admin', isAdmin: true },
+] as const
+
+function countFromEnv(name: string): number {
+  const raw = process.env[name]
+  if (raw === undefined || raw === '') return 1
+  const n = Number(raw)
+  if (!Number.isInteger(n) || n < 0) throw new Error(`${name} must be a non-negative integer`)
+  return n
+}
+
+export function devAccountCountsFromEnv(): DevAccountCounts {
+  return {
+    volunteer: countFromEnv('SEED_VOLUNTEERS'),
+    admin: countFromEnv('SEED_ADMINS'),
+    superadmin: countFromEnv('SEED_SUPERADMINS'),
+  }
+}
+
+/** The first account of a role is `volunteer@example.com`, then `volunteer1@`, `volunteer2@`, ... */
+export function devAccountEmails(role: keyof DevAccountCounts, count: number): string[] {
+  return Array.from({ length: count }, (_, i) => `${role}${i === 0 ? '' : i}@example.com`)
+}
+
+export async function seedDevAccounts(
+  db: Client,
+  counts: DevAccountCounts = devAccountCountsFromEnv(),
+): Promise<void> {
+  for (const { key, label, isAdmin } of ROLES) {
+    const emails = devAccountEmails(key, counts[key])
+    for (const [i, email] of emails.entries()) {
+      await upsertAccount(db, i === 0 ? label : `${label} ${i}`, email, 'password1', isAdmin)
+    }
+  }
 }

@@ -9,15 +9,20 @@ import Button from '@/components/Button'
 import Checkbox from '@/components/Checkbox'
 import { Badge } from '@/components/Badge'
 import CommentThread from '@/components/CommentThread'
+import MessageDialog from '@/components/MessageDialog'
 import Linkify from '@/components/Linkify'
 import { useToast } from '@/lib/toast'
 import { formatDate, toDateInputValue, fromDateInputValue } from '@/lib/format-date'
 import { TaskStatus } from '@/generated/prisma/enums'
 import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS } from '@/lib/status-labels'
-import { PROJECT_TASK_CLAIMED_MESSAGE } from '@/lib/action-messages'
+import { PROJECT_TASK_CLAIMED_MESSAGE, TASK_REQUESTED_MESSAGE } from '@/lib/action-messages'
 import { TASK_INACTIVITY_RULE } from '@/lib/staleness'
+import { awaitsOwnerReview } from '@/lib/task-review'
 import PageLoading from '@/components/PageLoading'
 import NotFoundCard from '@/components/NotFoundCard'
+import SubmitWorkButton from '@/components/SubmitWorkButton'
+import SubmittedWork from '@/components/SubmittedWork'
+import RequestChangesButton from '@/components/RequestChangesButton'
 
 export default function TaskDetailPage({
   params,
@@ -36,7 +41,7 @@ export default function TaskDetailPage({
     enabled: !!user && !isNaN(projectId) && !isNaN(taskId),
   })
 
-  const canEdit = !!user && !!task && (user.isAdmin || task.projectOwnerId === user.id)
+  const canEdit = !!user && !!task && task.canManage
 
   const [editTitle, setEditTitle] = useState('')
   const [editDescription, setEditDescription] = useState('')
@@ -47,6 +52,7 @@ export default function TaskDetailPage({
   const [editFeatured, setEditFeatured] = useState(false)
   const [initialized, setInitialized] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [messaging, setMessaging] = useState(false)
 
   useEffect(() => {
     if (!task || initialized) return
@@ -63,12 +69,12 @@ export default function TaskDetailPage({
 
   const updateMutation = useMutation({
     ...orpc.projects.updateTask.mutationOptions(),
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
       showToast(
-        variables.data.status === TaskStatus.in_progress
-          ? PROJECT_TASK_CLAIMED_MESSAGE
-          : variables.data.status === TaskStatus.completed
-            ? 'Task completed!'
+        data.requested
+          ? TASK_REQUESTED_MESSAGE
+          : variables.data.status === TaskStatus.in_progress
+            ? PROJECT_TASK_CLAIMED_MESSAGE
             : 'Task updated!',
         'success',
       )
@@ -82,6 +88,16 @@ export default function TaskDetailPage({
 
   const invalidateTask = () =>
     queryClient.invalidateQueries({ queryKey: orpc.projects.getTask.key() })
+
+  const acceptMutation = useMutation({
+    ...orpc.projects.acceptTask.mutationOptions(),
+    onSuccess: () => {
+      showToast('Accepted. The task is done.', 'success')
+      void invalidateTask()
+    },
+    onError: (err: unknown) =>
+      showToast(err instanceof Error ? err.message : 'Failed to accept', 'error'),
+  })
 
   const addDependencyMutation = useMutation({
     ...orpc.dependencies.add.mutationOptions(),
@@ -151,10 +167,6 @@ export default function TaskDetailPage({
     })
   }
 
-  function handleDoneTask() {
-    updateMutation.mutate({ projectId, taskId, data: { status: TaskStatus.completed } })
-  }
-
   if (loading || !user) return <PageLoading />
 
   if (isLoading) {
@@ -208,6 +220,13 @@ export default function TaskDetailPage({
               Assigned to {task.assignedToName}
             </span>
           )}
+          {task.assignedToId !== null &&
+            task.assignedToId !== user.id &&
+            task.assigneeContactable && (
+              <Button size="sm" variant="secondary" onClick={() => setMessaging(true)}>
+                Message {task.assignedToName}
+              </Button>
+            )}
           {task.estimatedHours !== null && (
             <span className="text-text-light text-sm self-center">
               ~{task.estimatedHours}h estimated
@@ -242,7 +261,15 @@ export default function TaskDetailPage({
           </p>
         )}
 
-        {task.status === TaskStatus.open && task.canClaim && (
+        {task.requestedById !== null && (
+          <p className="text-sm text-text-light mt-4 mb-0">
+            {task.requestedById === user.id
+              ? 'Held for you until the owner accepts you onto the project.'
+              : `Requested by ${task.requestedByName}, waiting for the owner.`}
+          </p>
+        )}
+
+        {task.status === TaskStatus.open && task.requestedById === null && task.canClaim && (
           <div className="mt-4">
             <Button
               variant="secondary"
@@ -256,16 +283,38 @@ export default function TaskDetailPage({
           </div>
         )}
 
+        <SubmittedWork submission={task.submission} changesRequested={task.changesRequested} />
+
+        {task.status === TaskStatus.under_review && task.canManage && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            <Button
+              disabled={acceptMutation.isPending}
+              onClick={() => acceptMutation.mutate({ projectId, taskId })}
+            >
+              Accept
+            </Button>
+            <RequestChangesButton
+              target={{ kind: 'project', projectId, taskId }}
+              assigneeName={task.assignedToName}
+            />
+          </div>
+        )}
+
         {task.status === TaskStatus.in_progress && task.assignedToId === user.id && (
           <div className="mt-4">
-            <Button
-              variant="secondary"
+            <SubmitWorkButton
+              target={{ kind: 'project', projectId, taskId }}
+              reviewer={
+                awaitsOwnerReview(
+                  { autoAcceptTasks: task.autoAcceptTasks, ownerId: task.projectOwnerId },
+                  task.canManage,
+                )
+                  ? 'The project owner'
+                  : null
+              }
               size="sm"
-              disabled={updateMutation.isPending}
-              onClick={handleDoneTask}
-            >
-              Mark done
-            </Button>
+              variant="secondary"
+            />
             <p className="text-sm text-text-light mt-2 mb-0">{TASK_INACTIVITY_RULE}</p>
           </div>
         )}
@@ -478,9 +527,23 @@ export default function TaskDetailPage({
       </div>
 
       <div className="bg-surface rounded-xl shadow p-6">
-        <h2 className="text-lg mb-4">Comments</h2>
+        <h2 className="text-lg mb-1">Discussion</h2>
+        <p className="text-sm text-text-light mb-4">
+          About this task only. For the whole project, use the{' '}
+          <Link href={`/projects/${projectId}#discussion`}>project discussion</Link>.
+        </p>
         <CommentThread workItemId={task.id} />
       </div>
+      {messaging && task.assignedToId !== null && (
+        <MessageDialog
+          id="message-assignee"
+          title={`Message ${task.assignedToName}`}
+          recipientId={task.assignedToId}
+          recipientName={task.assignedToName ?? 'The assignee'}
+          relatedProjectId={projectId}
+          onClose={() => setMessaging(false)}
+        />
+      )}
     </main>
   )
 }

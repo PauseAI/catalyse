@@ -38,6 +38,11 @@ describe('useUrlParam', () => {
     window.history.replaceState(null, '', '/projects?status=x')
     await userEvent.click(screen.getByText('clear'))
     expect(window.location.href).toMatch(/\/projects$/)
+    // Clearing a param that isn't there writes nothing.
+    const replace = vi.spyOn(window.history, 'replaceState')
+    await userEvent.click(screen.getByText('clear'))
+    expect(replace).not.toHaveBeenCalled()
+    replace.mockRestore()
   })
 })
 

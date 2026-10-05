@@ -1,12 +1,16 @@
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
+import { Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 import { redactVolunteer } from '@/lib/auth'
 import { UpdateVolunteerSchema } from '@/lib/schemas'
 import { projectScopeWhere } from '@/lib/work-item'
+import { canReach, contactRelations } from '@/lib/contact'
+import { isActiveRecently } from '@/lib/activity'
 import { approvedProcedure, authedProcedure } from '../procedures'
 import {
   ApprovalStatus,
+  ContactRequestStatus,
   InterestStatus,
   ProjectStatus,
   QuickTaskStatus,
@@ -32,6 +36,33 @@ export const volunteersRouter = {
       // public directory.
       const isAdmin = Boolean(currentVolunteer.isAdmin || currentVolunteer.isTechnicalAdmin)
 
+      const textConditions: Prisma.Sql[] = []
+      if (input.search) {
+        const like = `%${input.search}%`
+        textConditions.push(
+          Prisma.sql`(public.unaccent(name) ILIKE public.unaccent(${like}) OR public.unaccent(COALESCE(bio, '')) ILIKE public.unaccent(${like}))`,
+        )
+      }
+      if (input.country) {
+        const like = `%${input.country}%`
+        textConditions.push(
+          Prisma.sql`(country = ${input.country} OR (country IS NULL AND public.unaccent(COALESCE(location, '')) ILIKE public.unaccent(${like})))`,
+        )
+      }
+      if (input.localGroup) {
+        const like = `%${input.localGroup}%`
+        textConditions.push(
+          Prisma.sql`(local_group = ${input.localGroup} OR (local_group IS NULL AND public.unaccent(COALESCE(location, '')) ILIKE public.unaccent(${like})))`,
+        )
+      }
+      const matchingIds = textConditions.length
+        ? (
+            await prisma.$queryRaw<{ id: number }[]>`
+              SELECT id FROM volunteers WHERE ${Prisma.join(textConditions, ' AND ')}
+            `
+          ).map((row) => row.id)
+        : null
+
       const where: Record<string, unknown> = {
         deletedAt: null,
         ...(isAdmin ? {} : { consentMakeProfileVisibleInDirectory: true }),
@@ -39,31 +70,7 @@ export const volunteersRouter = {
         ...(input.skillIds && input.skillIds.length > 0
           ? { skills: { some: { skillId: { in: input.skillIds } } } }
           : {}),
-        AND: [
-          ...(input.search
-            ? [{ OR: [{ name: { contains: input.search } }, { bio: { contains: input.search } }] }]
-            : []),
-          ...(input.country
-            ? [
-                {
-                  OR: [
-                    { country: input.country },
-                    { country: null, location: { contains: input.country } },
-                  ],
-                },
-              ]
-            : []),
-          ...(input.localGroup
-            ? [
-                {
-                  OR: [
-                    { localGroup: input.localGroup },
-                    { localGroup: null, location: { contains: input.localGroup } },
-                  ],
-                },
-              ]
-            : []),
-        ],
+        ...(matchingIds !== null ? { id: { in: matchingIds } } : {}),
       }
 
       const [volunteers, total] = await Promise.all([
@@ -79,6 +86,7 @@ export const volunteersRouter = {
             otherSkills: true,
             localGroup: true,
             createdAt: true,
+            lastActiveAt: true,
             consentMakeProfileVisibleInDirectory: true,
             skills: {
               include: { skill: { include: { category: true } } },
@@ -95,9 +103,16 @@ export const volunteersRouter = {
         prisma.volunteer.count({ where }),
       ])
 
+      const relations = await contactRelations(
+        currentVolunteer,
+        volunteers.map((v) => v.id),
+      )
       return {
         volunteers: volunteers.map((v) => ({
           id: v.id,
+          canMessage: v.id !== currentVolunteer.id && relations.reachable.has(v.id),
+          contactRequested: relations.requested.has(v.id),
+          activeRecently: isActiveRecently(v.lastActiveAt),
           name: v.name,
           bio: v.bio,
           availabilityHoursPerWeek: v.availabilityHoursPerWeek,
@@ -169,6 +184,7 @@ export const volunteersRouter = {
                         InterestStatus.declined,
                         InterestStatus.withdrawn,
                         InterestStatus.removed,
+                        InterestStatus.cancelled,
                       ],
                     },
                   },
@@ -177,24 +193,25 @@ export const volunteersRouter = {
             ],
           },
         })
-        if (ownedProjectLink === 0) {
+        if (ownedProjectLink === 0 && !(await canReach(currentVolunteer, vol.id))) {
           throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
         }
       }
 
-      let showContact = false
-      if (currentVolunteer) {
-        if (currentVolunteer.id === input.id) {
-          showContact = true
-        } else if (currentVolunteer.isAdmin) {
-          showContact = true
-        } else if (
-          vol.consentContactableByProjectOwners &&
-          vol.consentShareContactInfoWithProjectOwner
-        ) {
-          showContact = true
-        }
-      }
+      // Contact details go only to people who work with the volunteer, or whom they have
+      // accepted a contact request from (lib/contact.ts); admins and the volunteer see them too.
+      const [relations, incoming] = await Promise.all([
+        contactRelations(currentVolunteer, [vol.id]),
+        prisma.contactRequest.findFirst({
+          where: {
+            fromVolunteerId: vol.id,
+            toVolunteerId: currentVolunteer.id,
+            status: ContactRequestStatus.pending,
+          },
+          select: { id: true, message: true },
+        }),
+      ])
+      const showContact = isAdmin || relations.reachable.has(vol.id)
 
       const skills = vol.skills.map((vs) => ({
         id: vs.skill.id,
@@ -264,6 +281,14 @@ export const volunteersRouter = {
       })
       return {
         ...profile,
+        canMessage: vol.id !== currentVolunteer.id && showContact,
+        contactRequested: relations.requested.has(vol.id),
+        incomingContactRequest: incoming,
+        canRequestContact:
+          !showContact &&
+          vol.id !== currentVolunteer.id &&
+          Boolean(vol.consentMakeProfileVisibleInDirectory),
+        activeRecently: isActiveRecently(vol.lastActiveAt),
         projects: projects.map((p) => ({
           id: p.id,
           title: p.title,
@@ -328,6 +353,7 @@ export const volunteersRouter = {
       'localGroup',
       'otherSkills',
       'emailDigest',
+      'emailMutedCategories',
       'notifyRemoteProjects',
       'applicationMessage',
     ] as const

@@ -1,20 +1,39 @@
 'use client'
 
-import { use, useState } from 'react'
+import { use } from 'react'
 import { useRequireAuth } from '@/lib/hooks/auth'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import Button from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { STATUS_LABELS, projectStatusVariant } from '@/components/ProjectCard'
-import MessageDialog from '@/components/MessageDialog'
+import ContactButton from '@/components/ContactButton'
+import ActiveDot from '@/components/ActiveDot'
+import Linkify from '@/components/Linkify'
+import { useToast } from '@/lib/toast'
 import { volunteerLocation } from '@/lib/filter-options'
 import { orpc } from '@/lib/orpc'
 
 export default function VolunteerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { user, loading } = useRequireAuth()
-  const [messaging, setMessaging] = useState(false)
+  const showToast = useToast()
+  const queryClient = useQueryClient()
+  const respond = useMutation({
+    ...orpc.contacts.respond.mutationOptions(),
+    onSuccess: (_data, variables) => {
+      showToast(
+        variables.accept
+          ? 'Connected. You can now message each other.'
+          : 'Request declined. They are not told.',
+        'success',
+      )
+      void queryClient.invalidateQueries({ queryKey: orpc.volunteers.getById.key() })
+      void queryClient.invalidateQueries({ queryKey: orpc.notifications.key() })
+    },
+    onError: (err: unknown) =>
+      showToast(err instanceof Error ? err.message : 'Failed to answer the request', 'error'),
+  })
 
   const {
     data: volunteer,
@@ -53,10 +72,8 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
   const skills = volunteer.skills ?? []
   const endorsements = volunteer.endorsements ?? []
   const endorsedSkillIds = new Set(endorsements.map((e) => e.skillId))
-  const canMessage =
-    volunteer.id !== user.id && Boolean(volunteer.consentContactableByProjectOwners)
-  const hasContact =
-    canMessage || volunteer.discordHandle || volunteer.signalNumber || volunteer.whatsappNumber
+  const isMe = volunteer.id === user.id
+  const incoming = volunteer.incomingContactRequest
 
   return (
     <>
@@ -68,10 +85,43 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
         </div>
 
         <div id="profileContent">
+          {incoming && (
+            <section
+              aria-label="Contact request"
+              className="bg-surface rounded-xl shadow p-6 mb-4 border-l-4 border-primary"
+            >
+              <h2 className="text-lg m-0 mb-2">{volunteer.name} would like to connect</h2>
+              <p className="m-0 mb-3 whitespace-pre-wrap">
+                <Linkify text={incoming.message} />
+              </p>
+              <p className="text-sm text-text-light m-0 mb-3">
+                Accepting lets you both see each other&apos;s contact details and message each
+                other. Declining is quiet: they are not told.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  disabled={respond.isPending}
+                  onClick={() => respond.mutate({ id: incoming.id, accept: true })}
+                >
+                  Accept
+                </Button>
+                <Button
+                  variant="secondary"
+                  disabled={respond.isPending}
+                  onClick={() => respond.mutate({ id: incoming.id, accept: false })}
+                >
+                  Decline
+                </Button>
+              </div>
+            </section>
+          )}
           <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word">
-            <h1 id="volunteerName" className="m-0 mb-2">
-              {volunteer.name}
-            </h1>
+            <div className="flex items-center mb-2">
+              <h1 id="volunteerName" className="m-0">
+                {volunteer.name}
+              </h1>
+              {volunteer.activeRecently && <ActiveDot />}
+            </div>
 
             {volunteerLocation(volunteer) && (
               <p className="text-text-light mb-4 text-sm">📍 {volunteerLocation(volunteer)}</p>
@@ -113,27 +163,37 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               )}
 
-              <div id="contactInfo" className={hasContact ? 'block' : 'hidden'}>
-                <h4 className="text-text-light">Contact</h4>
-                <div>
-                  {volunteer.discordHandle && <div>Discord: {volunteer.discordHandle}</div>}
-                  {volunteer.signalNumber && <div>Signal: {volunteer.signalNumber}</div>}
-                  {volunteer.whatsappNumber && <div>WhatsApp: {volunteer.whatsappNumber}</div>}
-                  {volunteer.contactNotes && (
-                    <div>
-                      <em>{volunteer.contactNotes}</em>
-                    </div>
-                  )}
-                  {canMessage && (
+              {!isMe && (
+                <div id="contactInfo">
+                  <h4 className="text-text-light">Contact</h4>
+                  <div>
+                    {volunteer.discordHandle && <div>Discord: {volunteer.discordHandle}</div>}
+                    {volunteer.signalNumber && <div>Signal: {volunteer.signalNumber}</div>}
+                    {volunteer.whatsappNumber && <div>WhatsApp: {volunteer.whatsappNumber}</div>}
+                    {volunteer.contactNotes && (
+                      <div>
+                        <em>{volunteer.contactNotes}</em>
+                      </div>
+                    )}
                     <div className="mt-2">
-                      <p className="text-sm text-text-light mb-2">Contact via message</p>
-                      <Button variant="secondary" size="sm" onClick={() => setMessaging(true)}>
-                        Message
-                      </Button>
+                      <ContactButton
+                        volunteerId={volunteer.id}
+                        name={volunteer.name}
+                        canMessage={volunteer.canMessage}
+                        canRequestContact={volunteer.canRequestContact}
+                        contactRequested={volunteer.contactRequested}
+                      />
+                      {!volunteer.canMessage &&
+                        !volunteer.canRequestContact &&
+                        !volunteer.contactRequested && (
+                          <p className="text-sm text-text-light m-0">
+                            You can reach them once you work on a project together.
+                          </p>
+                        )}
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -207,15 +267,6 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
           )}
         </div>
       </main>
-      {messaging && (
-        <MessageDialog
-          id="message-volunteer"
-          title={`Message ${volunteer.name}`}
-          recipientId={volunteer.id}
-          recipientName={volunteer.name}
-          onClose={() => setMessaging(false)}
-        />
-      )}
     </>
   )
 }

@@ -1,11 +1,12 @@
 import { test, expect, getAlert } from '../fixtures'
-import { goToDashboardNotifications } from '../actions/dashboard'
+import { goToInbox } from '../actions/dashboard'
 import { fake } from '../fake'
 import {
   proposeProject,
   adminApproveProject,
   adminCreateProjectViaApi,
   transferProjectOwnership,
+  joinProject,
 } from '../actions/projects'
 import { selectFilterDropdown } from '../actions/ui'
 
@@ -21,20 +22,19 @@ test.describe('Project Interests and Assignment', () => {
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
 
-    // want_to_contribute is selected by default; submit directly
-    await expect(volunteer.page.getByRole('radio', { name: /I want to help out/ })).toBeChecked({
-      timeout: 10_000,
-    })
-    await volunteer.page.getByRole('button', { name: 'Express Interest' }).click()
+    // Helping out is selected by default.
+    await joinProject(volunteer.page)
 
     await expect(getAlert(volunteer.page)).toContainText(
       "You'll get a notification when they reply",
       { timeout: 10_000 },
     )
-    await expect(volunteer.page.getByRole('button', { name: 'Express Interest' })).not.toBeVisible({
-      timeout: 10_000,
-    })
-    await expect(volunteer.page.getByLabel('interest status')).toContainText('Applied', {
+    await expect(volunteer.page.getByRole('button', { name: 'Join this project' })).not.toBeVisible(
+      {
+        timeout: 10_000,
+      },
+    )
+    await expect(volunteer.page.getByLabel('interest status')).toContainText('Request sent', {
       timeout: 10_000,
     })
   })
@@ -45,14 +45,13 @@ test.describe('Project Interests and Assignment', () => {
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
 
-    await volunteer.page.getByRole('radio', { name: /I want to own/ }).click()
-    await volunteer.page.getByRole('button', { name: 'Express Interest' }).click()
+    await joinProject(volunteer.page, { lead: true })
 
     await expect(getAlert(volunteer.page)).toContainText(
       "You'll get a notification when they reply",
       { timeout: 10_000 },
     )
-    await expect(volunteer.page.getByLabel('interest status')).toContainText('Applied', {
+    await expect(volunteer.page.getByLabel('interest status')).toContainText('Request sent', {
       timeout: 10_000,
     })
   })
@@ -65,14 +64,13 @@ test.describe('Project Interests and Assignment', () => {
     const projectId = await setupSeekingProject(baseUrl)
 
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
-    await volunteer.page.getByRole('radio', { name: /I want to own/ }).click()
-    await volunteer.page.getByRole('button', { name: 'Express Interest' }).click()
+    await joinProject(volunteer.page, { lead: true })
     await expect(getAlert(volunteer.page)).toContainText(
       "You'll get a notification when they reply",
       { timeout: 10_000 },
     )
 
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#people`)
     const interestCard = adminPage.locator('.interest-card').filter({ hasText: volunteer.name })
     await expect(interestCard).toBeVisible({ timeout: 10_000 })
     await interestCard.getByRole('button', { name: 'Accept' }).click()
@@ -96,14 +94,13 @@ test.describe('Project Interests and Assignment', () => {
     const applicantMessage = fake.feedbackText()
 
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
-    await volunteer.page.getByLabel('Message (optional)').fill(applicantMessage)
-    await volunteer.page.getByRole('button', { name: 'Express Interest' }).click()
+    await joinProject(volunteer.page, { message: applicantMessage })
     await expect(getAlert(volunteer.page)).toContainText(
       "You'll get a notification when they reply",
       { timeout: 10_000 },
     )
 
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#people`)
     const interestCard = adminPage.locator('.interest-card').filter({ hasText: volunteer.name })
     await expect(interestCard).toContainText(applicantMessage, { timeout: 10_000 })
 
@@ -121,17 +118,14 @@ test.describe('Project Interests and Assignment', () => {
 
     // Volunteer expresses interest
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
-    await expect(volunteer.page.getByRole('button', { name: 'Express Interest' })).toBeVisible({
-      timeout: 10_000,
-    })
-    await volunteer.page.getByRole('button', { name: 'Express Interest' }).click()
+    await joinProject(volunteer.page)
     await expect(getAlert(volunteer.page)).toContainText(
       "You'll get a notification when they reply",
       { timeout: 10_000 },
     )
 
     // Admin (managing the project) accepts the interest
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#people`)
     await expect(adminPage.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
     const interestCard = adminPage.locator('.interest-card').filter({ hasText: volunteer.name })
     await expect(interestCard).toBeVisible({ timeout: 10_000 })
@@ -144,7 +138,7 @@ test.describe('Project Interests and Assignment', () => {
     ).toContainText('Accepted', { timeout: 10_000 })
 
     // Volunteer receives a notification
-    await goToDashboardNotifications(baseUrl, volunteer.page)
+    await goToInbox(baseUrl, volunteer.page)
     await expect(
       volunteer.page.locator('strong').filter({ hasText: 'Accepted: your interest in' }),
     ).toBeVisible({
@@ -163,17 +157,14 @@ test.describe('Project Interests and Assignment', () => {
 
     // Volunteer expresses interest
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
-    await expect(volunteer.page.getByRole('button', { name: 'Express Interest' })).toBeVisible({
-      timeout: 10_000,
-    })
-    await volunteer.page.getByRole('button', { name: 'Express Interest' }).click()
+    await joinProject(volunteer.page)
     await expect(getAlert(volunteer.page)).toContainText(
       "You'll get a notification when they reply",
       { timeout: 10_000 },
     )
 
     // Admin declines with a response message via the decline modal
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#people`)
     await expect(adminPage.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
     const interestCard = adminPage.locator('.interest-card').filter({ hasText: volunteer.name })
     await expect(interestCard).toBeVisible({ timeout: 10_000 })
@@ -196,43 +187,40 @@ test.describe('Project Interests and Assignment', () => {
 
     // Express interest first
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
-    await expect(volunteer.page.getByRole('button', { name: 'Express Interest' })).toBeVisible({
-      timeout: 10_000,
-    })
-    await volunteer.page.getByRole('button', { name: 'Express Interest' }).click()
+    await joinProject(volunteer.page)
     await expect(getAlert(volunteer.page)).toContainText(
       "You'll get a notification when they reply",
       { timeout: 10_000 },
     )
-    await expect(volunteer.page.getByRole('button', { name: 'Withdraw Interest' })).toBeVisible({
+    await expect(volunteer.page.getByRole('button', { name: 'Withdraw request' })).toBeVisible({
       timeout: 10_000,
     })
 
-    await volunteer.page.getByRole('button', { name: 'Withdraw Interest' }).click()
+    await volunteer.page.getByRole('button', { name: 'Withdraw request' }).click()
     await volunteer.page.getByRole('dialog').getByRole('button', { name: 'Withdraw' }).click()
     await expect(getAlert(volunteer.page)).toContainText("You've left the project", {
       timeout: 10_000,
     })
 
-    // Interest form reappears
-    await expect(volunteer.page.getByRole('button', { name: 'Express Interest' })).toBeVisible({
+    // The Join button comes back
+    await expect(volunteer.page.getByRole('button', { name: 'Join this project' })).toBeVisible({
       timeout: 10_000,
     })
   })
 
-  test('Admin directly assigns a volunteer to a project', async ({
+  test('Admin adds a volunteer to a project straight away', async ({
     adminPage,
     volunteer,
     baseUrl,
   }) => {
     const projectId = await setupSeekingProject(baseUrl)
 
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#people`)
     await expect(adminPage.getByRole('heading', { name: 'Volunteers' })).toBeVisible({
       timeout: 10_000,
     })
-    await selectFilterDropdown(adminPage, 'Volunteer to assign', volunteer.name)
-    await adminPage.getByRole('button', { name: 'Assign', exact: true }).click()
+    await selectFilterDropdown(adminPage, 'Volunteer to invite', volunteer.name)
+    await adminPage.getByRole('button', { name: 'Add now', exact: true }).click()
     await expect(getAlert(adminPage)).toContainText('Added to the project.', { timeout: 10_000 })
 
     // Volunteer's interest record appears as accepted, labeled as a role
@@ -243,18 +231,46 @@ test.describe('Project Interests and Assignment', () => {
     await expect(assignedCard).not.toContainText('wants to help')
 
     // Volunteer receives an assignment notification
-    await goToDashboardNotifications(baseUrl, volunteer.page)
+    await goToInbox(baseUrl, volunteer.page)
     await expect(
       volunteer.page.locator('strong').filter({ hasText: "Assigned: you're on" }),
     ).toBeVisible({ timeout: 10_000 })
   })
 
+  test('A volunteer is invited, and is on the project only once they accept', async ({
+    adminPage,
+    volunteer,
+    baseUrl,
+  }) => {
+    const projectId = await setupSeekingProject(baseUrl)
+
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#people`)
+    await selectFilterDropdown(adminPage, 'Volunteer to invite', volunteer.name)
+    await adminPage.getByLabel('Note with the invite (optional)').fill('Could you do the leaflets?')
+    await adminPage.getByRole('button', { name: 'Invite', exact: true }).click()
+    await expect(getAlert(adminPage)).toContainText('Invite sent', { timeout: 10_000 })
+    const card = adminPage.locator('.interest-card').filter({ hasText: volunteer.name })
+    await expect(card).toContainText('Invited by', { timeout: 10_000 })
+    await expect(card.getByRole('button', { name: 'Cancel invite' })).toBeVisible()
+
+    // The volunteer answers from the Inbox.
+    await goToInbox(baseUrl, volunteer.page)
+    const row = volunteer.page.getByRole('listitem').filter({ hasText: 'Invited: help on' })
+    await expect(row).toContainText('Could you do the leaflets?', { timeout: 10_000 })
+    await row.getByRole('button', { name: 'Accept' }).click()
+    await expect(getAlert(volunteer.page)).toContainText('Answer sent', { timeout: 10_000 })
+
+    await adminPage.reload()
+    await expect(card).toContainText('Helper', { timeout: 10_000 })
+    await expect(card.getByRole('button', { name: 'Remove' })).toBeVisible()
+  })
+
   test('Owner removes an already-accepted volunteer', async ({ adminPage, volunteer, baseUrl }) => {
     const projectId = await setupSeekingProject(baseUrl)
 
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
-    await selectFilterDropdown(adminPage, 'Volunteer to assign', volunteer.name)
-    await adminPage.getByRole('button', { name: 'Assign', exact: true }).click()
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#people`)
+    await selectFilterDropdown(adminPage, 'Volunteer to invite', volunteer.name)
+    await adminPage.getByRole('button', { name: 'Add now', exact: true }).click()
     await expect(getAlert(adminPage)).toContainText('Added to the project.', { timeout: 10_000 })
 
     const volunteerCard = adminPage.locator('.interest-card').filter({ hasText: volunteer.name })
@@ -271,7 +287,7 @@ test.describe('Project Interests and Assignment', () => {
     await expect(volunteerCard.getByRole('button', { name: 'Remove' })).toHaveCount(0)
 
     // The volunteer is told they were removed, not declined.
-    await goToDashboardNotifications(baseUrl, volunteer.page)
+    await goToInbox(baseUrl, volunteer.page)
     await expect(
       volunteer.page.locator('strong').filter({ hasText: "Removed: you're no longer on" }),
     ).toBeVisible({ timeout: 10_000 })
@@ -286,14 +302,14 @@ test.describe('Project Interests and Assignment', () => {
     const commentText = `admin note: ${fake.note()}`
 
     // Admin posts a comment on the project
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(adminPage.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
     await adminPage.getByLabel('Add a comment').fill(commentText)
     await adminPage.getByRole('button', { name: 'Post Comment' }).click()
     await expect(adminPage.getByText(commentText)).toBeVisible({ timeout: 10_000 })
 
     // A non-participant volunteer can read the thread but has no post form
-    await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
+    await volunteer.page.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
     await expect(volunteer.page.getByText(commentText)).toBeVisible({ timeout: 10_000 })
     await expect(volunteer.page.getByLabel('Add a comment')).not.toBeVisible({ timeout: 5_000 })
@@ -311,25 +327,22 @@ test.describe('Project Interests and Assignment', () => {
 
     // Volunteer expresses interest to contribute
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
-    await expect(volunteer.page.getByRole('button', { name: 'Express Interest' })).toBeVisible({
-      timeout: 10_000,
-    })
-    await volunteer.page.getByRole('button', { name: 'Express Interest' }).click()
+    await joinProject(volunteer.page)
     await expect(getAlert(volunteer.page)).toContainText(
       "You'll get a notification when they reply",
       { timeout: 10_000 },
     )
 
     // Admin accepts the interest, making the volunteer a participant
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#people`)
     const interestCard = adminPage.locator('.interest-card').filter({ hasText: volunteer.name })
     await expect(interestCard).toBeVisible({ timeout: 10_000 })
     await interestCard.getByRole('button', { name: 'Accept' }).click()
     await expect(getAlert(adminPage)).toContainText('Accepted. They', { timeout: 10_000 })
 
     // The accepted helper can now post a comment
-    const commentText = `helper comment: ${fake.note()}`
-    await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
+    const commentText = `helper comment ${Date.now()}`
+    await volunteer.page.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(volunteer.page.getByLabel('Add a comment')).toBeVisible({ timeout: 10_000 })
     await volunteer.page.getByLabel('Add a comment').fill(commentText)
     await volunteer.page.getByRole('button', { name: 'Post Comment' }).click()
@@ -347,15 +360,15 @@ test.describe('Project Interests and Assignment', () => {
     await transferProjectOwnership(baseUrl, adminPage, projectId, volunteer.name)
 
     // Owner (volunteer) posts a comment
-    const commentText = `owner update: ${fake.note()}`
-    await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
+    const commentText = `owner update ${Date.now()}`
+    await volunteer.page.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(volunteer.page.getByLabel('Add a comment')).toBeVisible({ timeout: 10_000 })
     await volunteer.page.getByLabel('Add a comment').fill(commentText)
     await volunteer.page.getByRole('button', { name: 'Post Comment' }).click()
     await expect(volunteer.page.getByText(commentText)).toBeVisible({ timeout: 10_000 })
 
     // Admin (the project creator) receives a comment notification
-    await goToDashboardNotifications(baseUrl, adminPage)
+    await goToInbox(baseUrl, adminPage)
     await expect(
       adminPage.locator('strong').filter({ hasText: `New comment on "${title}"` }),
     ).toBeVisible({
@@ -363,7 +376,7 @@ test.describe('Project Interests and Assignment', () => {
     })
 
     // The author (volunteer) is NOT notified of their own comment
-    await goToDashboardNotifications(baseUrl, volunteer.page)
+    await goToInbox(baseUrl, volunteer.page)
     await expect(
       volunteer.page.locator('strong').filter({ hasText: `New comment on "${title}"` }),
     ).not.toBeVisible({ timeout: 5_000 })
@@ -387,10 +400,12 @@ test.describe('Project Interests and Assignment', () => {
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
 
-    // Interest form is hidden for the project owner
-    await expect(volunteer.page.getByRole('button', { name: 'Express Interest' })).not.toBeVisible({
-      timeout: 5_000,
-    })
+    // The Join button is hidden for the project owner
+    await expect(volunteer.page.getByRole('button', { name: 'Join this project' })).not.toBeVisible(
+      {
+        timeout: 5_000,
+      },
+    )
     await expect(
       volunteer.page.getByRole('heading', { name: 'Interested in this project?' }),
     ).not.toBeVisible({ timeout: 5_000 })

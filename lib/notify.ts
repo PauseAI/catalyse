@@ -1,5 +1,6 @@
 import { prisma } from './prisma'
 import { sendProjectNotificationEmail, sendAdminAlertEmail } from './email'
+import { categoryOf } from './notification-categories'
 
 export async function createNotification(
   volunteerId: number,
@@ -51,16 +52,20 @@ export async function notifyUser(
 ): Promise<void> {
   // The row is awaited so a caller can rely on it being there when this
   // resolves; only the email is left to run on its own.
-  await createNotification(volunteerId, type, title, body, link, entityId).catch((e) =>
-    console.error('[NOTIFY ERROR]', e),
+  const notification = await createNotification(volunteerId, type, title, body, link, entityId).catch(
+    (e) => {
+      console.error('[NOTIFY ERROR]', e)
+      return null
+    },
   )
   if (!email) return
 
   const vol = await prisma.volunteer.findFirst({
     where: { id: volunteerId, deletedAt: null },
-    select: { name: true, email: true },
+    select: { name: true, email: true, emailMutedCategories: true },
   })
   if (!vol?.email) return
+  if (vol.emailMutedCategories.includes(categoryOf(type))) return
 
   const send =
     'projectId' in email
@@ -82,7 +87,16 @@ export async function notifyUser(
           ctaUrl: email.ctaUrl,
         })
 
-  send.catch((e) => console.error('[EMAIL ERROR]', e))
+  send
+    .then(async () => {
+      if (notification) {
+        await prisma.notification.update({
+          where: { id: notification.id },
+          data: { emailedAt: new Date() },
+        })
+      }
+    })
+    .catch((e) => console.error('[EMAIL ERROR]', e))
 }
 
 /** Alerts every member of a team that a project has been tagged to them and gone live. */

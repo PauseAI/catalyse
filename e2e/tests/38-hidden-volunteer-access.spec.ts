@@ -72,7 +72,7 @@ test.describe('Directory-hidden volunteer access', () => {
     })
     expect(expressed.status).toBe(200)
 
-    await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
+    await volunteer.page.goto(`${baseUrl}/projects/${projectId}#people`)
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
 
     const card = volunteer.page.locator('.interest-card').filter({ hasText: applicant.name })

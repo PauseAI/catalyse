@@ -5,6 +5,7 @@ import { volunteersRouter } from './routers/volunteers'
 import { dashboardRouter } from './routers/dashboard'
 import { notificationsRouter } from './routers/notifications'
 import { messagesRouter } from './routers/messages'
+import { contactsRouter } from './routers/contacts'
 import { bugReportsRouter } from './routers/bugReports'
 import { localGroupsRouter } from './routers/localGroups'
 import { localGroupSuggestionsRouter } from './routers/localGroupSuggestions'
@@ -53,6 +54,7 @@ export const appRouter = {
   dashboard: dashboardRouter,
   notifications: notificationsRouter,
   messages: messagesRouter,
+  contacts: contactsRouter,
   bugReports: bugReportsRouter,
   bugReportComments: bugReportCommentsRouter,
   localGroups: localGroupsRouter,

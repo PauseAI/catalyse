@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import Link from 'next/link'
+import ViewSwitch, { PROJECT_VIEWS } from '@/components/ViewSwitch'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRequireConfirmed } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
@@ -77,11 +77,10 @@ export default function RoadmapPage() {
   return (
     <main className="container-wide py-5 pb-15">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="m-0">Roadmap</h1>
-        <Link href="/projects" className="text-primary-text text-sm underline">
-          ← All projects
-        </Link>
+        <h1 className="m-0">Projects</h1>
+        <Button href="/suggest">Propose a project</Button>
       </div>
+      <ViewSwitch label="Project views" views={PROJECT_VIEWS} current="/projects/gantt" />
       <p className="text-text-light mb-4">
         Each bar is a project, placed by its planned dates; the number after a name is how many
         tasks it has. Click a bar for details.
@@ -102,7 +101,7 @@ export default function RoadmapPage() {
       </div>
 
       {isPending ? (
-        <p className="text-text-light">Loading roadmap…</p>
+        <p className="text-text-light">Loading timeline…</p>
       ) : rows.length === 0 ? (
         <p className="text-text-light">
           No projects with a schedule match these filters. Give a project a start date or dated

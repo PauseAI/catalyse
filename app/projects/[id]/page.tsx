@@ -8,13 +8,14 @@ import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import Checkbox from '@/components/Checkbox'
-import { Badge, badgeClasses, badgeColorClasses } from '@/components/Badge'
+import { Badge } from '@/components/Badge'
 import Tooltip from '@/components/Tooltip'
 import { projectStatusVariant } from '@/components/ProjectCard'
 import { INTEREST_STATUS_LABELS, interestHistoryLabel } from '@/lib/status-labels'
 import {
   interestSentMessage,
   PROJECT_TASK_CLAIMED_MESSAGE,
+  TASK_REQUESTED_MESSAGE,
   VOLUNTEER_ADDED_MESSAGE,
   INTEREST_WITHDRAWN_MESSAGE,
   INTEREST_ACCEPTED_MESSAGE,
@@ -22,8 +23,15 @@ import {
   volunteerRemovedMessage,
 } from '@/lib/action-messages'
 import CommentThread from '@/components/CommentThread'
+import ChangesRequestedBanner from '@/components/ChangesRequestedBanner'
+import ProjectInviteBanner from '@/components/ProjectInviteBanner'
+import StatusSplitButton from '@/components/StatusSplitButton'
 import MessageDialog from '@/components/MessageDialog'
 import Linkify from '@/components/Linkify'
+import SubmitWorkButton from '@/components/SubmitWorkButton'
+import { awaitsOwnerReview } from '@/lib/task-review'
+import { isHttpUrl } from '@/lib/schemas'
+import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS } from '@/lib/status-labels'
 import Modal from '@/components/ui/Modal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
@@ -45,6 +53,7 @@ import {
   ADMIN_ONLY_STATUSES,
   OWNER_ALLOWED_STATUSES,
   TERMINAL_STATUSES,
+  UNAPPROVED_STATUSES,
   projectStatusLabel,
   proposerDisplay,
 } from '@/lib/project-status'
@@ -82,11 +91,6 @@ const ADMIN_EXTRA_STATUSES = toOptions(ADMIN_ONLY_STATUSES)
 // ── Tailwind class constants ──────────────────────────────────────────────────
 
 const card = 'bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word'
-
-// The status select's trigger is colored like a Badge, but as a full-width, clickable pill.
-function statusTriggerClasses(status: string) {
-  return `w-full flex items-center justify-between gap-2 px-3 py-2 rounded-full text-sm font-semibold cursor-pointer focus:outline-none focus:ring-2 focus:ring-secondary transition-colors ${badgeColorClasses(projectStatusVariant(status))}`
-}
 
 // ── Task list item ──────────────────────────────────────────────────────────
 
@@ -557,7 +561,13 @@ function TaskTimeline({
   )
 }
 
+type ProjectTab = 'overview' | 'tasks' | 'timeline' | 'discussion' | 'people'
+const SIDEBAR_PEOPLE = 5
+const HASH_TABS: ProjectTab[] = ['tasks', 'timeline', 'discussion', 'people']
+
 // ── Component ─────────────────────────────────────────────────────────────────
+
+type DeputyAction = { kind: 'appoint' | 'remove' | 'step_down'; volunteerId: number; name: string }
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: idParam } = use(params)
@@ -577,16 +587,17 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [newTaskDurationDays, setNewTaskDurationDays] = useState('')
   const [newTaskFeatured, setNewTaskFeatured] = useState(false)
   const [orderedTasks, setOrderedTasks] = useState<ProjectTask[]>([])
-  const [taskView, setTaskView] = useState<'list' | 'timeline'>('list')
+  const [tab, setTab] = useState<ProjectTab>('overview')
 
   /**
-   * The open tab lives in the URL hash, so `#timeline` is a shareable link straight to the
-   * chart and the browser's Back button steps between the two views. The hash is read after
+   * The open tab lives in the URL hash, so `#timeline` or `#discussion` is a shareable link
+   * straight to it and the browser's Back button steps between tabs. The hash is read after
    * mount rather than in the initial state, because the server render cannot see it.
    */
   useEffect(() => {
     const readHash = () => {
-      setTaskView(window.location.hash === '#timeline' ? 'timeline' : 'list')
+      const hash = window.location.hash.slice(1)
+      setTab(HASH_TABS.find((t) => t === hash) ?? 'overview')
     }
     readHash()
     window.addEventListener('popstate', readHash)
@@ -597,13 +608,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     }
   }, [])
 
-  function selectTaskView(next: 'list' | 'timeline') {
-    if (next === taskView) return
-    setTaskView(next)
+  function selectTab(next: ProjectTab) {
+    if (next === tab) return
+    setTab(next)
     // pushState rather than assigning location.hash: it adds the history entry without the
-    // browser trying to scroll to an element named "timeline".
+    // browser trying to scroll to an element of that name.
     const url =
-      next === 'timeline' ? '#timeline' : `${window.location.pathname}${window.location.search}`
+      next === 'overview' ? `${window.location.pathname}${window.location.search}` : `#${next}`
     window.history.pushState(null, '', url)
   }
   const [taskAssignSelections, setTaskAssignSelections] = useState<Record<number, string>>({})
@@ -626,6 +637,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   // Direct assign
   const [assignTo, setAssignTo] = useState('')
+  const [inviteNote, setInviteNote] = useState('')
 
   // Record outcome
   const {
@@ -664,6 +676,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   // Confirmations
   const [deleteTaskId, setDeleteTaskId] = useState<number | null>(null)
   const [withdrawAccepted, setWithdrawAccepted] = useState<boolean | null>(null)
+  const [deputyAction, setDeputyAction] = useState<DeputyAction | null>(null)
+  const [showJoin, setShowJoin] = useState(false)
   const [showTransferConfirm, setShowTransferConfirm] = useState(false)
   const [showRemoveOwnerConfirm, setShowRemoveOwnerConfirm] = useState(false)
 
@@ -680,7 +694,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   // dependency edges the List view doesn't need.
   const { data: timeline } = useQuery({
     ...orpc.projects.listTasks.queryOptions({ input: { projectId: parseInt(idParam, 10) } }),
-    enabled: !!user && !!project && taskView === 'timeline',
+    enabled: !!user && !!project && tab === 'timeline',
   })
 
   const setBaselineMutation = useMutation({
@@ -743,7 +757,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   const { data: volunteersData } = useQuery({
     ...orpc.volunteers.list.queryOptions({ input: { limit: 100 } }),
-    enabled: !!project && (!!user?.isAdmin || project.ownerId === user?.id),
+    enabled: !!project && (!!user?.isAdmin || project.ownerId === user?.id || project.isDeputy),
   })
   const volunteers = volunteersData?.volunteers ?? []
 
@@ -784,11 +798,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   const updateTaskMutation = useMutation({
     ...orpc.projects.updateTask.mutationOptions(),
-    onSuccess: (_data, variables) => {
-      if (variables.data.status === TaskStatus.in_progress) {
+    onSuccess: (data, variables) => {
+      if (data.requested) {
+        showToast(TASK_REQUESTED_MESSAGE, 'success')
+      } else if (variables.data.status === TaskStatus.in_progress) {
         showToast(PROJECT_TASK_CLAIMED_MESSAGE, 'success')
-      } else if (variables.data.status === TaskStatus.completed) {
-        showToast('Task completed!', 'success')
       } else if (variables.data.status === TaskStatus.open) {
         showToast('Task unassigned!', 'success')
       }
@@ -849,6 +863,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     ...orpc.projects.expressInterest.mutationOptions(),
     onSuccess: () => {
       showToast(interestSentMessage(projectRaw?.owner?.name ?? null), 'success')
+      setShowJoin(false)
       void invalidateProject()
     },
     onError: (err: unknown) =>
@@ -889,10 +904,54 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     onSuccess: () => {
       showToast(VOLUNTEER_ADDED_MESSAGE, 'success')
       setAssignTo('')
+      setInviteNote('')
       void invalidateProject()
     },
     onError: (err: unknown) =>
       showToast(err instanceof Error ? err.message : 'Failed to assign volunteer', 'error'),
+  })
+
+  const inviteMutation = useMutation({
+    ...orpc.projects.invite.mutationOptions(),
+    onSuccess: (data) => {
+      showToast(data.message, 'success')
+      setAssignTo('')
+      setInviteNote('')
+      void invalidateProject()
+    },
+    onError: (err: unknown) =>
+      showToast(err instanceof Error ? err.message : 'Failed to send the invite', 'error'),
+  })
+
+  const cancelInviteMutation = useMutation({
+    ...orpc.projects.cancelInvite.mutationOptions(),
+    onSuccess: () => {
+      showToast('Invite cancelled.', 'success')
+      void invalidateProject()
+    },
+    onError: (err: unknown) =>
+      showToast(err instanceof Error ? err.message : 'Failed to cancel the invite', 'error'),
+  })
+
+  const deputyResult = {
+    onSuccess: (data: { message: string }) => {
+      showToast(data.message, 'success')
+      void invalidateProject()
+    },
+    onError: (err: unknown) =>
+      showToast(err instanceof Error ? err.message : 'Failed to change the deputy', 'error'),
+  }
+  const appointDeputyMutation = useMutation({
+    ...orpc.projects.appointDeputy.mutationOptions(),
+    ...deputyResult,
+  })
+  const removeDeputyMutation = useMutation({
+    ...orpc.projects.removeDeputy.mutationOptions(),
+    ...deputyResult,
+  })
+  const stepDownMutation = useMutation({
+    ...orpc.projects.stepDownAsDeputy.mutationOptions(),
+    ...deputyResult,
   })
 
   const setOutcomeMutation = useMutation({
@@ -909,7 +968,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     ...orpc.admin.projects.review.mutationOptions(),
     onSuccess: (_data, variables) => {
       showToast(
-        variables.status === 'approved' ? 'Project approved!' : 'Project sent for discussion.',
+        variables.status === 'approved' ? 'Project approved!' : 'Changes requested.',
         'success',
       )
       setReviewDone(true)
@@ -939,18 +998,33 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   // Org-proposed projects are attributed to the org, not to the admin who filed them.
   const proposer = proposerDisplay(project)
   const isOwnerOrAdmin = isOwner || isAdmin
+  const isDeputy = project.isDeputy
+  // A deputy runs the project's tasks and nothing else about it.
+  const canRunTasks = isOwnerOrAdmin || isDeputy
   // A draft has no owner yet, so its creator manages its own tasks until they publish it.
-  const canManageTasks =
-    isOwnerOrAdmin || (project.status === 'draft' && project.proposedById === user.id)
+  const isDraftCreator = project.status === 'draft' && project.proposedById === user.id
+  const canManageProject = isOwnerOrAdmin || isDraftCreator
+  const canManageTasks = canRunTasks || isDraftCreator
+  const deputyIds = new Set(
+    (project.helpers ?? []).filter((h) => h.isDeputy).map((h) => h.volunteerId),
+  )
   // Members (accepted helpers / team members) may add tasks even though they can't manage
   // the project's schedule/baseline — server-computed in getById, see canCreateProjectTask.
   const canCreateTasks = canManageTasks || project.canCreateTasks
+
+  // Turning down or losing an invite leaves the way open to apply.
+  const canApplyAgain =
+    project.myInterest?.origin === 'invited' &&
+    (project.myInterest.status === InterestStatus.declined ||
+      project.myInterest.status === InterestStatus.cancelled)
 
   const canSeeInterest =
     !isOwnerOrAdmin &&
     (project.isSeekingHelp || project.isSeekingOwner) &&
     !TERMINAL_STATUSES.includes(project.status)
 
+  // Until an admin approves it, a proposal's status is the admins' to change.
+  const canPickStatus = isAdmin || (isOwner && !UNAPPROVED_STATUSES.includes(project.status))
   const pickableStatuses = isAdmin ? [...OWNER_STATUSES, ...ADMIN_EXTRA_STATUSES] : OWNER_STATUSES
   // Every status is pickable by someone now, but an owner viewing a project an admin put
   // into an admin-only status still needs the control to show its real current value.
@@ -966,6 +1040,111 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   )
   const interestedVolunteers = volunteerInterests.filter(
     (i) => i.status === InterestStatus.pending || i.status === InterestStatus.accepted,
+  )
+  const peopleGroups = [
+    {
+      key: 'requested',
+      title: 'Requested',
+      rows: volunteerInterests.filter((i) => i.status === InterestStatus.pending),
+    },
+    {
+      key: 'invited',
+      title: 'Invited',
+      rows: volunteerInterests.filter((i) => i.status === InterestStatus.invited),
+    },
+    {
+      key: 'helpers',
+      title: 'Helpers',
+      rows: volunteerInterests.filter((i) => i.status === InterestStatus.accepted),
+    },
+  ]
+  const pastPeople = volunteerInterests.filter((i) => !peopleGroups.some((g) => g.rows.includes(i)))
+  const renderPerson = (interest: (typeof volunteerInterests)[number]) => (
+    // [test hook] interest-card class used as test selector
+    <li
+      key={interest.id}
+      className="interest-card flex items-center gap-2 py-2 border-b border-brand-border last:border-0 flex-wrap"
+    >
+      <TaskAvatar name={interest.volunteerName} />
+      <div className="flex-1 min-w-0">
+        {isAdmin || interestedVolunteerIds.has(interest.volunteerId) ? (
+          <Link href={`/volunteers/${interest.volunteerId}`} className="underline truncate block">
+            {interest.volunteerName}
+          </Link>
+        ) : (
+          <div className="truncate">{interest.volunteerName}</div>
+        )}
+        <div className="text-text-light text-xs">
+          {interest.status === InterestStatus.accepted
+            ? interest.interestType === 'want_to_own'
+              ? 'Owner'
+              : deputyIds.has(interest.volunteerId)
+                ? 'Deputy'
+                : 'Helper'
+            : interest.status === InterestStatus.pending
+              ? interest.interestType === 'want_to_own'
+                ? 'wants to own'
+                : 'wants to help'
+              : interest.status === InterestStatus.invited
+                ? `Invited${interest.invitedByName ? ` by ${interest.invitedByName}` : ''}`
+                : interestHistoryLabel(interest.origin, interest.status)}
+        </div>
+      </div>
+      {interest.status === InterestStatus.pending ? (
+        <div className="flex gap-2 shrink-0">
+          <Button size="sm" onClick={() => handleAcceptInterest(interest.id)}>
+            Accept
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => handleDeclineInterest(interest.id, interest.volunteerName, false)}
+          >
+            Decline
+          </Button>
+        </div>
+      ) : interest.status === InterestStatus.accepted ? (
+        <div className="flex items-center gap-2 shrink-0">
+          <Badge variant={projectStatusVariant(interest.status)}>
+            {INTEREST_STATUS_LABELS[interest.status] ?? interest.status}
+          </Badge>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              setDeputyAction({
+                kind: deputyIds.has(interest.volunteerId) ? 'remove' : 'appoint',
+                volunteerId: interest.volunteerId,
+                name: interest.volunteerName,
+              })
+            }
+          >
+            {deputyIds.has(interest.volunteerId) ? 'Remove deputy' : 'Make deputy'}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => handleDeclineInterest(interest.id, interest.volunteerName, true)}
+          >
+            Remove
+          </Button>
+        </div>
+      ) : interest.status === InterestStatus.invited ? (
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={cancelInviteMutation.isPending}
+          onClick={() =>
+            cancelInviteMutation.mutate({ projectId: project.id, interestId: interest.id })
+          }
+        >
+          Cancel invite
+        </Button>
+      ) : null}
+      {interest.message && interest.status !== InterestStatus.accepted && (
+        <p className="text-sm text-text-light w-full m-0">{interest.message}</p>
+      )}
+    </li>
   )
   const interestedVolunteerIds = new Set(interestedVolunteers.map((i) => i.volunteerId))
   const assignVolunteerOptions = [
@@ -1031,14 +1210,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     })
   }
 
-  function handleDoneTask(taskId: number) {
-    updateTaskMutation.mutate({
-      projectId: parseInt(idParam, 10),
-      taskId,
-      data: { status: TaskStatus.completed },
-    })
-  }
-
   function handleUnassignTask(taskId: number) {
     updateTaskMutation.mutate({
       projectId: parseInt(idParam, 10),
@@ -1069,6 +1240,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     })
   }
 
+  function confirmDeputyAction(action: DeputyAction) {
+    const projectId = parseInt(idParam, 10)
+    const { volunteerId } = action
+    if (action.kind === 'appoint') appointDeputyMutation.mutate({ projectId, volunteerId })
+    else if (action.kind === 'remove') removeDeputyMutation.mutate({ projectId, volunteerId })
+    else stepDownMutation.mutate({ projectId })
+    setDeputyAction(null)
+  }
+
   function confirmWithdrawInterest() {
     withdrawInterestMutation.mutate({ projectId: parseInt(idParam, 10) })
     setWithdrawAccepted(null)
@@ -1097,9 +1277,17 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     })
   }
 
-  function handleAssign(e: React.FormEvent) {
+  function handleInvite(e: React.FormEvent) {
     e.preventDefault()
     if (!assignTo) return
+    inviteMutation.mutate({
+      projectId: parseInt(idParam, 10),
+      volunteerId: parseInt(assignTo, 10),
+      message: inviteNote.trim() || null,
+    })
+  }
+
+  function handleAddNow() {
     assignMutation.mutate({
       projectId: parseInt(idParam, 10),
       volunteerId: parseInt(assignTo, 10),
@@ -1125,495 +1313,761 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     })
   }
 
+  const sidebarHelpers = project.helpers ?? []
+  const waitingCount = isOwnerOrAdmin
+    ? volunteerInterests.filter(
+        (i) => i.status === InterestStatus.pending || i.status === InterestStatus.invited,
+      ).length
+    : 0
+  const peopleCount = sidebarHelpers.length + (project.owner ? 1 : 0)
+
+  const peopleTab = (
+    <section aria-label="People on this project" className={card}>
+      <h2>People</h2>
+      <p className="text-sm">
+        <span className="text-text-light">Owner: </span>
+        {project.owner ? project.owner.name : 'No owner yet'}
+      </p>
+      {!isOwnerOrAdmin && Array.isArray(project.helpers) && (
+        <div>
+          <h3 className="text-sm mb-2">Volunteers</h3>
+          {project.helpers.length === 0 ? (
+            <p className="text-text-light text-sm">No helpers yet.</p>
+          ) : (
+            <ul className="list-none p-0 m-0">
+              {project.helpers.map((helper) => (
+                <li
+                  key={helper.id}
+                  className="interest-card flex items-center gap-2 py-2 border-b border-brand-border last:border-0 flex-wrap"
+                >
+                  <TaskAvatar name={helper.volunteerName} />
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate">{helper.volunteerName}</div>
+                    <div className="text-text-light text-xs">
+                      {helper.interestType === 'want_to_own'
+                        ? 'Owner'
+                        : helper.isDeputy
+                          ? 'Deputy'
+                          : 'Helper'}
+                    </div>
+                  </div>
+                  {helper.volunteerId === user.id && helper.isDeputy && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() =>
+                        setDeputyAction({
+                          kind: 'step_down',
+                          volunteerId: user.id,
+                          name: helper.volunteerName,
+                        })
+                      }
+                    >
+                      Step down
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {isOwnerOrAdmin && Array.isArray(project.interests) && (
+        <div>
+          <h3 className="text-sm mb-2">Volunteers</h3>
+
+          {volunteerInterests.length === 0 && (
+            <p className="text-text-light text-sm">No interests yet.</p>
+          )}
+          {peopleGroups
+            .filter((g) => g.rows.length > 0)
+            .map((g) => (
+              <section key={g.key} aria-label={g.title} className="mb-2">
+                <h4 className="text-xs uppercase text-text-light m-0 mt-2">
+                  {g.title} ({g.rows.length})
+                </h4>
+                <ul className="list-none p-0 m-0">{g.rows.map(renderPerson)}</ul>
+              </section>
+            ))}
+          {pastPeople.length > 0 && (
+            <details className="mt-2">
+              <summary className="text-xs uppercase text-text-light cursor-pointer">
+                Past ({pastPeople.length})
+              </summary>
+              <ul className="list-none p-0 m-0">{pastPeople.map(renderPerson)}</ul>
+            </details>
+          )}
+
+          {volunteers.length > 0 && (
+            <form
+              onSubmit={handleInvite}
+              className="flex flex-col gap-2 mt-3 pt-3 border-t border-brand-border"
+            >
+              <div className="flex gap-2 items-center flex-wrap">
+                <span className="text-text-light text-sm shrink-0">+ Invite</span>
+                <div className="flex-1 min-w-40">
+                  <VolunteerSelect
+                    id="assign-volunteer"
+                    label=""
+                    ariaLabel="Volunteer to invite"
+                    value={assignTo}
+                    onChange={(v) => setAssignTo(v)}
+                  />
+                </div>
+              </div>
+              <input
+                type="text"
+                aria-label="Note with the invite (optional)"
+                placeholder="Note with the invite (optional)"
+                value={inviteNote}
+                onChange={(e) => setInviteNote(e.target.value)}
+              />
+              <div className="flex gap-2 flex-wrap">
+                <Button type="submit" size="sm" disabled={!assignTo || inviteMutation.isPending}>
+                  {inviteMutation.isPending ? 'Inviting…' : 'Invite'}
+                </Button>
+                {isAdmin && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={!assignTo || assignMutation.isPending}
+                    onClick={handleAddNow}
+                  >
+                    {assignMutation.isPending ? 'Adding…' : 'Add now'}
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-text-light m-0">
+                They get an invite and join once they accept.
+                {isAdmin && ' Add now puts them on the project straight away.'}
+              </p>
+            </form>
+          )}
+        </div>
+      )}
+    </section>
+  )
+
+  const myStatus = project.myInterest?.status
+  const joinControl = !isOwnerOrAdmin && (
+    <div className="flex flex-wrap items-center gap-3 mb-4">
+      {canSeeInterest && (!project.myInterest || canApplyAgain) && (
+        <Button onClick={() => setShowJoin(true)}>Join this project</Button>
+      )}
+      {myStatus === InterestStatus.pending && (
+        <>
+          <span className="text-sm" aria-label="interest status">
+            Request sent: waiting for the owner
+          </span>
+          <Button variant="secondary" size="sm" onClick={() => setWithdrawAccepted(false)}>
+            Withdraw request
+          </Button>
+        </>
+      )}
+      {myStatus === InterestStatus.accepted && (
+        <>
+          <span className="text-sm" aria-label="interest status">
+            You&apos;re on this project
+            {project.myInterest?.interestType === 'want_to_own' ? ' as its lead' : ''}
+          </span>
+          {isDeputy && <Badge variant="success">Deputy</Badge>}
+          <Button variant="secondary" size="sm" onClick={() => setWithdrawAccepted(true)}>
+            Leave project
+          </Button>
+        </>
+      )}
+      {(myStatus === InterestStatus.declined || myStatus === InterestStatus.removed) &&
+        !canApplyAgain && (
+          <span className="text-sm text-text-light" aria-label="interest status">
+            {myStatus === InterestStatus.removed
+              ? 'You were taken off this project. Message the owner if you would like to rejoin.'
+              : 'The owner declined your request.'}
+            {project.myInterest?.responseMessage && ` "${project.myInterest.responseMessage}"`}
+          </span>
+        )}
+      <Modal
+        id="join-project"
+        title="Join this project"
+        isOpen={showJoin}
+        onClose={() => setShowJoin(false)}
+      >
+        <form onSubmit={handleExpressInterest}>
+          <fieldset className="mb-5">
+            <legend className="mb-2">How would you like to take part?</legend>
+            <label className="flex items-center gap-2 cursor-pointer mb-2 font-normal">
+              <input
+                type="radio"
+                name="interest_type"
+                value="want_to_contribute"
+                checked={interestType === 'want_to_contribute'}
+                onChange={() => setInterestType('want_to_contribute')}
+              />
+              Help out on the project
+            </label>
+            {project.isSeekingOwner && (
+              <label className="flex items-center gap-2 cursor-pointer font-normal">
+                <input
+                  type="radio"
+                  name="interest_type"
+                  value="want_to_own"
+                  checked={interestType === 'want_to_own'}
+                  onChange={() => setInterestType('want_to_own')}
+                />
+                Lead the project
+              </label>
+            )}
+          </fieldset>
+          <div className="mb-5">
+            <label htmlFor="interest-message">Message (optional)</label>
+            <textarea
+              id="interest-message"
+              rows={3}
+              value={interestMessage}
+              onChange={(e) => setInterestMessage(e.target.value)}
+              placeholder="Say a little about why you'd like to help…"
+            />
+          </div>
+          <p className="text-sm text-text-light">
+            The owner is asked, and you join once they accept.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setShowJoin(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={expressInterestMutation.isPending}>
+              {expressInterestMutation.isPending ? 'Sending…' : 'Send request'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  )
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <>
-      {/* The timeline wants every pixel it can get, so the page drops its reading-width cap
-          while that tab is open. Prose tabs keep the narrower measure. */}
-      <main className={`${taskView === 'timeline' ? 'container-wide' : 'container'} py-5 pb-15`}>
+      <main className="container py-5 pb-15">
         {/* [test hook] projectContent id used by action helpers to confirm page has loaded */}
         <h1 id="projectContent" role="heading" aria-level={1}>
           {project.title}
         </h1>
 
-        {/* The sidebar is a third of the page normally. On the Timeline the page goes full
-            width, where a third would be a huge column of unchanged detail — so it keeps roughly
-            the pixel width it has in the List view and gives the rest to the chart. */}
-        <div
-          className={`grid grid-cols-1 gap-4 items-start ${
-            taskView === 'timeline' ? 'lg:grid-cols-[minmax(0,1fr)_420px]' : 'lg:grid-cols-3'
-          }`}
-        >
+        {joinControl}
+
+        <Tabs
+          role="tablist"
+          className="mb-4"
+          tabs={[
+            { key: 'overview', label: 'Overview' },
+            { key: 'tasks', label: `Tasks (${orderedTasks.length})` },
+            { key: 'timeline', label: 'Timeline' },
+            { key: 'discussion', label: 'Discussion' },
+            { key: 'people', label: `People (${peopleCount})` },
+          ]}
+          activeTab={tab}
+          onChange={(k) => selectTab(k as ProjectTab)}
+        />
+
+        {/* One page width for every tab: the timeline scrolls inside its own card. */}
+        <div className="grid grid-cols-1 gap-4 items-start lg:grid-cols-3">
           {/* Main column */}
-          <div className={`min-w-0 ${taskView === 'timeline' ? '' : 'lg:col-span-2'}`}>
-            {/* Main project card */}
-            <div className={card}>
-              <p className="whitespace-pre-wrap">
-                <Linkify text={project.description} />
-              </p>
-
-              {project.skills.length > 0 && (
-                <div className="mt-3">
-                  <strong>Skills needed:</strong>
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {project.skills.map((s) => (
-                      <span
-                        key={s.id}
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                          s.isRequired
-                            ? 'bg-secondary text-white dark:bg-gray-600'
-                            : 'bg-accent text-secondary-dark dark:bg-gray-700 dark:text-gray-300'
-                        }`}
-                      >
-                        {s.name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Match score */}
-              {!isOwner && project.match && project.match.overallScore > 0 && (
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="text-sm text-text-light">Your skill match:</span>
-                  <Badge variant="success" className="text-sm">
-                    {project.match.overallScore}%
-                  </Badge>
-                </div>
-              )}
-
-              {project.collaborationLink && (
-                <p className="mt-2 text-sm">
-                  <a
-                    href={project.collaborationLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    role="link"
-                    className="underline text-primary-dark"
-                  >
-                    Open Project Doc →
-                  </a>
-                </p>
-              )}
-            </div>
-
-            {/* Outcome display */}
-            {project.outcome && (
-              <div
-                role="status"
-                className="bg-emerald-100 dark:bg-emerald-900 border border-emerald-300 dark:border-emerald-600 rounded-xl p-6 mb-4"
-              >
-                <strong>Outcome: </strong>
-                {project.outcome === 'successful'
-                  ? 'Successful'
-                  : project.outcome === 'partial'
-                    ? 'Partial'
-                    : project.outcome === 'not_completed'
-                      ? 'Not Completed'
-                      : project.outcome === 'ongoing'
-                        ? 'Ongoing'
-                        : project.outcome}
-                {project.outcomeNotes && <p className="mt-1 text-sm">{project.outcomeNotes}</p>}
-              </div>
+          <div className="min-w-0 lg:col-span-2">
+            <ChangesRequestedBanner
+              projectId={project.id}
+              requests={project.reviewRequests}
+              canResubmit={isOwner || project.proposedById === user.id}
+              editHref={`/projects/${idParam}/edit`}
+            />
+            {project.myInterest?.status === InterestStatus.invited && (
+              <ProjectInviteBanner
+                projectId={project.id}
+                invitedByName={project.myInterest.invitedByName}
+                note={project.myInterest.message}
+              />
             )}
 
-            {/* Tasks */}
-            <div className={card}>
-              <div className="flex justify-between items-center mb-3">
-                <h2 className="m-0">Tasks</h2>
-                <div className="flex items-center gap-2">
-                  {taskView === 'timeline' && canManageTasks && (
-                    <>
-                      {baselineSetAt && (
-                        <span className="text-text-light text-xs">
-                          Baseline set {formatDateShort(baselineSetAt)}
-                        </span>
-                      )}
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={setBaselineMutation.isPending}
-                        onClick={() => setShowBaselineDialog(true)}
-                      >
-                        {baselineSetAt ? 'Re-baseline' : 'Set baseline'}
-                      </Button>
-                    </>
+            {tab === 'overview' && (
+              <>
+                {/* Main project card */}
+                <div className={card}>
+                  <p className="whitespace-pre-wrap">
+                    <Linkify text={project.description} />
+                  </p>
+
+                  {project.skills.length > 0 && (
+                    <div className="mt-3">
+                      <strong>Skills needed:</strong>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {project.skills.map((s) => (
+                          <span
+                            key={s.id}
+                            className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                              s.isRequired
+                                ? 'bg-secondary text-white dark:bg-gray-600'
+                                : 'bg-accent text-secondary-dark dark:bg-gray-700 dark:text-gray-300'
+                            }`}
+                          >
+                            {s.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   )}
-                  {canCreateTasks && (
-                    <Button variant="secondary" onClick={() => setShowTaskForm((v) => !v)}>
-                      Add Task
-                    </Button>
+
+                  {/* Match score */}
+                  {!isOwner && project.match && project.match.totalRequired > 0 && (
+                    <p className="mt-3 mb-0 text-sm">
+                      You match {project.match.matchedRequiredCount} of{' '}
+                      {project.match.totalRequired} skill
+                      {project.match.totalRequired === 1 ? '' : 's'}
+                    </p>
+                  )}
+
+                  {isHttpUrl(project.collaborationLink) && (
+                    <p className="mt-2 text-sm">
+                      <a
+                        href={project.collaborationLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        role="link"
+                        className="underline text-primary-dark"
+                      >
+                        Open Project Doc →
+                      </a>
+                    </p>
                   )}
                 </div>
-              </div>
 
-              <Tabs
-                className="mb-4"
-                tabs={[
-                  { key: 'list', label: 'List' },
-                  { key: 'timeline', label: 'Timeline' },
-                ]}
-                activeTab={taskView}
-                onChange={(k) => selectTaskView(k as 'list' | 'timeline')}
-              />
-
-              {showTaskForm && canCreateTasks && (
-                <div className="bg-brand-bg rounded-lg p-3 mb-4 border border-brand-border">
-                  <form onSubmit={handleAddTask}>
-                    <div className="mb-3">
-                      <label htmlFor="new-task-title">Task title</label>
-                      <input
-                        id="new-task-title"
-                        type="text"
-                        aria-label="Task title"
-                        value={newTaskTitle}
-                        onChange={(e) => setNewTaskTitle(e.target.value)}
-                        placeholder="Describe the task…"
-                        autoFocus
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label htmlFor="new-task-description">Description</label>
-                      <textarea
-                        id="new-task-description"
-                        aria-label="Description"
-                        rows={3}
-                        value={newTaskDescription}
-                        onChange={(e) => setNewTaskDescription(e.target.value)}
-                        placeholder="Add any context, examples, or guidelines…"
-                      />
-                    </div>
-                    <div className="flex gap-3 flex-wrap mb-3">
-                      <div>
-                        <label htmlFor="new-task-hours">Estimated hours</label>
-                        <input
-                          id="new-task-hours"
-                          type="number"
-                          min="0"
-                          step="0.5"
-                          aria-label="Estimated hours"
-                          value={newTaskEstimatedHours}
-                          onChange={(e) => setNewTaskEstimatedHours(e.target.value)}
-                          placeholder="e.g. 3"
-                          className="w-30"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="new-task-deadline">Deadline</label>
-                        <input
-                          id="new-task-deadline"
-                          type="date"
-                          aria-label="Deadline"
-                          value={newTaskDeadline}
-                          onChange={(e) => setNewTaskDeadline(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="new-task-start">Start date</label>
-                        <input
-                          id="new-task-start"
-                          type="date"
-                          aria-label="Start date"
-                          value={newTaskStartDate}
-                          onChange={(e) => setNewTaskStartDate(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="new-task-duration">Duration (days)</label>
-                        <input
-                          id="new-task-duration"
-                          type="number"
-                          min="1"
-                          step="1"
-                          aria-label="Duration (days)"
-                          value={newTaskDurationDays}
-                          onChange={(e) => setNewTaskDurationDays(e.target.value)}
-                          placeholder="e.g. 5"
-                          className="w-30"
-                        />
-                      </div>
-                    </div>
-                    <div className="mb-3">
-                      <Checkbox
-                        checked={newTaskFeatured}
-                        onChange={(e) => setNewTaskFeatured(e.target.checked)}
-                      >
-                        Add this task to the Quick Tasks page so volunteers can find and claim it
-                        without first clicking into this project
-                      </Checkbox>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button type="submit" disabled={createTaskMutation.isPending}>
-                        {createTaskMutation.isPending ? 'Creating…' : 'Create Task'}
-                      </Button>
-                      <Button type="button" variant="ghost" onClick={() => setShowTaskForm(false)}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </form>
-                </div>
-              )}
-
-              {taskView === 'timeline' && (
-                <TaskTimeline
-                  timeline={timeline}
-                  projectId={parseInt(idParam, 10)}
-                  loading={!timeline}
-                  canAssignTasks={canManageTasks}
-                  canClaimTasks={canClaimTasks}
-                  assignOptions={assignVolunteerOptions}
-                  onAssignTask={(taskId, volunteerId) =>
-                    assignTaskMutation.mutate({
-                      projectId: parseInt(idParam, 10),
-                      taskId,
-                      assigneeId: volunteerId,
-                    })
-                  }
-                  onClaimTask={handleClaimTask}
-                  onUnassignTask={handleUnassignTask}
-                />
-              )}
-
-              {taskView === 'list' &&
-                (orderedTasks.length === 0 ? (
-                  <p className="text-text-light">No tasks yet.</p>
-                ) : (
-                  <DndContext
-                    sensors={taskDragSensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={canManageTasks ? handleTaskDragEnd : undefined}
+                {/* Outcome display */}
+                {project.outcome && (
+                  <div
+                    role="status"
+                    className="bg-emerald-100 dark:bg-emerald-900 border border-emerald-300 dark:border-emerald-600 rounded-xl p-6 mb-4"
                   >
-                    <SortableContext
-                      items={orderedTasks.map((t) => t.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <ul className="list-none p-0 m-0">
-                        {orderedTasks.map((task) => {
-                          const isOverdue =
-                            task.deadline &&
-                            task.status !== TaskStatus.completed &&
-                            // eslint-disable-next-line react-hooks/purity -- wall-clock comparison for overdue display
-                            new Date(task.deadline).getTime() < Date.now()
-                          const canAssign =
-                            isOwnerOrAdmin &&
-                            task.status !== TaskStatus.completed &&
-                            volunteers.length > 0
-                          const canUnassign =
-                            isOwnerOrAdmin &&
-                            task.assignedToId !== null &&
-                            task.status === TaskStatus.in_progress
+                    <strong>Outcome: </strong>
+                    {project.outcome === 'successful'
+                      ? 'Successful'
+                      : project.outcome === 'partial'
+                        ? 'Partial'
+                        : project.outcome === 'not_completed'
+                          ? 'Not Completed'
+                          : project.outcome === 'ongoing'
+                            ? 'Ongoing'
+                            : project.outcome}
+                    {project.outcomeNotes && <p className="mt-1 text-sm">{project.outcomeNotes}</p>}
+                  </div>
+                )}
+              </>
+            )}
 
-                          return (
-                            <SortableTaskItem
-                              key={task.id}
-                              task={task}
-                              draggable={canManageTasks}
-                              title={
-                                <Link
-                                  href={`/projects/${idParam}/tasks/${task.id}`}
-                                  className="hover:underline"
-                                >
-                                  {task.title}
-                                </Link>
-                              }
-                              assigneeName={
-                                task.status !== TaskStatus.completed ? task.assignedToName : null
-                              }
-                              chips={
-                                <>
-                                  {task.status === TaskStatus.completed && (
-                                    <span className="text-success text-sm font-semibold">
-                                      <span aria-hidden="true">✓</span> <span>done</span>
-                                    </span>
-                                  )}
-                                  {task.featuredAsQuickTask && (
-                                    <span
-                                      className="text-xs whitespace-nowrap"
-                                      title="Also shown on the Quick Tasks page"
-                                    >
-                                      ⚡ Quick Task
-                                    </span>
-                                  )}
-                                  {isOverdue && <Badge variant="danger">Overdue</Badge>}
-                                  {task.estimatedHours !== null && (
-                                    <span className="text-text-light text-xs whitespace-nowrap">
-                                      ~{task.estimatedHours}h
-                                    </span>
-                                  )}
-                                  {task.deadline && (
-                                    <span className="text-text-light text-xs whitespace-nowrap">
-                                      Due {formatDate(task.deadline)}
-                                    </span>
-                                  )}
-                                  {task.commentCount > 0 && (
-                                    <Link
-                                      href={`/projects/${idParam}/tasks/${task.id}`}
-                                      className="flex items-center gap-1 text-text-light text-xs whitespace-nowrap hover:underline"
-                                      aria-label={`${task.commentCount} comment${task.commentCount !== 1 ? 's' : ''}`}
-                                    >
-                                      <svg
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        aria-hidden="true"
+            {/* Tasks and Timeline */}
+            {(tab === 'tasks' || tab === 'timeline') && (
+              <div className={card}>
+                <div className="flex justify-between items-center mb-3">
+                  <h2 className="m-0">{tab === 'timeline' ? 'Timeline' : 'Tasks'}</h2>
+                  <div className="flex items-center gap-2">
+                    {tab === 'timeline' && canManageProject && (
+                      <>
+                        {baselineSetAt && (
+                          <span className="text-text-light text-xs">
+                            Baseline set {formatDateShort(baselineSetAt)}
+                          </span>
+                        )}
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={setBaselineMutation.isPending}
+                          onClick={() => setShowBaselineDialog(true)}
+                        >
+                          {baselineSetAt ? 'Re-baseline' : 'Set baseline'}
+                        </Button>
+                      </>
+                    )}
+                    {canCreateTasks && (
+                      <Button variant="secondary" onClick={() => setShowTaskForm((v) => !v)}>
+                        Add Task
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {showTaskForm && canCreateTasks && (
+                  <div className="bg-brand-bg rounded-lg p-3 mb-4 border border-brand-border">
+                    <form onSubmit={handleAddTask}>
+                      <div className="mb-3">
+                        <label htmlFor="new-task-title">Task title</label>
+                        <input
+                          id="new-task-title"
+                          type="text"
+                          aria-label="Task title"
+                          value={newTaskTitle}
+                          onChange={(e) => setNewTaskTitle(e.target.value)}
+                          placeholder="Describe the task…"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="mb-3">
+                        <label htmlFor="new-task-description">Description</label>
+                        <textarea
+                          id="new-task-description"
+                          aria-label="Description"
+                          rows={3}
+                          value={newTaskDescription}
+                          onChange={(e) => setNewTaskDescription(e.target.value)}
+                          placeholder="Add any context, examples, or guidelines…"
+                        />
+                      </div>
+                      <div className="flex gap-3 flex-wrap mb-3">
+                        <div>
+                          <label htmlFor="new-task-hours">Estimated hours</label>
+                          <input
+                            id="new-task-hours"
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            aria-label="Estimated hours"
+                            value={newTaskEstimatedHours}
+                            onChange={(e) => setNewTaskEstimatedHours(e.target.value)}
+                            placeholder="e.g. 3"
+                            className="w-30"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="new-task-deadline">Deadline</label>
+                          <input
+                            id="new-task-deadline"
+                            type="date"
+                            aria-label="Deadline"
+                            value={newTaskDeadline}
+                            onChange={(e) => setNewTaskDeadline(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="new-task-start">Start date</label>
+                          <input
+                            id="new-task-start"
+                            type="date"
+                            aria-label="Start date"
+                            value={newTaskStartDate}
+                            onChange={(e) => setNewTaskStartDate(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="new-task-duration">Duration (days)</label>
+                          <input
+                            id="new-task-duration"
+                            type="number"
+                            min="1"
+                            step="1"
+                            aria-label="Duration (days)"
+                            value={newTaskDurationDays}
+                            onChange={(e) => setNewTaskDurationDays(e.target.value)}
+                            placeholder="e.g. 5"
+                            className="w-30"
+                          />
+                        </div>
+                      </div>
+                      <div className="mb-3">
+                        <Checkbox
+                          checked={newTaskFeatured}
+                          onChange={(e) => setNewTaskFeatured(e.target.checked)}
+                        >
+                          Add this task to the Quick Tasks page so volunteers can find and claim it
+                          without first clicking into this project
+                        </Checkbox>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button type="submit" disabled={createTaskMutation.isPending}>
+                          {createTaskMutation.isPending ? 'Creating…' : 'Create Task'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setShowTaskForm(false)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {tab === 'timeline' && (
+                  <div className="overflow-x-auto">
+                    <TaskTimeline
+                      timeline={timeline}
+                      projectId={parseInt(idParam, 10)}
+                      loading={!timeline}
+                      canAssignTasks={canManageTasks}
+                      canClaimTasks={canClaimTasks}
+                      assignOptions={assignVolunteerOptions}
+                      onAssignTask={(taskId, volunteerId) =>
+                        assignTaskMutation.mutate({
+                          projectId: parseInt(idParam, 10),
+                          taskId,
+                          assigneeId: volunteerId,
+                        })
+                      }
+                      onClaimTask={handleClaimTask}
+                      onUnassignTask={handleUnassignTask}
+                    />
+                  </div>
+                )}
+
+                {tab === 'tasks' &&
+                  (orderedTasks.length === 0 ? (
+                    <p className="text-text-light">No tasks yet.</p>
+                  ) : (
+                    <DndContext
+                      sensors={taskDragSensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={canManageTasks ? handleTaskDragEnd : undefined}
+                    >
+                      <SortableContext
+                        items={orderedTasks.map((t) => t.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <ul className="list-none p-0 m-0">
+                          {orderedTasks.map((task) => {
+                            const isOverdue =
+                              task.deadline &&
+                              task.status !== TaskStatus.completed &&
+                              // eslint-disable-next-line react-hooks/purity -- wall-clock comparison for overdue display
+                              new Date(task.deadline).getTime() < Date.now()
+                            const canAssign =
+                              canRunTasks &&
+                              task.status !== TaskStatus.completed &&
+                              volunteers.length > 0
+                            const canUnassign =
+                              canRunTasks &&
+                              task.assignedToId !== null &&
+                              task.status === TaskStatus.in_progress
+
+                            return (
+                              <SortableTaskItem
+                                key={task.id}
+                                task={task}
+                                draggable={canManageTasks}
+                                title={
+                                  <Link
+                                    href={`/projects/${idParam}/tasks/${task.id}`}
+                                    className="hover:underline"
+                                  >
+                                    {task.title}
+                                  </Link>
+                                }
+                                assigneeName={
+                                  task.status !== TaskStatus.completed ? task.assignedToName : null
+                                }
+                                chips={
+                                  <>
+                                    {task.status === TaskStatus.completed && (
+                                      <span className="text-success text-sm font-semibold">
+                                        <span aria-hidden="true">✓</span> <span>done</span>
+                                      </span>
+                                    )}
+                                    {task.requestedById !== null && (
+                                      <span className="text-text-light text-xs whitespace-nowrap">
+                                        {task.requestedById === user.id
+                                          ? 'Held for you: waiting for the owner'
+                                          : `Requested by ${task.requestedByName}`}
+                                      </span>
+                                    )}
+                                    {task.status === TaskStatus.under_review && (
+                                      <Badge variant={TASK_STATUS_VARIANTS.under_review}>
+                                        {TASK_STATUS_LABELS.under_review}
+                                      </Badge>
+                                    )}
+                                    {task.featuredAsQuickTask && (
+                                      <span
+                                        className="text-xs whitespace-nowrap"
+                                        title="Also shown on the Quick Tasks page"
                                       >
-                                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                                      </svg>
-                                      {task.commentCount}
-                                    </Link>
-                                  )}
-                                </>
-                              }
-                              primaryAction={
-                                <>
-                                  {task.status === TaskStatus.open && canClaimTasks && (
-                                    <Button
-                                      variant="secondary"
-                                      size="sm"
-                                      onClick={() => handleClaimTask(task.id)}
-                                    >
-                                      Claim
-                                    </Button>
-                                  )}
-                                  {task.status === TaskStatus.in_progress &&
-                                    task.assignedToId === user.id && (
+                                        ⚡ Quick Task
+                                      </span>
+                                    )}
+                                    {isOverdue && <Badge variant="danger">Overdue</Badge>}
+                                    {task.estimatedHours !== null && (
+                                      <span className="text-text-light text-xs whitespace-nowrap">
+                                        ~{task.estimatedHours}h
+                                      </span>
+                                    )}
+                                    {task.deadline && (
+                                      <span className="text-text-light text-xs whitespace-nowrap">
+                                        Due {formatDate(task.deadline)}
+                                      </span>
+                                    )}
+                                    {task.commentCount > 0 && (
+                                      <Link
+                                        href={`/projects/${idParam}/tasks/${task.id}`}
+                                        className="flex items-center gap-1 text-text-light text-xs whitespace-nowrap hover:underline"
+                                        aria-label={`${task.commentCount} comment${task.commentCount !== 1 ? 's' : ''}`}
+                                      >
+                                        <svg
+                                          width="14"
+                                          height="14"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="2"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          aria-hidden="true"
+                                        >
+                                          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                                        </svg>
+                                        {task.commentCount}
+                                      </Link>
+                                    )}
+                                  </>
+                                }
+                                primaryAction={
+                                  <>
+                                    {task.status === TaskStatus.open &&
+                                      task.requestedById === null &&
+                                      canClaimTasks && (
+                                        <Button
+                                          variant="secondary"
+                                          size="sm"
+                                          onClick={() => handleClaimTask(task.id)}
+                                        >
+                                          {project.isMember || isOwnerOrAdmin
+                                            ? 'Claim'
+                                            : 'Join and claim'}
+                                        </Button>
+                                      )}
+                                    {task.status === TaskStatus.in_progress &&
+                                      task.assignedToId === user.id && (
+                                        <SubmitWorkButton
+                                          target={{
+                                            kind: 'project',
+                                            projectId: project.id,
+                                            taskId: task.id,
+                                          }}
+                                          reviewer={
+                                            awaitsOwnerReview(project, canRunTasks)
+                                              ? 'The project owner'
+                                              : null
+                                          }
+                                          size="sm"
+                                          variant="secondary"
+                                        />
+                                      )}
+                                    {task.status === TaskStatus.under_review && canRunTasks && (
                                       <Button
                                         variant="secondary"
                                         size="sm"
-                                        onClick={() => handleDoneTask(task.id)}
+                                        href={`/projects/${idParam}/tasks/${task.id}`}
                                       >
-                                        Done
+                                        Review
                                       </Button>
                                     )}
-                                </>
-                              }
-                              menu={
-                                (canAssign || canManageTasks || task.createdById === user.id) && (
-                                  <ActionMenu ariaLabel={`Task actions for ${task.title}`}>
-                                    {(close) => (
-                                      <>
-                                        {canAssign && (
-                                          <div className="px-3 py-2 flex flex-col gap-2">
-                                            <FilterDropdown
-                                              id={`assign-task-${task.id}`}
-                                              label="Assign to"
-                                              ariaLabel={`Assign volunteer to ${task.title}`}
-                                              value={taskAssignSelections[task.id] ?? ''}
-                                              options={assignVolunteerOptions}
-                                              onChange={(v) =>
-                                                setTaskAssignSelections((s) => ({
-                                                  ...s,
-                                                  [task.id]: v,
-                                                }))
-                                              }
-                                              searchable
-                                            />
-                                            <Button
-                                              variant="secondary"
-                                              size="sm"
-                                              disabled={
-                                                !taskAssignSelections[task.id] ||
-                                                assignTaskMutation.isPending
-                                              }
+                                  </>
+                                }
+                                menu={
+                                  (canAssign || canManageTasks || task.createdById === user.id) && (
+                                    <ActionMenu ariaLabel={`Task actions for ${task.title}`}>
+                                      {(close) => (
+                                        <>
+                                          {canAssign && (
+                                            <div className="px-3 py-2 flex flex-col gap-2">
+                                              <FilterDropdown
+                                                id={`assign-task-${task.id}`}
+                                                label="Assign to"
+                                                ariaLabel={`Assign volunteer to ${task.title}`}
+                                                value={taskAssignSelections[task.id] ?? ''}
+                                                options={assignVolunteerOptions}
+                                                onChange={(v) =>
+                                                  setTaskAssignSelections((s) => ({
+                                                    ...s,
+                                                    [task.id]: v,
+                                                  }))
+                                                }
+                                                searchable
+                                              />
+                                              <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                disabled={
+                                                  !taskAssignSelections[task.id] ||
+                                                  assignTaskMutation.isPending
+                                                }
+                                                onClick={() => {
+                                                  handleAssignTask(task.id)
+                                                  close()
+                                                }}
+                                              >
+                                                Assign
+                                              </Button>
+                                            </div>
+                                          )}
+                                          {canUnassign && (
+                                            <button
+                                              role="menuitem"
+                                              className={`w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors cursor-pointer ${canAssign ? 'border-t border-brand-border mt-1' : ''}`}
                                               onClick={() => {
-                                                handleAssignTask(task.id)
+                                                handleUnassignTask(task.id)
                                                 close()
                                               }}
                                             >
-                                              Assign
-                                            </Button>
-                                          </div>
-                                        )}
-                                        {canUnassign && (
-                                          <button
-                                            role="menuitem"
-                                            className={`w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors cursor-pointer ${canAssign ? 'border-t border-brand-border mt-1' : ''}`}
-                                            onClick={() => {
-                                              handleUnassignTask(task.id)
-                                              close()
-                                            }}
-                                          >
-                                            Unassign
-                                          </button>
-                                        )}
-                                        {(canManageTasks || task.createdById === user.id) && (
-                                          <button
-                                            role="menuitem"
-                                            className={`w-full text-left px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-accent transition-colors cursor-pointer ${canAssign || canUnassign ? 'border-t border-brand-border mt-1' : ''}`}
-                                            onClick={() => {
-                                              setDeleteTaskId(task.id)
-                                              close()
-                                            }}
-                                          >
-                                            Delete task
-                                          </button>
-                                        )}
-                                      </>
-                                    )}
-                                  </ActionMenu>
-                                )
-                              }
-                            />
-                          )
-                        })}
-                      </ul>
-                    </SortableContext>
-                  </DndContext>
-                ))}
-            </div>
+                                              Unassign
+                                            </button>
+                                          )}
+                                          {(canManageTasks || task.createdById === user.id) && (
+                                            <button
+                                              role="menuitem"
+                                              className={`w-full text-left px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-accent transition-colors cursor-pointer ${canAssign || canUnassign ? 'border-t border-brand-border mt-1' : ''}`}
+                                              onClick={() => {
+                                                setDeleteTaskId(task.id)
+                                                close()
+                                              }}
+                                            >
+                                              Delete task
+                                            </button>
+                                          )}
+                                        </>
+                                      )}
+                                    </ActionMenu>
+                                  )
+                                }
+                              />
+                            )
+                          })}
+                        </ul>
+                      </SortableContext>
+                    </DndContext>
+                  ))}
+              </div>
+            )}
 
-            {/* Project Updates */}
-            <div className={card}>
-              <h2>Project Updates</h2>
-              <CommentThread
-                workItemId={project.id}
-                emptyText="No updates yet."
-                placeholder="Share a progress update…"
-              />
-            </div>
+            {tab === 'discussion' && (
+              <div className={card} id="discussion">
+                <h2>Discussion</h2>
+                <CommentThread
+                  workItemId={project.id}
+                  emptyText="No messages yet."
+                  placeholder="Share an update or ask a question. Type @ to mention someone."
+                />
+              </div>
+            )}
+
+            {tab === 'people' && peopleTab}
           </div>
 
           {/* Sidebar */}
           <div className="lg:col-span-1 min-w-0 flex flex-col gap-4">
             {/* Status */}
             <div className={card}>
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <h2 className="m-0">Status</h2>
-                {canManageTasks && (
-                  <div className="flex flex-wrap items-center justify-end gap-2">
-                    <Button href={`/projects/${idParam}/edit`} variant="secondary" size="sm">
-                      Edit Project
-                    </Button>
-                    <Button variant="secondary" size="sm" onClick={() => setShowPorting(true)}>
-                      Export / Import
-                    </Button>
-                    {isAdmin && (
-                      <SaveAsTemplateButton projectId={project.id} defaultTitle={project.title} />
-                    )}
-                  </div>
-                )}
-              </div>
-              {isOwnerOrAdmin ? (
-                <FilterDropdown
-                  id="change-status"
-                  label="Status"
-                  ariaLabel="project status"
+              <h2 className="mb-3">Status</h2>
+              {canPickStatus ? (
+                <StatusSplitButton
                   value={shownStatus}
                   options={statusOptions}
-                  onChange={handleSelectStatus}
-                  triggerClassName={statusTriggerClasses(shownStatus)}
-                  renderOption={(opt) => (
-                    <span className={badgeClasses(projectStatusVariant(opt.value))}>
-                      {opt.label}
-                    </span>
-                  )}
-                  hideLabel
+                  onSelect={handleSelectStatus}
+                  disabled={updateProjectMutation.isPending}
                 />
               ) : (
                 <Badge variant={projectStatusVariant(project.status)} aria-label="project status">
@@ -1737,159 +2191,66 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     </ActionMenu>
                   )}
                 </div>
-                {project.ownerId && !isOwner && !isAdmin && (
+                {project.canMessageOwner && !isAdmin && (
                   <Button
                     variant="secondary"
                     size="sm"
                     className="mt-3"
                     onClick={() => setShowContactModal(true)}
                   >
-                    Contact Owner
+                    Message owner
                   </Button>
                 )}
 
-                {!isOwnerOrAdmin && canCreateTasks && Array.isArray(project.helpers) && (
-                  <div className="mt-4 pt-4 border-t border-brand-border">
-                    <h3 className="text-sm mb-2">Volunteers</h3>
-                    {project.helpers.length === 0 ? (
-                      <p className="text-text-light text-sm">No helpers yet.</p>
-                    ) : (
-                      <ul className="list-none p-0 m-0">
-                        {project.helpers.map((helper) => (
-                          <li
-                            key={helper.id}
-                            className="interest-card flex items-center gap-2 py-2 border-b border-brand-border last:border-0 flex-wrap"
-                          >
-                            <TaskAvatar name={helper.volunteerName} />
-                            <div className="flex-1 min-w-0">
-                              <div className="truncate">{helper.volunteerName}</div>
-                              <div className="text-text-light text-xs">
-                                {helper.interestType === 'want_to_own' ? 'Owner' : 'Helper'}
-                              </div>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-
-                {isOwnerOrAdmin && Array.isArray(project.interests) && (
-                  <div className="mt-4 pt-4 border-t border-brand-border">
-                    <h3 className="text-sm mb-2">Volunteers</h3>
-
-                    {volunteerInterests.length === 0 ? (
-                      <p className="text-text-light text-sm">No interests yet.</p>
-                    ) : (
-                      <ul className="list-none p-0 m-0">
-                        {volunteerInterests.map((interest) => (
-                          // [test hook] interest-card class used as test selector
-                          <li
-                            key={interest.id}
-                            className="interest-card flex items-center gap-2 py-2 border-b border-brand-border last:border-0 flex-wrap"
-                          >
-                            <TaskAvatar name={interest.volunteerName} />
-                            <div className="flex-1 min-w-0">
-                              {isAdmin || interestedVolunteerIds.has(interest.volunteerId) ? (
-                                <Link
-                                  href={`/volunteers/${interest.volunteerId}`}
-                                  className="underline truncate block"
-                                >
-                                  {interest.volunteerName}
-                                </Link>
-                              ) : (
-                                <div className="truncate">{interest.volunteerName}</div>
-                              )}
-                              <div className="text-text-light text-xs">
-                                {interest.status === InterestStatus.accepted
-                                  ? interest.interestType === 'want_to_own'
-                                    ? 'Owner'
-                                    : 'Helper'
-                                  : interest.status === InterestStatus.pending
-                                    ? interest.interestType === 'want_to_own'
-                                      ? 'wants to own'
-                                      : 'wants to help'
-                                    : interestHistoryLabel(interest.origin, interest.status)}
-                              </div>
-                            </div>
-                            {interest.status === InterestStatus.pending ? (
-                              <div className="flex gap-2 shrink-0">
-                                <Button size="sm" onClick={() => handleAcceptInterest(interest.id)}>
-                                  Accept
-                                </Button>
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleDeclineInterest(
-                                      interest.id,
-                                      interest.volunteerName,
-                                      false,
-                                    )
-                                  }
-                                >
-                                  Decline
-                                </Button>
-                              </div>
-                            ) : interest.status === InterestStatus.accepted ? (
-                              <div className="flex items-center gap-2 shrink-0">
-                                <Badge variant={projectStatusVariant(interest.status)}>
-                                  {INTEREST_STATUS_LABELS[interest.status] ?? interest.status}
-                                </Badge>
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleDeclineInterest(interest.id, interest.volunteerName, true)
-                                  }
-                                >
-                                  Remove
-                                </Button>
-                              </div>
-                            ) : null}
-                            {interest.message && interest.status !== InterestStatus.accepted && (
-                              <p className="text-sm text-text-light w-full m-0">
-                                {interest.message}
-                              </p>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-
-                    {volunteers.length > 0 && (
-                      <form
-                        onSubmit={handleAssign}
-                        className="flex gap-2 items-center flex-wrap mt-3 pt-3 border-t border-brand-border"
-                      >
-                        <span className="text-text-light text-sm shrink-0">+ Add</span>
-                        <div className="flex-1 min-w-40">
-                          <VolunteerSelect
-                            id="assign-volunteer"
-                            label=""
-                            ariaLabel="Volunteer to assign"
-                            value={assignTo}
-                            onChange={(v) => setAssignTo(v)}
-                          />
-                        </div>
-                        <Button
-                          type="submit"
-                          size="sm"
-                          disabled={!assignTo || assignMutation.isPending}
-                        >
-                          {assignMutation.isPending ? 'Assigning…' : 'Assign'}
-                        </Button>
-                      </form>
-                    )}
-                    {volunteers.length > 0 && (
-                      <p className="text-xs text-text-light mt-1 mb-0">
-                        They are added straight away and get a notification.
-                      </p>
-                    )}
-                  </div>
-                )}
+                <div className="mt-4 pt-4 border-t border-brand-border">
+                  <h3 className="text-sm mb-2">People</h3>
+                  {sidebarHelpers.length === 0 ? (
+                    <p className="text-text-light text-sm m-0">No helpers yet.</p>
+                  ) : (
+                    <ul aria-label="Helpers" className="list-none p-0 m-0 flex flex-col gap-1">
+                      {sidebarHelpers.slice(0, SIDEBAR_PEOPLE).map((h) => (
+                        <li key={h.id} className="flex items-center gap-2 text-sm">
+                          <TaskAvatar name={h.volunteerName} />
+                          <span className="truncate">{h.volunteerName}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {sidebarHelpers.length > SIDEBAR_PEOPLE && (
+                    <p className="text-text-light text-xs mt-1 mb-0">
+                      and {sidebarHelpers.length - SIDEBAR_PEOPLE} more
+                    </p>
+                  )}
+                  {waitingCount > 0 && (
+                    <p className="text-sm mt-2 mb-0">{waitingCount} waiting for an answer</p>
+                  )}
+                  <button
+                    type="button"
+                    className="text-sm underline mt-2 bg-transparent border-0 p-0 cursor-pointer text-primary-text"
+                    onClick={() => selectTab('people')}
+                  >
+                    {isOwnerOrAdmin ? 'Manage people' : 'See everyone'}
+                  </button>
+                </div>
               </div>
             </div>
+
+            {canManageProject && (
+              <div className={card}>
+                <p className="font-semibold mb-3">Manage</p>
+                <div className="flex flex-col items-start gap-2">
+                  <Button href={`/projects/${idParam}/edit`} variant="secondary" size="sm">
+                    Edit Project
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => setShowPorting(true)}>
+                    Export / Import
+                  </Button>
+                  {isAdmin && (
+                    <SaveAsTemplateButton projectId={project.id} defaultTitle={project.title} />
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Admin triage */}
             {isAdmin &&
@@ -1918,7 +2279,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                           checked={reviewStatus === 'needs_discussion'}
                           onChange={() => setReviewStatus('needs_discussion')}
                         />
-                        Needs Discussion
+                        Ask for changes
                       </label>
                     </div>
                     {reviewStatus === 'needs_discussion' && (
@@ -1930,7 +2291,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                           rows={3}
                           value={reviewMessage}
                           onChange={(e) => setReviewMessage(e.target.value)}
-                          placeholder="What do you want to discuss?"
+                          placeholder="What needs to change before it goes live?"
                         />
                       </div>
                     )}
@@ -1973,92 +2334,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </form>
               </div>
             )}
-
-            {/* Interest section */}
-            {canSeeInterest && (
-              <div className={card}>
-                <h2>
-                  {project.myInterest?.origin === 'added'
-                    ? 'Your place on this project'
-                    : 'Interested in this project?'}
-                </h2>
-                {!project.myInterest ? (
-                  <form onSubmit={handleExpressInterest}>
-                    <div className="mb-5">
-                      <label className="flex items-center gap-2 cursor-pointer mb-2 font-normal">
-                        <input
-                          type="radio"
-                          name="interest_type"
-                          value="want_to_contribute"
-                          checked={interestType === 'want_to_contribute'}
-                          onChange={() => setInterestType('want_to_contribute')}
-                        />
-                        I want to help out / contribute to this project
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer font-normal">
-                        <input
-                          type="radio"
-                          name="interest_type"
-                          value="want_to_own"
-                          checked={interestType === 'want_to_own'}
-                          onChange={() => setInterestType('want_to_own')}
-                        />
-                        I want to own / lead this project
-                      </label>
-                    </div>
-                    <div className="mb-5">
-                      <label htmlFor="interest-message">Message (optional)</label>
-                      <textarea
-                        id="interest-message"
-                        rows={3}
-                        value={interestMessage}
-                        onChange={(e) => setInterestMessage(e.target.value)}
-                        placeholder="Tell them why you're interested…"
-                      />
-                    </div>
-                    <Button type="submit" disabled={expressInterestMutation.isPending}>
-                      {expressInterestMutation.isPending ? 'Submitting…' : 'Express Interest'}
-                    </Button>
-                  </form>
-                ) : (
-                  <div>
-                    <p>
-                      {project.myInterest.origin === 'added'
-                        ? 'Your place:'
-                        : 'Your interest status:'}{' '}
-                      <span aria-label="interest status" className="font-semibold">
-                        {INTEREST_STATUS_LABELS[project.myInterest.status] ??
-                          project.myInterest.status}
-                      </span>
-                    </p>
-                    {project.myInterest.status === InterestStatus.removed && (
-                      <p className="text-text-light text-sm">
-                        Contact the owner if you would like to rejoin.
-                      </p>
-                    )}
-                    {project.myInterest.responseMessage && (
-                      <p className="text-text-light text-sm">
-                        {project.myInterest.responseMessage}
-                      </p>
-                    )}
-                    {(project.myInterest.status === InterestStatus.pending ||
-                      project.myInterest.status === InterestStatus.accepted) && (
-                      <Button
-                        variant="warning"
-                        className="mt-2"
-                        onClick={() =>
-                          setWithdrawAccepted(
-                            project.myInterest?.status === InterestStatus.accepted,
-                          )
-                        }
-                      >
-                        Withdraw Interest
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </main>
@@ -2090,7 +2365,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       {showContactModal && ownerId !== null && (
         <MessageDialog
           id="contact-owner"
-          title="Contact Owner"
+          title="Message owner"
           recipientId={ownerId}
           recipientName={project.owner?.name ?? 'The owner'}
           relatedProjectId={project.id}
@@ -2158,17 +2433,53 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         />
       )}
 
+      {deputyAction !== null && (
+        <ConfirmDialog
+          id="confirm-deputy"
+          isOpen
+          title={
+            deputyAction.kind === 'appoint'
+              ? `Make ${deputyAction.name} a deputy?`
+              : deputyAction.kind === 'remove'
+                ? `Remove ${deputyAction.name} as a deputy?`
+                : 'Step down as a deputy?'
+          }
+          body={
+            deputyAction.kind === 'appoint'
+              ? 'A deputy can create, edit, assign and delete tasks, change their deadlines and dependencies, and review submitted work. They cannot edit the project, change its status, manage people, set the key date, project deadline or original plan, or appoint deputies.'
+              : deputyAction.kind === 'remove'
+                ? 'They stay on the project as a helper but can no longer manage its tasks.'
+                : 'You stay on the project as a helper but can no longer manage its tasks.'
+          }
+          confirmLabel={
+            deputyAction.kind === 'appoint'
+              ? 'Make deputy'
+              : deputyAction.kind === 'remove'
+                ? 'Remove deputy'
+                : 'Step down'
+          }
+          busyLabel="Saving…"
+          busy={
+            appointDeputyMutation.isPending ||
+            removeDeputyMutation.isPending ||
+            stepDownMutation.isPending
+          }
+          onConfirm={() => confirmDeputyAction(deputyAction)}
+          onClose={() => setDeputyAction(null)}
+        />
+      )}
+
       <ConfirmDialog
         id="confirm-withdraw-interest"
         isOpen={withdrawAccepted !== null}
-        title={withdrawAccepted ? 'Withdraw from this project?' : 'Withdraw your interest?'}
+        title={withdrawAccepted ? 'Leave this project?' : 'Withdraw your request?'}
         body={
           withdrawAccepted
-            ? 'Tasks you claimed will be released. You would need to express interest again to rejoin.'
-            : 'The owner will no longer see your request. You can express interest again later.'
+            ? 'Tasks you claimed will be released. You would need to ask to join again.'
+            : 'The owner will no longer see your request. You can ask to join again later.'
         }
-        confirmLabel="Withdraw"
-        busyLabel="Withdrawing…"
+        confirmLabel={withdrawAccepted ? 'Leave' : 'Withdraw'}
+        busyLabel="Leaving…"
         danger
         busy={withdrawInterestMutation.isPending}
         onConfirm={confirmWithdrawInterest}

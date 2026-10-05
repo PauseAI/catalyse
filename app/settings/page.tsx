@@ -9,9 +9,17 @@ import Checkbox from '@/components/Checkbox'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import SkillPicker from '@/components/SkillPicker'
 import Tabs from '@/components/Tabs'
+import { Badge } from '@/components/Badge'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { useUrlParam } from '@/lib/hooks/url-filters'
+import { formatDate } from '@/lib/format-date'
+import { BUG_STATUS_VARIANT, bugStatusLabel } from '@/lib/bug-report-labels'
+import {
+  EMAIL_CATEGORY_LABELS,
+  MUTABLE_EMAIL_CATEGORIES,
+  type MutableEmailCategory,
+} from '@/lib/notification-categories'
 import {
   COUNTRY_OPTIONS,
   NO_LOCAL_GROUP,
@@ -19,13 +27,14 @@ import {
   type LocalGroupOption,
 } from '@/lib/filter-options'
 
-type TabKey = 'profile' | 'account' | 'notifications' | 'privacy'
+type TabKey = 'profile' | 'account' | 'notifications' | 'privacy' | 'bug-reports'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'profile', label: 'Profile' },
   { key: 'account', label: 'Account' },
   { key: 'notifications', label: 'Notifications' },
   { key: 'privacy', label: 'Privacy & Data' },
+  { key: 'bug-reports', label: 'My Bug Reports' },
 ]
 
 const VALID_TABS = new Set<string>(TABS.map((t) => t.key))
@@ -91,11 +100,9 @@ function SettingsPageContent() {
     'none',
   )
   const [notifyRemoteProjects, setNotifyRemoteProjects] = useState(false)
+  const [emailMutedCategories, setEmailMutedCategories] = useState<MutableEmailCategory[]>([])
   const [consentMakeProfileVisibleInDirectory, setConsentMakeProfileVisibleInDirectory] =
     useState(true)
-  const [consentContactableByProjectOwners, setConsentContactableByProjectOwners] = useState(true)
-  const [consentShareContactInfoWithProjectOwner, setConsentShareContactInfoWithProjectOwner] =
-    useState(false)
   const [consentAnalytics, setConsentAnalytics] = useState(false)
   const [syncedUpdatedAt, setSyncedUpdatedAt] = useState<string | null>(null)
 
@@ -115,6 +122,11 @@ function SettingsPageContent() {
   })
   const { data: localGroupsData } = useQuery(orpc.localGroups.list.queryOptions({ input: {} }))
   const allLocalGroups: LocalGroupOption[] = localGroupsData?.groups ?? []
+
+  const { data: myBugReports = [], isPending: loadingBugReports } = useQuery({
+    ...orpc.bugReports.listMine.queryOptions(),
+    enabled: !!user && activeTab === 'bug-reports',
+  })
 
   const { data: myApplication } = useQuery({
     ...orpc.volunteers.myApplication.queryOptions(),
@@ -177,10 +189,11 @@ function SettingsPageContent() {
     setContactNotes(me.contactNotes ?? '')
     setEmailDigest(me.emailDigest ?? 'none')
     setNotifyRemoteProjects(!!me.notifyRemoteProjects)
+    setEmailMutedCategories(
+      MUTABLE_EMAIL_CATEGORIES.filter((c) => me.emailMutedCategories?.includes(c)),
+    )
     setOtherSkills(me.otherSkills ?? '')
     setConsentMakeProfileVisibleInDirectory(!!me.consentMakeProfileVisibleInDirectory)
-    setConsentContactableByProjectOwners(!!me.consentContactableByProjectOwners)
-    setConsentShareContactInfoWithProjectOwner(!!me.consentShareContactInfoWithProjectOwner)
     setConsentAnalytics(me.cookieConsentAnalytics !== false)
     setSkills(
       ((me.skills ?? []) as { id: number; proficiencyLevel?: string | null }[]).map((s) => ({
@@ -298,11 +311,10 @@ function SettingsPageContent() {
       contactNotes: contactNotes.trim() || null,
       emailDigest,
       notifyRemoteProjects,
+      emailMutedCategories,
       otherSkills: otherSkills.trim() || null,
       skillIds: skills.map((s) => s.skillId),
       consentMakeProfileVisibleInDirectory,
-      consentContactableByProjectOwners,
-      consentShareContactInfoWithProjectOwner,
       cookieConsentAnalytics: consentAnalytics,
     }
   }
@@ -451,8 +463,8 @@ function SettingsPageContent() {
 
           <h3 className="mt-6 mb-4">Contact Information</h3>
           <aside className="bg-brand-bg border border-brand-border rounded-lg px-4 py-3 mb-4 text-sm text-text-light">
-            Always visible to you and admins. Shared with other volunteers and project owners only
-            if you enable both consent checkboxes in the Privacy &amp; Data tab.
+            Always visible to you and admins. Shared with the people you work with on a project, and
+            with anyone whose contact request you accept.
           </aside>
           <div className="grid grid-cols-2 gap-5 mb-5 max-sm:grid-cols-1">
             <div>
@@ -716,6 +728,29 @@ function SettingsPageContent() {
               also get alerts for projects elsewhere that are marked remote-friendly worldwide.
             </p>
           </div>
+          <fieldset className="mb-5 border-0 p-0">
+            <legend className="font-medium mb-2">Also email me</legend>
+            <div className="flex flex-col gap-2">
+              {MUTABLE_EMAIL_CATEGORIES.map((c) => (
+                <Checkbox
+                  key={c}
+                  id={`email_${c}`}
+                  checked={!emailMutedCategories.includes(c)}
+                  onChange={(e) =>
+                    setEmailMutedCategories((muted) =>
+                      e.target.checked ? muted.filter((m) => m !== c) : [...muted, c],
+                    )
+                  }
+                >
+                  {EMAIL_CATEGORY_LABELS[c]}
+                </Checkbox>
+              ))}
+            </div>
+            <p className="text-sm text-text-light mt-1 ml-7">
+              Everything still arrives in your Inbox. Messages from other volunteers are always
+              emailed as well.
+            </p>
+          </fieldset>
           {saveButton}
         </form>
       )}
@@ -733,28 +768,12 @@ function SettingsPageContent() {
                 checked={consentMakeProfileVisibleInDirectory}
                 onChange={(e) => setConsentMakeProfileVisibleInDirectory(e.target.checked)}
               >
-                Make my profile visible in the volunteer directory
+                Show me in the volunteer directory
               </Checkbox>
-              <Checkbox
-                id="consent_contactable_by_project_owners"
-                checked={consentContactableByProjectOwners}
-                onChange={(e) => setConsentContactableByProjectOwners(e.target.checked)}
-              >
-                Allow project owners to contact me about opportunities
-              </Checkbox>
-              <div className="ml-7">
-                <Checkbox
-                  id="consent_share_contact_info_with_project_owner"
-                  checked={consentShareContactInfoWithProjectOwner}
-                  disabled={!consentContactableByProjectOwners}
-                  onChange={(e) => setConsentShareContactInfoWithProjectOwner(e.target.checked)}
-                >
-                  <span className={consentContactableByProjectOwners ? '' : 'opacity-50'}>
-                    Share my contact info directly with project owners (otherwise they use the
-                    contact form)
-                  </span>
-                </Checkbox>
-              </div>
+              <p className="text-sm text-text-light m-0 ml-7">
+                Other volunteers can find you and ask to see your contact details; you choose
+                whether to accept. People on your projects can always reach you.
+              </p>
             </div>
 
             <h3 className="mt-6 mb-2">Analytics</h3>
@@ -801,6 +820,43 @@ function SettingsPageContent() {
               Read Privacy Policy
             </Link>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'bug-reports' && (
+        <div className="max-w-4xl">
+          {loadingBugReports ? (
+            <div className="text-center py-10 text-text-light">Loading…</div>
+          ) : myBugReports.length === 0 ? (
+            <p>You haven&apos;t reported anything yet.</p>
+          ) : (
+            myBugReports.map((r) => (
+              <Link
+                key={r.id}
+                href={`/bugs/${r.id}`}
+                className="card block bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word w-full"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <h3 className="mt-0 mx-0 mb-1">{r.title}</h3>
+                    <div className="text-text-light flex gap-2 flex-wrap text-[0.8rem]">
+                      {r.category && <span>{r.category}</span>}
+                      {r.severity && <span>· {r.severity}</span>}
+                      <span>· {r.createdAt ? formatDate(r.createdAt) : ''}</span>
+                      {r.assigneeName && <span>· Assigned to: {r.assigneeName}</span>}
+                    </div>
+                  </div>
+                  <Badge variant={BUG_STATUS_VARIANT[r.status] ?? 'neutral'}>
+                    {bugStatusLabel(r.status)}
+                  </Badge>
+                </div>
+                <p className="text-text-light mt-0 mx-0 whitespace-pre-wrap">{r.description}</p>
+                {r.resolutionNotes && (
+                  <p className="mt-3 mx-0 mb-0 text-sm italic">Resolution: {r.resolutionNotes}</p>
+                )}
+              </Link>
+            ))
+          )}
         </div>
       )}
 

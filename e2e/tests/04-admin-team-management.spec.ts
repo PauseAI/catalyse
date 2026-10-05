@@ -104,7 +104,7 @@ test.describe('Admin: Admin Team Management', () => {
       // confirmation link. A pending signup leaves the browser signed out, so the link
       // proves the mailbox only and the password chosen at signup is cleared.
       await signup(baseUrl, page, person.name, person.email, 'testpassword1')
-      await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible({
+      await expect(page.getByRole('heading', { name: 'Application received' })).toBeVisible({
         timeout: 15_000,
       })
 

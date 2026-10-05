@@ -176,6 +176,48 @@ describe('bugReportComments', () => {
       [admin.name, 'from admin'],
     ])
   })
+
+  it('lets the author edit, and the author or an admin delete', async () => {
+    const reporter = await createVolunteer()
+    const admin = await createAdmin()
+    const { id: bugReportId } = await clientAs(reporter).bugReports.create({
+      title: 'T',
+      description: 'Ten characters at least',
+    })
+    const mine = await clientAs(reporter).bugReportComments.add({ bugReportId, content: 'mine' })
+    const theirs = await clientAs(admin).bugReportComments.add({ bugReportId, content: 'theirs' })
+
+    await expect(
+      clientAs(admin).bugReportComments.edit({ id: mine.id, content: 'x' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    await expect(
+      clientAs(reporter).bugReportComments.edit({ id: 999_999, content: 'x' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(
+      clientAs(reporter).bugReportComments.delete({ id: theirs.id }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+
+    expect(
+      await clientAs(reporter).bugReportComments.edit({ id: mine.id, content: ' edited ' }),
+    ).toMatchObject({ message: 'Comment updated' })
+    let { comments } = await clientAs(reporter).bugReportComments.list({ bugReportId })
+    expect(comments[0]).toMatchObject({ content: 'edited', canEdit: true, canDelete: true })
+    expect(comments[0].editedAt).not.toBeNull()
+    expect(comments[1]).toMatchObject({ canEdit: false, canDelete: false })
+
+    await clientAs(reporter).bugReportComments.delete({ id: mine.id })
+    expect(await clientAs(admin).bugReportComments.delete({ id: theirs.id })).toMatchObject({
+      message: 'Comment deleted',
+    })
+    await expect(
+      clientAs(reporter).bugReportComments.delete({ id: mine.id }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    ;({ comments } = await clientAs(reporter).bugReportComments.list({ bugReportId }))
+    expect(comments).toMatchObject([
+      { deleted: true, content: '', canDelete: false },
+      { deleted: true, content: '', canDelete: false },
+    ])
+  })
 })
 
 describe('admin.bugReports', () => {

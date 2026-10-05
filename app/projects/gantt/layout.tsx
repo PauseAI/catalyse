@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Roadmap',
+  title: 'Projects timeline',
 }
 
 export default function RoadmapLayout({ children }: { children: React.ReactNode }) {

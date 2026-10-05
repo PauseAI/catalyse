@@ -1,7 +1,8 @@
 generator client {
-  provider      = "prisma-client"
-  output        = "../generated/prisma"
-  binaryTargets = ["native"]
+  provider        = "prisma-client"
+  output          = "../generated/prisma"
+  binaryTargets   = ["native"]
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 generator zod {
@@ -12,8 +13,9 @@ generator zod {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [unaccent]
 }
 
 // Lifecycle position only. Whether a project wants an owner or more help is not a
@@ -53,6 +55,7 @@ enum RemoteEligibility {
 enum TaskStatus {
   open
   in_progress
+  under_review
   completed
 }
 
@@ -71,12 +74,18 @@ enum InterestStatus {
   withdrawn
   // A helper the owner took off the project after they were on it.
   removed
+  // Asked by the owner or an admin; not on the project until they accept.
+  invited
+  // An invite the owner or an admin took back before it was answered.
+  cancelled
 }
 
 /// How someone came to be on a project's interest list.
 enum InterestOrigin {
   applied
+  // Put on the project by an admin, with no say.
   added
+  invited
 }
 
 enum ApprovalStatus {
@@ -175,6 +184,9 @@ model BugReportComment {
   /// @zod.string.min(1, { message: "Content is required" })
   content     String
   createdAt   DateTime? @default(now()) @map("created_at")
+  editedAt    DateTime? @map("edited_at")
+  /// Soft delete: the row stays so the thread keeps its shape; the content is never served.
+  deletedAt   DateTime? @map("deleted_at")
   author      Volunteer @relation("BugReportCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   bugReport   BugReport @relation(fields: [bugReportId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -191,10 +203,15 @@ model Message {
   relatedWorkItemId Int?      @map("related_work_item_id")
   readAt            DateTime? @map("read_at")
   createdAt         DateTime? @default(now()) @map("created_at")
+  /// The conversation's first message; null on that first message itself.
+  threadId          Int?      @map("thread_id")
   relatedWorkItem   WorkItem? @relation(fields: [relatedWorkItemId], references: [id], onUpdate: NoAction)
   to                Volunteer @relation("MessageTo", fields: [toVolunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   from              Volunteer @relation("MessageFrom", fields: [fromVolunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  thread            Message?  @relation("MessageThread", fields: [threadId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  replies           Message[] @relation("MessageThread")
 
+  @@index([threadId], map: "idx_contact_messages_thread")
   @@index([fromVolunteerId], map: "idx_contact_messages_from")
   @@index([toVolunteerId], map: "idx_contact_messages_to")
   @@map("contact_messages")
@@ -286,6 +303,9 @@ model WorkItem {
   // People roles
   creatorId     Int? @map("creator_id")
   assigneeId    Int? @map("assignee_id")
+  // A task someone not yet on the project asked to take: held for them until the owner
+  // answers their join request (TASK only).
+  requestedById Int? @map("requested_by_id")
   stakeholderId Int? @map("stakeholder_id")
 
   // Review
@@ -293,6 +313,14 @@ model WorkItem {
   reviewedAt   DateTime? @map("reviewed_at")
   reviewNotes  String?   @map("review_notes")
   reviewRating String?   @map("review_rating") // QUICK_TASK only
+
+  // Submitted work (TASK and QUICK_TASK): what the assignee says they did, at least one of
+  // the two. `changesRequestedNote` is the reviewer's latest "ask for changes", shown to the
+  // assignee until they submit again; `reviewedById`/`reviewedAt` above record who asked.
+  submissionNote       String?   @map("submission_note")
+  submissionUrl        String?   @map("submission_url")
+  submittedAt          DateTime? @map("submitted_at")
+  changesRequestedNote String?   @map("changes_requested_note")
 
   // Project-specific (nullable for TASK/QUICK_TASK)
   projectType                String?   @map("project_type") // TODO: enum — sprint, container, ongoing, one_off
@@ -304,6 +332,8 @@ model WorkItem {
   // No `is_seeking_owner` column: it is derived from (status, assigneeId). See
   // isSeekingOwner() in lib/project-status.ts.
   isSeekingHelp              Boolean?  @default(false) @map("is_seeking_help")
+  // Submitted tasks go straight to Done instead of waiting for the owner to accept them.
+  autoAcceptTasks            Boolean   @default(true) @map("auto_accept_tasks")
   outcome                    String? // TODO: enum — successful, partial, not_completed, ongoing
   outcomeNotes               String?   @map("outcome_notes")
   completedAt                DateTime? @map("completed_at")
@@ -349,19 +379,22 @@ model WorkItem {
   createdAt         DateTime?         @default(now()) @map("created_at")
   updatedAt         DateTime?         @default(now()) @map("updated_at")
 
-  creator              Volunteer?         @relation("WorkItemCreator", fields: [creatorId], references: [id], onUpdate: NoAction)
-  templateOrigin       Template?          @relation("WorkItemTemplateOrigin", fields: [templateOriginId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  assignee             Volunteer?         @relation("WorkItemAssignee", fields: [assigneeId], references: [id], onUpdate: NoAction)
-  stakeholder          Volunteer?         @relation("WorkItemStakeholder", fields: [stakeholderId], references: [id], onUpdate: NoAction)
-  reviewedBy           Volunteer?         @relation("WorkItemReviewedBy", fields: [reviewedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  skill                Skill?             @relation(fields: [skillId], references: [id], onUpdate: NoAction)
-  team                 Team?              @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  creator              Volunteer?             @relation("WorkItemCreator", fields: [creatorId], references: [id], onUpdate: NoAction)
+  templateOrigin       Template?              @relation("WorkItemTemplateOrigin", fields: [templateOriginId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  assignee             Volunteer?             @relation("WorkItemAssignee", fields: [assigneeId], references: [id], onUpdate: NoAction)
+  requestedBy          Volunteer?             @relation("WorkItemRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  stakeholder          Volunteer?             @relation("WorkItemStakeholder", fields: [stakeholderId], references: [id], onUpdate: NoAction)
+  reviewedBy           Volunteer?             @relation("WorkItemReviewedBy", fields: [reviewedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  skill                Skill?                 @relation(fields: [skillId], references: [id], onUpdate: NoAction)
+  team                 Team?                  @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   comments             WorkItemComment[]
+  reviewRequests       ProjectReviewRequest[]
   skills               WorkItemSkill[]
   interests            WorkItemInterest[]
+  deputies             ProjectDeputy[]        @relation("ProjectDeputies")
   adminNotes           AdminNote[]
   messages             Message[]
-  templatesSourcedFrom Template[]         @relation("TemplateSourceProject")
+  templatesSourcedFrom Template[]             @relation("TemplateSourceProject")
 
   dependenciesAsPredecessor WorkItemDependency[] @relation("WorkItemDependencyPredecessor")
   dependenciesAsSuccessor   WorkItemDependency[] @relation("WorkItemDependencySuccessor")
@@ -380,17 +413,41 @@ model WorkItem {
   @@map("work_items")
 }
 
+/// An admin's request for changes to a proposal. Open until the proposer resubmits it or an
+/// admin approves; each round is kept.
+model ProjectReviewRequest {
+  id            Int        @id @default(autoincrement())
+  projectId     Int        @map("project_id")
+  message       String
+  requestedById Int?       @map("requested_by_id")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  resolvedAt    DateTime?  @map("resolved_at")
+  project       WorkItem   @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  requestedBy   Volunteer? @relation(fields: [requestedById], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([projectId, createdAt], map: "idx_project_review_requests_project")
+  @@map("project_review_requests")
+}
+
 model WorkItemComment {
-  id         Int        @id @default(autoincrement())
-  workItemId Int        @map("work_item_id")
-  authorId   Int?       @map("author_id")
+  id         Int               @id @default(autoincrement())
+  workItemId Int               @map("work_item_id")
+  authorId   Int?              @map("author_id")
   /// @zod.string.min(1, { message: "Content is required" })
   content    String
-  createdAt  DateTime?  @default(now()) @map("created_at")
-  author     Volunteer? @relation("WorkItemCommentAuthor", fields: [authorId], references: [id], onUpdate: NoAction)
-  workItem   WorkItem   @relation(fields: [workItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  createdAt  DateTime?         @default(now()) @map("created_at")
+  /// A reply's top-level comment; replies are never nested deeper.
+  parentId   Int?              @map("parent_id")
+  editedAt   DateTime?         @map("edited_at")
+  /// Soft delete: the row stays so its replies keep their place; the content is never served.
+  deletedAt  DateTime?         @map("deleted_at")
+  author     Volunteer?        @relation("WorkItemCommentAuthor", fields: [authorId], references: [id], onUpdate: NoAction)
+  workItem   WorkItem          @relation(fields: [workItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  parent     WorkItemComment?  @relation("WorkItemCommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  replies    WorkItemComment[] @relation("WorkItemCommentReplies")
 
   @@index([workItemId, createdAt], map: "idx_work_item_comments_thread")
+  @@index([parentId], map: "idx_work_item_comments_parent")
   @@map("work_item_comments")
 }
 
@@ -428,19 +485,39 @@ model WorkItemSkill {
   @@map("work_item_skills")
 }
 
+/// An accepted helper the owner has delegated a project's task management to. The row goes
+/// when the person stops being an accepted helper.
+model ProjectDeputy {
+  id            Int        @id @default(autoincrement())
+  projectId     Int        @map("project_id")
+  volunteerId   Int        @map("volunteer_id")
+  appointedById Int?       @map("appointed_by_id")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  project       WorkItem   @relation("ProjectDeputies", fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  volunteer     Volunteer  @relation("DeputyVolunteer", fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  appointedBy   Volunteer? @relation("DeputyAppointedBy", fields: [appointedById], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@unique([projectId, volunteerId], map: "uq_project_deputies_project_volunteer")
+  @@index([volunteerId], map: "idx_project_deputies_volunteer")
+  @@map("project_deputies")
+}
+
 model WorkItemInterest {
   id              Int            @id @default(autoincrement())
   volunteerId     Int            @map("volunteer_id")
   workItemId      Int            @map("work_item_id")
   interestType    String         @map("interest_type") // TODO: enum — want_to_contribute, want_to_own
+  /// The applicant's message, or the inviter's note on an invite.
   message         String?
   status          InterestStatus @default(pending)
   origin          InterestOrigin @default(applied)
   responseMessage String?        @map("response_message")
   createdAt       DateTime?      @default(now()) @map("created_at")
   respondedAt     DateTime?      @map("responded_at")
+  invitedById     Int?           @map("invited_by_id")
   workItem        WorkItem       @relation(fields: [workItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  volunteer       Volunteer      @relation(fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  volunteer       Volunteer      @relation("InterestVolunteer", fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  invitedBy       Volunteer?     @relation("InterestInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@unique([volunteerId, workItemId], map: "uq_work_item_interests_volunteer_item")
   @@index([volunteerId], map: "idx_work_item_interests_volunteer")
@@ -741,6 +818,8 @@ model Volunteer {
   whatsappNumber                          String?                  @map("whatsapp_number")
   contactPreference                       String?                  @map("contact_preference") // TODO: enum — email, discord, signal, whatsapp (others unknown)
   contactNotes                            String?                  @map("contact_notes")
+  /// Last day the volunteer used the site; written at most once a day.
+  lastActiveAt                            DateTime?                @map("last_active_at")
   availabilityHoursPerWeek                Int?                     @map("availability_hours_per_week")
   location                                String?
   otherSkills                             String?                  @map("other_skills")
@@ -764,13 +843,15 @@ model Volunteer {
   emailChangeCount                        Int                      @default(0) @map("email_change_count")
   /// @zod.custom.omit([model])
   emailChangeWindowStart                  DateTime?                @map("email_change_window_start")
-  isAdmin                                Boolean?                 @default(false) @map("is_admin")
+  isAdmin                                 Boolean?                 @default(false) @map("is_admin")
   isTechnicalAdmin                        Boolean?                 @default(false) @map("is_technical_admin")
   createdAt                               DateTime?                @default(now()) @map("created_at")
   updatedAt                               DateTime?                @default(now()) @map("updated_at")
   deletedAt                               DateTime?                @map("deleted_at")
   country                                 String?
   emailDigest                             String?                  @default("none") @map("email_digest") // TODO: enum — none, daily, weekly
+  /// Inbox categories (lib/notification-categories.ts) whose notifications are not also emailed.
+  emailMutedCategories                    String[]                 @default([]) @map("email_muted_categories")
   notifyRemoteProjects                    Boolean                  @default(false) @map("notify_remote_projects")
   localGroup                              String?                  @map("local_group")
   locationConfirmedAt                     DateTime?                @map("location_confirmed_at")
@@ -792,14 +873,21 @@ model Volunteer {
   bugReportsAssigned                      BugReport[]              @relation("BugReportAssignee")
   bugReportComments                       BugReportComment[]       @relation("BugReportCommentAuthor")
   messagesSent                            Message[]                @relation("MessageFrom")
+  contactRequestsSent                     ContactRequest[]         @relation("ContactRequestFrom")
+  contactRequestsReceived                 ContactRequest[]         @relation("ContactRequestTo")
   messagesReceived                        Message[]                @relation("MessageTo")
   notifications                           Notification[]
   emailVerificationTokens                 EmailVerificationToken[]
   passwordResetTokens                     PasswordResetToken[]
-  workItemInterests                       WorkItemInterest[]
+  workItemInterests                       WorkItemInterest[]       @relation("InterestVolunteer")
+  interestInvitesSent                     WorkItemInterest[]       @relation("InterestInvitedBy")
+  deputyRoles                             ProjectDeputy[]          @relation("DeputyVolunteer")
+  deputiesAppointed                       ProjectDeputy[]          @relation("DeputyAppointedBy")
   workItemComments                        WorkItemComment[]        @relation("WorkItemCommentAuthor")
+  projectReviewRequests                   ProjectReviewRequest[]
   workItemsCreated                        WorkItem[]               @relation("WorkItemCreator")
   workItemsAssigned                       WorkItem[]               @relation("WorkItemAssignee")
+  workItemsRequested                      WorkItem[]               @relation("WorkItemRequestedBy")
   workItemsStakeholder                    WorkItem[]               @relation("WorkItemStakeholder")
   workItemsReviewed                       WorkItem[]               @relation("WorkItemReviewedBy")
   workItemDependenciesCreated             WorkItemDependency[]     @relation("WorkItemDependencyCreator")
@@ -971,4 +1059,28 @@ model ExperimentalJournalist {
 
   @@index([contactedAt, claimedAt], map: "idx_experimental_journalists_status")
   @@map("experimental_journalists")
+}
+
+enum ContactRequestStatus {
+  pending
+  accepted
+  declined
+}
+
+/// One volunteer asking another, who does not work with them, to connect. Accepting lets the
+/// two see each other's contact details and message each other.
+model ContactRequest {
+  id              Int                  @id @default(autoincrement())
+  fromVolunteerId Int                  @map("from_volunteer_id")
+  toVolunteerId   Int                  @map("to_volunteer_id")
+  message         String
+  status          ContactRequestStatus @default(pending)
+  createdAt       DateTime             @default(now()) @map("created_at")
+  respondedAt     DateTime?            @map("responded_at")
+  from            Volunteer            @relation("ContactRequestFrom", fields: [fromVolunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  to              Volunteer            @relation("ContactRequestTo", fields: [toVolunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([fromVolunteerId, createdAt], map: "idx_contact_requests_from")
+  @@index([toVolunteerId, status], map: "idx_contact_requests_to")
+  @@map("contact_requests")
 }

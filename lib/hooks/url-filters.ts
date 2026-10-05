@@ -21,6 +21,9 @@ function useSetParam() {
     else params.delete(key)
     const qs = params.toString()
     const { pathname } = window.location
+    // A write that changes nothing would still dispatch a router restore (see
+    // useUrlSearchInput), which can cancel a click on a result made just before it.
+    if (qs === window.location.search.replace(/^\?/, '')) return
     window.history.replaceState(null, '', qs ? `${pathname}?${qs}` : pathname)
   }, [])
 }

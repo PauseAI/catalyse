@@ -5,10 +5,13 @@ import {
   approveVolunteer,
   confirmVolunteerEmail,
   dismissCookieConsentScript,
+  createApprovedVolunteerNamed,
 } from '../fixtures'
 import { adminCreateProjectViaApi, transferProjectOwnership } from '../actions/projects'
 import { fake } from '../fake'
 import { createApiClient } from '../client'
+import { goToInbox } from '../actions/dashboard'
+import { connectVolunteers } from '../actions/contacts'
 
 test.describe('Messaging', () => {
   test('Volunteer sends a contact message to another volunteer', async ({
@@ -48,6 +51,10 @@ test.describe('Messaging', () => {
     // A project page is closed to an unconfirmed email.
     if (emailVerificationToken) await confirmVolunteerEmail(baseUrl, emailVerificationToken)
     await approveVolunteer(baseUrl, senderId, senderToken)
+    // Messaging needs a working relationship or an accepted contact request.
+    await volunteer.page.goto(`${baseUrl}/dashboard`)
+    const ownerToken = await volunteer.page.evaluate(() => localStorage.getItem('authToken'))
+    await connectVolunteers(baseUrl, senderToken, ownerToken!)
     const senderCtx = await browser.newContext()
     await senderCtx.addInitScript((token: string) => {
       localStorage.setItem('authToken', token)
@@ -59,7 +66,7 @@ test.describe('Messaging', () => {
       await senderPage.goto(`${baseUrl}/projects/${projectId}`)
       await expect(senderPage.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
 
-      await senderPage.getByRole('button', { name: 'Contact Owner' }).click()
+      await senderPage.getByRole('button', { name: 'Message owner' }).click()
 
       // The recipient has consent_share_contact_info_with_project_owner = false (default), so the relay
       // form appears instead of direct contact details.
@@ -93,13 +100,12 @@ test.describe('Messaging', () => {
     )
     await transferProjectOwnership(baseUrl, adminPage, projectId, volunteer.name)
 
-    // Confirm the recipient starts with no unread notifications.
-    await volunteer.page.goto(`${baseUrl}/dashboard`)
-    await expect(volunteer.page.getByRole('heading', { name: /Welcome back/ })).toBeVisible({
-      timeout: 10_000,
-    })
-    const notifTab = volunteer.page.getByRole('tab', { name: /^Notifications/ })
-    await expect(notifTab.locator('.notification-badge')).not.toBeVisible()
+    // Confirm the recipient starts with no unread messages.
+    const messagesFilter = volunteer.page
+      .getByRole('group', { name: 'Show' })
+      .getByRole('button', { name: /^Messages/ })
+    await goToInbox(baseUrl, volunteer.page)
+    await expect(messagesFilter).toHaveText('Messages')
 
     // Sender sends the message.
     const sender = fake.person()
@@ -122,6 +128,10 @@ test.describe('Messaging', () => {
     // A project page is closed to an unconfirmed email.
     if (emailVerificationToken) await confirmVolunteerEmail(baseUrl, emailVerificationToken)
     await approveVolunteer(baseUrl, senderId, senderToken)
+    // Messaging needs a working relationship or an accepted contact request.
+    await volunteer.page.goto(`${baseUrl}/dashboard`)
+    const ownerToken = await volunteer.page.evaluate(() => localStorage.getItem('authToken'))
+    await connectVolunteers(baseUrl, senderToken, ownerToken!)
     const senderCtx = await browser.newContext()
     await senderCtx.addInitScript((token: string) => {
       localStorage.setItem('authToken', token)
@@ -132,7 +142,7 @@ test.describe('Messaging', () => {
     try {
       await senderPage.goto(`${baseUrl}/projects/${projectId}`)
       await expect(senderPage.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
-      await senderPage.getByRole('button', { name: 'Contact Owner' }).click()
+      await senderPage.getByRole('button', { name: 'Message owner' }).click()
       const dialog = senderPage.getByRole('dialog')
       await expect(dialog.getByLabel('Subject')).toBeVisible({ timeout: 10_000 })
       await dialog.getByLabel('Subject').fill(subject)
@@ -143,21 +153,53 @@ test.describe('Messaging', () => {
       await senderCtx.close()
     }
 
-    // Recipient refreshes the dashboard — the notification badge now shows 1.
-    await volunteer.page.goto(`${baseUrl}/dashboard`)
-    await expect(volunteer.page.getByRole('heading', { name: /Welcome back/ })).toBeVisible({
+    // Recipient opens the Inbox again: one unread message.
+    await goToInbox(baseUrl, volunteer.page)
+    await expect(messagesFilter).toHaveText('Messages1', { timeout: 10_000 })
+
+    // The Messages tab lists the conversation; opening it shows the message and reads it.
+    await messagesFilter.click()
+    const conversation = volunteer.page.getByRole('link').filter({ hasText: subject })
+    await expect(conversation).toContainText(sender.name, { timeout: 10_000 })
+    await conversation.click()
+    await expect(volunteer.page.getByRole('heading', { level: 1, name: subject })).toBeVisible({
       timeout: 10_000,
     })
-    const notifTabAfter = volunteer.page.getByRole('tab', { name: /^Notifications/ })
-    await expect(notifTabAfter.locator('.notification-badge')).toBeVisible({ timeout: 10_000 })
-    await expect(notifTabAfter.locator('.notification-badge')).toContainText('1')
+    await expect(volunteer.page.getByText('Notification test body')).toBeVisible()
+    await goToInbox(baseUrl, volunteer.page)
+    await expect(messagesFilter).toHaveText('Messages', { timeout: 10_000 })
+  })
 
-    await notifTabAfter.click()
-    await expect(volunteer.page.getByText(/Message from /)).toBeVisible({ timeout: 10_000 })
-    await expect(volunteer.page.getByText(subject)).toBeVisible({ timeout: 10_000 })
-    const viewLink = volunteer.page.getByRole('link', { name: 'View' }).first()
-    await expect(viewLink).toHaveAttribute('href', `/projects/${projectId}`)
-    await viewLink.click()
-    await expect(volunteer.page).toHaveURL(`${baseUrl}/projects/${projectId}`)
+  test('Both people see the conversation, and a reply reaches the other', async ({
+    volunteer,
+    baseUrl,
+  }) => {
+    const other = await createApprovedVolunteerNamed(baseUrl, fake.person().name)
+    const subject = fake.messageSubject()
+    await volunteer.page.goto(`${baseUrl}/dashboard`)
+    const token = await volunteer.page.evaluate(() => localStorage.getItem('authToken'))
+    const me = await createApiClient(baseUrl, token).auth.me()
+    const volunteerId = (me.body as { id: number }).id
+    await connectVolunteers(baseUrl, other.token, token!)
+    const sent = await createApiClient(baseUrl, other.token).messages.send({
+      body: { recipientId: volunteerId, subject, message: 'Are you coming on Saturday?' },
+    })
+    expect(sent.status).toBe(200)
+    const { threadId } = sent.body as { threadId: number }
+
+    const page = volunteer.page
+    await page.goto(`${baseUrl}/inbox/messages/${threadId}`)
+    await expect(page.getByText('Are you coming on Saturday?')).toBeVisible({ timeout: 10_000 })
+    await page.getByLabel('Write a reply').fill('Yes, see you there')
+    await page.getByRole('button', { name: 'Send reply' }).click()
+    // The box empties only once the reply is saved; the text alone could still be the draft.
+    await expect(page.getByLabel('Write a reply')).toHaveValue('', { timeout: 10_000 })
+    await expect(page.getByText('Yes, see you there')).toBeVisible({ timeout: 10_000 })
+
+    const theirs = await createApiClient(baseUrl, other.token).messages.thread({
+      body: { id: threadId },
+    })
+    const bodies = (theirs.body as { messages: { body: string }[] }).messages.map((m) => m.body)
+    expect(bodies).toEqual(['Are you coming on Saturday?', 'Yes, see you there'])
   })
 })

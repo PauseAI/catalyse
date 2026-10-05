@@ -112,9 +112,21 @@ describe('team management', () => {
     await expect(
       clientAs(leader).teams.reviewJoinRequest({ id: 999_999, action: 'accept' }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    // The leader's notice names the request, so the Inbox can answer it in place.
+    expect(
+      await prisma.notification.findFirst({
+        where: { volunteerId: leader.id, type: 'team_join_request' },
+      }),
+    ).toMatchObject({ entityId: requests[0].id })
     expect(
       await clientAs(leader).teams.reviewJoinRequest({ id: requests[0].id, action: 'accept' }),
     ).toEqual({ message: 'Request accepted' })
+    // Once answered, it leaves every leader's inbox.
+    expect(
+      await prisma.notification.count({
+        where: { type: 'team_join_request', entityId: requests[0].id },
+      }),
+    ).toBe(0)
     await expect(
       clientAs(leader).teams.reviewJoinRequest({ id: requests[0].id, action: 'accept' }),
     ).rejects.toMatchObject({ message: 'Request already reviewed' })

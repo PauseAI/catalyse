@@ -60,7 +60,7 @@ describe('volunteers.list', () => {
 })
 
 describe('volunteers.getById', () => {
-  it('shows visible profiles with contact gated on consent, plus history', async () => {
+  it('shows visible profiles with contact details to people who work together, plus history', async () => {
     const me = await createVolunteer()
     const skill = await createSkill()
     const vol = await createVolunteer({
@@ -73,6 +73,15 @@ describe('volunteers.getById', () => {
       data: { volunteerId: vol.id, skillId: skill.id, endorsedById: me.id, rating: 'strong' },
     })
     const owned = await createProject({ assigneeId: vol.id })
+    // Helping on vol's project puts me and vol together.
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: owned.id,
+        volunteerId: me.id,
+        interestType: 'want_to_contribute',
+        status: 'accepted',
+      },
+    })
     const proposed = await createProject({ creatorId: vol.id })
     await createProject({ creatorId: vol.id, status: 'pending_review' })
     await createQuickTask({
@@ -89,6 +98,7 @@ describe('volunteers.getById', () => {
 
     const view = await clientAs(me).volunteers.getById({ id: vol.id })
     expect(view.discordHandle).toBe('vol#1')
+    expect(view).toMatchObject({ canMessage: true, canRequestContact: false })
     expect(view.endorsements).toEqual([
       { skillId: skill.id, rating: 'strong', skillName: skill.name },
     ])
@@ -106,7 +116,9 @@ describe('volunteers.getById', () => {
       consentShareContactInfoWithProjectOwner: false,
       discordHandle: 'shy#1',
     })
-    expect((await clientAs(me).volunteers.getById({ id: shy.id })).discordHandle).toBeUndefined()
+    const stranger = await clientAs(me).volunteers.getById({ id: shy.id })
+    expect(stranger.discordHandle).toBeUndefined()
+    expect(stranger).toMatchObject({ canMessage: false, canRequestContact: true })
     expect((await clientAs(shy).volunteers.getById({ id: shy.id })).discordHandle).toBe('shy#1')
     const admin = await createAdmin()
     expect((await clientAs(admin).volunteers.getById({ id: shy.id })).discordHandle).toBe('shy#1')

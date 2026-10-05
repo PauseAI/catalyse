@@ -11,6 +11,7 @@ import { teamApplicationSentMessage } from '@/lib/action-messages'
 import { useCooldown } from '@/lib/hooks/useCooldown'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import NotFoundCard from '@/components/NotFoundCard'
+import ContactButton from '@/components/ContactButton'
 
 export default function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: idParam } = use(params)
@@ -129,6 +130,55 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
         {team.memberCount} member{team.memberCount === 1 ? '' : 's'}
         {team.leaders.length > 0 && ` · Led by ${team.leaders.map((l) => l.name).join(', ')}`}
       </p>
+      {team.leaders.some((l) => l.id !== user.id) && (
+        <ul aria-label="Leaders" className="list-none p-0 m-0 mb-4 flex flex-col gap-2">
+          {team.leaders
+            .filter((l) => l.id !== user.id)
+            .map((l) => (
+              <li key={l.id} className="flex items-center gap-3 flex-wrap">
+                <Link href={`/volunteers/${l.id}`}>{l.name}</Link>
+                <ContactButton
+                  volunteerId={l.id}
+                  name={l.name}
+                  canMessage={l.canMessage}
+                  canRequestContact={l.canRequestContact}
+                  contactRequested={l.contactRequested}
+                />
+              </li>
+            ))}
+        </ul>
+      )}
+
+      {team.members.length > 0 && (
+        <section aria-labelledby="team-members" className="mb-4">
+          <h2 id="team-members" className="text-lg">
+            Members
+          </h2>
+          <ul className="list-none p-0 m-0 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {team.members.map((m) => (
+              <li key={m.id}>
+                <Link href={`/volunteers/${m.id}`}>{m.name}</Link>
+                {m.role === 'leader' && <span className="text-text-light"> (leader)</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {team.projects.length > 0 && (
+        <section aria-labelledby="team-projects" className="mb-4">
+          <h2 id="team-projects" className="text-lg">
+            Projects
+          </h2>
+          <ul className="list-none p-0 m-0 flex flex-col gap-1 text-sm">
+            {team.projects.map((p) => (
+              <li key={p.id}>
+                <Link href={`/projects/${p.id}`}>{p.title}</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {(team.lumaUrl || team.docUrl) && (
         <div className="flex gap-4 text-sm bg-surface rounded-xl shadow px-5 py-4">

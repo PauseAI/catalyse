@@ -21,6 +21,9 @@ import { CARD_GRID_CLASSES } from '@/components/ProjectCard'
 import Tooltip from '@/components/Tooltip'
 import Skeleton from '@/components/Skeleton'
 import EmptyState from '@/components/EmptyState'
+import ViewSwitch, { PEOPLE_VIEWS } from '@/components/ViewSwitch'
+import ContactButton from '@/components/ContactButton'
+import ActiveDot from '@/components/ActiveDot'
 
 type SkillCategory = InferRouterOutputs<AppRouter>['skills']['list'][number]
 type FlatSkill = SkillCategory['skills'][number] & { categoryName: string }
@@ -96,6 +99,7 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
     <>
       <main className="container py-5 pb-15">
         <h1>Volunteer Directory</h1>
+        <ViewSwitch label="People" views={PEOPLE_VIEWS} current="/volunteers" />
 
         <div className="mb-5">
           <div className="mb-3">
@@ -176,6 +180,7 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
                     >
                       {v.name}
                     </Link>
+                    {v.activeRecently && <ActiveDot />}
                     {v.hiddenFromDirectory && (
                       <Tooltip content="This volunteer has opted out of the directory. Only admins can see their profile here.">
                         <span className="ml-2 inline-flex items-center px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded text-xs font-medium dark:bg-yellow-900 dark:text-yellow-200">
@@ -194,44 +199,32 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
                       )}
                     </div>
                   )}
-                  {v.bio && (
-                    <p className="m-0 mb-3">
-                      {v.bio.length > 100 ? v.bio.slice(0, 100) + '…' : v.bio}
-                    </p>
+                  {v.skills.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {v.skills.slice(0, 3).map((s) => (
+                        <span
+                          key={s.id}
+                          className="inline-flex items-center px-2 py-0.5 bg-accent text-secondary-dark rounded-full text-xs font-medium dark:bg-gray-700 dark:text-gray-300"
+                        >
+                          {s.name}
+                        </span>
+                      ))}
+                      {v.skills.length > 3 && (
+                        <span className="inline-flex items-center px-2 py-0.5 text-text-light text-xs">
+                          and {v.skills.length - 3} more
+                        </span>
+                      )}
+                    </div>
                   )}
-                  {v.skills.length > 0 &&
-                    (() => {
-                      const shown = v.skills.slice(0, 6)
-                      const overflow = v.skills.length - 6
-                      return (
-                        <div className="flex flex-wrap gap-1.5 mb-3">
-                          {shown.map((s) => (
-                            <span
-                              key={s.id}
-                              className="inline-flex items-center px-2 py-0.5 bg-accent text-secondary-dark rounded-full text-xs font-medium dark:bg-gray-700 dark:text-gray-300"
-                            >
-                              {s.name}
-                            </span>
-                          ))}
-                          {overflow > 0 && (
-                            <span className="inline-flex items-center px-2 py-0.5 bg-gray-100 text-text-light rounded-full text-xs font-medium dark:bg-gray-700 dark:text-gray-400">
-                              and {overflow} more
-                            </span>
-                          )}
-                        </div>
-                      )
-                    })()}
-                  <div className="flex justify-between items-center mt-auto pt-4 border-t border-brand-border">
-                    <span className="text-sm text-text-light">
-                      Joined{' '}
-                      {v.createdAt
-                        ? new Date(v.createdAt).toLocaleDateString('en-GB', {
-                            month: 'short',
-                            year: 'numeric',
-                          })
-                        : '—'}
-                    </span>
-                    <Button href={`/volunteers/${v.id}`} variant="secondary" size="sm">
+                  <div className="flex justify-between items-center gap-2 flex-wrap mt-auto pt-4 border-t border-brand-border">
+                    <ContactButton
+                      volunteerId={v.id}
+                      name={v.name}
+                      canMessage={v.canMessage}
+                      canRequestContact={!v.canMessage && v.id !== user.id}
+                      contactRequested={v.contactRequested}
+                    />
+                    <Button href={`/volunteers/${v.id}`} variant="ghost" size="sm">
                       View Profile
                     </Button>
                   </div>

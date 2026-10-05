@@ -1,9 +1,20 @@
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
-import { notifyUser, clearNotifications } from '@/lib/notify'
-import { CreateQuickTaskSchema, AssignQuickTaskSchema, ReviewQuickTaskSchema } from '@/lib/schemas'
-import { CLAIM_BLOCKING_INTEREST_STATUSES, serializeStarterTask } from '@/lib/work-item'
+import { notifyUser, notifyAdmins, clearNotifications } from '@/lib/notify'
+import {
+  CreateQuickTaskSchema,
+  AssignQuickTaskSchema,
+  ReviewQuickTaskSchema,
+  RequestChangesSchema,
+  SubmitWorkSchema,
+} from '@/lib/schemas'
+import {
+  CLAIM_BLOCKING_INTEREST_STATUSES,
+  CLEARED_SUBMISSION,
+  serializeStarterTask,
+  submissionData,
+} from '@/lib/work-item'
 import { adminProcedure, approvedProcedure, authedProcedure } from '../procedures'
 import { ApprovalStatus, QuickTaskStatus, TaskStatus, WorkItemType } from '@/generated/prisma/enums'
 
@@ -104,6 +115,7 @@ export const quickTasksRouter = {
           type: WorkItemType.TASK,
           status: TaskStatus.open,
           assigneeId: null,
+          requestedById: null,
           featuredAsQuickTask: true,
           parentId: { not: null, notIn: blockedProjectIds },
         },
@@ -148,6 +160,7 @@ export const quickTasksRouter = {
         include: {
           skill: true,
           contextProject: { select: { title: true, id: true } },
+          reviewedBy: { select: { name: true } },
         },
       })
       if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
@@ -159,6 +172,7 @@ export const quickTasksRouter = {
         ...serializeStarterTask(task),
         projectTitle: task.contextProject?.title ?? null,
         skillName: task.skill?.name ?? null,
+        reviewedByName: task.reviewedBy?.name ?? null,
       }
     }),
 
@@ -300,15 +314,16 @@ export const quickTasksRouter = {
         creatorId: null,
         status: QuickTaskStatus.open,
         updatedAt: new Date(),
-        // Back to unstarted: the actual start no longer describes anyone's work.
+        // Back to unstarted: the actual start and any submission describe nobody's work.
         startedAt: null,
+        ...CLEARED_SUBMISSION,
       },
     })
     return { message: 'Task unassigned' }
   }),
 
   submit: authedProcedure
-    .input(z.object({ id: z.number().int() }))
+    .input(z.object({ id: z.number().int() }).merge(SubmitWorkSchema))
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const task = await prisma.workItem.findFirst({
@@ -316,25 +331,67 @@ export const quickTasksRouter = {
       })
       if (!task)
         throw new ORPCError('NOT_FOUND', { message: 'Task not found or not assigned to you' })
+      if (task.status !== QuickTaskStatus.in_progress) {
+        throw new ORPCError('BAD_REQUEST', { message: 'Only a task in progress can be submitted' })
+      }
+      const submission = submissionData(input)
+      if (!submission) {
+        throw new ORPCError('BAD_REQUEST', { message: 'Say what you did or add a link to it' })
+      }
 
       await prisma.workItem.update({
         where: { id: input.id },
-        data: { status: QuickTaskStatus.under_review, updatedAt: new Date() },
+        data: { ...submission, status: QuickTaskStatus.under_review, updatedAt: new Date() },
       })
+      await clearNotifications('task_changes_requested', input.id)
 
-      if (task.creatorId) {
+      // A task someone claimed has no creator, so any admin may review it.
+      const notice = [
+        'quick_task_submitted',
+        `Submitted for review: '${task.title}'`,
+        `${volunteer.name}: ${submission.submissionNote ?? submission.submissionUrl}`,
+        `/quick-tasks/${input.id}`,
+      ] as const
+      if (task.creatorId) notifyUser(task.creatorId, ...notice, undefined, input.id)
+      else notifyAdmins(...notice, undefined, input.id)
+
+      return { message: 'Task submitted for review' }
+    }),
+
+  requestChanges: adminProcedure
+    .input(z.object({ id: z.number().int() }).merge(RequestChangesSchema))
+    .handler(async ({ input, context }) => {
+      const admin = context.volunteer
+      const task = await prisma.workItem.findFirst({
+        where: { id: input.id, type: WorkItemType.QUICK_TASK },
+      })
+      if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
+      if (task.status !== QuickTaskStatus.under_review)
+        throw new ORPCError('BAD_REQUEST', { message: 'Task is not awaiting review' })
+
+      await prisma.workItem.update({
+        where: { id: input.id },
+        data: {
+          status: QuickTaskStatus.in_progress,
+          changesRequestedNote: input.message,
+          reviewedById: admin.id,
+          reviewedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      })
+      await clearNotifications('quick_task_submitted', input.id)
+      if (task.assigneeId) {
         notifyUser(
-          task.creatorId,
-          'quick_task_submitted',
-          `${volunteer.name} submitted: ${task.title}`,
-          'Ready for review',
-          `/quick-tasks#task-${input.id}`,
+          task.assigneeId,
+          'task_changes_requested',
+          `Changes requested: '${task.title}'`,
+          input.message,
+          `/quick-tasks/${input.id}`,
           undefined,
           input.id,
         )
       }
-
-      return { message: 'Task submitted for review' }
+      return { message: 'Changes requested' }
     }),
 
   review: adminProcedure
@@ -357,6 +414,7 @@ export const quickTasksRouter = {
           reviewedById: admin.id,
           reviewedAt: new Date(),
           updatedAt: new Date(),
+          changesRequestedNote: null,
         },
       })
 

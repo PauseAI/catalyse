@@ -77,7 +77,7 @@ test.describe('Project Edit Regressions', () => {
     const taskTitle = `regression task ${fake.quickTaskTitle()}`
 
     // Add a task on the project detail page.
-    await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
+    await volunteer.page.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
     await volunteer.page.getByRole('button', { name: 'Add Task' }).click()
     await volunteer.page.getByLabel('Task title').fill(taskTitle)
@@ -97,7 +97,7 @@ test.describe('Project Edit Regressions', () => {
       volunteer.page.waitForResponse((resp) => resp.url().includes('/api/rpc/projects/update')),
       descriptionField.blur(),
     ])
-    await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
+    await volunteer.page.goto(`${baseUrl}/projects/${projectId}#tasks`)
 
     // Task must still be there, both immediately and after a reload.
     await expect(volunteer.page.getByText(taskTitle)).toBeVisible({ timeout: 10_000 })

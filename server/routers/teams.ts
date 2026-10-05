@@ -1,11 +1,18 @@
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
-import { notifyUser } from '@/lib/notify'
+import { clearNotifications, notifyUser } from '@/lib/notify'
 import { html } from '@/lib/email'
 import { TeamBodySchema } from '@/lib/schemas'
 import { authedProcedure, approvedProcedure } from '../procedures'
-import { TeamMembershipRole, TeamJoinRequestStatus } from '@/generated/prisma/enums'
+import { contactRelations, type ContactRelations } from '@/lib/contact'
+import { ADVERTISABLE_STATUSES } from '@/lib/project-status'
+import { TeamMembershipRole, TeamJoinRequestStatus, WorkItemType } from '@/generated/prisma/enums'
+
+const leaderIds = (teams: { members: { volunteerId: number; role: TeamMembershipRole }[] }[]) =>
+  teams.flatMap((t) =>
+    t.members.filter((m) => m.role === TeamMembershipRole.leader).map((m) => m.volunteerId),
+  )
 
 function serializeTeam(
   team: {
@@ -17,9 +24,11 @@ function serializeTeam(
     members: {
       volunteerId: number
       role: TeamMembershipRole
-      volunteer: { id: number; name: string }
+      volunteer: { id: number; name: string; consentMakeProfileVisibleInDirectory: boolean | null }
     }[]
+    workItems?: { id: number; title: string; status: string }[]
   },
+  relations: ContactRelations,
   viewerId?: number,
   viewerRequestStatus?: TeamJoinRequestStatus | null,
   viewerIsAdmin?: boolean,
@@ -39,7 +48,21 @@ function serializeTeam(
     memberCount: team.members.length,
     leaders: team.members
       .filter((m) => m.role === TeamMembershipRole.leader)
-      .map((m) => ({ id: m.volunteer.id, name: m.volunteer.name })),
+      .map((m) => ({
+        id: m.volunteer.id,
+        name: m.volunteer.name,
+        canMessage: m.volunteer.id !== viewerId && relations.reachable.has(m.volunteer.id),
+        canRequestContact:
+          m.volunteer.id !== viewerId &&
+          !relations.reachable.has(m.volunteer.id) &&
+          Boolean(m.volunteer.consentMakeProfileVisibleInDirectory),
+        contactRequested: relations.requested.has(m.volunteer.id),
+      })),
+    // Who is in the team and what it runs are for its members and admins.
+    members: isPrivy
+      ? team.members.map((m) => ({ id: m.volunteer.id, name: m.volunteer.name, role: m.role }))
+      : [],
+    projects: isPrivy ? (team.workItems ?? []) : [],
     viewerRole: viewerMembership?.role ?? null,
     viewerRequestStatus: viewerRequestStatus ?? null,
   }
@@ -63,7 +86,15 @@ export const teamsRouter = {
   list: authedProcedure.handler(async ({ context }) => {
     const teams = await prisma.team.findMany({
       orderBy: { name: 'asc' },
-      include: { members: { include: { volunteer: { select: { id: true, name: true } } } } },
+      include: {
+        members: {
+          include: {
+            volunteer: {
+              select: { id: true, name: true, consentMakeProfileVisibleInDirectory: true },
+            },
+          },
+        },
+      },
     })
     const viewerId = context.volunteer?.id
     const pendingRequests = viewerId
@@ -74,9 +105,10 @@ export const teamsRouter = {
       : []
     const pendingByTeam = new Map(pendingRequests.map((r) => [r.teamId, r.status]))
     const viewerIsAdmin = Boolean(context.volunteer?.isAdmin)
+    const relations = await contactRelations(context.volunteer, leaderIds(teams))
     return {
       teams: teams.map((t) =>
-        serializeTeam(t, viewerId, pendingByTeam.get(t.id) ?? null, viewerIsAdmin),
+        serializeTeam(t, relations, viewerId, pendingByTeam.get(t.id) ?? null, viewerIsAdmin),
       ),
     }
   }),
@@ -86,7 +118,20 @@ export const teamsRouter = {
     .handler(async ({ input, context }) => {
       const team = await prisma.team.findUnique({
         where: { id: input.id },
-        include: { members: { include: { volunteer: { select: { id: true, name: true } } } } },
+        include: {
+          members: {
+            include: {
+              volunteer: {
+                select: { id: true, name: true, consentMakeProfileVisibleInDirectory: true },
+              },
+            },
+          },
+          workItems: {
+            where: { type: WorkItemType.PROJECT, status: { in: ADVERTISABLE_STATUSES } },
+            select: { id: true, title: true, status: true },
+            orderBy: { title: 'asc' },
+          },
+        },
       })
       if (!team) throw new ORPCError('NOT_FOUND', { message: 'Team not found' })
       const viewerId = context.volunteer?.id
@@ -101,6 +146,7 @@ export const teamsRouter = {
         : null
       return serializeTeam(
         team,
+        await contactRelations(context.volunteer, leaderIds([team])),
         viewerId,
         pending?.status ?? null,
         Boolean(context.volunteer?.isAdmin),
@@ -178,7 +224,7 @@ export const teamsRouter = {
         throw new ORPCError('BAD_REQUEST', { message: 'Already applied, awaiting review' })
       }
 
-      await prisma.teamJoinRequest.create({
+      const joinRequest = await prisma.teamJoinRequest.create({
         data: {
           teamId: input.id,
           volunteerId: context.volunteer.id,
@@ -195,15 +241,23 @@ export const teamsRouter = {
         const title = `${context.volunteer.name} applied to join ${team.name}`
         await Promise.all(
           recipientIds.map((id) =>
-            notifyUser(id, 'team_join_request', title, null, `/admin/teams/${input.id}`, {
-              subject: title,
-              message: input.message
-                ? html`${context.volunteer.name} applied to join <strong>${team.name}</strong>:
-                    "${input.message.trim()}"`
-                : html`${context.volunteer.name} applied to join <strong>${team.name}</strong>.`,
-              ctaLabel: 'Review Application',
-              ctaUrl: `/admin/teams/${input.id}`,
-            }),
+            notifyUser(
+              id,
+              'team_join_request',
+              title,
+              null,
+              `/admin/teams/${input.id}`,
+              {
+                subject: title,
+                message: input.message
+                  ? html`${context.volunteer.name} applied to join <strong>${team.name}</strong>:
+                      "${input.message.trim()}"`
+                  : html`${context.volunteer.name} applied to join <strong>${team.name}</strong>.`,
+                ctaLabel: 'Review Application',
+                ctaUrl: `/admin/teams/${input.id}`,
+              },
+              joinRequest.id,
+            ),
           ),
         )
       }
@@ -275,6 +329,8 @@ export const teamsRouter = {
           : []),
       ])
 
+      // Every leader was told; once one answers, the request leaves each of their inboxes.
+      await clearNotifications('team_join_request', request.id)
       const team = await prisma.team.findUnique({ where: { id: request.teamId } })
       await notifyUser(
         request.volunteerId,

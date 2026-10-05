@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import Checkbox from '@/components/Checkbox'
 import Modal from '@/components/ui/Modal'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
@@ -14,8 +15,8 @@ interface DirectContact {
 }
 
 /**
- * Sends a message through the platform relay: the recipient gets it by email and in their
- * notifications without their address being shown. Render it only while open.
+ * Starts a conversation: the recipient finds it in their Inbox and gets an email copy. The
+ * sender's address is shared only if they tick the box. Render it only while open.
  */
 export default function MessageDialog({
   id,
@@ -37,16 +38,14 @@ export default function MessageDialog({
 }) {
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
+  const [shareEmail, setShareEmail] = useState(false)
   const showToast = useToast()
 
   const sendMessageMutation = useMutation({
     ...orpc.messages.send.mutationOptions(),
     onSuccess: () => {
       onClose()
-      showToast(
-        "Message sent! They'll receive it by email and can reply directly to you.",
-        'success',
-      )
+      showToast('Message sent. Their reply will arrive in your Inbox.', 'success')
     },
     onError: (err: unknown) =>
       showToast(err instanceof Error ? err.message : 'Failed to send message', 'error'),
@@ -59,6 +58,7 @@ export default function MessageDialog({
       subject: subject.trim(),
       message: body.trim(),
       relatedProjectId,
+      shareEmail,
     })
   }
 
@@ -71,8 +71,8 @@ export default function MessageDialog({
   return (
     <Modal id={id} title={title} isOpen onClose={onClose}>
       <p className="text-sm text-text-light mb-4">
-        {recipientName} will get this by email and in their notifications. Your email address is
-        shared so they can reply.
+        {recipientName} will see this in their Inbox and get a copy by email. You can both reply on
+        Catalyse; your email address stays private unless you share it below.
       </p>
       {channels.length > 0 && (
         <div className="mb-5">
@@ -110,6 +110,15 @@ export default function MessageDialog({
             onChange={(e) => setBody(e.target.value)}
             required
           />
+        </div>
+        <div className="mb-5">
+          <Checkbox
+            id={`${id}-share-email`}
+            checked={shareEmail}
+            onChange={(e) => setShareEmail(e.target.checked)}
+          >
+            Let {recipientName} reply by email (shares my address)
+          </Checkbox>
         </div>
         <div className="flex gap-2 justify-end">
           <Button type="button" variant="ghost" onClick={onClose}>

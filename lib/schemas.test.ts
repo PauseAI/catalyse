@@ -3,6 +3,7 @@ import {
   SignupSchema,
   CompleteGoogleSignupSchema,
   CreateProjectSchema,
+  UpdateProjectSchema,
   UpdateProjectTaskSchema,
   DependencyBodySchema,
   ApplicationActionSchema,
@@ -123,6 +124,30 @@ describe('project and task schemas', () => {
       skillRequiredMap: {},
       saveAsDraft: false,
     })
+  })
+
+  it('takes only http(s) links as the project doc, since the page renders it as a link', () => {
+    const base = {
+      title: 'T',
+      description: 'D',
+      projectType: 'sprint',
+      estimatedDuration: '2 weeks',
+      timeCommitmentHoursPerWeek: 2,
+      urgency: 'low',
+      country: 'UK',
+      localGroup: null,
+      isSeekingHelp: true,
+    }
+    for (const link of ['https://doc.example', 'http://doc.example/a?b=c', '', null]) {
+      expect(CreateProjectSchema.safeParse({ ...base, collaborationLink: link }).success).toBe(true)
+      expect(UpdateProjectSchema.safeParse({ collaborationLink: link }).success).toBe(true)
+    }
+    for (const link of ['javascript:alert(1)', 'doc.example', 'ftp://x', 'https://a b']) {
+      const create = CreateProjectSchema.safeParse({ ...base, collaborationLink: link })
+      expect(create.success).toBe(false)
+      expect(create.error?.issues[0].message).toBe('The link must start with http:// or https://')
+      expect(UpdateProjectSchema.safeParse({ collaborationLink: link }).success).toBe(false)
+    }
   })
 
   it('UpdateProjectTaskSchema accepts the enum status and DependencyBodySchema bounds lag', () => {

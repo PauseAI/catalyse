@@ -343,3 +343,18 @@ export async function setProjectStatus(
   await page.getByRole('button', { name: 'Confirm' }).click()
   await expect(getAlert(page)).toBeVisible({ timeout: 10_000 })
 }
+
+/** Asks to join the project on the open page, as a helper or its lead, with an optional note. */
+export async function joinProject(
+  page: Page,
+  opts: { lead?: boolean; message?: string } = {},
+): Promise<void> {
+  await page.getByRole('button', { name: 'Join this project' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Join this project' })
+  await expect(dialog.getByRole('radio', { name: 'Help out on the project' })).toBeChecked({
+    timeout: 10_000,
+  })
+  if (opts.lead) await dialog.getByRole('radio', { name: 'Lead the project' }).click()
+  if (opts.message) await dialog.getByLabel('Message (optional)').fill(opts.message)
+  await dialog.getByRole('button', { name: 'Send request' }).click()
+}

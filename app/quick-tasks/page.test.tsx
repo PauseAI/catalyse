@@ -29,6 +29,7 @@ describe('quick tasks — volunteer view', () => {
       skillId: skill.id,
       estimatedHours: 2,
       contextProjectId: project.id,
+      changesRequestedNote: 'Add a photo',
     })
     await createQuickTask({
       title: 'Mine done',
@@ -58,6 +59,10 @@ describe('quick tasks — volunteer view', () => {
       within(within(myList).getByText(title).closest('[role=article]')!)
     expect(myCard('Mine in progress').getByRole('status')).toHaveTextContent('In progress')
     expect(myCard('Mine done').getByRole('status')).toHaveTextContent('Done')
+    // Opens on my own tasks; the open pool is the other tab.
+    expect(screen.getByRole('tab', { name: 'Mine (2)' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByText('Browse Quick Tasks')).toBeNull()
+    await userEvent.click(await screen.findByRole('tab', { name: 'Open (2)' }))
     const browse = screen.getByText('Browse Quick Tasks').closest('section')!
     await within(browse).findByText('Open quick')
     expect(
@@ -69,33 +74,60 @@ describe('quick tasks — volunteer view', () => {
       ),
     ).toHaveTextContent('Not started')
     expect(within(browse).getByRole('link', { name: 'Host project' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('tab', { name: /^Mine/ }))
+    const mineAgain = (await screen.findByRole('heading', { name: 'My Quick Tasks' })).closest(
+      'section',
+    )!
+    const myCard2 = (title: string) =>
+      within(within(mineAgain).getByText(title).closest('[role=article]')!)
 
     expect(
-      myCard('Mine in progress').getByRole('link', { name: 'https://example.org/drafts' }),
+      myCard2('Mine in progress').getByRole('link', { name: 'https://example.org/drafts' }),
     ).toHaveAttribute('target', '_blank')
-    await userEvent.click(within(myList).getByRole('button', { name: 'Submit for review' }))
-    await userEvent.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Submit for review' }),
-    )
+    expect(myCard2('Mine in progress').getByText('Add a photo')).toBeInTheDocument()
+    await userEvent.click(within(mineAgain).getByRole('button', { name: 'Submit work' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Submit your work' })
+    expect(within(dialog).getByText(/An admin will look at it/)).toBeInTheDocument()
+    await userEvent.type(within(dialog).getByLabelText('What did you do?'), 'Took the photo')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Submit work' }))
     await screen.findByText(/Submitted\. An admin will review it/)
-    await waitFor(async () => expect((await row(mine.id)).status).toBe('under_review'))
+    await waitFor(async () =>
+      expect(await row(mine.id)).toMatchObject({
+        status: 'under_review',
+        submissionNote: 'Took the photo',
+        changesRequestedNote: null,
+      }),
+    )
 
+    const openTab = () => screen.getByRole('tab', { name: /^Open/ })
+    await userEvent.click(openTab())
     const cardFor = (title: string) =>
-      within(browse).getByText(title).closest('[role=article]') as HTMLElement
+      within(screen.getByText('Browse Quick Tasks').closest('section')!)
+        .getByText(title)
+        .closest('[role=article]') as HTMLElement
     await userEvent.click(within(cardFor('Open quick')).getByRole('button', { name: 'Claim' }))
     await screen.findByText(/Task claimed\. Submit it for review/)
     await waitFor(async () => expect((await row(open.id)).assigneeId).toBe(me.id))
+    // A claim shows the task in my list.
+    expect(screen.getByRole('tab', { name: /^Mine/ })).toHaveAttribute('aria-selected', 'true')
+    await screen.findByRole('heading', { name: 'My Quick Tasks' })
+    await userEvent.click(openTab())
     await userEvent.click(within(cardFor('Featured task')).getByRole('button', { name: 'Claim' }))
     await waitFor(() =>
       expect(navigation.push).toHaveBeenCalledWith(`/projects/${project.id}/tasks/${featured.id}`),
     )
-    expect((await row(featured.id)).assigneeId).toBe(me.id)
+    // Not on the project yet, so the task is held for me until the owner accepts me.
+    await screen.findByText(/^Requested\. The task is held for you/)
+    expect(await row(featured.id)).toMatchObject({ assigneeId: null, requestedById: me.id })
   })
 
   it('shows empty states and reports failures', async () => {
     const me = await createVolunteer()
     await renderApp(<QuickTasksPage />, { as: me })
+    await screen.findByText('No open Quick Tasks right now')
+    await userEvent.click(screen.getByRole('tab', { name: 'Mine' }))
     await screen.findByText('No tasks assigned yet')
+    await userEvent.click(screen.getByRole('button', { name: 'See open tasks' }))
     await screen.findByText('No open Quick Tasks right now')
     cleanup()
     const mine = await createQuickTask({
@@ -107,6 +139,7 @@ describe('quick tasks — volunteer view', () => {
     const project = await createProject()
     const featured = await createTask(project.id, { title: 'Gone', featuredAsQuickTask: true })
     await renderApp(<QuickTasksPage />, { as: me })
+    await userEvent.click(await screen.findByRole('tab', { name: /^Open \(/ }))
     await screen.findByText('Taken')
     const rival = await createVolunteer()
     await prisma.workItem.update({
@@ -122,12 +155,14 @@ describe('quick tasks — volunteer view', () => {
     await userEvent.click(within(cardFor('Gone')).getByRole('button', { name: 'Claim' }))
     await screen.findByText('Project or task not found')
     await prisma.workItem.delete({ where: { id: mine.id } })
-    await userEvent.click(screen.getByRole('button', { name: 'Submit for review' }))
-    await userEvent.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Submit for review' }),
-    )
+    await userEvent.click(screen.getByRole('tab', { name: /^Mine/ }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Submit work' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Submit your work' })
+    await userEvent.type(within(dialog).getByLabelText('What did you do?'), 'Done')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Submit work' }))
     await screen.findByText('Task not found or not assigned to you')
-    expect(screen.queryByRole('dialog')).toBeNull()
+    // The dialog stays open, so what was typed is not lost.
+    expect(screen.getByRole('dialog', { name: 'Submit your work' })).toBeInTheDocument()
   })
 })
 
@@ -142,6 +177,15 @@ describe('quick tasks — admin view', () => {
       status: 'under_review',
       creatorId: admin.id,
       reviewNotes: 'old notes',
+      submissionUrl: 'https://example.org/work',
+      submittedAt: new Date(),
+    })
+    const sendBack = await createQuickTask({
+      title: 'Send back',
+      assigneeId: vol.id,
+      status: 'under_review',
+      submissionNote: 'First draft',
+      submittedAt: new Date(),
     })
     Object.assign(navigator, { clipboard: { writeText: vi.fn(async () => {}) } })
     await renderApp(<QuickTasksPage />, { as: admin, url: `/quick-tasks#task-${underReview.id}` })
@@ -213,8 +257,21 @@ describe('quick tasks — admin view', () => {
     await screen.findByText('Assignee removed')
     await waitFor(async () => expect((await row(fresh.id)).assigneeId).toBeNull())
 
+    const backCard = () => screen.getByText('Send back').closest('[role=article]') as HTMLElement
+    expect(within(backCard()).getByText('First draft')).toBeInTheDocument()
+    await userEvent.click(within(backCard()).getByRole('button', { name: 'Ask for changes' }))
+    const ask = await screen.findByRole('dialog', { name: 'Ask for changes' })
+    await userEvent.type(within(ask).getByLabelText('What needs changing?'), 'Needs sources')
+    await userEvent.click(within(ask).getByRole('button', { name: 'Send back' }))
+    await screen.findByText('Sent back to Zara Volunteer with your message.')
+    await within(backCard()).findByRole('heading', { name: `Changes requested by ${admin.name}` })
+    expect((await row(sendBack.id)).status).toBe('in_progress')
+
     const reviewCard = screen.getByText('Under review').closest('[role=article]') as HTMLElement
     expect(within(reviewCard).getByText('Notes: old notes')).toBeInTheDocument()
+    expect(
+      within(reviewCard).getByRole('link', { name: 'https://example.org/work' }),
+    ).toBeInTheDocument()
     await userEvent.click(within(reviewCard).getByRole('button', { name: 'Review' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     await userEvent.click(within(reviewCard).getByRole('button', { name: 'Review' }))
@@ -223,7 +280,7 @@ describe('quick tasks — admin view', () => {
     await userEvent.type(screen.getByLabelText('Internal Notes (admin only)'), 'solid')
     await userEvent.type(screen.getByLabelText(/Feedback to Volunteer/), 'Great job')
     fireEvent.submit(screen.getByLabelText('Internal Notes (admin only)').closest('form')!)
-    await screen.findByText('Task reviewed!')
+    await screen.findByText('Accepted. The task is done.')
 
     await userEvent.click(within(editedCard()).getByRole('button', { name: 'Delete' }))
     await userEvent.click(
