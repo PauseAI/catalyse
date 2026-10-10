@@ -18,7 +18,8 @@ export const APPLICANT = {
     "I've been following PauseAI's work for two years and believe AI safety is the defining challenge of our time. I'm a software engineer with ML experience and want to contribute to advocacy, technical writing, and community coordination.",
   bio: 'Software engineer focused on AI safety. Based in London.',
   discord: 'alexchen#4291',
-  contactNotes: "Just let me know you're from PauseAI when you message, I'm available most evenings and weekends to help.",
+  contactNotes:
+    "Just let me know you're from PauseAI when you message, I'm available most evenings and weekends to help.",
   location: 'London, UK',
   country: 'UK',
   localGroup: 'London',

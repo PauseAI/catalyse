@@ -326,7 +326,9 @@ async function recordVolunteerOne(engine: DemoEngine, browser: Browser): Promise
     const taskLink = page.getByRole('link', { name: FLYER_PROJECT.taskOne.title })
     await engine.click(taskLink)
     await page.waitForURL(new RegExp(`/tasks/${_taskOneId}$`))
-    await engine.readText(page.getByRole('heading', { level: 1, name: FLYER_PROJECT.taskOne.title }))
+    await engine.readText(
+      page.getByRole('heading', { level: 1, name: FLYER_PROJECT.taskOne.title }),
+    )
   })
 
   await submitTaskWork(
