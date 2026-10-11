@@ -7,6 +7,7 @@ import {
   canManageProjectTasks,
   isProjectDeputy,
 } from '@/lib/work-item'
+import { assertTaskEditable } from '@/lib/work-item-lock'
 import { approvedProcedure } from '../procedures'
 import { WorkItemType } from '@/generated/prisma/enums'
 
@@ -87,6 +88,7 @@ export const scheduleRouter = {
           })
         }
       }
+      for (const w of items) if (w.type === WorkItemType.TASK) assertTaskEditable(w)
 
       const now = new Date()
       await prisma.$transaction(

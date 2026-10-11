@@ -77,6 +77,7 @@ export default function GanttItemPanel({
   onRemoveDependency,
   onSetAnchor,
   onReplan,
+  onReopen,
   assignment,
 }: {
   row: GanttRow
@@ -95,6 +96,8 @@ export default function GanttItemPanel({
   onSetAnchor?: (isAnchor: boolean) => void
   /** Opens the replan dialog for a task that has run past its plan; omit where it cannot. */
   onReplan?: () => void
+  /** Asks to reopen a done task; omit for a viewer who cannot. */
+  onReopen?: () => void
   /** Omit to leave the panel read-only about who is doing the work. */
   assignment?: PanelAssignment
 }) {
@@ -111,12 +114,12 @@ export default function GanttItemPanel({
   }, [row.id, dates.timing, dates.startDate, dates.estimatedHours, dates.deadline])
 
   const p = row.placement
+  const done = row.status === 'completed'
+  // A done task is read-only until it is reopened (lib/work-item-lock.ts).
+  const canEdit = canManage && !done
   const estimatedHours = dates.estimatedHours ? parseFloat(dates.estimatedHours) : null
-  const pastPlan = daysPastPlan(p.end, {
-    done: row.status === 'completed',
-    assigned: !!assigneeName,
-  })
-  const standing = deadlineStanding(p, row.status === 'completed')
+  const pastPlan = daysPastPlan(p.end, { done, assigned: !!assigneeName })
+  const standing = deadlineStanding(p, done)
   const conflict = pinConflictSlip(
     p,
     predecessors.find((d) => d.predecessorId === p.pinConflictWith)?.predecessorTitle,
@@ -167,6 +170,11 @@ export default function GanttItemPanel({
         {pastPlan !== null && onReplan && (
           <Button size="sm" variant="secondary" disabled={busy} onClick={onReplan}>
             Replan
+          </Button>
+        )}
+        {done && onReopen && (
+          <Button size="sm" variant="secondary" disabled={busy} onClick={onReopen}>
+            Reopen
           </Button>
         )}
         {standing?.late && (
@@ -255,7 +263,7 @@ export default function GanttItemPanel({
         </details>
       )}
 
-      {canManage && (
+      {canEdit && (
         <Section title="Dates">
           <form
             onSubmit={(e) => {
@@ -326,7 +334,7 @@ export default function GanttItemPanel({
                 className="border-brand-border flex items-center justify-between gap-2 rounded-md border px-3 py-2"
               >
                 <p className="m-0 leading-snug">{d.predecessorTitle}</p>
-                {canManage && (
+                {canEdit && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -342,7 +350,7 @@ export default function GanttItemPanel({
           </ul>
         )}
 
-        {canManage && addable.length > 0 && (
+        {canEdit && addable.length > 0 && (
           <form
             className="mt-3"
             onSubmit={(e) => {
@@ -379,7 +387,7 @@ export default function GanttItemPanel({
       <Section title="Assigned to">
         <p className="m-0 text-sm">{assigneeName || 'Nobody yet'}</p>
 
-        {assignment && (assignment.canAssign || assignment.canClaim) && (
+        {assignment && !done && (assignment.canAssign || assignment.canClaim) && (
           <div className="mt-2 flex flex-wrap items-end gap-2">
             {assignment.canClaim && !assigneeName && (
               <Button size="sm" disabled={busy} onClick={assignment.onClaim}>

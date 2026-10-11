@@ -736,6 +736,7 @@ describe('GanttItemPanel', () => {
     }
     const late = {
       ...rows[0],
+      status: 'in_progress',
       placement: {
         ...rows[0].placement,
         finishVarianceDays: 1,
@@ -830,5 +831,41 @@ describe('GanttItemPanel', () => {
       />,
     )
     expect(screen.getByRole('button', { name: 'Ask to take this' })).toBeInTheDocument()
+  })
+
+  it('keeps a done task read-only, with Reopen for a manager', async () => {
+    const user = userEvent.setup()
+    const onReopen = vi.fn()
+    const done = { ...rows[1], status: 'completed' }
+    const assignment = {
+      canAssign: true,
+      canClaim: true,
+      claimViewer: { onProject: true, invited: false },
+      options: [{ value: '7', label: 'Sam' }],
+      onAssign: vi.fn(),
+      onClaim: vi.fn(),
+      onUnassign: vi.fn(),
+    }
+    const { rerender } = render(
+      <GanttItemPanel
+        {...baseProps}
+        row={done}
+        assigneeName="Sam"
+        canManage
+        assignment={assignment}
+        onReopen={onReopen}
+      />,
+    )
+    expect(screen.queryByText('Dates')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull()
+    expect(screen.queryByLabelText('Add a dependency')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Unassign' })).toBeNull()
+    // What it waited on stays listed.
+    expect(screen.getByText('Book venue')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Reopen' }))
+    expect(onReopen).toHaveBeenCalled()
+
+    rerender(<GanttItemPanel {...baseProps} row={done} canManage={false} />)
+    expect(screen.queryByRole('button', { name: 'Reopen' })).toBeNull()
   })
 })

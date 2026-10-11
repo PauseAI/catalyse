@@ -46,6 +46,7 @@ import { isHttpUrl } from '@/lib/schemas'
 import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS } from '@/lib/status-labels'
 import Modal from '@/components/ui/Modal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import ReopenTaskDialog, { type ReopenTarget } from '@/components/ReopenTaskDialog'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import VolunteerSelect from '@/components/VolunteerSelect'
 import Tabs from '@/components/Tabs'
@@ -299,6 +300,7 @@ function TaskTimeline({
   const showToast = useToast()
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [replanId, setReplanId] = useState<number | null>(null)
+  const [reopening, setReopening] = useState<ReopenTarget | null>(null)
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: orpc.projects.listTasks.key() })
@@ -545,6 +547,17 @@ function TaskTimeline({
                   : undefined
               }
               onReplan={canManage ? () => setReplanId(selectedRow.id) : undefined}
+              onReopen={
+                canManage
+                  ? () =>
+                      setReopening({
+                        projectId,
+                        taskId: selectedRow.id,
+                        title: selectedRow.label,
+                        assigneeName: selectedTask.assignedToName,
+                      })
+                  : undefined
+              }
               assignment={{
                 canAssign: canAssignTasks,
                 // Claiming is only offered while the task is genuinely free.
@@ -559,6 +572,7 @@ function TaskTimeline({
           </div>
         )}
       </div>
+      {reopening && <ReopenTaskDialog target={reopening} onClose={() => setReopening(null)} />}
       {replanId !== null &&
         (() => {
           const task = timeline.tasks.find((t) => t.id === replanId)
@@ -693,6 +707,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   // Confirmations
   const [deleteTaskId, setDeleteTaskId] = useState<number | null>(null)
+  const [reopenTarget, setReopenTarget] = useState<ReopenTarget | null>(null)
   const [withdrawAccepted, setWithdrawAccepted] = useState<boolean | null>(null)
   const [deputyAction, setDeputyAction] = useState<DeputyAction | null>(null)
   const [showJoin, setShowJoin] = useState(false)
@@ -2295,6 +2310,23 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                             {UNASSIGN}
                                           </button>
                                         )}
+                                        {canManageTasks && task.status === TaskStatus.completed && (
+                                          <button
+                                            role="menuitem"
+                                            className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors cursor-pointer"
+                                            onClick={() => {
+                                              setReopenTarget({
+                                                projectId: project.id,
+                                                taskId: task.id,
+                                                title: task.title,
+                                                assigneeName: task.assignedToName,
+                                              })
+                                              close()
+                                            }}
+                                          >
+                                            Reopen task
+                                          </button>
+                                        )}
                                         {(canManageTasks || task.createdById === user.id) && (
                                           <button
                                             role="menuitem"
@@ -2455,6 +2487,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           }}
           onClose={() => setDeleteTaskId(null)}
         />
+      )}
+
+      {reopenTarget && (
+        <ReopenTaskDialog target={reopenTarget} onClose={() => setReopenTarget(null)} />
       )}
 
       {deputyAction !== null && (

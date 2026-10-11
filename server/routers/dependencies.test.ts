@@ -123,3 +123,33 @@ describe('dependencies.updateLag / remove', () => {
     expect(await prisma.workItemDependency.count({ where: { id: link.id } })).toBe(0)
   })
 })
+
+describe('links of a done task', () => {
+  it('locks what a done task waits on, but not what waits on it', async () => {
+    const owner = await createVolunteer()
+    const c = clientAs(owner)
+    const p = await createProject({ assigneeId: owner.id })
+    const before = await createTask(p.id)
+    const done = await createTask(p.id)
+    const after = await createTask(p.id)
+    const waitsOn = await c.dependencies.add({ predecessorId: before.id, successorId: done.id })
+    await prisma.workItem.update({ where: { id: done.id }, data: { status: 'completed' } })
+
+    const locked = { code: 'FORBIDDEN', message: 'Reopen the task to change it' }
+    const other = await createTask(p.id)
+    await expect(
+      c.dependencies.add({ predecessorId: other.id, successorId: done.id }),
+    ).rejects.toMatchObject(locked)
+    await expect(
+      c.dependencies.updateLag({ dependencyId: waitsOn.id, lagDays: 2 }),
+    ).rejects.toMatchObject(locked)
+    await expect(c.dependencies.remove({ dependencyId: waitsOn.id })).rejects.toMatchObject(locked)
+
+    const unblocks = await c.dependencies.add({ predecessorId: done.id, successorId: after.id })
+    expect(await c.dependencies.updateLag({ dependencyId: unblocks.id, lagDays: 1 })).toEqual({
+      id: unblocks.id,
+      lagDays: 1,
+    })
+    expect(await c.dependencies.remove({ dependencyId: unblocks.id })).toEqual({ id: unblocks.id })
+  })
+})

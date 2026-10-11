@@ -32,6 +32,7 @@ import NotFoundCard from '@/components/NotFoundCard'
 import SubmitWorkButton from '@/components/SubmitWorkButton'
 import SubmittedWork from '@/components/SubmittedWork'
 import RequestChangesButton from '@/components/RequestChangesButton'
+import ReopenTaskDialog from '@/components/ReopenTaskDialog'
 
 export default function TaskDetailPage({
   params,
@@ -50,7 +51,9 @@ export default function TaskDetailPage({
     enabled: !!user && !isNaN(projectId) && !isNaN(taskId),
   })
 
-  const canEdit = !!user && !!task && task.canManage
+  const isDone = task?.status === TaskStatus.completed
+  // A done task is read-only until it is reopened (lib/work-item-lock.ts).
+  const canEdit = !!user && !!task && task.canManage && !isDone
 
   const [editTitle, setEditTitle] = useState('')
   const [editDescription, setEditDescription] = useState('')
@@ -61,6 +64,7 @@ export default function TaskDetailPage({
   const [messaging, setMessaging] = useState(false)
   const [replanning, setReplanning] = useState(false)
   const [reassignTo, setReassignTo] = useState('')
+  const [reopening, setReopening] = useState(false)
 
   useEffect(() => {
     if (!task || initialized) return
@@ -219,6 +223,11 @@ export default function TaskDetailPage({
             {canEdit && !isEditing && (
               <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>
                 Edit
+              </Button>
+            )}
+            {isDone && task.canManage && (
+              <Button variant="secondary" size="sm" onClick={() => setReopening(true)}>
+                Reopen
               </Button>
             )}
           </div>
@@ -496,7 +505,7 @@ export default function TaskDetailPage({
                 <WorkItemCard
                   item={dep.item}
                   extra={
-                    task.canManage && (
+                    canEdit && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -515,7 +524,7 @@ export default function TaskDetailPage({
           </ul>
         )}
 
-        {task.canManage &&
+        {canEdit &&
           (task.siblingTasks.length === 0 ? (
             <p className="text-text-light text-sm">No other tasks in this project to depend on.</p>
           ) : (
@@ -552,6 +561,12 @@ export default function TaskDetailPage({
         </p>
         <CommentThread workItemId={task.id} />
       </div>
+      {reopening && (
+        <ReopenTaskDialog
+          target={{ projectId, taskId, title: task.title, assigneeName: task.assignedToName }}
+          onClose={() => setReopening(false)}
+        />
+      )}
       {messaging && task.assignedToId !== null && (
         <MessageDialog
           id="message-assignee"

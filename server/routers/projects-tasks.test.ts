@@ -400,7 +400,12 @@ describe('projects.updateTask', () => {
     expect((await task(t.id)).completedAt).not.toBeNull()
     await prisma.workItem.update({
       where: { id: t.id },
-      data: { submissionNote: 'Did it', submittedAt: new Date(), changesRequestedNote: 'More' },
+      data: {
+        status: 'in_progress',
+        submissionNote: 'Did it',
+        submittedAt: new Date(),
+        changesRequestedNote: 'More',
+      },
     })
     await c.projects.updateTask({
       projectId: project.id,
@@ -600,7 +605,169 @@ describe('projects.assignTask', () => {
     await prisma.workItem.update({ where: { id: t.id }, data: { status: 'completed' } })
     await expect(
       c.projects.assignTask({ projectId: project.id, taskId: t.id, assigneeId: vol.id }),
-    ).rejects.toMatchObject({ message: 'Cannot assign a completed task' })
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'Reopen the task to change it' })
+  })
+})
+
+describe('projects.reopenTask', () => {
+  const notes = (volunteerId: number, type: string) =>
+    prisma.notification.findMany({ where: { volunteerId, type } })
+  const comments = (workItemId: number) =>
+    prisma.workItemComment.findMany({ where: { workItemId }, select: { content: true } })
+
+  async function doneTaskSetup() {
+    const owner = await createVolunteer({ name: 'Olive' })
+    const sam = await createVolunteer({ name: 'Sam' })
+    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    const t = await createTask(project.id, {
+      status: 'completed',
+      assigneeId: sam.id,
+      startedAt: day('2026-09-01'),
+      completedAt: day('2026-09-03'),
+      submissionNote: 'Booked it',
+      submittedAt: day('2026-09-03'),
+      reviewedById: owner.id,
+      reviewedAt: day('2026-09-03'),
+    })
+    return { owner, sam, project, t }
+  }
+
+  it('takes a done task back to In progress for its assignee, says so and tells them', async () => {
+    const { owner, sam, project, t } = await doneTaskSetup()
+    const next = await createTask(project.id)
+    await prisma.workItemDependency.create({ data: { predecessorId: t.id, successorId: next.id } })
+    const nextStatus = async () =>
+      (await clientAs(owner).projects.getTask({ projectId: project.id, taskId: next.id }))
+        .displayStatus
+    expect(await nextStatus()).toBe('ready')
+
+    expect(
+      await clientAs(owner).projects.reopenTask({ projectId: project.id, taskId: t.id }),
+    ).toEqual({ message: 'Task reopened', status: 'in_progress' })
+    expect(await task(t.id)).toMatchObject({
+      status: 'in_progress',
+      completedAt: null,
+      reviewedById: null,
+      reviewedAt: null,
+      startedAt: day('2026-09-01'),
+      submissionNote: 'Booked it',
+    })
+    expect(await comments(t.id)).toEqual([{ content: 'Reopened by Olive' }])
+    expect(await notes(sam.id, 'task_reopened')).toEqual([
+      expect.objectContaining({
+        title: `Reopened: '${t.title}'`,
+        body: 'Olive reopened it, so it is back on your list.',
+        link: `/projects/${project.id}/tasks/${t.id}`,
+      }),
+    ])
+    // The task that waited on it is waiting again.
+    expect(await nextStatus()).toBe('blocked')
+    // It is no longer done, so there is nothing to reopen.
+    await expect(
+      clientAs(owner).projects.reopenTask({ projectId: project.id, taskId: t.id }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'This task is not done' })
+  })
+
+  it('lets a deputy or an admin reopen, but not a helper', async () => {
+    const { owner, sam, project, t } = await doneTaskSetup()
+    await expect(
+      clientAs(sam).projects.reopenTask({ projectId: project.id, taskId: t.id }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    await expect(
+      clientAs(owner).projects.reopenTask({ projectId: project.id, taskId: 999_999 }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+
+    // A deputy reopens a done task nobody holds: back to Not started, its hand-in forgotten.
+    const deputy = await createVolunteer({ name: 'Dee' })
+    await prisma.workItemInterest.create({
+      data: {
+        volunteerId: deputy.id,
+        workItemId: project.id,
+        interestType: 'want_to_contribute',
+        status: 'accepted',
+      },
+    })
+    await prisma.projectDeputy.create({ data: { projectId: project.id, volunteerId: deputy.id } })
+    const unheld = await createTask(project.id, {
+      status: 'completed',
+      completedAt: new Date(),
+      startedAt: new Date(),
+      submissionNote: 'Done',
+      submittedAt: new Date(),
+    })
+    expect(
+      await clientAs(deputy).projects.reopenTask({ projectId: project.id, taskId: unheld.id }),
+    ).toMatchObject({ status: 'not_started' })
+    expect(await task(unheld.id)).toMatchObject({
+      status: 'not_started',
+      completedAt: null,
+      startedAt: null,
+      submissionNote: null,
+      submittedAt: null,
+    })
+    expect(await comments(unheld.id)).toEqual([{ content: 'Reopened by Dee (deputy)' }])
+
+    // An admin takes back work waiting for review; the reviewers' prompt goes with it.
+    const admin = await createAdmin()
+    await prisma.workItem.update({
+      where: { id: t.id },
+      data: { status: 'under_review', completedAt: null, startedAt: null },
+    })
+    await prisma.notification.create({
+      data: { volunteerId: owner.id, type: 'task_submitted', title: 'Review', entityId: t.id },
+    })
+    await clientAs(admin).projects.reopenTask({ projectId: project.id, taskId: t.id })
+    const back = await task(t.id)
+    expect(back.status).toBe('in_progress')
+    expect(back.startedAt).not.toBeNull()
+    expect(await notes(owner.id, 'task_submitted')).toHaveLength(0)
+  })
+
+  it('keeps a done task read-only until it is reopened', async () => {
+    const { owner, sam, project, t } = await doneTaskSetup()
+    const c = clientAs(owner)
+    const locked = { code: 'FORBIDDEN', message: 'Reopen the task to change it' }
+    await expect(
+      c.projects.updateTask({
+        projectId: project.id,
+        taskId: t.id,
+        data: { deadline: day('2026-12-01') },
+      }),
+    ).rejects.toMatchObject(locked)
+    await expect(
+      c.projects.updateTask({
+        projectId: project.id,
+        taskId: t.id,
+        data: { status: 'not_started' },
+      }),
+    ).rejects.toMatchObject(locked)
+    await expect(
+      c.projects.replanTask({
+        projectId: project.id,
+        taskId: t.id,
+        newEnd: day('2026-12-01'),
+        reason: 'Later',
+      }),
+    ).rejects.toMatchObject(locked)
+    await expect(
+      c.schedule.rescheduleItems({ items: [{ id: t.id, startDate: day('2026-11-01') }] }),
+    ).rejects.toMatchObject(locked)
+    // Someone who cannot manage the task is told that first.
+    await expect(
+      clientAs(sam).projects.updateTask({
+        projectId: project.id,
+        taskId: t.id,
+        data: { title: 'x' },
+      }),
+    ).rejects.toMatchObject({ message: 'Not authorized to update this task' })
+
+    await c.projects.reopenTask({ projectId: project.id, taskId: t.id })
+    await c.projects.updateTask({
+      projectId: project.id,
+      taskId: t.id,
+      data: { deadline: day('2026-12-01') },
+    })
+    expect((await task(t.id)).deadline).toEqual(day('2026-12-01'))
   })
 })
 

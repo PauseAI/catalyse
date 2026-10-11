@@ -1449,3 +1449,77 @@ describe('project page — remaining edges', () => {
     )
   })
 })
+
+describe('project page — reopening a done task', () => {
+  const reopenDialog = (title: string) =>
+    screen.findByRole('dialog', { name: `Reopen '${title}'?` })
+
+  it('reopens from the task menu, for a deputy too', async () => {
+    const owner = await createVolunteer()
+    const deputy = await createVolunteer({ name: 'Dee Deputy' })
+    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: project.id,
+        volunteerId: deputy.id,
+        interestType: 'want_to_contribute',
+        status: 'accepted',
+      },
+    })
+    await prisma.projectDeputy.create({ data: { projectId: project.id, volunteerId: deputy.id } })
+    const done = await createTask(project.id, {
+      title: 'Finished bit',
+      status: 'completed',
+      completedAt: new Date(),
+    })
+    await createTask(project.id, { title: 'Open bit' })
+    await mount(project.id, deputy, '#tasks')
+
+    await userEvent.click(await screen.findByLabelText('Task actions for Open bit'))
+    expect(screen.queryByRole('menuitem', { name: 'Reopen task' })).toBeNull()
+    await userEvent.click(screen.getByLabelText('Task actions for Open bit'))
+
+    await userEvent.click(screen.getByLabelText('Task actions for Finished bit'))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Reopen task' }))
+    await userEvent.click(
+      within(await reopenDialog('Finished bit')).getByRole('button', { name: 'Cancel' }),
+    )
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    await userEvent.click(screen.getByLabelText('Task actions for Finished bit'))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Reopen task' }))
+    await userEvent.click(
+      within(await reopenDialog('Finished bit')).getByRole('button', { name: 'Reopen' }),
+    )
+    await screen.findByText('Reopened. It can be edited again.')
+    expect(await row(done.id)).toMatchObject({ status: 'not_started', completedAt: null })
+  })
+
+  it('reopens a done bar from the timeline panel, which is otherwise read-only', async () => {
+    const owner = await createVolunteer()
+    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    const done = await createTask(project.id, {
+      title: 'Built stage',
+      status: 'completed',
+      completedAt: new Date(),
+      startDate: new Date('2026-10-01T00:00:00Z'),
+      deadline: new Date('2026-10-02T00:00:00Z'),
+    })
+    await mount(project.id, owner, '#timeline')
+    await userEvent.click(await screen.findByRole('button', { name: /^Built stage:/ }))
+    const panel = () => screen.getByRole('complementary')
+    expect(within(panel()).queryByLabelText('Deadline')).toBeNull()
+
+    await userEvent.click(within(panel()).getByRole('button', { name: 'Reopen' }))
+    await userEvent.click(
+      within(await reopenDialog('Built stage')).getByRole('button', { name: 'Cancel' }),
+    )
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    await userEvent.click(within(panel()).getByRole('button', { name: 'Reopen' }))
+    await userEvent.click(
+      within(await reopenDialog('Built stage')).getByRole('button', { name: 'Reopen' }),
+    )
+    await screen.findByText('Reopened. It can be edited again.')
+    expect(await row(done.id)).toMatchObject({ status: 'not_started', completedAt: null })
+    await within(panel()).findByLabelText('Deadline')
+  })
+})

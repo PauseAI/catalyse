@@ -9,6 +9,7 @@ import {
   isProjectDeputy,
   resolveProjectPrivy,
 } from '@/lib/work-item'
+import { assertTaskEditable } from '@/lib/work-item-lock'
 import { loadProjectEdges, loadTaskEdges } from '@/lib/project-schedule'
 import { findDependencyCycle, type ScheduleEdge } from '@/lib/schedule'
 import { approvedProcedure } from '../procedures'
@@ -113,6 +114,7 @@ async function resolveLink(
         message: 'Only the project owner, a deputy or an admin can link its tasks',
       })
     }
+    assertTaskEditable(successor)
   } else {
     if (!canManageProject(successor, volunteer)) {
       throw new ORPCError('FORBIDDEN', {

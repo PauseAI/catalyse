@@ -546,7 +546,7 @@ describe('task detail page — past plan', () => {
     await userEvent.click((await screen.findAllByRole('option', { name: 'Pat Next B' }))[0])
     await prisma.workItem.update({ where: { id: late.id }, data: { status: 'completed' } })
     await userEvent.click(within(box).getByRole('button', { name: 'Reassign' }))
-    await screen.findByText('Cannot assign a completed task')
+    await screen.findByText('Reopen the task to change it')
     await prisma.workItem.update({ where: { id: late.id }, data: { status: 'in_progress' } })
 
     // Unassigned, the task is nobody's to be late with, so there is no decision left to make.
@@ -569,5 +569,68 @@ describe('task detail page — past plan', () => {
     localStorage.setItem('authToken', 'stale')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Replan' }))
     await screen.findByText('Unauthorized')
+  })
+})
+
+describe('task detail page — a done task', () => {
+  it('is read-only, keeps what it waited on, and the owner reopens it', async () => {
+    const owner = await createVolunteer({ name: 'Olive' })
+    const sam = await createVolunteer({ name: 'Sam' })
+    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    const before = await createTask(project.id, { title: 'Book hall', status: 'completed' })
+    const task = await createTask(project.id, {
+      title: 'Print flyers',
+      status: 'completed',
+      assigneeId: sam.id,
+      completedAt: new Date(),
+    })
+    await prisma.workItemDependency.create({
+      data: { predecessorId: before.id, successorId: task.id },
+    })
+
+    await mount(project.id, task.id, sam)
+    await screen.findByRole('heading', { name: 'Print flyers' })
+    expect(screen.queryByRole('button', { name: 'Reopen' })).toBeNull()
+
+    cleanup()
+    await mount(project.id, task.id, owner)
+    const reopen = await screen.findByRole('button', { name: 'Reopen' })
+    expect(screen.getByRole('link', { name: /Book hall/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull()
+    expect(screen.queryByLabelText('Add a dependency')).toBeNull()
+
+    await userEvent.click(reopen)
+    const dialog = await screen.findByRole('dialog', { name: "Reopen 'Print flyers'?" })
+    expect(
+      within(dialog).getByText('It goes back to In progress for Sam and can be edited again.'),
+    ).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Reopen' }))
+    const confirm = await screen.findByRole('dialog', { name: "Reopen 'Print flyers'?" })
+    await userEvent.click(within(confirm).getByRole('button', { name: 'Reopen' }))
+    await screen.findByText('Reopened. It can be edited again.')
+    expect(await row(task.id)).toMatchObject({ status: 'in_progress', completedAt: null })
+    await screen.findByRole('button', { name: 'Remove' })
+    const header = screen.getByRole('heading', { name: 'Print flyers' }).parentElement!
+    expect(within(header).getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+    expect(within(header).queryByRole('button', { name: 'Reopen' })).toBeNull()
+    await screen.findByText('Reopened by Olive')
+  })
+
+  it('says when a task nobody holds goes back, and reports a failed reopen', async () => {
+    const owner = await createVolunteer()
+    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    const task = await createTask(project.id, { title: 'Sweep up', status: 'completed' })
+    await mount(project.id, task.id, owner)
+    await userEvent.click(await screen.findByRole('button', { name: 'Reopen' }))
+    const dialog = await screen.findByRole('dialog', { name: "Reopen 'Sweep up'?" })
+    expect(
+      within(dialog).getByText('It goes back to Not started and can be edited again.'),
+    ).toBeInTheDocument()
+    // Someone else reopened it first.
+    await prisma.workItem.update({ where: { id: task.id }, data: { status: 'not_started' } })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Reopen' }))
+    await screen.findByText('This task is not done')
   })
 })

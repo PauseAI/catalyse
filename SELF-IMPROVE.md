@@ -47,6 +47,20 @@ confusing than it needed to be, and that will do so again.
       only the suspect repeated) would find them in one pass instead of one per
       full run.
 
+## 3x
+
+- [ ] **Two sessions running vitest at once share one test template database and one
+      `coverage/` directory, so one run wipes the other's.** During P4-05 another agent's
+      single-file reruns in the same checkout dropped `vitest_template` mid-run (about 70
+      suites failed with "template database does not exist"), and the next full run refused to
+      start on the coverage lock. In P4-14 a P4-07 agent's reruns of the task page test made
+      four of five runs of the project page test fail with bare `PrismaClientKnownRequestError`s,
+      and the full unit suite could not be run at all without breaking the other agent's. P4-07's
+      own full run then failed 49 tests on "Database `vitest_…` does not exist" while P4-14's
+      was going, and passed untouched once that had finished. A
+      per-run database prefix and reports directory in `test/pg.ts` and `scripts/test-unit.ts`
+      (from an env var or the pid) would let runs overlap.
+
 ## 2x
 
 - [ ] **A `null`-target guard written for a dialog's confirm or dismiss handler
@@ -73,15 +87,13 @@ confusing than it needed to be, and that will do so again.
       enum rename diff carried it again. `scripts/new-migration.ts` should strip that
       statement from the diff it writes.
 
-- [ ] **Two sessions running vitest at once share one test template database and one
-      `coverage/` directory, so one run wipes the other's.** During P4-05 another agent's
-      single-file reruns in the same checkout dropped `vitest_template` mid-run (about 70
-      suites failed with "template database does not exist"), and the next full run refused to
-      start on the coverage lock. In P4-14 a P4-07 agent's reruns of the task page test made
-      four of five runs of the project page test fail with bare `PrismaClientKnownRequestError`s,
-      and the full unit suite could not be run at all without breaking the other agent's. A
-      per-run database prefix and reports directory in `test/pg.ts` and `scripts/test-unit.ts`
-      (from an env var or the pid) would let runs overlap.
+- [ ] **Component tests that remount a page as a different user read the previous user's
+      cached query first, so a `getBy…` right after the remount sees stale data.** It cost
+      a debugging round in R-06 and two more in R-08 (the owner's buttons, then the
+      "waiting" count). P4-07's task page test found no Reopen button straight after
+      remounting as the owner, and after reopening saw the old Done state come back.
+      `renderApp` could start each mount with an empty query cache, or `test/render.tsx`
+      could say to use `findBy…` after a remount.
 
 ## 1x
 
@@ -100,11 +112,6 @@ confusing than it needed to be, and that will do so again.
       `app/dashboard/page.tsx`. Reading query parameters through one hook
       (`lib/hooks/useOneTimeNotice.ts` reads on mount) and a line in `AGENTS.md` would stop
       the next page repeating it.
-- [ ] **Component tests that remount a page as a different user read the previous user's
-      cached query first, so a `getBy…` right after the remount sees stale data.** It cost
-      a debugging round in R-06 and two more in R-08 (the owner's buttons, then the
-      "waiting" count). `renderApp` could start each mount with an empty query cache, or
-      `test/render.tsx` could say to use `findBy…` after a remount.
 - [ ] **Seeded dev accounts are hidden from the directory, so they can't be
       invited to a project or sent a contact request.** `scripts/seed-dev-accounts.ts`
       sets `consent_make_profile_visible_in_directory` false, and the invite picker

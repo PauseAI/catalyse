@@ -24,8 +24,10 @@ import {
   resolveProjectMembership,
   resolveClaimViewer,
   RELEASED_TASK,
+  CLEARED_SUBMISSION,
   startWorkData,
 } from '@/lib/work-item'
+import { assertTaskEditable } from '@/lib/work-item-lock'
 import { taskDisplayStatus, taskStatusViews } from '@/lib/task-status'
 import { loadWorkItemSummaries } from '@/lib/work-item-summary'
 import { notifyUser, notifyAdmins, notifyTeamOfProject, clearNotifications } from '@/lib/notify'
@@ -2286,6 +2288,7 @@ export const projectsRouter = {
       if (!isAssignee && !volunteer.isAdmin && !isSelfClaim && !isDraftCreator) {
         throw new ORPCError('FORBIDDEN', { message: 'Not authorized to update this task' })
       }
+      assertTaskEditable(task)
 
       if (input.data.isAnchor !== undefined && !canManageProject(project, volunteer)) {
         throw new ORPCError('FORBIDDEN', { message: 'Only the project owner can set the key date' })
@@ -2598,6 +2601,65 @@ export const projectsRouter = {
       return { message: 'Changes requested' }
     }),
 
+  /**
+   * The owner, a deputy or an admin takes back a done or handed-in task: In progress for whoever
+   * holds it, Not started when nobody does. Says so in its Discussion and tells the assignee.
+   */
+  reopenTask: approvedProcedure
+    .input(z.object({ projectId: z.number().int(), taskId: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      const volunteer = context.volunteer
+      const { project, task } = await findProjectTask(input.projectId, input.taskId)
+      const isDeputy = await isProjectDeputy(project.id, volunteer.id)
+      if (!canManageProjectTasks(project, volunteer, isDeputy)) {
+        throw new ORPCError('FORBIDDEN', {
+          message: 'Only the project owner, a deputy or an admin can reopen a task',
+        })
+      }
+
+      const status = task.assigneeId === null ? TaskStatus.not_started : TaskStatus.in_progress
+      const now = new Date()
+      const reopened = await prisma.workItem.updateMany({
+        where: { id: task.id, status: { in: [TaskStatus.completed, TaskStatus.under_review] } },
+        data: {
+          status,
+          completedAt: null,
+          reviewedById: null,
+          reviewedAt: null,
+          changesRequestedNote: null,
+          // Its holder keeps what they handed in, as when changes are requested; a task nobody
+          // holds forgets it, as a released one does.
+          ...(status === TaskStatus.in_progress
+            ? { startedAt: task.startedAt ?? now }
+            : { ...CLEARED_SUBMISSION, startedAt: null }),
+          updatedAt: now,
+          nudgeSentAt: null,
+          finalWarningSentAt: null,
+        },
+      })
+      if (reopened.count === 0) {
+        throw new ORPCError('BAD_REQUEST', { message: 'This task is not done' })
+      }
+      await clearNotifications('task_submitted', task.id)
+
+      const who = actorLabel(volunteer, isDeputy)
+      await prisma.workItemComment.create({
+        data: { workItemId: task.id, authorId: volunteer.id, content: `Reopened by ${who}` },
+      })
+      if (task.assigneeId !== null && task.assigneeId !== volunteer.id) {
+        await notifyUser(
+          task.assigneeId,
+          'task_reopened',
+          `Reopened: '${task.title}'`,
+          `${who} reopened it, so it is back on your list.`,
+          `/projects/${project.id}/tasks/${task.id}`,
+          undefined,
+          task.id,
+        )
+      }
+      return { message: 'Task reopened', status }
+    }),
+
   assignTask: approvedProcedure
     .input(
       z.object({
@@ -2623,9 +2685,7 @@ export const projectsRouter = {
           message: 'Only the project owner, a deputy or an admin can assign',
         })
       }
-      if (task.status === TaskStatus.completed) {
-        throw new ORPCError('BAD_REQUEST', { message: 'Cannot assign a completed task' })
-      }
+      assertTaskEditable(task)
 
       const assignee = await prisma.volunteer.findFirst({
         where: { id: input.assigneeId, deletedAt: null },
@@ -2708,6 +2768,7 @@ export const projectsRouter = {
       const index = tasks.findIndex((t) => t.id === input.taskId)
       if (index < 0) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
       const task = tasks[index]
+      assertTaskEditable(task)
 
       const { schedule, edges, origin } = await loadProjectTaskSchedule(project, tasks)
       const write = replanWrite(schedule.scheduled[index], input.newEnd, input.durationDays)
