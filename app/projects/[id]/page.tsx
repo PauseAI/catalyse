@@ -46,7 +46,7 @@ import SubmissionAskFields, {
   submissionAskPayload,
 } from '@/components/SubmissionAskFields'
 import { awaitsOwnerReview } from '@/lib/task-review'
-import { isHttpUrl } from '@/lib/schemas'
+import { isHttpUrl } from '@/lib/url'
 import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS } from '@/lib/status-labels'
 import Modal from '@/components/ui/Modal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'

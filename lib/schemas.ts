@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { MUTABLE_EMAIL_CATEGORIES } from './notification-categories'
+import { isHttpUrl } from './url'
 import {
   AdminInviteSchema,
   AdminNoteSchema,
@@ -185,12 +186,6 @@ const PROJECT_INPUT_FIELDS = {
   teamId: true,
   ...SCHEDULE_INPUT_FIELDS,
 } as const
-
-const HTTP_URL_RE = /^https?:\/\/\S+$/i
-
-/** A link the app will render as an href: http(s) only, so it can never run script. */
-export const isHttpUrl = (value: string | null | undefined): value is string =>
-  typeof value === 'string' && HTTP_URL_RE.test(value)
 
 /** A user-supplied link, empty allowed; the caller decides whether empty means null. */
 export const HttpUrlSchema = z
