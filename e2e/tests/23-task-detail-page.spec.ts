@@ -136,6 +136,42 @@ test.describe('Task Detail Page', () => {
     await expect(adminPage.getByText('In progress', { exact: true })).toBeVisible()
   })
 
+  test('The assignee sees the submit box on the task page and hands in from it', async ({
+    browser,
+    baseUrl,
+  }) => {
+    const adminApi = createApiClient(baseUrl, readAdminToken(baseUrl))
+    const projectId = await createAdminProject(adminApi, 'Task submit box test')
+    const created = await adminApi.projects.createTask({
+      body: { projectId, title: 'Hand me in' },
+    })
+    const taskId = (created.body as { id: number }).id
+    const assignee = await signupApprovedVolunteer(baseUrl)
+    await adminApi.projects.assignTask({ body: { projectId, taskId, assigneeId: assignee.id } })
+
+    const context = await browser.newContext()
+    await context.addInitScript((token: string) => {
+      localStorage.setItem('authToken', token)
+      localStorage.setItem('cookieConsent', 'false')
+    }, assignee.token)
+    const page = await context.newPage()
+    await page.goto(`${baseUrl}/projects/${projectId}/tasks/${taskId}`)
+
+    await expect(page.getByText('Assigned to').locator('..')).toContainText(assignee.name, {
+      timeout: 10_000,
+    })
+    const box = page.getByRole('region', { name: 'Submit your work' })
+    const submit = box.getByRole('button', { name: 'Submit and mark done' })
+    await expect(submit).toBeDisabled()
+    await expect(box.getByText('Say what you did or add a link to it.')).toBeVisible()
+    await box.getByLabel('What did you do?').fill('Handed in from the page')
+    await submit.click()
+    await expect(getAlert(page)).toContainText('Task done.', { timeout: 10_000 })
+    await expect(box).toHaveCount(0)
+    await expect(page.getByText('Handed in from the page')).toBeVisible()
+    await context.close()
+  })
+
   test('Owner edits a task’s title, description, hours, and deadline from its detail page', async ({
     adminPage,
     baseUrl,

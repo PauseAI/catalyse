@@ -21,7 +21,8 @@ import MessageDialog from '@/components/MessageDialog'
 import Linkify from '@/components/Linkify'
 import { useToast } from '@/lib/toast'
 import { TaskStatus } from '@/generated/prisma/enums'
-import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS } from '@/lib/status-labels'
+import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS, UNCLAIMED_LABEL } from '@/lib/status-labels'
+import { shortDay } from '@/lib/relative-date'
 import { PROJECT_TASK_CLAIMED_MESSAGE, TASK_REQUESTED_MESSAGE } from '@/lib/action-messages'
 import { UNASSIGN, claimLabel } from '@/lib/action-labels'
 import { TASK_INACTIVITY_RULE } from '@/lib/staleness'
@@ -30,7 +31,8 @@ import { handedIn } from '@/lib/overdue'
 import { quotedTitles } from '@/lib/task-status'
 import PageLoading from '@/components/PageLoading'
 import NotFoundCard from '@/components/NotFoundCard'
-import SubmitWorkButton from '@/components/SubmitWorkButton'
+import { SubmitWorkForm } from '@/components/SubmitWorkButton'
+import WorkItemHeader, { PersonInitials, WorkItemPerson } from '@/components/WorkItemHeader'
 import SubmittedWork from '@/components/SubmittedWork'
 import RequestChangesButton from '@/components/RequestChangesButton'
 import ReopenTaskDialog from '@/components/ReopenTaskDialog'
@@ -101,6 +103,19 @@ function LinkedWork({
       )}
     </>
   )
+}
+
+/** When the assignee took it on, started or finished it: "claimed on 2 Jan", "finished 9 Oct". */
+function assigneeSince(task: {
+  assignedToName: string | null
+  claimedAt: Date | string | null
+  startedAt: Date | string | null
+  completedAt: Date | string | null
+}): string | null {
+  if (task.completedAt) return `finished ${shortDay(task.completedAt)}`
+  if (task.assignedToName === null) return null
+  if (task.startedAt) return `started ${shortDay(task.startedAt)}`
+  return task.claimedAt ? `claimed on ${shortDay(task.claimedAt)}` : null
 }
 
 export default function TaskDetailPage({
@@ -265,37 +280,66 @@ export default function TaskDetailPage({
       )}
 
       <div className="bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word mb-5">
-        <div className="flex justify-between items-start mb-3 gap-4">
-          <h1 className="m-0">{task.title}</h1>
-          <div className="flex items-center gap-2 shrink-0">
+        <WorkItemHeader
+          title={task.title}
+          person={
+            <WorkItemPerson
+              label="Assigned to"
+              summary={assigneeSince(task)}
+              actions={
+                task.assignedToId !== null &&
+                task.assignedToId !== user.id &&
+                task.assigneeContactable && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    aria-label={`Message ${task.assignedToName}`}
+                    onClick={() => setMessaging(true)}
+                  >
+                    Message
+                  </Button>
+                )
+              }
+            >
+              {task.assignedToName !== null ? (
+                <span className="flex items-center gap-2 min-w-0">
+                  <PersonInitials name={task.assignedToName} />
+                  <span className="truncate">{task.assignedToName}</span>
+                </span>
+              ) : (
+                <span className="text-text-light">{isDone ? 'No one' : UNCLAIMED_LABEL}</span>
+              )}
+            </WorkItemPerson>
+          }
+          status={
             <Badge variant={TASK_STATUS_VARIANTS[task.displayStatus]}>
               {TASK_STATUS_LABELS[task.displayStatus]}
             </Badge>
-            {canEdit && !isEditing && (
-              <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>
-                Edit
-              </Button>
-            )}
-            {isDone && task.canManage && (
-              <Button variant="secondary" size="sm" onClick={() => setReopening(true)}>
-                Reopen
-              </Button>
-            )}
-          </div>
-        </div>
+          }
+          actions={
+            <>
+              {canEdit && !isEditing && (
+                <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>
+                  Edit
+                </Button>
+              )}
+              {isDone && task.canManage && (
+                <Button variant="secondary" size="sm" onClick={() => setReopening(true)}>
+                  Reopen
+                </Button>
+              )}
+            </>
+          }
+        />
 
         {/* The form below holds the same dates, so the summary steps aside while it is open. */}
         {!isEditing && (
           <TaskDatesSummary
-            timing={task.timing}
             estimatedHours={task.estimatedHours}
             deadline={task.deadline}
             openStart={task.startDate === null && task.waitsOn.length === 0}
             placement={task.placement}
-            assigneeName={task.assignedToName}
-            claimedAt={task.claimedAt}
-            startedAt={task.startedAt}
-            completedAt={task.completedAt}
+            handedIn={handedIn(task.status)}
           />
         )}
         {task.blockedBy.length > 0 && (
@@ -392,16 +436,6 @@ export default function TaskDetailPage({
             ★ Key date: the date this project is planned around
           </p>
         )}
-        {task.assignedToId !== null &&
-          task.assignedToId !== user.id &&
-          task.assigneeContactable && (
-            <div className="mb-4">
-              <Button size="sm" variant="secondary" onClick={() => setMessaging(true)}>
-                Message {task.assignedToName}
-              </Button>
-            </div>
-          )}
-
         {task.description && (
           <p className="whitespace-pre-wrap mb-0">
             <Linkify text={task.description} />
@@ -451,17 +485,20 @@ export default function TaskDetailPage({
         )}
 
         {!projectLocked && !handedIn(task.status) && task.assignedToId === user.id && (
-          <div className="mt-4 flex flex-wrap items-start gap-2">
-            {task.status === TaskStatus.not_started && (
-              <Button
-                size="sm"
-                disabled={startMutation.isPending}
-                onClick={() => startMutation.mutate({ projectId, taskId })}
-              >
-                Start
-              </Button>
-            )}
-            <SubmitWorkButton
+          <>
+            <div className="mt-4">
+              {task.status === TaskStatus.not_started && (
+                <Button
+                  size="sm"
+                  disabled={startMutation.isPending}
+                  onClick={() => startMutation.mutate({ projectId, taskId })}
+                >
+                  Start
+                </Button>
+              )}
+              <p className="text-sm text-text-light mt-2 mb-0">{TASK_INACTIVITY_RULE}</p>
+            </div>
+            <SubmitWorkForm
               target={{ kind: 'project', projectId, taskId }}
               reviewer={
                 awaitsOwnerReview(
@@ -471,11 +508,8 @@ export default function TaskDetailPage({
                   ? 'The project owner'
                   : null
               }
-              size="sm"
-              variant="secondary"
             />
-            <p className="text-sm text-text-light mt-2 mb-0 basis-full">{TASK_INACTIVITY_RULE}</p>
-          </div>
+          </>
         )}
 
         {canEdit && isEditing && (

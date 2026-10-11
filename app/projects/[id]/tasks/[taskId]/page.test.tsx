@@ -6,9 +6,12 @@ import { createVolunteer, createAdmin, createProject, createTask } from '@/test/
 import { renderApp } from '@/test/render'
 import { addDays, startOfUtcDay } from '@/lib/schedule'
 import { formatDateShort, toDateInputValue } from '@/lib/format-date'
+import { shortDay } from '@/lib/relative-date'
+import { initials } from '@/components/WorkItemHeader'
 import TaskDetailPage from './page'
 
 const row = (id: number) => prisma.workItem.findUniqueOrThrow({ where: { id } })
+const submitBox = () => screen.findByRole('region', { name: 'Submit your work' })
 const mount = (
   projectId: number | string,
   taskId: number | string,
@@ -20,7 +23,7 @@ const mount = (
   )
 
 describe('task detail page', () => {
-  it('lets the assignee start and submit their work, reading Claimed on until they start', async () => {
+  it('lets the assignee start and submit their work from the box on the page', async () => {
     const me = await createVolunteer()
     const someoneElse = await createVolunteer()
     const project = await createProject({ status: 'in_progress' })
@@ -31,7 +34,7 @@ describe('task detail page', () => {
     })
     await mount(project.id, task.id, someoneElse)
     await screen.findByRole('heading', { name: 'Mine' })
-    expect(screen.queryByRole('button', { name: 'Submit work' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Submit your work' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Start' })).toBeNull()
 
     cleanup()
@@ -41,33 +44,38 @@ describe('task detail page', () => {
     expect(screen.getByText('Ready')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Start' }))
     await screen.findByText('Started. Post updates as you go.')
-    await screen.findByText(`started ${formatDateShort(new Date())}`, { exact: false })
+    await screen.findByText(`started ${shortDay(new Date())}`, { exact: false })
     expect(screen.getByText('In progress')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Start' })).toBeNull()
     expect((await row(task.id)).status).toBe('in_progress')
 
-    // A project with no owner to review it takes the work as done.
-    await userEvent.click(screen.getByRole('button', { name: 'Submit work' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Submit your work' })
-    expect(within(dialog).getByText(/This marks the task done/)).toBeInTheDocument()
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Submit work' }))
-    const again = await screen.findByRole('dialog', { name: 'Submit your work' })
-    await userEvent.click(within(again).getByRole('button', { name: 'Submit work' }))
-    expect(within(again).getByText('Say what you did or add a link to it.')).toBeInTheDocument()
-    await userEvent.type(within(again).getByLabelText('Link to your work (optional)'), 'x.org')
-    expect(within(again).queryByText('Say what you did or add a link to it.')).toBeNull()
-    await userEvent.click(within(again).getByRole('button', { name: 'Submit work' }))
-    expect(within(again).getByText('A link starts with https:// or http://')).toBeInTheDocument()
-    await userEvent.clear(within(again).getByLabelText('Link to your work (optional)'))
-    await userEvent.type(within(again).getByLabelText('What did you do?'), 'Wrote it up')
-    expect(within(again).queryByText('Say what you did or add a link to it.')).toBeNull()
-    await userEvent.click(within(again).getByRole('button', { name: 'Submit work' }))
+    // The box is on the page. A project with no owner to review it takes the work as done.
+    const box = await submitBox()
+    expect(within(box).getByText(/This marks the task done/)).toBeInTheDocument()
+    const why = 'Say what you did or add a link to it.'
+    const submit = within(box).getByRole('button', { name: 'Submit and mark done' })
+    expect(submit).toBeDisabled()
+    expect(submit).toHaveAccessibleDescription(why)
+    // Enter submits the form even while the button is disabled; nothing is sent.
+    fireEvent.submit(submit.closest('form')!)
+    expect(within(box).getByRole('alert')).toHaveTextContent(why)
+    await userEvent.type(within(box).getByLabelText('Link to your work (optional)'), 'x.org')
+    expect(within(box).queryByText(why)).toBeNull()
+    expect(submit).toBeEnabled()
+    await userEvent.click(submit)
+    expect(within(box).getByRole('alert')).toHaveTextContent(
+      'A link starts with https:// or http://',
+    )
+    await userEvent.clear(within(box).getByLabelText('Link to your work (optional)'))
+    expect(submit).toBeDisabled()
+    await userEvent.type(within(box).getByLabelText('What did you do?'), 'Wrote it up')
+    expect(within(box).queryByText(why)).toBeNull()
+    await userEvent.click(submit)
     await screen.findByText('Task done. What you did is saved on the task.')
     await waitFor(async () => expect((await row(task.id)).status).toBe('completed'))
     await screen.findByRole('heading', { name: 'Submitted work' })
     expect(screen.getByText('Wrote it up')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Submit work' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Submit your work' })).toBeNull()
   })
 
   it('keeps started work In progress when what it waits on is open, with a warning', async () => {
@@ -172,14 +180,13 @@ describe('task detail page', () => {
     })
 
     await mount(project.id, task.id, me)
-    await userEvent.click(await screen.findByRole('button', { name: 'Submit work' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Submit your work' })
-    expect(within(dialog).getByText(/The project owner will look at it/)).toBeInTheDocument()
+    const box = await submitBox()
+    expect(within(box).getByText(/The project owner will look at it/)).toBeInTheDocument()
     await userEvent.type(
-      within(dialog).getByLabelText('Link to your work (optional)'),
+      within(box).getByLabelText('Link to your work (optional)'),
       'https://example.org/leaflet',
     )
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Submit work' }))
+    await userEvent.click(within(box).getByRole('button', { name: 'Submit for review' }))
     await screen.findByText(/Submitted. The project owner will review it/)
     await screen.findByRole('link', { name: 'https://example.org/leaflet' })
     expect(screen.queryByRole('button', { name: 'Accept' })).toBeNull()
@@ -208,10 +215,9 @@ describe('task detail page', () => {
     await mount(project.id, task.id, me)
     await screen.findByRole('heading', { name: 'Changes requested by Ola Owner' })
     expect(screen.getByText('Add the date')).toBeInTheDocument()
-    await userEvent.click(await screen.findByRole('button', { name: 'Submit work' }))
-    const resubmit = await screen.findByRole('dialog', { name: 'Submit your work' })
+    const resubmit = await submitBox()
     await userEvent.type(within(resubmit).getByLabelText('What did you do?'), 'Dated it')
-    await userEvent.click(within(resubmit).getByRole('button', { name: 'Submit work' }))
+    await userEvent.click(within(resubmit).getByRole('button', { name: 'Submit for review' }))
     await screen.findByText(/Submitted. The project owner will review it/)
     await waitFor(() =>
       expect(screen.queryByRole('heading', { name: /Changes requested/ })).toBeNull(),
@@ -239,11 +245,10 @@ describe('task detail page', () => {
     await prisma.workItem.update({ where: { id: task.id }, data: { status: 'in_progress' } })
     await userEvent.click(screen.getByRole('button', { name: 'Start' }))
     await screen.findByText('This task has already started')
-    await userEvent.click(await screen.findByRole('button', { name: 'Submit work' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Submit your work' })
-    await userEvent.type(within(dialog).getByLabelText('What did you do?'), 'Done')
+    const box = await submitBox()
+    await userEvent.type(within(box).getByLabelText('What did you do?'), 'Done')
     await prisma.workItem.update({ where: { id: task.id }, data: { status: 'completed' } })
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Submit work' }))
+    await userEvent.click(within(box).getByRole('button', { name: 'Submit for review' }))
     await screen.findByText('This task has already been submitted')
 
     cleanup()
@@ -309,11 +314,14 @@ describe('task detail page', () => {
       'href',
       `/projects/${project.id}`,
     )
-    // When and Who, in the words the Dates block uses: the window ends on the deadline.
-    expect(screen.getByText('When').nextSibling).toHaveTextContent(
-      /^1 Dec 2029 – 1 Jan 2030Any time in this window, about 2 hours of work$/,
+    // Due, how far away and from when; the effort; who it is assigned to, top right.
+    expect(screen.getByRole('group', { name: 'When it is due' })).toHaveTextContent(
+      /^Due 1 Jan 2030 · in \d+ days \(from 1 Dec 2029\)Effort: about 2 hours$/,
     )
-    expect(screen.getByText('Who').nextSibling).toHaveTextContent('Unclaimed')
+    expect(screen.getByText('Assigned to').parentElement).toHaveTextContent(
+      /^Assigned toUnclaimed$/,
+    )
+    expect(screen.queryByText(/^(When|Who|Owner)$/)).toBeNull()
     // Its predecessor is not done, so it is Blocked, and says by what.
     expect(screen.getByText('Blocked')).toBeInTheDocument()
     expect(screen.getByText('Blocked by').parentElement).toHaveTextContent(
@@ -334,11 +342,15 @@ describe('task detail page', () => {
     await screen.findByText(
       'Task claimed. Post an update within 14 days; after 28 days with none, the task is released.',
     )
-    // The assignee keeps the rule in view beside Submit work.
-    await screen.findByRole('button', { name: 'Submit work' })
+    // The assignee keeps the rule in view above the submit box.
+    await submitBox()
     expect(screen.getByText(rule)).toBeInTheDocument()
     await waitFor(async () => expect((await row(task.id)).assigneeId).toBe(me.id))
-    await screen.findByText(`${me.name}, claimed on`, { exact: false })
+    await waitFor(() =>
+      expect(screen.getByText('Assigned to').parentElement).toHaveTextContent(
+        `Assigned to${initials(me.name)}${me.name}· claimed on ${shortDay(new Date())}`,
+      ),
+    )
     // Claiming does not start it: still Blocked, with Start offered for prep.
     expect((await row(task.id)).status).toBe('not_started')
     expect(screen.getByText('Blocked')).toBeInTheDocument()
@@ -413,7 +425,11 @@ describe('task detail page', () => {
       startedAt: new Date('2026-02-01T00:00:00Z'),
     })
     await mount(project.id, done.id, admin)
-    await screen.findByText('Finished 2 Feb 2026')
+    await waitFor(() =>
+      expect(screen.getByText('Assigned to').parentElement).toHaveTextContent(
+        /^Assigned toNo one· finished 2 Feb/,
+      ),
+    )
     cleanup()
     await mount(project.id, 999999, admin)
     await screen.findByRole('link', { name: 'Back to Project' })
@@ -644,9 +660,9 @@ describe('task detail page — a done task', () => {
     await screen.findByText('Reopened. It can be edited again.')
     expect(await row(task.id)).toMatchObject({ status: 'in_progress', completedAt: null })
     await screen.findByRole('link', { name: 'project timeline' })
-    const header = screen.getByRole('heading', { name: 'Print flyers' }).parentElement!
-    expect(within(header).getByRole('button', { name: 'Edit' })).toBeInTheDocument()
-    expect(within(header).queryByRole('button', { name: 'Reopen' })).toBeNull()
+    const bar = screen.getByRole('toolbar', { name: 'Status and actions' })
+    expect(within(bar).getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+    expect(within(bar).queryByRole('button', { name: 'Reopen' })).toBeNull()
     await screen.findByText('Reopened by Olive')
   })
 
@@ -686,7 +702,7 @@ describe('task detail page — a completed project', () => {
     await mount(project.id, task.id, sam)
     await screen.findByText('Completed on 30 September 2026. Read-only.')
     expect(screen.queryByRole('button', { name: 'Start' })).toBeNull()
-    expect(screen.queryByRole('button', { name: /Submit/ })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Submit your work' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Reopen project' })).toBeNull()
 
     cleanup()

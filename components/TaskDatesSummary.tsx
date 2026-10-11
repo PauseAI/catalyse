@@ -1,99 +1,76 @@
-import { formatDateShort } from '@/lib/format-date'
-import { deadlineStanding } from '@/lib/slip'
-import { diffInDays } from '@/lib/schedule'
+import { isOverdue } from '@/lib/overdue'
 import { plural } from '@/lib/plural'
-import { UNCLAIMED_LABEL } from '@/lib/status-labels'
-import { windowReading, windowText, type TaskTimingValue } from '@/lib/task-dates'
+import { relativeDue, shortDay } from '@/lib/relative-date'
+import { diffInDays } from '@/lib/schedule'
+import { dayRange, lateText } from '@/lib/slip'
 
 type Placement = {
   start: Date | string
   end: Date | string
   daysLate: number | null
-  isMilestone: boolean
 }
 
 /**
- * The read-only answer to "when is this, and who has it", in the words the Dates block uses:
- * the window (or, with no start of its own, just the deadline), how to read it, whether it is
- * late, and the person doing it.
+ * The read-only answer to "when is this due, and how much work is it": "Due 14 Oct · in 3 days
+ * (from 7 Oct)", then "Effort: about 6 hours". The page heading says Due; the field that sets
+ * it is called Deadline.
  */
 export default function TaskDatesSummary({
-  timing,
   estimatedHours,
   deadline,
   openStart,
   placement,
-  assigneeName,
-  claimedAt,
-  startedAt,
-  completedAt,
+  handedIn,
+  today = new Date(),
 }: {
-  timing: TaskTimingValue
   estimatedHours: number | null
   deadline: Date | string | null
   /** No start date and nothing before it, so only the deadline says when. */
   openStart: boolean
   /** Where the plan puts the task; null when it is not on the timeline. */
   placement: Placement | null
-  assigneeName: string | null
-  claimedAt: Date | string | null
-  startedAt: Date | string | null
-  completedAt: Date | string | null
+  /** Submitted or done: how far away the deadline is no longer matters. */
+  handedIn: boolean
+  today?: Date
 }) {
-  const span = placement
-    ? placement.isMilestone
-      ? 0
-      : diffInDays(new Date(placement.start), new Date(placement.end)) + 1
-    : null
-  const standing = deadline
-    ? deadlineStanding(
-        { deadline: new Date(deadline), daysLate: placement?.daysLate ?? null },
-        completedAt !== null,
-      )
-    : null
-  const effort = estimatedHours !== null ? `Effort: about ${plural(estimatedHours, 'hour')}` : null
+  const start = placement && !openStart ? new Date(placement.start) : null
+  const from =
+    start && deadline && diffInDays(start, new Date(deadline)) !== 0
+      ? ` (from ${shortDay(start, today)})`
+      : null
+  const overdue = !handedIn && isOverdue(deadline, false, today)
+  const daysLate = placement?.daysLate ?? 0
+  // The plan runs past a deadline that has not passed yet.
+  const overrun = !handedIn && deadline !== null && !overdue && daysLate > 0
 
   return (
-    <dl className="mb-4 grid grid-cols-[5.5rem_1fr] gap-x-3 gap-y-2 text-sm">
-      <dt className="text-text-light">When</dt>
-      <dd className="m-0">
-        {placement && openStart && deadline ? (
-          <>
-            <span className="font-medium">By {formatDateShort(deadline)}</span>
-            {effort && <span className="text-text-light block">{effort}</span>}
-          </>
-        ) : placement ? (
-          <>
-            <span className="font-medium">
-              {windowText(new Date(placement.start), new Date(placement.end))}
+    <div role="group" aria-label="When it is due" className="mb-4 text-sm">
+      {deadline ? (
+        <p className="m-0 font-medium">
+          Due {shortDay(deadline, today)}
+          {!handedIn && (
+            <span className={overdue ? 'text-error' : undefined}>
+              {' · '}
+              {relativeDue(deadline, today)}
             </span>
-            <span className="text-text-light block">
-              {windowReading(timing, span ?? 1, estimatedHours)}
+          )}
+          {from && <span className="font-normal text-text-light">{from}</span>}
+        </p>
+      ) : (
+        <p className="m-0 font-medium">
+          No deadline
+          {placement && (
+            <span className="font-normal text-text-light">
+              {' · planned '}
+              {dayRange(new Date(placement.start), new Date(placement.end), today)}
             </span>
-          </>
-        ) : (
-          <>
-            <span>Not on the timeline yet</span>
-            {effort && <span className="text-text-light block">{effort}</span>}
-          </>
-        )}
-        {standing?.late && <span className="text-error block">{standing.text}</span>}
-      </dd>
-
-      <dt className="text-text-light">Who</dt>
-      <dd className="m-0">
-        {assigneeName === null
-          ? completedAt
-            ? `Finished ${formatDateShort(completedAt)}`
-            : UNCLAIMED_LABEL
-          : completedAt
-            ? `${assigneeName}, finished ${formatDateShort(completedAt)}`
-            : startedAt
-              ? `${assigneeName}, started ${formatDateShort(startedAt)}`
-              : claimedAt
-                ? `${assigneeName}, claimed on ${formatDateShort(claimedAt)}`
-                : assigneeName}
-      </dd>
-    </dl>
+          )}
+        </p>
+      )}
+      {overrun && <p className="m-0 text-error">Planned to finish {lateText(daysLate)}</p>}
+      {estimatedHours !== null && (
+        <p className="m-0 text-text-light">Effort: about {plural(estimatedHours, 'hour')}</p>
+      )}
+    </div>
   )
 }

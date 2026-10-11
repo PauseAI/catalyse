@@ -44,7 +44,7 @@ export default function WorkItemHeader({
         <div
           aria-label="Status and actions"
           role="toolbar"
-          className="flex flex-wrap items-center gap-2 pt-3 lg:pt-0 lg:pl-4 lg:border-b lg:border-brand-border"
+          className={`flex flex-wrap items-center gap-2 ${tabs ? 'pt-3 lg:pt-0 lg:pl-4 lg:border-b lg:border-brand-border' : ''}`}
         >
           {status}
           {actions}

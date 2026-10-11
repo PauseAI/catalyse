@@ -106,110 +106,66 @@ describe('DatesBlock', () => {
 })
 
 describe('TaskDatesSummary', () => {
+  const today = day('2099-09-17')
   const base = {
-    timing: 'flexible' as const,
     estimatedHours: 6,
     deadline: day('2099-09-20'),
     openStart: false,
-    placement: {
-      start: day('2099-09-14'),
-      end: day('2099-09-20'),
-      daysLate: null,
-      isMilestone: false,
-    },
-    assigneeName: 'Chelsie',
-    claimedAt: day('2099-09-14'),
-    startedAt: null,
-    completedAt: null,
+    placement: { start: day('2099-09-14'), end: day('2099-09-20'), daysLate: null },
+    handedIn: false,
+    today,
   }
-  const dd = (label: string) => screen.getByText(label).nextSibling
+  const summary = () => screen.getByRole('group', { name: 'When it is due' })
 
-  it('reads a flexible window that ends on its deadline', () => {
-    render(<TaskDatesSummary {...base} />)
-    expect(dd('When')).toHaveTextContent(
-      /^14 Sept 2099 – 20 Sept 2099Any time in this window, about 6 hours of work$/,
+  it('reads Due, how far away, the start of its window, and the effort', () => {
+    const { rerender } = render(<TaskDatesSummary {...base} />)
+    expect(summary()).toHaveTextContent(
+      /^Due 20 Sept · in 3 days \(from 14 Sept\)Effort: about 6 hours$/,
     )
-    expect(screen.queryByText('Deadline')).toBeNull()
-    expect(dd('Who')).toHaveTextContent('Chelsie, claimed on 14 Sept 2099')
-  })
+    expect(screen.queryByText(/When|Who|Takes the/)).toBeNull()
 
-  it('reads only the deadline when nothing sets a start', () => {
-    const { rerender } = render(<TaskDatesSummary {...base} openStart />)
-    expect(dd('When')).toHaveTextContent(/^By 20 Sept 2099Effort: about 6 hours$/)
+    // Nothing sets a start, or the window is one day: only the deadline.
     rerender(<TaskDatesSummary {...base} openStart estimatedHours={null} />)
-    expect(dd('When')).toHaveTextContent(/^By 20 Sept 2099$/)
+    expect(summary()).toHaveTextContent(/^Due 20 Sept · in 3 days$/)
+    rerender(
+      <TaskDatesSummary
+        {...base}
+        placement={{ start: day('2099-09-20'), end: day('2099-09-20'), daysLate: null }}
+      />,
+    )
+    expect(summary()).toHaveTextContent(/^Due 20 Sept · in 3 daysEffort: about 6 hours$/)
+
+    // Handed in, how far away no longer matters.
+    rerender(<TaskDatesSummary {...base} handedIn />)
+    expect(summary()).toHaveTextContent(/^Due 20 Sept \(from 14 Sept\)Effort/)
   })
 
-  it('says when it is late: overdue once the deadline passes, or pushed past it by the work before', () => {
-    const { rerender } = render(
-      <TaskDatesSummary
-        {...base}
-        deadline={day('2020-01-02')}
-        placement={{
-          start: day('2020-01-01'),
-          end: day('2020-01-02'),
-          daysLate: null,
-          isMilestone: false,
-        }}
-      />,
-    )
-    expect(dd('When')).toHaveTextContent(/\d+ days overdue$/)
+  it('says when it is late: overdue once the deadline passes, or planned past it', () => {
+    const { rerender } = render(<TaskDatesSummary {...base} deadline={day('2099-09-15')} />)
+    expect(screen.getByText(/2 days overdue/)).toHaveClass('text-error')
+    expect(screen.queryByText(/Planned to finish/)).toBeNull()
+
     rerender(
       <TaskDatesSummary
         {...base}
-        placement={{
-          start: day('2099-09-23'),
-          end: day('2099-09-23'),
-          daysLate: 3,
-          isMilestone: false,
-        }}
+        placement={{ start: day('2099-09-21'), end: day('2099-09-23'), daysLate: 3 }}
       />,
     )
-    expect(dd('When')).toHaveTextContent(/3 days late$/)
+    expect(screen.getByText('Planned to finish 3 days late')).toHaveClass('text-error')
+    rerender(
+      <TaskDatesSummary
+        {...base}
+        handedIn
+        placement={{ start: day('2099-09-21'), end: day('2099-09-23'), daysLate: 3 }}
+      />,
+    )
+    expect(screen.queryByText(/Planned to finish|overdue/)).toBeNull()
   })
 
-  it('reads set dates, a milestone and a task off the timeline', () => {
-    const { rerender } = render(
-      <TaskDatesSummary
-        {...base}
-        timing="fixed"
-        placement={{
-          start: day('2099-09-15'),
-          end: day('2099-09-15'),
-          daysLate: null,
-          isMilestone: true,
-        }}
-        startedAt={day('2099-09-15')}
-      />,
-    )
-    expect(dd('When')).toHaveTextContent('A moment, not a stretch of work')
-    expect(dd('Who')).toHaveTextContent('Chelsie, started 15 Sept 2099')
-
-    rerender(
-      <TaskDatesSummary
-        {...base}
-        placement={null}
-        deadline={null}
-        assigneeName="Chelsie"
-        claimedAt={null}
-      />,
-    )
-    expect(dd('When')).toHaveTextContent('Not on the timeline yetEffort: about 6 hours')
-    expect(dd('Who')).toHaveTextContent(/^Chelsie$/)
-
-    rerender(<TaskDatesSummary {...base} assigneeName={null} claimedAt={null} />)
-    expect(dd('Who')).toHaveTextContent(/^Unclaimed$/)
-
-    rerender(
-      <TaskDatesSummary
-        {...base}
-        placement={null}
-        estimatedHours={null}
-        assigneeName="Chelsie"
-        completedAt={day('2099-09-21')}
-      />,
-    )
-    expect(dd('When')).toHaveTextContent(/^Not on the timeline yet$/)
-    expect(dd('Who')).toHaveTextContent('Chelsie, finished 21 Sept 2099')
+  it('reads a task with no deadline, planned or not', () => {
+    const { rerender } = render(<TaskDatesSummary {...base} deadline={null} />)
+    expect(summary()).toHaveTextContent(/^No deadline · planned 14 – 20 SeptEffort/)
+    rerender(<TaskDatesSummary {...base} deadline={null} placement={null} estimatedHours={null} />)
+    expect(summary()).toHaveTextContent(/^No deadline$/)
   })
 })
