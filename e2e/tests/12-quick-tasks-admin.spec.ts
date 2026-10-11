@@ -442,8 +442,8 @@ test.describe('Quick Tasks (admin)', () => {
     const adminList = await adminApi.workItemComments.list({ body: { workItemId } })
     expect(adminList.status).toBe(200)
     expect(
-      (adminList.body as { comments: { content: string }[] }).comments.some(
-        (c) => c.content === commentText,
+      (adminList.body as { feed: { type: string; content?: string }[] }).feed.some(
+        (c) => c.type === 'comment' && c.content === commentText,
       ),
     ).toBe(true)
 

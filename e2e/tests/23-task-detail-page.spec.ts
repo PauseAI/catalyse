@@ -163,7 +163,7 @@ test.describe('Task Detail Page', () => {
     const box = page.getByRole('region', { name: 'Submit your work' })
     const submit = box.getByRole('button', { name: 'Submit and mark done' })
     await expect(submit).toBeDisabled()
-    await expect(box.getByText('Say what you did or add a link to it.')).toBeVisible()
+    await expect(box.getByText('Say what you did.')).toBeVisible()
     await box.getByLabel('What did you do?').fill('Handed in from the page')
     await submit.click()
     await expect(getAlert(page)).toContainText('Task done.', { timeout: 10_000 })

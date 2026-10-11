@@ -418,8 +418,8 @@ test.describe('Project Tasks', () => {
     const volList = await volApi.workItemComments.list({ body: { workItemId: taskId } })
     expect(volList.status).toBe(200)
     expect(
-      (volList.body as { comments: { content: string }[] }).comments.some(
-        (c) => c.content === adminComment,
+      (volList.body as { feed: { type: string; content?: string }[] }).feed.some(
+        (c) => c.type === 'comment' && c.content === adminComment,
       ),
     ).toBe(true)
 
@@ -433,7 +433,9 @@ test.describe('Project Tasks', () => {
     // Admin reads the thread and sees both messages
     const adminList = await adminApi.workItemComments.list({ body: { workItemId: taskId } })
     expect(adminList.status).toBe(200)
-    const finalComments = (adminList.body as { comments: { content: string }[] }).comments
+    const finalComments = (
+      adminList.body as { feed: { type: string; content?: string }[] }
+    ).feed.filter((c) => c.type === 'comment')
     expect(finalComments.some((c) => c.content === adminComment)).toBe(true)
     expect(finalComments.some((c) => c.content === volunteerReply)).toBe(true)
   })
