@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { screen, waitFor, fireEvent, act, within } from '@testing-library/react'
+import { screen, waitFor, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MutationObserver } from '@tanstack/react-query'
 import { prisma } from '@/lib/prisma'
@@ -33,8 +33,8 @@ const mount = (as: Awaited<ReturnType<typeof createVolunteer>> | null, url = '/p
     { as, url },
   )
 
-/** The main nav's items, links and the Inbox button alike, in order. */
-const navItems = (nav: HTMLElement) => Array.from(nav.querySelectorAll<HTMLElement>('a, button'))
+/** The main nav's items, in order. */
+const navItems = (nav: HTMLElement) => Array.from(nav.querySelectorAll<HTMLElement>('a'))
 
 describe('Header', () => {
   it('shows login/signup when signed out, on desktop and in the mobile menu', async () => {
@@ -55,9 +55,7 @@ describe('Header', () => {
     })
     await mount(admin, '/projects')
     const nameButton = await screen.findByRole('button', { name: new RegExp(admin.name) })
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: /^Inbox/ })).toHaveTextContent('1'),
-    )
+    await waitFor(() => expect(screen.getByRole('link', { name: /^Inbox/ })).toHaveTextContent('1'))
     expect(screen.getByRole('link', { name: 'Projects' })).toHaveClass('bg-primary')
     expect(screen.getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'People' })).not.toHaveClass('bg-primary')
@@ -106,7 +104,7 @@ describe('Header', () => {
     })
     await mount(vol, '/projects')
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /^Inbox/ })).toHaveTextContent(
+      expect(screen.getByRole('link', { name: /^Inbox/ })).toHaveTextContent(
         'Inbox, waiting for you: 2',
       ),
     )
@@ -119,7 +117,7 @@ describe('Header', () => {
     await prisma.notification.deleteMany({ where: { volunteerId: vol.id, type: 'mention' } })
     await act(() => new MutationObserver(queryClient, { mutationFn: async () => null }).mutate())
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /^Inbox/ })).toHaveTextContent(
+      expect(screen.getByRole('link', { name: /^Inbox/ })).toHaveTextContent(
         'Inbox, waiting for you: 1',
       ),
     )
@@ -130,7 +128,7 @@ describe('Header', () => {
     try {
       const vol = await createVolunteer({ locationConfirmedAt: new Date() })
       await mount(vol, '/projects')
-      const inbox = await screen.findByRole('button', { name: 'Inbox' })
+      const inbox = await screen.findByRole('link', { name: 'Inbox' })
       await prisma.notification.create({
         data: { volunteerId: vol.id, type: 'task_done', title: "Done: 'Leaflets'" },
       })
@@ -164,54 +162,25 @@ describe('Header', () => {
       ]),
     )
     // An update is unread but needs nothing, so a dot and no number.
-    const inbox = within(nav).getByRole('button', { name: /^Inbox/ })
+    const inbox = within(nav).getByRole('link', { name: /^Inbox/ })
     expect(await within(inbox).findByRole('img', { name: 'New updates' })).toBeInTheDocument()
     expect(inbox).toHaveTextContent(/^Inbox$/)
-    // On mobile the Inbox is a plain link.
+    // The mobile menu's Inbox link carries the same badge.
     await userEvent.click(screen.getByLabelText('Open menu'))
-    const link = screen.getByRole('link', { name: /^Inbox/ })
+    const link = screen.getAllByRole('link', { name: /^Inbox/ })[1]
     expect(link).toHaveAttribute('href', '/inbox')
     expect(within(link).getByRole('img', { name: 'New updates' })).toBeInTheDocument()
   })
 
-  it('opens recent notifications from the Inbox item, and closes them again', async () => {
+  it('takes the Inbox item straight to the Inbox page', async () => {
     const vol = await createVolunteer({ locationConfirmedAt: new Date() })
     await mount(vol, '/projects')
-    const inbox = await screen.findByRole('button', { name: 'Inbox' })
-    await userEvent.click(inbox)
-    let popover = await screen.findByRole('dialog', { name: 'Recent notifications' })
-    expect(await within(popover).findByText('Nothing new.')).toBeInTheDocument()
-    expect(inbox).toHaveAttribute('aria-expanded', 'true')
-    // Clicking the trigger again toggles it shut; clicking inside keeps it open.
+    const nav = await screen.findByRole('navigation', { name: 'Main' })
+    const inbox = await within(nav).findByRole('link', { name: 'Inbox' })
+    expect(inbox).toHaveAttribute('href', '/inbox')
+    expect(inbox).not.toHaveAttribute('aria-haspopup')
     await userEvent.click(inbox)
     expect(screen.queryByRole('dialog')).toBeNull()
-
-    await prisma.notification.create({
-      data: { volunteerId: vol.id, type: 'mention', title: 'Sam mentioned you', link: '/x' },
-    })
-    await userEvent.click(inbox)
-    popover = await screen.findByRole('dialog', { name: 'Recent notifications' })
-    expect(await within(popover).findByText('Sam mentioned you')).toBeInTheDocument()
-    fireEvent.mouseDown(within(popover).getByText('Sam mentioned you'))
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    await userEvent.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog')).toBeNull()
-
-    await userEvent.click(inbox)
-    await screen.findByRole('dialog')
-    fireEvent.mouseDown(document.body)
-    expect(screen.queryByRole('dialog')).toBeNull()
-
-    await userEvent.click(inbox)
-    const open = await screen.findByRole('link', { name: 'Open inbox →' })
-    expect(open).toHaveAttribute('href', '/inbox')
-    await userEvent.click(open)
-    expect(screen.queryByRole('dialog')).toBeNull()
-    // Any navigation closes it too.
-    await userEvent.click(inbox)
-    await screen.findByRole('dialog')
-    act(() => navigation.push('/teams'))
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
   it.each([

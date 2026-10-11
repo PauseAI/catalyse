@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import { orpc } from '@/lib/orpc'
 import { queryClient } from '@/lib/query-client'
-import { connect, createProject, createTeam, createVolunteer } from '@/test/factories'
+import { connect, createProject, createTask, createTeam, createVolunteer } from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { clientAs } from '@/test/rpc'
 import InboxPage from './page'
@@ -256,6 +256,50 @@ describe('inbox', () => {
     expect(screen.getByText('Comment 1')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Hide earlier' }))
     expect(screen.queryByText('Comment 1')).toBeNull()
+  })
+
+  it('shows the task a notification is about as a card, unless the viewer can no longer see it', async () => {
+    const me = await createVolunteer()
+    const [mine, gone] = await Promise.all([createTeam(), createTeam()])
+    await prisma.teamMembership.create({ data: { teamId: mine.id, volunteerId: me.id } })
+    const [project, elsewhere] = await Promise.all([
+      createProject({ teamId: mine.id }),
+      createProject({ teamId: gone.id }),
+    ])
+    const task = await createTask(project.id, { title: 'Pack flyering stall kit' })
+    const hidden = await createTask(elsewhere.id, { title: 'Hidden task' })
+    const [mention] = await Promise.all([
+      prisma.notification.create({
+        data: {
+          volunteerId: me.id,
+          type: 'mention',
+          title: "Sam mentioned you on 'Pack flyering stall kit'",
+          link: `/projects/${project.id}/tasks/${task.id}#comment-1`,
+        },
+      }),
+      prisma.notification.create({
+        data: {
+          volunteerId: me.id,
+          type: 'mention',
+          title: 'Mentioned on a task you left',
+          link: `/projects/${elsewhere.id}/tasks/${hidden.id}`,
+        },
+      }),
+    ])
+    await renderApp(<InboxPage />, { as: me, url: '/inbox' })
+
+    const row = (await screen.findByText(mention.title)).closest('li') as HTMLElement
+    const card = within(row).getByRole('link', { name: 'Pack flyering stall kit' })
+    expect(card).toHaveAttribute('href', `/projects/${project.id}/tasks/${task.id}`)
+    expect(within(row).getByText('Ready')).toBeInTheDocument()
+    const left = screen.getByText('Mentioned on a task you left').closest('li') as HTMLElement
+    expect(within(left).queryByText('Hidden task')).toBeNull()
+
+    // Following the card reads the notification, as Open does; its status badge is not a link.
+    await userEvent.click(within(row).getByText('Ready'))
+    expect((await note(mention.id)).readAt).toBeNull()
+    await userEvent.click(card)
+    await waitFor(async () => expect((await note(mention.id)).readAt).not.toBeNull())
   })
 
   it('marks read, unread, and read on opening', async () => {

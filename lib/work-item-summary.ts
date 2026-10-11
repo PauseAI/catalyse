@@ -46,6 +46,12 @@ export function toWorkItemSummary(item: SummaryRow, displayStatus: string): Work
   }
 }
 
+/** The task or Quick Task a link points at, read from an `href` like the one above. */
+export function workItemIdFromLink(link: string | null): number | null {
+  const match = link?.match(/^\/(?:projects\/\d+\/tasks|quick-tasks)\/(\d+)(?:[/?#]|$)/)
+  return match ? Number(match[1]) : null
+}
+
 export type SummaryViewer = {
   id: number
   isAdmin: boolean | null

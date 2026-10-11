@@ -17,6 +17,7 @@ import {
   TeamMembershipRole,
 } from '@/generated/prisma/enums'
 import type { Prisma } from '@/generated/prisma/client'
+import { loadWorkItemSummaries, workItemIdFromLink } from '@/lib/work-item-summary'
 
 type Viewer = { id: number; isAdmin: boolean | null }
 
@@ -149,10 +150,18 @@ export const notificationsRouter = {
       })
       const notifications = [...unreadPage, ...readPage]
       const total = unreadTotal + readTotal
-      const actions = await actionsFor(context.volunteer, notifications)
+      // `entityId` means something different per type, so the task comes from the link.
+      const workItemIds = notifications.map((n) => workItemIdFromLink(n.link))
+      const [actions, workItems] = await Promise.all([
+        actionsFor(context.volunteer, notifications),
+        loadWorkItemSummaries(
+          workItemIds.filter((id) => id !== null),
+          context.volunteer,
+        ),
+      ])
 
       return {
-        notifications: notifications.map((n) => ({
+        notifications: notifications.map((n, i) => ({
           id: n.id,
           volunteerId: n.volunteerId,
           type: n.type,
@@ -165,6 +174,7 @@ export const notificationsRouter = {
           emailedAt: n.emailedAt,
           createdAt: n.createdAt,
           action: actions.get(n.id) ?? null,
+          workItem: workItemIds[i] === null ? null : (workItems.get(workItemIds[i]) ?? null),
         })),
         total,
       }

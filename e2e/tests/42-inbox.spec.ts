@@ -5,12 +5,12 @@ import {
   adminApproveProject,
   transferProjectOwnership,
 } from '../actions/projects'
-import { goToInbox, inboxButton } from '../actions/dashboard'
+import { goToInbox, inboxLink } from '../actions/dashboard'
 import { createApiClient } from '../client'
 import { fake } from '../fake'
 
 test.describe('Inbox', () => {
-  test('An applicant shows in the badge and the popover, and is accepted from the Inbox', async ({
+  test('An applicant shows in the badge, and is accepted from the Inbox', async ({
     adminPage,
     volunteer,
     baseUrl,
@@ -27,14 +27,9 @@ test.describe('Inbox', () => {
     const page = volunteer.page
     await page.goto(`${baseUrl}/projects`)
     // The applicant is waiting on the owner, so the badge counts it.
-    await expect(inboxButton(page)).toHaveText('Inbox, waiting for you: 1', { timeout: 10_000 })
+    await expect(inboxLink(page)).toHaveText('Inbox, waiting for you: 1', { timeout: 10_000 })
 
-    await inboxButton(page).click()
-    const popover = page.getByRole('dialog', { name: 'Recent notifications' })
-    await expect(popover).toContainText(`${applicant.name} asked to help out`, {
-      timeout: 10_000,
-    })
-    await popover.getByRole('link', { name: 'Open inbox →' }).click()
+    await inboxLink(page).click()
     await expect(page).toHaveURL(`${baseUrl}/inbox`)
 
     // The Inbox opens on Needs action, where it can be answered in place.
@@ -43,7 +38,7 @@ test.describe('Inbox', () => {
       .filter({ hasText: `${applicant.name} asked to help out` })
     await row.getByRole('button', { name: 'Accept' }).click()
     await expect(row).toHaveCount(0, { timeout: 10_000 })
-    await expect(inboxButton(page)).toHaveText('Inbox', { timeout: 10_000 })
+    await expect(inboxLink(page)).toHaveText('Inbox', { timeout: 10_000 })
 
     const owner = createApiClient(
       baseUrl,

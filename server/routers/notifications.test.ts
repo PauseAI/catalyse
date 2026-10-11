@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { createVolunteer, createAdmin, createProject, createTeam } from '@/test/factories'
+import {
+  createVolunteer,
+  createAdmin,
+  createProject,
+  createQuickTask,
+  createTask,
+  createTeam,
+} from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 
 describe('notifications', () => {
@@ -35,6 +42,55 @@ describe('notifications', () => {
       where: { volunteerId: admin.id, readAt: null },
     })
     expect(unread.map((n) => n.title)).toEqual(['admin-only'])
+  })
+
+  it('carries the task or Quick Task a notification links to, while the viewer can see it', async () => {
+    const vol = await createVolunteer()
+    const team = await createTeam()
+    await prisma.teamMembership.create({ data: { teamId: team.id, volunteerId: vol.id } })
+    const project = await createProject({ teamId: team.id })
+    const task = await createTask(project.id, { title: 'Pack flyering stall kit' })
+    const quick = await createQuickTask({ title: 'Print posters' })
+    await prisma.notification.createMany({
+      data: [
+        {
+          volunteerId: vol.id,
+          type: 'mention',
+          title: 'on the task',
+          link: `/projects/${project.id}/tasks/${task.id}#comment-1`,
+        },
+        {
+          volunteerId: vol.id,
+          type: 'a',
+          title: 'on the quick task',
+          link: `/quick-tasks/${quick.id}`,
+        },
+        {
+          volunteerId: vol.id,
+          type: 'a',
+          title: 'on the project',
+          link: `/projects/${project.id}`,
+        },
+        { volunteerId: vol.id, type: 'a', title: 'no link' },
+      ],
+    })
+    const workItems = async () =>
+      Object.fromEntries(
+        (await clientAs(vol).notifications.list({})).notifications.map((n) => [
+          n.title,
+          n.workItem && { title: n.workItem.title, displayStatus: n.workItem.displayStatus },
+        ]),
+      )
+
+    expect(await workItems()).toEqual({
+      'on the task': { title: 'Pack flyering stall kit', displayStatus: 'ready' },
+      'on the quick task': { title: 'Print posters', displayStatus: 'open' },
+      'on the project': null,
+      'no link': null,
+    })
+
+    await prisma.teamMembership.deleteMany({ where: { volunteerId: vol.id } })
+    expect((await workItems())['on the task']).toBeNull()
   })
 
   it('lists unread before read, paging across the boundary', async () => {

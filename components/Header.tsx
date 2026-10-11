@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -10,7 +10,6 @@ import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { ThemeToggle } from './ThemeToggle'
 import BugReportDialog from './BugReportDialog'
-import InboxPopover from './InboxPopover'
 
 function MobileNavLink({
   href,
@@ -109,8 +108,6 @@ export default function Header() {
   // What is waiting on the viewer: things to act on and messages to read, not updates.
   const waiting = (counts?.needs_action ?? 0) + (counts?.message ?? 0)
   const newUpdates = (counts?.update ?? 0) > 0
-  const [inboxOpen, setInboxOpen] = useState(false)
-  const closeInbox = useCallback(() => setInboxOpen(false), [])
 
   // Acting on something (accepting work, answering an invite) can clear what the badge counts.
   useEffect(() => {
@@ -124,9 +121,6 @@ export default function Header() {
 
   useEffect(() => {
     if (user) void queryClient.invalidateQueries({ queryKey: orpc.notifications.counts.key() })
-    // Following a link out of the popover closes it.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setInboxOpen(false)
   }, [pathname, user, queryClient])
 
   useEffect(() => {
@@ -166,34 +160,18 @@ export default function Header() {
             {mounted &&
               !loading &&
               user &&
-              NAV_ITEMS.map(({ href, label, active }) =>
-                href === '/inbox' ? (
-                  <div key={href} className="relative">
-                    <Button
-                      variant={active(pathname) || inboxOpen ? 'primary' : 'ghost'}
-                      aria-current={active(pathname) ? 'page' : undefined}
-                      aria-expanded={inboxOpen}
-                      aria-haspopup="dialog"
-                      size="sm"
-                      onClick={() => setInboxOpen((o) => !o)}
-                    >
-                      {label}
-                      <WaitingBadge count={waiting} updates={newUpdates} />
-                    </Button>
-                    {inboxOpen && <InboxPopover onClose={closeInbox} />}
-                  </div>
-                ) : (
-                  <Button
-                    key={href}
-                    href={href}
-                    variant={active(pathname) ? 'primary' : 'ghost'}
-                    aria-current={active(pathname) ? 'page' : undefined}
-                    size="sm"
-                  >
-                    {label}
-                  </Button>
-                ),
-              )}
+              NAV_ITEMS.map(({ href, label, active }) => (
+                <Button
+                  key={href}
+                  href={href}
+                  variant={active(pathname) ? 'primary' : 'ghost'}
+                  aria-current={active(pathname) ? 'page' : undefined}
+                  size="sm"
+                >
+                  {label}
+                  {href === '/inbox' && <WaitingBadge count={waiting} updates={newUpdates} />}
+                </Button>
+              ))}
           </nav>
 
           <div className="hidden xl:flex gap-2 items-center">

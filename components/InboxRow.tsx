@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from './Button'
+import WorkItemCard from './WorkItemCard'
 import { friendlyDate } from '@/lib/format-date'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
@@ -56,16 +57,15 @@ function useSetRead(id: number) {
 }
 
 /**
- * One notification: its text, a link that marks it read, read/unread, and, when the thing it
- * is about is still waiting on the viewer, Accept and Decline in place.
+ * One notification: its text, the task it is about as a card, a link that marks it read,
+ * read/unread, and, when the thing it is about is still waiting on the viewer, Accept and
+ * Decline in place.
  */
 export default function InboxRow({
   n,
-  compact = false,
   extra,
 }: {
   n: InboxNotification
-  compact?: boolean
   /** Shown after the date, such as a count of grouped earlier items. */
   extra?: React.ReactNode
 }) {
@@ -118,7 +118,7 @@ export default function InboxRow({
   const unread = !n.readAt
   return (
     <div
-      className={`wrap-break-word ${compact ? 'py-3' : 'bg-surface rounded-xl shadow p-4 mb-3'} ${unread ? 'border-l-4 border-primary pl-3' : ''}`}
+      className={`wrap-break-word bg-surface rounded-xl shadow p-4 mb-3 ${unread ? 'border-l-4 border-primary pl-3' : ''}`}
     >
       <div className="flex items-start justify-between gap-3">
         <strong className={unread ? 'text-brand-text' : 'text-text-light font-normal'}>
@@ -128,6 +128,17 @@ export default function InboxRow({
           {n.createdAt ? friendlyDate(n.createdAt) : ''}
         </span>
       </div>
+      {n.workItem && (
+        // Following the card's link reads the notification, as Open does.
+        <div
+          className="mt-1"
+          onClick={(e) => {
+            if (unread && (e.target as HTMLElement).closest('a')) mark.read()
+          }}
+        >
+          <WorkItemCard item={n.workItem} variant="compact" />
+        </div>
+      )}
       {n.body && <p className="text-sm mt-1 mb-0 line-clamp-3">{n.body}</p>}
       <div className="flex flex-wrap items-center gap-3 mt-2">
         {n.action && (
@@ -151,15 +162,13 @@ export default function InboxRow({
             Open
           </Link>
         )}
-        {!compact && (
-          <button
-            type="button"
-            className="text-sm underline text-text-light cursor-pointer bg-transparent border-0 p-0"
-            onClick={unread ? mark.read : mark.unread}
-          >
-            {unread ? 'Mark as read' : 'Mark as unread'}
-          </button>
-        )}
+        <button
+          type="button"
+          className="text-sm underline text-text-light cursor-pointer bg-transparent border-0 p-0"
+          onClick={unread ? mark.read : mark.unread}
+        >
+          {unread ? 'Mark as read' : 'Mark as unread'}
+        </button>
         {extra}
       </div>
     </div>

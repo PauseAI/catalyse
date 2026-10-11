@@ -47,8 +47,6 @@ confusing than it needed to be, and that will do so again.
       only the suspect repeated) would find them in one pass instead of one per
       full run.
 
-## 3x
-
 - [ ] **Two sessions running vitest at once share one test template database and one
       `coverage/` directory, so one run wipes the other's.** During P4-05 another agent's
       single-file reruns in the same checkout dropped `vitest_template` mid-run (about 70
@@ -57,9 +55,13 @@ confusing than it needed to be, and that will do so again.
       four of five runs of the project page test fail with bare `PrismaClientKnownRequestError`s,
       and the full unit suite could not be run at all without breaking the other agent's. P4-07's
       own full run then failed 49 tests on "Database `vitest_…` does not exist" while P4-14's
-      was going, and passed untouched once that had finished. A
+      was going, and passed untouched once that had finished. P4-20's full run, with P4-19 and
+      P4-12 agents in the same tree, first hit the coverage lock and then failed every suite on
+      "Server has closed the connection", so its coverage was checked file by file instead. A
       per-run database prefix and reports directory in `test/pg.ts` and `scripts/test-unit.ts`
       (from an env var or the pid) would let runs overlap.
+
+## 3x
 
 - [ ] **Component tests that remount a page as a different user read the previous user's
       cached query first, so a `getBy…` right after the remount sees stale data.** It cost

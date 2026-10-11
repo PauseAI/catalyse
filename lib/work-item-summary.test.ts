@@ -7,7 +7,7 @@ import {
   createTeam,
   createVolunteer,
 } from '@/test/factories'
-import { loadWorkItemSummaries, toWorkItemSummary } from './work-item-summary'
+import { loadWorkItemSummaries, toWorkItemSummary, workItemIdFromLink } from './work-item-summary'
 
 const depend = (predecessorId: number, successorId: number) =>
   prisma.workItemDependency.create({ data: { predecessorId, successorId } })
@@ -46,6 +46,22 @@ describe('toWorkItemSummary', () => {
       assigneeName: null,
       href: '/quick-tasks/7',
     })
+  })
+})
+
+describe('workItemIdFromLink', () => {
+  it.each([
+    ['/projects/3/tasks/7', 7],
+    ['/projects/3/tasks/7#comment-12', 7],
+    ['/projects/3/tasks/7?tab=work', 7],
+    ['/quick-tasks/9', 9],
+    ['/projects/3', null],
+    ['/projects/3/tasks/7x', null],
+    ['/quick-tasks/new', null],
+    ['/inbox/messages/4', null],
+    [null, null],
+  ])('reads %s as %s', (link, id) => {
+    expect(workItemIdFromLink(link)).toBe(id)
   })
 })
 
