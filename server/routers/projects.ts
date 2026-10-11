@@ -1995,6 +1995,7 @@ export const projectsRouter = {
       const predecessorRows = await prisma.workItemDependency.findMany({
         where: { successorId: input.taskId },
         include: { predecessor: { select: { id: true, title: true, status: true } } },
+        orderBy: { id: 'asc' },
       })
 
       // Where the plan puts this task. One that is not on the timeline has no placement.
@@ -2014,10 +2015,20 @@ export const projectsRouter = {
         volunteer,
         await isProjectDeputy(project.id, volunteer.id),
       )
-      const waitsOn = await loadWorkItemSummaries(
-        predecessorRows.map((r) => r.predecessorId),
-        volunteer,
-      )
+      const successorIds = (
+        await prisma.workItemDependency.findMany({
+          where: { predecessorId: input.taskId },
+          select: { successorId: true },
+          orderBy: { id: 'asc' },
+        })
+      ).map((r) => r.successorId)
+      const predecessorIds = predecessorRows.map((r) => r.predecessorId)
+      const summaries = await loadWorkItemSummaries([...predecessorIds, ...successorIds], volunteer)
+      const visibleSummaries = (ids: number[]) =>
+        ids.flatMap((id) => {
+          const item = summaries.get(id)
+          return item ? [item] : []
+        })
       // A reviewer's request for changes is between them and the assignee.
       const changesRequested =
         task.changesRequestedNote !== null && (manages || task.assigneeId === volunteer.id)
@@ -2055,20 +2066,8 @@ export const projectsRouter = {
         createdByName: task.creator?.name ?? null,
         requestedByName: task.requestedBy?.name ?? null,
         featuredAsQuickTask: task.featuredAsQuickTask ?? false,
-        predecessors: predecessorRows.flatMap((r) => {
-          const item = waitsOn.get(r.predecessorId)
-          return item
-            ? [
-                {
-                  dependencyId: r.id,
-                  predecessorId: r.predecessorId,
-                  predecessorTitle: r.predecessor.title,
-                  lagDays: r.lagDays,
-                  item,
-                },
-              ]
-            : []
-        }),
+        waitsOn: visibleSummaries(predecessorIds),
+        unblocks: visibleSummaries(successorIds),
         placement,
         pastPlanDays: placement
           ? daysPastPlan(placement.end, {

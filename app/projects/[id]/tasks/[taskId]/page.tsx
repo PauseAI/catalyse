@@ -13,6 +13,7 @@ import VolunteerSelect from '@/components/VolunteerSelect'
 import { plural } from '@/lib/plural'
 import TaskDatesSummary from '@/components/TaskDatesSummary'
 import WorkItemCard from '@/components/WorkItemCard'
+import type { WorkItemSummary } from '@/lib/work-item-summary'
 import { EMPTY_DATES, datesPayload, datesValueFrom, type DatesValue } from '@/lib/task-dates'
 import { Badge } from '@/components/Badge'
 import CommentThread from '@/components/CommentThread'
@@ -35,6 +36,72 @@ import RequestChangesButton from '@/components/RequestChangesButton'
 import ReopenTaskDialog from '@/components/ReopenTaskDialog'
 import LockedProjectBanner from '@/components/LockedProjectBanner'
 import { TERMINAL_STATUSES } from '@/lib/project-status'
+
+/** "Waiting on 1 of 2.", or that everything it waits on is done; nothing once it is handed in. */
+function waitsOnSummary(waitsOn: WorkItemSummary[], status: string): string | null {
+  if (handedIn(status)) return null
+  const open = waitsOn.filter((i) => i.displayStatus !== TaskStatus.completed).length
+  if (open > 0) return `Waiting on ${open} of ${waitsOn.length}.`
+  return status === TaskStatus.not_started
+    ? 'Everything this waits on is done. You can start.'
+    : 'Everything this waits on is done.'
+}
+
+/**
+ * What the task waits on and what it unblocks, as work item cards. An empty list is left out.
+ * Once everything it waits on is done, those cards drop to their compact form.
+ */
+function LinkedWork({
+  waitsOn,
+  unblocks,
+  status,
+  timelineHref,
+}: {
+  waitsOn: WorkItemSummary[]
+  unblocks: WorkItemSummary[]
+  status: string
+  timelineHref: string | null
+}) {
+  const allDone = waitsOn.every((i) => i.displayStatus === TaskStatus.completed)
+  const summary = waitsOnSummary(waitsOn, status)
+  const list = (items: WorkItemSummary[], variant: 'default' | 'compact') => (
+    <ul className="m-0 list-none space-y-2 p-0">
+      {items.map((item) => (
+        <li key={item.id}>
+          <WorkItemCard item={item} variant={variant} />
+        </li>
+      ))}
+    </ul>
+  )
+
+  return (
+    <>
+      {waitsOn.length > 0 && (
+        <section aria-labelledby="waits-on" className="mb-4">
+          <h2 id="waits-on" className="mb-2 text-base">
+            Waits on
+          </h2>
+          {summary && <p className={`mb-2 text-sm ${allDone ? '' : 'font-medium'}`}>{summary}</p>}
+          {list(waitsOn, allDone ? 'compact' : 'default')}
+        </section>
+      )}
+      {unblocks.length > 0 && (
+        <section aria-labelledby="unblocks" className="mb-4">
+          <h2 id="unblocks" className="mb-2 text-base">
+            Unblocks
+          </h2>
+          {list(unblocks, 'default')}
+        </section>
+      )}
+      {/* Links are planning, so they are drawn and changed on the timeline, not here. */}
+      {timelineHref && (
+        <p className="text-text-light mb-4 text-sm">
+          Change what it waits on from the <Link href={timelineHref}>project timeline</Link>.
+        </p>
+      )}
+    </>
+  )
+}
 
 export default function TaskDetailPage({
   params,
@@ -223,7 +290,7 @@ export default function TaskDetailPage({
             timing={task.timing}
             estimatedHours={task.estimatedHours}
             deadline={task.deadline}
-            openStart={task.startDate === null && task.predecessors.length === 0}
+            openStart={task.startDate === null && task.waitsOn.length === 0}
             placement={task.placement}
             assigneeName={task.assignedToName}
             claimedAt={task.claimedAt}
@@ -241,6 +308,12 @@ export default function TaskDetailPage({
             Still waiting on {quotedTitles(task.waitingOn)}.
           </p>
         )}
+        <LinkedWork
+          waitsOn={task.waitsOn}
+          unblocks={task.unblocks}
+          status={task.status}
+          timelineHref={canEdit ? `/projects/${projectId}#timeline` : null}
+        />
         {task.pastPlanDays !== null && task.canManage && !isEditing && (
           <section
             aria-label="Past plan"
@@ -437,7 +510,7 @@ export default function TaskDetailPage({
                 id="edit-task"
                 value={editDates}
                 onChange={setEditDates}
-                followsTitle={task.predecessors[0]?.predecessorTitle ?? null}
+                followsTitle={task.waitsOn[0]?.title ?? null}
                 derivedStart={
                   task.placement && task.startDate === null ? new Date(task.placement.start) : null
                 }
@@ -471,33 +544,6 @@ export default function TaskDetailPage({
               </Button>
             </div>
           </form>
-        )}
-      </div>
-
-      <div className="bg-surface mb-5 rounded-xl p-6 shadow">
-        <h2 className="mb-1 text-lg">Depends on</h2>
-        <p className="text-text-light mb-4 text-sm">
-          This task can only start once the tasks below have finished.
-        </p>
-
-        {task.predecessors.length === 0 ? (
-          <p className="text-text-light mb-0">Nothing yet — this task can start whenever.</p>
-        ) : (
-          <ul className="m-0 list-none space-y-2 p-0">
-            {task.predecessors.map((dep) => (
-              <li key={dep.dependencyId}>
-                <WorkItemCard item={dep.item} />
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {/* Links are planning, so they are drawn and changed on the timeline, not here. */}
-        {canEdit && (
-          <p className="text-text-light mt-4 mb-0 text-sm">
-            Change what it waits on from the{' '}
-            <Link href={`/projects/${projectId}#timeline`}>project timeline</Link>.
-          </p>
         )}
       </div>
 

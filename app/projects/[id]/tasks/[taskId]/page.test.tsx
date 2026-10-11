@@ -88,6 +88,75 @@ describe('task detail page', () => {
     expect(screen.queryByText('Blocked')).toBeNull()
   })
 
+  it('shows what a task waits on and what it unblocks, as cards under the header', async () => {
+    const me = await createVolunteer()
+    const sam = await createVolunteer({ name: 'Sam' })
+    const project = await createProject({ status: 'in_progress' })
+    const kit = await createTask(project.id, {
+      title: 'Pack flyering stall kit',
+      status: 'completed',
+      assigneeId: sam.id,
+      completedAt: new Date(),
+    })
+    const print = await createTask(project.id, {
+      title: 'Print flyers',
+      status: 'completed',
+      completedAt: new Date(),
+    })
+    const flyering = await createTask(project.id, { title: 'Do the flyering', assigneeId: me.id })
+    await prisma.workItemDependency.createMany({
+      data: [
+        { predecessorId: kit.id, successorId: flyering.id },
+        { predecessorId: print.id, successorId: flyering.id },
+      ],
+    })
+
+    await mount(project.id, flyering.id, me)
+    const waitsOn = await screen.findByRole('region', { name: 'Waits on' })
+    expect(
+      within(waitsOn).getByText('Everything this waits on is done. You can start.'),
+    ).toBeInTheDocument()
+    expect(within(waitsOn).getAllByText('Done')).toHaveLength(2)
+    // Everything done, each card is one compact line: no assignee, just when it finished.
+    expect(within(waitsOn).queryByText('Sam')).toBeNull()
+    expect(
+      within(waitsOn).getByRole('link', { name: 'Pack flyering stall kit' }).parentElement,
+    ).toHaveTextContent(/^Pack flyering stall kitDoneDone /)
+    expect(screen.getByText('Ready')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Unblocks' })).toBeNull()
+
+    cleanup()
+    await prisma.workItem.update({
+      where: { id: print.id },
+      data: { status: 'not_started', completedAt: null },
+    })
+    await mount(project.id, flyering.id, me)
+    await screen.findByText('Waiting on 1 of 2.')
+    const open = screen.getByRole('region', { name: 'Waits on' })
+    expect(within(open).getByText('Sam')).toBeInTheDocument()
+    expect(screen.getByText('Blocked')).toBeInTheDocument()
+
+    // Started early, then all done: no "You can start".
+    cleanup()
+    await prisma.workItem.update({
+      where: { id: print.id },
+      data: { status: 'completed', completedAt: new Date() },
+    })
+    await prisma.workItem.update({ where: { id: flyering.id }, data: { status: 'in_progress' } })
+    await mount(project.id, flyering.id, me)
+    await screen.findByText('Everything this waits on is done.')
+
+    cleanup()
+    await mount(project.id, kit.id, me)
+    const unblocks = await screen.findByRole('region', { name: 'Unblocks' })
+    expect(
+      within(unblocks).getByRole('link', { name: 'Do the flyering' }).parentElement,
+    ).toHaveTextContent(/^Do the flyeringIn progress/)
+    expect(screen.queryByRole('region', { name: 'Waits on' })).toBeNull()
+    // A done task says nothing about starting; its cards stay, read-only.
+    expect(screen.queryByText(/You can start|Waiting on/)).toBeNull()
+  })
+
   it('queues work for the owner, who accepts it or asks for changes', async () => {
     const owner = await createVolunteer({ name: 'Ola Owner' })
     const me = await createVolunteer({ name: 'Hal Helper' })

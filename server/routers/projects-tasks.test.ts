@@ -126,16 +126,15 @@ describe('projects.listTasks / getTask', () => {
       blockedBy: [],
       waitingOn: [{ id: a.id, title: a.title }],
     })
-    expect(view.predecessors).toEqual([
-      expect.objectContaining({
-        predecessorId: a.id,
-        predecessorTitle: a.title,
-        lagDays: 0,
-        item: expect.objectContaining({
-          id: a.id,
-          href: `/projects/${project.id}/tasks/${a.id}`,
-        }),
-      }),
+    expect(view.waitsOn).toEqual([
+      expect.objectContaining({ id: a.id, href: `/projects/${project.id}/tasks/${a.id}` }),
+    ])
+    expect(view.unblocks).toEqual([])
+    // From the other end, `a` unblocks `b`, with `b`'s own shown status.
+    const fromA = await clientAs(me).projects.getTask({ projectId: project.id, taskId: a.id })
+    expect(fromA.waitsOn).toEqual([])
+    expect(fromA.unblocks).toEqual([
+      expect.objectContaining({ id: b.id, title: b.title, displayStatus: 'in_progress' }),
     ])
     expect(
       (await clientAs(owner).projects.getTask({ projectId: project.id, taskId: b.id })).canManage,
