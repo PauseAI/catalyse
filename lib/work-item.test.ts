@@ -292,6 +292,7 @@ describe('serializers', () => {
     startedAt: null,
   }
   const unsubmitted = { submissionNote: null, submissionUrl: null, submittedAt: null }
+  const ask = { submissionPrompt: 'How many flyers?', submissionAsksLink: false }
   it('serializeTask maps work item columns to the task API shape', () => {
     const out = serializeTask({
       ...schedule,
@@ -310,11 +311,13 @@ describe('serializers', () => {
       createdAt: null,
       updatedAt: null,
       ...unsubmitted,
+      ...ask,
     })
     expect(out).toMatchObject({
       projectId: 2,
       assignedToId: 3,
       createdById: 4,
+      ...ask,
       isAnchor: false,
       durationDays: 3,
     })
@@ -339,6 +342,7 @@ describe('serializers', () => {
       updatedAt: null,
       changesRequestedNote: 'Add the link',
       ...unsubmitted,
+      ...ask,
     })
     expect(out).toMatchObject({
       projectId: 2,
@@ -346,6 +350,7 @@ describe('serializers', () => {
       assignedById: 4,
       submission: null,
       changesRequested: 'Add the link',
+      ...ask,
     })
   })
   it('serializeSubmission is null until the task is first submitted', () => {

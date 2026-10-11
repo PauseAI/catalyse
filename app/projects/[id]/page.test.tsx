@@ -384,10 +384,14 @@ describe('project page — owner', () => {
     // An owner is not told that only the owner can change the dates later.
     expect(screen.queryByText(/Only the project owner can change these dates/)).toBeNull()
     await userEvent.click(screen.getByRole('checkbox', { name: /quick task/i }))
+    await userEvent.type(screen.getByLabelText('What to submit (optional)'), 'Where you put it')
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Ask for a link to the work' }))
     fireEvent.submit(screen.getByLabelText('Task title').closest('form')!)
     await screen.findByText('Task added!')
     const t3 = await prisma.workItem.findFirstOrThrow({ where: { title: 'Third task' } })
     expect(t3).toMatchObject({
+      submissionPrompt: 'Where you put it',
+      submissionAsksLink: true,
       estimatedHours: 2,
       startDate: new Date('2029-12-01T00:00:00Z'),
       deadline: new Date('2030-01-01T00:00:00Z'),

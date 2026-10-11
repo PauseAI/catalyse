@@ -27,6 +27,7 @@ describe('quick task detail', () => {
       estimatedHours: 2,
       contextProjectId: project.id,
       deadline: new Date('2099-03-04T00:00:00Z'),
+      submissionAsksLink: true,
     })
     const page = () =>
       renderApp(<QuickTaskDetailPage params={Promise.resolve({ id: String(task.id) })} />, {

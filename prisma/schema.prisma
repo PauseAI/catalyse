@@ -333,6 +333,10 @@ model WorkItem {
   submissionUrl        String?   @map("submission_url")
   submittedAt          DateTime? @map("submitted_at")
   changesRequestedNote String?   @map("changes_requested_note")
+  // What the submit box asks for: its label (null reads as "What did you do?"), and whether
+  // it offers a link field.
+  submissionPrompt     String?   @map("submission_prompt")
+  submissionAsksLink   Boolean   @default(false) @map("submission_asks_link")
 
   // Project-specific (nullable for TASK/QUICK_TASK)
   projectType                String?   @map("project_type") // TODO: enum — sprint, container, ongoing, one_off

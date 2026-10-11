@@ -100,7 +100,8 @@ project page instead.
 
 Task: \`id\`, \`ref\`, \`title\` (required), \`description\`, \`status\` (\`not_started\`,
 \`in_progress\`, \`completed\`), \`assigneeEmail\`, \`deadline\`, \`startDate\`,
-\`durationDays\`, \`featuredAsQuickTask\`, \`isAnchor\`, \`timing\`, \`dependsOn\`.
+\`durationDays\`, \`featuredAsQuickTask\`, \`isAnchor\`, \`timing\`, \`submissionPrompt\`,
+\`submissionAsksLink\`, \`dependsOn\`.
 
 - \`status\` is the work's progress, not who has it: a task someone has claimed but not begun is
   still \`not_started\`. Blocked and Ready are worked out from \`dependsOn\`, so they are not
@@ -122,6 +123,10 @@ Task: \`id\`, \`ref\`, \`title\` (required), \`description\`, \`status\` (\`not_
   shown as having slack. Usually there is exactly one.
 - \`timing\` is \`flexible\` (the default: the work happens any time between the start and the
   end) or \`fixed\` (it happens on exactly those dates, like a shift or the event itself).
+- \`submissionPrompt\` is what the box for handing in the work asks, such as "How many flyers
+  went out, and where?" — at most 200 characters; \`null\` asks "What did you do?".
+  \`submissionAsksLink\` adds a field for a link to the work; a new task has none unless this
+  is \`true\`.
 
 ## Dependencies
 

@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { loadTaskStatusViews } from '@/lib/work-item'
+import { loadTaskStatusViews, serializeSubmissionAsk } from '@/lib/work-item'
 import { authedProcedure } from '../procedures'
 import { TaskStatus, WorkItemType } from '@/generated/prisma/enums'
 
@@ -54,6 +54,7 @@ export const myRouter = {
       reviewedById: t.reviewedById,
       reviewedAt: t.reviewedAt,
       changesRequested: t.changesRequestedNote,
+      ...serializeSubmissionAsk(t),
       estimatedHours: t.estimatedHours,
       deadline: t.deadline,
       createdAt: t.createdAt,

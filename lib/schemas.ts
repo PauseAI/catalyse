@@ -241,6 +241,18 @@ const TaskDurationSchema = z
   .nullable()
   .optional()
 
+/** What the submit box asks for (TASK and QUICK_TASK). A blank prompt is no prompt. */
+export const SUBMISSION_ASK_FIELDS = {
+  submissionPrompt: z
+    .string()
+    .trim()
+    .max(200, { message: 'Keep what to submit under 200 characters' })
+    .nullable()
+    .optional()
+    .transform((s) => (s === '' ? null : s)),
+  submissionAsksLink: z.boolean().optional(),
+}
+
 export const CreateProjectTaskSchema = WorkItemSchema.pick({
   title: true,
   description: true,
@@ -258,7 +270,7 @@ export const CreateProjectTaskSchema = WorkItemSchema.pick({
     timing: true,
     ...SCHEDULE_INPUT_FIELDS,
   })
-  .extend({ durationDays: TaskDurationSchema })
+  .extend({ durationDays: TaskDurationSchema, ...SUBMISSION_ASK_FIELDS })
 
 export const UpdateProjectTaskSchema = WorkItemSchema.pick({
   title: true,
@@ -272,7 +284,11 @@ export const UpdateProjectTaskSchema = WorkItemSchema.pick({
   ...SCHEDULE_INPUT_FIELDS,
 })
   .partial()
-  .extend({ status: TaskStatusSchema.optional(), durationDays: TaskDurationSchema })
+  .extend({
+    status: TaskStatusSchema.optional(),
+    durationDays: TaskDurationSchema,
+    ...SUBMISSION_ASK_FIELDS,
+  })
 
 /** A finish-to-start link. Lag is signed: positive leaves a gap, negative overlaps. */
 export const DependencyBodySchema = z.object({
@@ -437,7 +453,9 @@ export const CreateQuickTaskSchema = WorkItemSchema.pick({
   contextProjectId: true,
   estimatedHours: true,
   deadline: true,
-}).partial({ skillId: true, contextProjectId: true, estimatedHours: true, deadline: true })
+})
+  .partial({ skillId: true, contextProjectId: true, estimatedHours: true, deadline: true })
+  .extend(SUBMISSION_ASK_FIELDS)
 
 export const AssignQuickTaskSchema = z.object({
   volunteerId: z.number().int({ message: 'volunteerId is required' }),

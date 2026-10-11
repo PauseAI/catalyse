@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import Modal from '@/components/ui/Modal'
+import { DEFAULT_SUBMISSION_PROMPT, type SubmissionAsk } from '@/components/SubmissionAskFields'
 import {
   QUICK_TASK_SUBMITTED_MESSAGE,
   TASK_DONE_MESSAGE,
@@ -17,7 +18,8 @@ export type SubmitTarget =
   | { kind: 'quick'; taskId: number }
   | { kind: 'project'; projectId: number; taskId: number }
 
-const EMPTY_REASON = 'Say what you did or add a link to it.'
+const emptyReason = (asksLink: boolean) =>
+  asksLink ? 'Say what you did or add a link to it.' : 'Say what you did.'
 
 type Draft = { note: string; url: string }
 const EMPTY_DRAFT: Draft = { note: '', url: '' }
@@ -30,11 +32,13 @@ function reviewText(reviewer: string | null): string {
 }
 
 /**
- * The note and link that hand in the viewer's task, and the button that sends them. Submit
- * stays disabled, saying why, until one of them has something in it.
+ * The note, and the link when the task asks for one, that hand in the viewer's task, and the
+ * button that sends them. Submit stays disabled, saying why, until one of them has something in
+ * it.
  */
 function SubmitWorkFields({
   target,
+  ask,
   idPrefix,
   submitLabel,
   draft,
@@ -43,6 +47,7 @@ function SubmitWorkFields({
   onCancel,
 }: {
   target: SubmitTarget
+  ask: SubmissionAsk
   idPrefix: string
   submitLabel: string
   /** Held by the caller, so a dialog closed by mistake keeps what was typed. */
@@ -51,11 +56,14 @@ function SubmitWorkFields({
   onDone?: () => void
   onCancel?: () => void
 }) {
-  const { note, url } = draft
+  const asksLink = ask.submissionAsksLink
+  const note = draft.note
+  const url = asksLink ? draft.url : ''
   const [problem, setProblem] = useState<string | null>(null)
   const showToast = useToast()
   const queryClient = useQueryClient()
   const empty = !note.trim() && !url.trim()
+  const reason = emptyReason(asksLink)
 
   function done(message: string) {
     showToast(message, 'success')
@@ -90,7 +98,7 @@ function SubmitWorkFields({
     e.preventDefault()
     // Enter in the link field submits the form even while the button is disabled.
     if (empty) {
-      setProblem(EMPTY_REASON)
+      setProblem(reason)
       return
     }
     if (url.trim() && !/^https?:\/\//i.test(url.trim())) {
@@ -105,7 +113,9 @@ function SubmitWorkFields({
   return (
     <form onSubmit={handleSubmit} noValidate>
       <div className="mb-5">
-        <label htmlFor={`${idPrefix}-note`}>What did you do?</label>
+        <label htmlFor={`${idPrefix}-note`}>
+          {ask.submissionPrompt ?? DEFAULT_SUBMISSION_PROMPT}
+        </label>
         <textarea
           id={`${idPrefix}-note`}
           rows={4}
@@ -116,19 +126,21 @@ function SubmitWorkFields({
           }}
         />
       </div>
-      <div className="mb-5">
-        <label htmlFor={`${idPrefix}-url`}>Link to your work (optional)</label>
-        <input
-          id={`${idPrefix}-url`}
-          type="url"
-          placeholder="https://"
-          value={url}
-          onChange={(e) => {
-            onDraft({ ...draft, url: e.target.value })
-            setProblem(null)
-          }}
-        />
-      </div>
+      {asksLink && (
+        <div className="mb-5">
+          <label htmlFor={`${idPrefix}-url`}>Link to your work (optional)</label>
+          <input
+            id={`${idPrefix}-url`}
+            type="url"
+            placeholder="https://"
+            value={url}
+            onChange={(e) => {
+              onDraft({ ...draft, url: e.target.value })
+              setProblem(null)
+            }}
+          />
+        </div>
+      )}
       {problem && (
         <p role="alert" className="text-sm text-error mt-0 mb-4">
           {problem}
@@ -137,7 +149,7 @@ function SubmitWorkFields({
       <div className="flex flex-wrap items-center justify-end gap-2">
         {empty && !problem && (
           <p id={`${idPrefix}-why`} className="text-sm text-text-light m-0 mr-auto">
-            {EMPTY_REASON}
+            {reason}
           </p>
         )}
         {onCancel && (
@@ -163,9 +175,11 @@ function SubmitWorkFields({
  */
 export function SubmitWorkForm({
   target,
+  ask,
   reviewer,
 }: {
   target: SubmitTarget
+  ask: SubmissionAsk
   reviewer: string | null
 }) {
   const [draft, setDraft] = useState(EMPTY_DRAFT)
@@ -180,6 +194,7 @@ export function SubmitWorkForm({
       <p className="text-sm text-text-light mt-0 mb-4">{reviewText(reviewer)}</p>
       <SubmitWorkFields
         target={target}
+        ask={ask}
         idPrefix={`submit-work-${target.taskId}`}
         submitLabel={reviewer ? 'Submit for review' : 'Submit and mark done'}
         draft={draft}
@@ -195,11 +210,13 @@ export function SubmitWorkForm({
  */
 export default function SubmitWorkButton({
   target,
+  ask,
   reviewer,
   size,
   variant,
 }: {
   target: SubmitTarget
+  ask: SubmissionAsk
   reviewer: string | null
   size?: 'sm' | 'md' | 'lg'
   variant?: 'primary' | 'secondary'
@@ -218,6 +235,7 @@ export default function SubmitWorkButton({
         <p className="text-sm text-text-light mt-0 mb-4">{reviewText(reviewer)}</p>
         <SubmitWorkFields
           target={target}
+          ask={ask}
           idPrefix={id}
           submitLabel="Submit work"
           draft={draft}

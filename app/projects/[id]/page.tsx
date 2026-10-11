@@ -41,6 +41,10 @@ import StatusSplitButton from '@/components/StatusSplitButton'
 import MessageDialog from '@/components/MessageDialog'
 import Linkify from '@/components/Linkify'
 import SubmitWorkButton from '@/components/SubmitWorkButton'
+import SubmissionAskFields, {
+  NEW_SUBMISSION_ASK,
+  submissionAskPayload,
+} from '@/components/SubmissionAskFields'
 import { awaitsOwnerReview } from '@/lib/task-review'
 import { isHttpUrl } from '@/lib/schemas'
 import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS } from '@/lib/status-labels'
@@ -858,6 +862,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [newTaskDates, setNewTaskDates] = useState<DatesValue>(EMPTY_DATES)
   const [highlightCritical, setHighlightCritical] = useState(false)
   const [newTaskFeatured, setNewTaskFeatured] = useState(false)
+  const [newTaskAsk, setNewTaskAsk] = useState(NEW_SUBMISSION_ASK)
   const [orderedTasks, setOrderedTasks] = useState<ProjectTask[]>([])
   const [yourOrder, setYourOrder] = useState(false)
   const [tab, setTab] = useState<ProjectTab>('overview')
@@ -1088,6 +1093,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       setNewTaskDescription('')
       setNewTaskDates(EMPTY_DATES)
       setNewTaskFeatured(false)
+      setNewTaskAsk(NEW_SUBMISSION_ASK)
       setShowTaskForm(false)
       showToast('Task added!', 'success')
       void invalidateProject()
@@ -1479,6 +1485,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       description: newTaskDescription.trim() || undefined,
       ...datesPayload(newTaskDates),
       featuredAsQuickTask: newTaskFeatured,
+      ...submissionAskPayload(newTaskAsk),
     })
   }
 
@@ -2331,6 +2338,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         }
                       />
                     </div>
+                    <SubmissionAskFields
+                      id="new-task"
+                      value={newTaskAsk}
+                      onChange={setNewTaskAsk}
+                    />
                     <div className="mb-3">
                       <Checkbox
                         checked={newTaskFeatured}
@@ -2584,6 +2596,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                   projectId: project.id,
                                   taskId: task.id,
                                 }}
+                                ask={task}
                                 reviewer={
                                   awaitsOwnerReview(project, canRunTasks)
                                     ? 'The project owner'

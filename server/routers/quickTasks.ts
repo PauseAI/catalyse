@@ -8,6 +8,7 @@ import {
   ReviewQuickTaskSchema,
   RequestChangesSchema,
   SubmitWorkSchema,
+  SUBMISSION_ASK_FIELDS,
 } from '@/lib/schemas'
 import {
   CLAIM_BLOCKING_INTEREST_STATUSES,
@@ -204,6 +205,8 @@ export const quickTasksRouter = {
         contextProjectId: input.contextProjectId ?? null,
         estimatedHours: input.estimatedHours ?? null,
         deadline: input.deadline ?? null,
+        submissionPrompt: input.submissionPrompt ?? null,
+        submissionAsksLink: input.submissionAsksLink ?? false,
       },
     })
     return { id: task.id, message: 'Quick Task created' }
@@ -218,6 +221,7 @@ export const quickTasksRouter = {
         skillId: z.number().int().nullable().optional(),
         estimatedHours: z.number().nullable().optional(),
         deadline: z.coerce.date().nullable().optional(),
+        ...SUBMISSION_ASK_FIELDS,
       }),
     )
     .handler(async ({ input }) => {
@@ -234,6 +238,10 @@ export const quickTasksRouter = {
           ...('skillId' in input && { skillId: input.skillId }),
           ...('estimatedHours' in input && { estimatedHours: input.estimatedHours }),
           ...('deadline' in input && { deadline: input.deadline }),
+          ...(input.submissionPrompt !== undefined && { submissionPrompt: input.submissionPrompt }),
+          ...(input.submissionAsksLink !== undefined && {
+            submissionAsksLink: input.submissionAsksLink,
+          }),
         },
       })
       return { id: updated.id, message: 'Task updated' }

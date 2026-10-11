@@ -57,6 +57,8 @@ const TemplateTaskSchema = z.object({
   featuredAsQuickTask: z.boolean().default(false),
   isAnchor: z.boolean().default(false),
   timing: z.enum(['flexible', 'fixed']).default('flexible'),
+  submissionPrompt: z.string().max(200).nullable().default(null),
+  submissionAsksLink: z.boolean().default(false),
   skills: z.array(TemplateSkillSchema).default([]),
   dependsOn: z.array(TemplateDependsOnSchema).default([]),
 })
@@ -174,6 +176,8 @@ export function serializeProjectAsTemplate(
       featuredAsQuickTask: t.featuredAsQuickTask,
       isAnchor: t.isAnchor,
       timing: t.timing,
+      submissionPrompt: t.submissionPrompt,
+      submissionAsksLink: t.submissionAsksLink,
       skills: t.skills,
       dependsOn: dependencies
         .filter((d) => d.successorId === t.id)
@@ -212,6 +216,8 @@ export type InstantiateTaskCreate = {
   featuredAsQuickTask: boolean
   isAnchor: boolean
   timing: 'flexible' | 'fixed'
+  submissionPrompt: string | null
+  submissionAsksLink: boolean
   skills: SourceSkill[]
 }
 
@@ -293,6 +299,8 @@ export function buildInstantiatePlan(
         featuredAsQuickTask: t.featuredAsQuickTask,
         isAnchor: t.isAnchor,
         timing: t.timing,
+        submissionPrompt: t.submissionPrompt,
+        submissionAsksLink: t.submissionAsksLink,
         skills: t.skills,
       }
     }),

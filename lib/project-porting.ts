@@ -40,6 +40,8 @@ export type CurrentTask = {
   featuredAsQuickTask: boolean
   isAnchor: boolean
   timing: 'flexible' | 'fixed'
+  submissionPrompt: string | null
+  submissionAsksLink: boolean
   sortOrder: number | null
 }
 
@@ -114,6 +116,8 @@ const ImportTaskSchema = z
     featuredAsQuickTask: z.boolean().optional(),
     isAnchor: z.boolean().optional(),
     timing: z.enum(['flexible', 'fixed']).optional(),
+    submissionPrompt: z.string().max(200).nullable().optional(),
+    submissionAsksLink: z.boolean().optional(),
     dependsOn: z.array(DependsOnSchema).max(MAX_DEPENDENCIES_PER_TASK).optional(),
   })
   .transform((t) => {
@@ -182,6 +186,8 @@ export type ProjectExportPayload = {
     featuredAsQuickTask: boolean
     isAnchor: boolean
     timing: 'flexible' | 'fixed'
+    submissionPrompt: string | null
+    submissionAsksLink: boolean
     dependsOn: Array<{ on: number; lagDays: number }>
   }>
 }
@@ -235,6 +241,8 @@ export function serializeProjectExport(state: CurrentState, appUrl?: string): Pr
       featuredAsQuickTask: t.featuredAsQuickTask,
       isAnchor: t.isAnchor,
       timing: t.timing,
+      submissionPrompt: t.submissionPrompt,
+      submissionAsksLink: t.submissionAsksLink,
       dependsOn: state.dependencies
         .filter((d) => d.successorId === t.id)
         .sort((a, b) => a.predecessorId - b.predecessorId)
@@ -269,6 +277,8 @@ function canonicalise(state: CurrentState): string {
       featuredAsQuickTask: t.featuredAsQuickTask,
       isAnchor: t.isAnchor,
       timing: t.timing,
+      submissionPrompt: t.submissionPrompt,
+      submissionAsksLink: t.submissionAsksLink,
     }))
     .sort((a, b) => a.id - b.id)
   const dependencies = [...state.dependencies]
@@ -363,6 +373,8 @@ const TASK_FIELDS = [
   'featuredAsQuickTask',
   'isAnchor',
   'timing',
+  'submissionPrompt',
+  'submissionAsksLink',
 ] as const
 
 type NormalisedTask = {
@@ -376,6 +388,8 @@ type NormalisedTask = {
   featuredAsQuickTask: boolean
   isAnchor: boolean
   timing: 'flexible' | 'fixed'
+  submissionPrompt: string | null
+  submissionAsksLink: boolean
 }
 
 function normaliseCurrent(t: CurrentTask): NormalisedTask {
@@ -390,6 +404,8 @@ function normaliseCurrent(t: CurrentTask): NormalisedTask {
     featuredAsQuickTask: t.featuredAsQuickTask,
     isAnchor: t.isAnchor,
     timing: t.timing,
+    submissionPrompt: t.submissionPrompt,
+    submissionAsksLink: t.submissionAsksLink,
   }
 }
 
@@ -658,6 +674,8 @@ function createTaskFieldList(ft: ImportTask): FieldChange[] {
     featuredAsQuickTask: ft.featuredAsQuickTask ?? false,
     isAnchor: ft.isAnchor ?? false,
     timing: ft.timing ?? 'flexible',
+    submissionPrompt: ft.submissionPrompt ?? null,
+    submissionAsksLink: ft.submissionAsksLink ?? false,
   }
   const rec = effective as unknown as Record<string, unknown>
   const out: FieldChange[] = []
@@ -811,6 +829,8 @@ export type TaskWriteFields = {
   featuredAsQuickTask?: boolean
   isAnchor?: boolean
   timing?: 'flexible' | 'fixed'
+  submissionPrompt?: string | null
+  submissionAsksLink?: boolean
 }
 
 export type LocalRef = { kind: 'existing'; id: number } | { kind: 'created'; ref: string }
@@ -845,6 +865,8 @@ function writeFieldsForUpdate(node: TaskNode): TaskWriteFields {
   if (changed.has('featuredAsQuickTask')) fields.featuredAsQuickTask = ft.featuredAsQuickTask
   if (changed.has('isAnchor')) fields.isAnchor = ft.isAnchor
   if (changed.has('timing')) fields.timing = ft.timing
+  if (changed.has('submissionPrompt')) fields.submissionPrompt = ft.submissionPrompt ?? null
+  if (changed.has('submissionAsksLink')) fields.submissionAsksLink = ft.submissionAsksLink
   return fields
 }
 
@@ -860,6 +882,8 @@ function writeFieldsForCreate(ft: ImportTask): TaskWriteFields {
     featuredAsQuickTask: ft.featuredAsQuickTask ?? false,
     isAnchor: ft.isAnchor ?? false,
     timing: ft.timing ?? 'flexible',
+    submissionPrompt: ft.submissionPrompt ?? null,
+    submissionAsksLink: ft.submissionAsksLink ?? false,
   }
 }
 

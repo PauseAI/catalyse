@@ -163,7 +163,11 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
 
         {mine && task.status === QuickTaskStatus.in_progress && (
           <div className="mt-4">
-            <SubmitWorkButton target={{ kind: 'quick', taskId: task.id }} reviewer="An admin" />
+            <SubmitWorkButton
+              target={{ kind: 'quick', taskId: task.id }}
+              ask={task}
+              reviewer="An admin"
+            />
           </div>
         )}
 

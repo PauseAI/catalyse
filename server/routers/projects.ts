@@ -2197,6 +2197,8 @@ export const projectsRouter = {
             description: input.description ?? null,
             estimatedHours: input.estimatedHours ?? null,
             featuredAsQuickTask: input.featuredAsQuickTask ?? false,
+            submissionPrompt: input.submissionPrompt ?? null,
+            submissionAsksLink: input.submissionAsksLink ?? false,
             timing: input.timing ?? TaskTiming.flexible,
             creatorId: volunteer.id,
             sortOrder: (max._max.sortOrder ?? 0) + 1,
@@ -2392,6 +2394,8 @@ export const projectsRouter = {
         input.data.estimatedHours === undefined &&
         input.data.deadline === undefined &&
         input.data.featuredAsQuickTask === undefined &&
+        input.data.submissionPrompt === undefined &&
+        input.data.submissionAsksLink === undefined &&
         input.data.isAnchor === undefined &&
         input.data.timing === undefined &&
         input.data.startDate === undefined &&
@@ -2479,6 +2483,10 @@ export const projectsRouter = {
       if (input.data.estimatedHours !== undefined) data.estimatedHours = input.data.estimatedHours
       if (input.data.featuredAsQuickTask !== undefined)
         data.featuredAsQuickTask = input.data.featuredAsQuickTask
+      if (input.data.submissionPrompt !== undefined)
+        data.submissionPrompt = input.data.submissionPrompt
+      if (input.data.submissionAsksLink !== undefined)
+        data.submissionAsksLink = input.data.submissionAsksLink
       if (input.data.isAnchor !== undefined) data.isAnchor = input.data.isAnchor
       if (input.data.timing !== undefined) data.timing = input.data.timing
       applyScheduleWrite(data, { ...input.data, taskDeadline: input.data.deadline })

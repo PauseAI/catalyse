@@ -104,6 +104,7 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
     review_rating: 'keep',
     submission_note: 'redact',
     submission_url: 'redact',
+    submission_prompt: 'keep',
     changes_requested_note: 'redact',
     project_type: 'keep',
     urgency: 'keep',

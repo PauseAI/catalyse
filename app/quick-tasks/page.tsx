@@ -13,6 +13,11 @@ import VolunteerSelect from '@/components/VolunteerSelect'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import Linkify from '@/components/Linkify'
 import SubmitWorkButton from '@/components/SubmitWorkButton'
+import SubmissionAskFields, {
+  NEW_SUBMISSION_ASK,
+  submissionAskDraft,
+  submissionAskPayload,
+} from '@/components/SubmissionAskFields'
 import SubmittedWork, { type Submission } from '@/components/SubmittedWork'
 import RequestChangesButton from '@/components/RequestChangesButton'
 import QuickTaskReviewDialog from '@/components/QuickTaskReviewDialog'
@@ -63,6 +68,8 @@ interface AdminQuickTask {
   submission: Submission | null
   changesRequested: string | null
   reviewedByName: string | null
+  submissionPrompt: string | null
+  submissionAsksLink: boolean
 }
 
 interface FeaturedProjectTask {
@@ -286,6 +293,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                       )}
                       <SubmitWorkButton
                         target={{ kind: 'quick', taskId: task.id }}
+                        ask={task}
                         reviewer="An admin"
                       />
                     </>
@@ -437,6 +445,7 @@ function AdminQuickTasksView() {
   const [createSkillId, setCreateSkillId] = useState('')
   const [createHours, setCreateHours] = useState('')
   const [createDeadline, setCreateDeadline] = useState('')
+  const [createAsk, setCreateAsk] = useState(NEW_SUBMISSION_ASK)
 
   // Edit modal
   const [editModal, setEditModal] = useState<AdminQuickTask | null>(null)
@@ -445,6 +454,7 @@ function AdminQuickTasksView() {
   const [editSkillId, setEditSkillId] = useState('')
   const [editHours, setEditHours] = useState('')
   const [editDeadline, setEditDeadline] = useState('')
+  const [editAsk, setEditAsk] = useState(NEW_SUBMISSION_ASK)
 
   // Assign — inline dropdown per task, matching the project-task assign pattern
   const [taskAssignSelections, setTaskAssignSelections] = useState<Record<number, string>>({})
@@ -511,6 +521,7 @@ function AdminQuickTasksView() {
       setCreateSkillId('')
       setCreateHours('')
       setCreateDeadline('')
+      setCreateAsk(NEW_SUBMISSION_ASK)
       void queryClient.invalidateQueries({ queryKey: orpc.quickTasks.list.key() })
     },
     onError: (err: unknown) =>
@@ -595,6 +606,7 @@ function AdminQuickTasksView() {
     setEditSkillId(task.skillId ? String(task.skillId) : '')
     setEditHours(task.estimatedHours ? String(task.estimatedHours) : '')
     setEditDeadline(toDateInputValue(task.deadline))
+    setEditAsk(submissionAskDraft(task))
   }
 
   function createTask(e: React.FormEvent) {
@@ -605,6 +617,7 @@ function AdminQuickTasksView() {
       skillId: createSkillId ? parseInt(createSkillId) : null,
       estimatedHours: createHours ? parseFloat(createHours) : null,
       deadline: fromDateInputValue(createDeadline),
+      ...submissionAskPayload(createAsk),
     })
   }
 
@@ -617,6 +630,7 @@ function AdminQuickTasksView() {
       skillId: editSkillId ? parseInt(editSkillId) : null,
       estimatedHours: editHours ? parseFloat(editHours) : null,
       deadline: fromDateInputValue(editDeadline),
+      ...submissionAskPayload(editAsk),
     })
   }
 
@@ -1005,6 +1019,7 @@ function AdminQuickTasksView() {
                     />
                   </div>
                 </div>
+                <SubmissionAskFields id="ct" value={createAsk} onChange={setCreateAsk} />
                 <div className="px-0 py-4 border-t border-brand-border flex gap-3 justify-end">
                   <Button type="button" variant="secondary" onClick={() => setShowCreate(false)}>
                     Cancel
@@ -1098,6 +1113,7 @@ function AdminQuickTasksView() {
                     />
                   </div>
                 </div>
+                <SubmissionAskFields id="et" value={editAsk} onChange={setEditAsk} />
                 <div className="px-0 py-4 border-t border-brand-border flex gap-3 justify-end">
                   <Button type="button" variant="secondary" onClick={() => setEditModal(null)}>
                     Cancel

@@ -66,6 +66,8 @@ async function loadState(
       featuredAsQuickTask: t.featuredAsQuickTask ?? false,
       isAnchor: t.isAnchor ?? false,
       timing: t.timing ?? 'flexible',
+      submissionPrompt: t.submissionPrompt,
+      submissionAsksLink: t.submissionAsksLink,
       sortOrder: t.sortOrder,
     })),
     dependencies,
@@ -223,6 +225,8 @@ export const projectPortingRouter = {
           if (f.featuredAsQuickTask !== undefined) data.featuredAsQuickTask = f.featuredAsQuickTask
           if (f.isAnchor !== undefined) data.isAnchor = f.isAnchor
           if (f.timing !== undefined) data.timing = f.timing
+          if (f.submissionPrompt !== undefined) data.submissionPrompt = f.submissionPrompt
+          if (f.submissionAsksLink !== undefined) data.submissionAsksLink = f.submissionAsksLink
           if (f.status !== undefined) data.status = f.status
           if (f.assigneeEmail !== undefined) {
             data.assigneeId = f.assigneeEmail === null ? null : idForEmail(f.assigneeEmail)
@@ -253,6 +257,8 @@ export const projectPortingRouter = {
               featuredAsQuickTask: f.featuredAsQuickTask ?? false,
               isAnchor: f.isAnchor ?? false,
               timing: f.timing ?? 'flexible',
+              submissionPrompt: f.submissionPrompt ?? null,
+              submissionAsksLink: f.submissionAsksLink ?? false,
               assigneeId: f.assigneeEmail ? idForEmail(f.assigneeEmail) : null,
               claimedAt: f.assigneeEmail ? now : null,
               creatorId: volunteer.id,

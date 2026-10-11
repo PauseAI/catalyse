@@ -60,6 +60,8 @@ const TASK_INPUT_FIELD_NAMES = [
   'featuredAsQuickTask',
   'isAnchor',
   'timing',
+  'submissionPrompt',
+  'submissionAsksLink',
   'startDate',
   'durationDays',
 ] as const

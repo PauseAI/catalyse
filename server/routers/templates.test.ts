@@ -30,8 +30,13 @@ async function saveTemplate() {
     startDate: new Date('2026-03-01T00:00:00.000Z'),
     durationDays: 2,
     skills: { create: [{ skillId: skill.id, isRequired: false }] },
+    submissionAsksLink: true,
   })
-  const b = await createTask(project.id, { title: 'Print posters', featuredAsQuickTask: true })
+  const b = await createTask(project.id, {
+    title: 'Print posters',
+    featuredAsQuickTask: true,
+    submissionPrompt: 'Where did they go up?',
+  })
   await prisma.workItemDependency.create({
     data: { predecessorId: a.id, successorId: b.id, lagDays: 1 },
   })
@@ -71,6 +76,10 @@ describe('templates.saveAsTemplate / get / list', () => {
         ['Print posters', null, true],
       ],
     )
+    expect(structure.tasks.map((x) => [x.submissionPrompt, x.submissionAsksLink])).toEqual([
+      [null, true],
+      ['Where did they go up?', false],
+    ])
     expect(structure.tasks[0].skills).toEqual([{ skillId: skill.id, isRequired: false }])
     expect(structure.tasks[1].dependsOn).toEqual([{ on: `task-${project.id + 1}`, lagDays: 1 }])
     expect(JSON.stringify(structure)).not.toContain('Leeds')
@@ -111,7 +120,14 @@ describe('templates.createFromScratch / update / archive', () => {
         title: 'Scratch',
         tasks: [
           { ref: 'a', title: 'A', startOffsetDays: 0, durationDays: 1, skillIds: [1] },
-          { ref: 'b', title: 'B', dependsOnRefs: ['a'], isAnchor: true },
+          {
+            ref: 'b',
+            title: 'B',
+            dependsOnRefs: ['a'],
+            isAnchor: true,
+            submissionPrompt: 'Count?',
+            submissionAsksLink: true,
+          },
         ],
       },
     })
@@ -119,7 +135,10 @@ describe('templates.createFromScratch / update / archive', () => {
     if (structure.sourceType !== 'PROJECT') throw new Error('unreachable')
     expect(structure).toMatchObject({ urgency: 'medium', remoteEligibility: 'NONE', skills: [] })
     expect(structure.tasks[0].skills).toEqual([{ skillId: 1, isRequired: true }])
+    expect(structure.tasks[0]).toMatchObject({ submissionPrompt: null, submissionAsksLink: false })
     expect(structure.tasks[1]).toMatchObject({
+      submissionPrompt: 'Count?',
+      submissionAsksLink: true,
       isAnchor: true,
       dependsOn: [{ on: 'a', lagDays: 0 }],
     })
@@ -185,9 +204,17 @@ describe('templates.instantiate / canInstantiate', () => {
       templateOriginId: id,
     })
     expect(draft.skills).toEqual([expect.objectContaining({ skillId: skill.id, isRequired: true })])
-    expect(draft.children.map((t) => [t.title, t.sortOrder, t.startDate])).toEqual([
-      ['Book venue', 1, null],
-      ['Print posters', 2, null],
+    expect(
+      draft.children.map((t) => [
+        t.title,
+        t.sortOrder,
+        t.startDate,
+        t.submissionPrompt,
+        t.submissionAsksLink,
+      ]),
+    ).toEqual([
+      ['Book venue', 1, null, null, true],
+      ['Print posters', 2, null, 'Where did they go up?', false],
     ])
     expect(draft.children[0].skills).toEqual([
       expect.objectContaining({ skillId: skill.id, isRequired: false }),

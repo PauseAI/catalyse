@@ -48,6 +48,8 @@ describe('the guide only names fields the schema accepts', () => {
     'durationDays',
     'featuredAsQuickTask',
     'isAnchor',
+    'submissionPrompt',
+    'submissionAsksLink',
     'dependsOn',
   ]
 

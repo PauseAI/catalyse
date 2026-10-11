@@ -31,6 +31,7 @@ describe('quick tasks — volunteer view', () => {
       contextProjectId: project.id,
       changesRequestedNote: 'Add a photo',
       deadline: new Date('2020-01-02T00:00:00Z'),
+      submissionPrompt: 'Which photo did you take?',
     })
     await createQuickTask({
       title: 'Mine done',
@@ -106,7 +107,11 @@ describe('quick tasks — volunteer view', () => {
     await userEvent.click(within(mineAgain).getByRole('button', { name: 'Submit work' }))
     const dialog = await screen.findByRole('dialog', { name: 'Submit your work' })
     expect(within(dialog).getByText(/An admin will look at it/)).toBeInTheDocument()
-    await userEvent.type(within(dialog).getByLabelText('What did you do?'), 'Took the photo')
+    expect(within(dialog).queryByLabelText('Link to your work (optional)')).toBeNull()
+    await userEvent.type(
+      within(dialog).getByLabelText('Which photo did you take?'),
+      'Took the photo',
+    )
     await userEvent.click(within(dialog).getByRole('button', { name: 'Submit work' }))
     await screen.findByText(/Submitted\. An admin will review it/)
     await waitFor(async () =>
@@ -231,10 +236,14 @@ describe('quick tasks — admin view', () => {
     fireEvent.change(screen.getByLabelText('Deadline (optional)'), {
       target: { value: '2020-01-02' },
     })
+    await userEvent.type(screen.getByLabelText('What to submit (optional)'), 'The post you wrote')
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Ask for a link to the work' }))
     fireEvent.submit(screen.getByLabelText('Title').closest('form')!)
     await screen.findByText('Task created!')
     const fresh = await prisma.workItem.findFirstOrThrow({ where: { title: 'Fresh task' } })
     expect(fresh).toMatchObject({
+      submissionPrompt: 'The post you wrote',
+      submissionAsksLink: true,
       skillId: skill.id,
       estimatedHours: 1.5,
       deadline: new Date('2020-01-02T00:00:00Z'),
@@ -264,9 +273,14 @@ describe('quick tasks — admin view', () => {
     await userEvent.clear(screen.getByLabelText('Estimated Hours'))
     expect(screen.getByLabelText('Deadline (optional)')).toHaveValue('2020-01-02')
     fireEvent.change(screen.getByLabelText('Deadline (optional)'), { target: { value: '' } })
+    expect(screen.getByLabelText('What to submit (optional)')).toHaveValue('The post you wrote')
+    await userEvent.clear(screen.getByLabelText('What to submit (optional)'))
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Ask for a link to the work' }))
     fireEvent.submit(editTitle.closest('form')!)
     await screen.findByText('Task updated!')
     expect(await row(fresh.id)).toMatchObject({
+      submissionPrompt: null,
+      submissionAsksLink: false,
       title: 'Edited task',
       skillId: null,
       estimatedHours: null,

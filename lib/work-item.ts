@@ -611,12 +611,20 @@ export type TaskLike = ScheduleFieldsLike & {
   completedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
-} & SubmissionLike
+} & SubmissionLike &
+  SubmissionAskLike
 
 type SubmissionLike = {
   submissionNote: string | null
   submissionUrl: string | null
   submittedAt: Date | null
+}
+
+type SubmissionAskLike = { submissionPrompt: string | null; submissionAsksLink: boolean }
+
+/** What the submit box asks for, set on the task by whoever can edit it. */
+export function serializeSubmissionAsk(t: SubmissionAskLike) {
+  return { submissionPrompt: t.submissionPrompt, submissionAsksLink: t.submissionAsksLink }
 }
 
 /** What the assignee handed in, or null before they first submit. */
@@ -711,6 +719,7 @@ export function serializeTask(t: TaskLike) {
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
     submission: serializeSubmission(t),
+    ...serializeSubmissionAsk(t),
     ...serializeScheduleFields(t),
   }
 }
@@ -780,7 +789,8 @@ export type StarterTaskLike = {
   createdAt: Date | null
   updatedAt: Date | null
   changesRequestedNote: string | null
-} & SubmissionLike
+} & SubmissionLike &
+  SubmissionAskLike
 
 export function serializeStarterTask(t: StarterTaskLike) {
   return {
@@ -801,6 +811,7 @@ export function serializeStarterTask(t: StarterTaskLike) {
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
     submission: serializeSubmission(t),
+    ...serializeSubmissionAsk(t),
     changesRequested: t.changesRequestedNote,
   }
 }

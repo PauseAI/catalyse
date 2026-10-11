@@ -170,10 +170,19 @@ describe('projects.createTask / reorderTasks / deleteTask', () => {
       deadline: new Date('2026-09-01T00:00:00Z'),
       featuredAsQuickTask: true,
       startDate: new Date('2026-08-01T00:00:00Z'),
+      submissionPrompt: '  How many went out?  ',
+      submissionAsksLink: true,
     })
-    expect((await task(t1.id)).sortOrder).toBe(1)
+    // A new task asks "What did you do?" and no link unless it says otherwise.
+    expect(await task(t1.id)).toMatchObject({
+      sortOrder: 1,
+      submissionPrompt: null,
+      submissionAsksLink: false,
+    })
     expect(await task(t2.id)).toMatchObject({
       sortOrder: 2,
+      submissionPrompt: 'How many went out?',
+      submissionAsksLink: true,
       estimatedHours: 2,
       featuredAsQuickTask: true,
       deadline: new Date('2026-09-01T00:00:00Z'),
@@ -351,10 +360,14 @@ describe('projects.updateTask', () => {
         startDate: new Date('2026-09-01T00:00:00Z'),
         assigneeId: helper.id,
         status: 'in_progress',
+        submissionPrompt: 'Photos?',
+        submissionAsksLink: true,
       },
     })
     const after = await task(t.id)
     expect(after).toMatchObject({
+      submissionPrompt: 'Photos?',
+      submissionAsksLink: true,
       title: 'T2',
       assigneeId: helper.id,
       status: 'in_progress',
@@ -439,13 +452,19 @@ describe('projects.updateTask', () => {
     await expect(
       c.projects.updateTask({ projectId: project.id, taskId: t.id, data: { title: 'x' } }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' })
-    await expect(
-      c.projects.updateTask({
-        projectId: project.id,
-        taskId: t.id,
-        data: { assigneeId: me.id, title: 'sneaky' },
-      }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    for (const sneaky of [
+      { title: 'sneaky' },
+      { submissionPrompt: 'sneaky' },
+      { submissionAsksLink: true },
+    ]) {
+      await expect(
+        c.projects.updateTask({
+          projectId: project.id,
+          taskId: t.id,
+          data: { assigneeId: me.id, ...sneaky },
+        }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    }
     // Claiming does not start the work, so a claim that also starts it is not a claim.
     await expect(
       c.projects.updateTask({

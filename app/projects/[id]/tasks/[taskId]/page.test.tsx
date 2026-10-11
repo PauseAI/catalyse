@@ -27,10 +27,12 @@ describe('task detail page', () => {
     const me = await createVolunteer()
     const someoneElse = await createVolunteer()
     const project = await createProject({ status: 'in_progress' })
+    // A task from before the link became optional, which still asks for one.
     const task = await createTask(project.id, {
       title: 'Mine',
       assigneeId: me.id,
       claimedAt: new Date('2030-01-02T00:00:00Z'),
+      submissionAsksLink: true,
     })
     await mount(project.id, task.id, someoneElse)
     await screen.findByRole('heading', { name: 'Mine' })
@@ -76,6 +78,34 @@ describe('task detail page', () => {
     await screen.findByRole('heading', { name: 'Submitted work' })
     expect(screen.getByText('Wrote it up')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Submit your work' })).toBeNull()
+  })
+
+  it('asks what the task says to submit, with no link field unless it asks for one', async () => {
+    const me = await createVolunteer()
+    const project = await createProject({ status: 'in_progress' })
+    const task = await createTask(project.id, {
+      status: 'in_progress',
+      assigneeId: me.id,
+      submissionPrompt: 'How many flyers went out, and where?',
+    })
+    await mount(project.id, task.id, me)
+    const box = await submitBox()
+    expect(within(box).queryByLabelText('Link to your work (optional)')).toBeNull()
+    expect(within(box).queryByLabelText('What did you do?')).toBeNull()
+    const submit = within(box).getByRole('button', { name: 'Submit and mark done' })
+    expect(submit).toHaveAccessibleDescription('Say what you did.')
+    await userEvent.type(
+      within(box).getByLabelText('How many flyers went out, and where?'),
+      '200 at the station',
+    )
+    await userEvent.click(submit)
+    await screen.findByText('Task done. What you did is saved on the task.')
+    await waitFor(async () =>
+      expect(await row(task.id)).toMatchObject({
+        submissionNote: '200 at the station',
+        submissionUrl: null,
+      }),
+    )
   })
 
   it('keeps started work In progress when what it waits on is open, with a warning', async () => {
@@ -177,6 +207,7 @@ describe('task detail page', () => {
       title: 'Leaflet',
       status: 'in_progress',
       assigneeId: me.id,
+      submissionAsksLink: true,
     })
 
     await mount(project.id, task.id, me)
@@ -374,9 +405,13 @@ describe('task detail page', () => {
     expect(screen.queryByText(/follow|lag|milestone/i)).toBeNull()
     await userEvent.click(screen.getByRole('checkbox', { name: /exact dates/ }))
     await userEvent.click(screen.getByRole('checkbox', { name: /quick task/i }))
+    await userEvent.type(screen.getByLabelText('What to submit (optional)'), 'Photos of the stall')
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Ask for a link to the work' }))
     fireEvent.submit(title.closest('form')!)
     await screen.findByText('Task updated!')
     expect(await row(task.id)).toMatchObject({
+      submissionPrompt: 'Photos of the stall',
+      submissionAsksLink: true,
       title: 'Renamed task',
       description: null,
       estimatedHours: null,

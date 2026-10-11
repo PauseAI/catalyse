@@ -32,6 +32,11 @@ import { quotedTitles } from '@/lib/task-status'
 import PageLoading from '@/components/PageLoading'
 import NotFoundCard from '@/components/NotFoundCard'
 import { SubmitWorkForm } from '@/components/SubmitWorkButton'
+import SubmissionAskFields, {
+  NEW_SUBMISSION_ASK,
+  submissionAskDraft,
+  submissionAskPayload,
+} from '@/components/SubmissionAskFields'
 import WorkItemHeader, { PersonInitials, WorkItemPerson } from '@/components/WorkItemHeader'
 import SubmittedWork from '@/components/SubmittedWork'
 import RequestChangesButton from '@/components/RequestChangesButton'
@@ -143,6 +148,7 @@ export default function TaskDetailPage({
   const [editDescription, setEditDescription] = useState('')
   const [editDates, setEditDates] = useState<DatesValue>(EMPTY_DATES)
   const [editFeatured, setEditFeatured] = useState(false)
+  const [editAsk, setEditAsk] = useState(NEW_SUBMISSION_ASK)
   const [initialized, setInitialized] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [messaging, setMessaging] = useState(false)
@@ -158,6 +164,7 @@ export default function TaskDetailPage({
     setEditDescription(task.description ?? '')
     setEditDates(datesValueFrom(task))
     setEditFeatured(task.featuredAsQuickTask)
+    setEditAsk(submissionAskDraft(task))
   }, [task, initialized])
 
   const updateMutation = useMutation({
@@ -214,6 +221,7 @@ export default function TaskDetailPage({
         description: editDescription.trim() || null,
         ...datesPayload(editDates),
         featuredAsQuickTask: editFeatured,
+        ...submissionAskPayload(editAsk),
       },
     })
   }
@@ -500,6 +508,7 @@ export default function TaskDetailPage({
             </div>
             <SubmitWorkForm
               target={{ kind: 'project', projectId, taskId }}
+              ask={task}
               reviewer={
                 awaitsOwnerReview(
                   { autoAcceptTasks: task.autoAcceptTasks, ownerId: task.projectOwnerId },
@@ -551,6 +560,8 @@ export default function TaskDetailPage({
               />
             </div>
 
+            <SubmissionAskFields id="edit-task" value={editAsk} onChange={setEditAsk} />
+
             <div className="mb-5">
               <Checkbox checked={editFeatured} onChange={(e) => setEditFeatured(e.target.checked)}>
                 Add this task to the Quick Tasks page so volunteers can find and claim it without
@@ -572,6 +583,7 @@ export default function TaskDetailPage({
                   setEditDescription(task.description ?? '')
                   setEditDates(datesValueFrom(task))
                   setEditFeatured(task.featuredAsQuickTask)
+                  setEditAsk(submissionAskDraft(task))
                 }}
               >
                 Cancel
