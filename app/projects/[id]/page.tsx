@@ -753,6 +753,82 @@ function TaskTimeline({
   )
 }
 
+type AllTasksDone = NonNullable<
+  InferRouterOutputs<AppRouter>['projects']['getById']['allTasksDone']
+>
+
+/** The `lastDoneAt` that "Not yet" set aside, per project, in this browser. */
+const notYetKey = (projectId: number) => `ready-to-complete-not-yet:${projectId}`
+
+function readNotYet(projectId: number): string | null {
+  try {
+    return localStorage.getItem(notYetKey(projectId))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Asks to complete a running project once every task is done. "Not yet" sets it aside until a
+ * task is done again, which gives `lastDoneAt` a new value.
+ */
+function ReadyToCompleteBanner({
+  projectId,
+  title,
+  done,
+  onComplete,
+}: {
+  projectId: number
+  title: string
+  done: AllTasksDone
+  onComplete: () => void
+}) {
+  const doneAt = new Date(done.lastDoneAt).toISOString()
+  const [notYet, setNotYet] = useState(() => readNotYet(projectId) === doneAt)
+  const [asking, setAsking] = useState(false)
+  if (notYet) return null
+
+  function setAside() {
+    try {
+      localStorage.setItem(notYetKey(projectId), doneAt)
+    } catch {
+      // Storage refused: it stays hidden until the page reloads.
+    }
+    setNotYet(true)
+  }
+
+  const tasks = done.count === 1 ? 'The only task is' : `All ${done.count} tasks are`
+  return (
+    <div
+      role="status"
+      className="bg-surface rounded-xl shadow p-4 mb-4 border-l-4 border-brand-border flex flex-wrap items-center gap-3"
+    >
+      <span className="flex-1">
+        {tasks} done{done.includesKeyDate ? ', including the key date' : ''}. Ready to complete the
+        project?
+      </span>
+      <Button size="sm" onClick={() => setAsking(true)}>
+        Complete project
+      </Button>
+      <Button size="sm" variant="secondary" onClick={setAside}>
+        Not yet
+      </Button>
+      <ConfirmDialog
+        id="confirm-complete-project"
+        isOpen={asking}
+        title={`Complete '${title}'?`}
+        body="Completing it locks the project: nobody can change it or its tasks until its owner or an admin reopens it. Discussion stays open."
+        confirmLabel="Complete project"
+        onConfirm={() => {
+          onComplete()
+          setAsking(false)
+        }}
+        onClose={() => setAsking(false)}
+      />
+    </div>
+  )
+}
+
 type ProjectTab = 'overview' | 'tasks' | 'timeline' | 'people'
 const HASH_TABS: ProjectTab[] = ['tasks', 'timeline', 'people']
 /** The Discussion sits on the Overview; `#discussion` opens it there and scrolls down to it. */
@@ -2067,6 +2143,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <div className="max-w-3xl">
             {locked && (
               <LockedProjectBanner status={project.status} completedAt={project.completedAt} />
+            )}
+            {project.allTasksDone && (
+              <ReadyToCompleteBanner
+                key={new Date(project.allTasksDone.lastDoneAt).toISOString()}
+                projectId={project.id}
+                title={project.title}
+                done={project.allTasksDone}
+                onComplete={() => handleConfirmStatus(ProjectStatus.completed)}
+              />
             )}
             {adminCards}
             <ChangesRequestedBanner

@@ -1995,3 +1995,109 @@ describe('project page — a completed project', () => {
     await screen.findByText('Completed. Read-only.')
   })
 })
+
+describe('project page — every task done', () => {
+  /** A running project whose tasks, the key date among them, are all done. */
+  async function allDone(tasks = 2) {
+    const owner = await createVolunteer({ name: 'Olive Owner' })
+    const helper = await createVolunteer({ name: 'Hal Helper' })
+    const project = await createProject({
+      title: 'Wrapped up',
+      assigneeId: owner.id,
+      status: 'in_progress',
+    })
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: project.id,
+        volunteerId: helper.id,
+        interestType: 'want_to_contribute',
+        status: 'accepted',
+      },
+    })
+    for (let i = 0; i < tasks; i++) {
+      await createTask(project.id, {
+        title: `Bit ${i}`,
+        status: 'completed',
+        completedAt: new Date(`2026-09-0${i + 1}T12:00:00Z`),
+        isAnchor: i === 0 && tasks > 1,
+      })
+    }
+    return { owner, helper, project }
+  }
+  const ask = 'All 2 tasks are done, including the key date. Ready to complete the project?'
+
+  it('asks the owner to complete it, saying completing locks it', async () => {
+    const { owner, project } = await allDone()
+    await mount(project.id, owner)
+    await screen.findByText(ask)
+    await userEvent.click(screen.getByRole('button', { name: 'Complete project' }))
+    const dialog = () => screen.findByRole('dialog', { name: "Complete 'Wrapped up'?" })
+    expect(within(await dialog()).getByText(/Completing it locks the project/)).toBeInTheDocument()
+    await userEvent.click(within(await dialog()).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect((await row(project.id)).status).toBe('in_progress')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Complete project' }))
+    await userEvent.click(within(await dialog()).getByRole('button', { name: 'Complete project' }))
+    await screen.findByText(/Read-only\./)
+    expect(screen.queryByText(ask)).toBeNull()
+    expect(await row(project.id)).toMatchObject({ status: 'completed' })
+  })
+
+  it('"Not yet" sets it aside until a task is done again', async () => {
+    const { owner, project } = await allDone(1)
+    await mount(project.id, owner)
+    const one = 'The only task is done. Ready to complete the project?'
+    await screen.findByText(one)
+    await userEvent.click(screen.getByRole('button', { name: 'Not yet' }))
+    expect(screen.queryByText(one)).toBeNull()
+
+    cleanup()
+    await mount(project.id, owner)
+    await screen.findByRole('heading', { name: 'Wrapped up' })
+    expect(screen.queryByText(one)).toBeNull()
+
+    // Reopened and done again: asked again.
+    cleanup()
+    await prisma.workItem.updateMany({
+      where: { parentId: project.id },
+      data: { completedAt: new Date('2026-10-01T12:00:00Z') },
+    })
+    await mount(project.id, owner)
+    await screen.findByText(one)
+  })
+
+  it('still asks, and "Not yet" still hides it, when the browser refuses storage', async () => {
+    const { owner, project } = await allDone()
+    // Only this banner's keys are refused; the session token still reads.
+    const { getItem, setItem } = Storage.prototype
+    const refuseOurs = <A extends unknown[], R>(
+      real: (this: Storage, key: string, ...rest: A) => R,
+    ) =>
+      function (this: Storage, key: string, ...rest: A): R {
+        if (key.startsWith('ready-to-complete')) throw new Error('Storage disabled')
+        return real.call(this, key, ...rest)
+      }
+    const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(refuseOurs(getItem))
+    const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(refuseOurs(setItem))
+    try {
+      await mount(project.id, owner)
+      await screen.findByText(ask)
+      await userEvent.click(screen.getByRole('button', { name: 'Not yet' }))
+      expect(screen.queryByText(ask)).toBeNull()
+    } finally {
+      get.mockRestore()
+      set.mockRestore()
+    }
+  })
+
+  it('an admin is asked too; a helper is not', async () => {
+    const { helper, project } = await allDone()
+    await mount(project.id, helper)
+    await screen.findByRole('heading', { name: 'Wrapped up' })
+    expect(screen.queryByText(ask)).toBeNull()
+    cleanup()
+    await mount(project.id, await createAdmin())
+    await screen.findByText(ask)
+  })
+})

@@ -36,7 +36,13 @@ import {
 import { taskDisplayStatus, taskStatusViews } from '@/lib/task-status'
 import { taskCounts } from '@/lib/task-list-order'
 import { loadWorkItemSummaries, toWorkItemSummary } from '@/lib/work-item-summary'
-import { notifyUser, notifyAdmins, notifyTeamOfProject, clearNotifications } from '@/lib/notify'
+import {
+  createNotification,
+  notifyUser,
+  notifyAdmins,
+  notifyTeamOfProject,
+  clearNotifications,
+} from '@/lib/notify'
 import { keyDateSides } from '@/lib/key-date'
 import { daysPastPlan, previewReplan, replanWrite } from '@/lib/replan'
 import {
@@ -257,6 +263,39 @@ async function tellPreviousAssignee(
     `/projects/${task.parentId}/tasks/${task.id}`,
     undefined,
     task.id,
+  )
+}
+
+const READY_TO_COMPLETE = 'project_ready_to_complete'
+
+/**
+ * Once every task of a running project is done, asks its owner to complete it: one notification,
+ * which goes when a task reopens or is added, or the project's status changes.
+ */
+async function askOwnerToComplete(projectId: number): Promise<void> {
+  const project = await prisma.workItem.findFirst({
+    where: {
+      id: projectId,
+      status: ProjectStatus.in_progress,
+      children: {
+        some: { type: WorkItemType.TASK },
+        none: { type: WorkItemType.TASK, status: { not: TaskStatus.completed } },
+      },
+    },
+    select: { id: true, title: true, assigneeId: true },
+  })
+  if (!project?.assigneeId) return
+  const asked = await prisma.notification.count({
+    where: { volunteerId: project.assigneeId, type: READY_TO_COMPLETE, entityId: project.id },
+  })
+  if (asked > 0) return
+  await createNotification(
+    project.assigneeId,
+    READY_TO_COMPLETE,
+    `Every task on '${project.title}' is done`,
+    'Ready to complete the project?',
+    `/projects/${project.id}`,
+    project.id,
   )
 }
 
@@ -893,6 +932,23 @@ export const projectsRouter = {
           )
           .sort((a, b) => a.getTime() - b.getTime())[0] ?? null
 
+      const isAssignee = project.assigneeId === volunteer.id
+      // The owner or an admin is asked to complete a running project once every task is done.
+      // `lastDoneAt` changes whenever a task is done again, which brings back a dismissed ask.
+      const allTasksDone =
+        (isAssignee || volunteer.isAdmin) &&
+        project.status === ProjectStatus.in_progress &&
+        sortedTasks.length > 0 &&
+        sortedTasks.every((t) => t.status === TaskStatus.completed)
+          ? {
+              count: sortedTasks.length,
+              includesKeyDate: sortedTasks.some((t) => t.isAnchor),
+              lastDoneAt: new Date(
+                Math.max(...sortedTasks.map((t) => t.completedAt?.getTime() ?? 0)),
+              ),
+            }
+          : null
+
       let interests:
         | Array<{
             id: number
@@ -917,7 +973,6 @@ export const projectsRouter = {
           }>
         | undefined
 
-      const isAssignee = project.assigneeId === volunteer.id
       if (isAssignee || volunteer.isAdmin) {
         const rawInterests = await prisma.workItemInterest.findMany({
           where: { workItemId: input.id },
@@ -1039,6 +1094,7 @@ export const projectsRouter = {
         tasks: mappedTasks,
         taskCounts: taskCounts(mappedTasks),
         keyDate,
+        allTasksDone,
         interests,
         helpers,
         myInterest,
@@ -1327,6 +1383,7 @@ export const projectsRouter = {
       // Covers the implicit ready ⇄ in_progress moves above, not just an explicit pick.
       const effectiveStatus = data.status as string | undefined
       if (effectiveStatus && effectiveStatus !== project.status) {
+        await clearNotifications(READY_TO_COMPLETE, project.id)
         const statusLabel = projectStatusLabel(effectiveStatus)
         const notifyIds = new Set<number>()
         if (project.assigneeId && project.assigneeId !== volunteer.id)
@@ -2148,6 +2205,7 @@ export const projectsRouter = {
         })
         return newTask
       })
+      await clearNotifications(READY_TO_COMPLETE, project.id)
 
       return { id: task.id, message: 'Task created' }
     }),
@@ -2465,6 +2523,7 @@ export const projectsRouter = {
       } else {
         await prisma.workItem.update({ where: { id: input.taskId }, data })
       }
+      if (data.status === TaskStatus.completed) await askOwnerToComplete(project.id)
 
       if (isSelfClaim) {
         const existingInterest = await prisma.workItemInterest.findFirst({
@@ -2557,6 +2616,7 @@ export const projectsRouter = {
         },
       })
       await clearNotifications('task_changes_requested', task.id)
+      if (accepted) await askOwnerToComplete(project.id)
 
       const link = `/projects/${project.id}/tasks/${task.id}`
       const said = submission.submissionNote ?? submission.submissionUrl
@@ -2618,6 +2678,7 @@ export const projectsRouter = {
         },
       })
       await clearNotifications('task_submitted', task.id)
+      await askOwnerToComplete(input.projectId)
       if (task.assigneeId !== null) {
         notifyUser(
           task.assigneeId,
@@ -2709,6 +2770,7 @@ export const projectsRouter = {
         throw new ORPCError('BAD_REQUEST', { message: 'This task is not done' })
       }
       await clearNotifications('task_submitted', task.id)
+      await clearNotifications(READY_TO_COMPLETE, project.id)
 
       const who = actorLabel(volunteer, isDeputy)
       await prisma.workItemComment.create({

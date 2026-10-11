@@ -38,6 +38,7 @@ export type AttentionKind =
   | 'submission'
   | 'invite'
   | 'contact_request'
+  | 'ready_to_complete'
 
 export type AttentionItem = {
   key: string
@@ -264,6 +265,41 @@ async function attentionFor(viewer: Viewer): Promise<AttentionItem[]> {
       action: 'Open',
       notificationId: null,
       at: t.reviewedAt,
+    })
+  }
+
+  // Running projects I own whose every task is done, waiting on me to complete them.
+  const allDone = await prisma.workItem.findMany({
+    where: {
+      type: WorkItemType.PROJECT,
+      assigneeId: viewer.id,
+      status: ProjectStatus.in_progress,
+      children: {
+        some: { type: WorkItemType.TASK },
+        none: { type: WorkItemType.TASK, status: { not: TaskStatus.completed } },
+      },
+    },
+    select: {
+      id: true,
+      title: true,
+      children: {
+        where: { type: WorkItemType.TASK },
+        select: { completedAt: true },
+        orderBy: { completedAt: { sort: 'desc', nulls: 'last' } },
+        take: 1,
+      },
+    },
+  })
+  for (const p of allDone) {
+    items.push({
+      key: `ready-${p.id}`,
+      kind: 'ready_to_complete',
+      title: `"${p.title}": every task is done`,
+      detail: 'Ready to complete the project?',
+      href: `/projects/${p.id}`,
+      action: 'Complete',
+      notificationId: null,
+      at: p.children[0].completedAt,
     })
   }
 

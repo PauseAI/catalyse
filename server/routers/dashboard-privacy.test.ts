@@ -383,6 +383,47 @@ describe('dashboard.get', () => {
     )
   })
 
+  it('asks only the owner to complete a running project whose every task is done', async () => {
+    const [me, helper, admin] = await Promise.all([
+      createVolunteer(),
+      createVolunteer(),
+      createAdmin(),
+    ])
+    const lastDone = new Date(Date.now() - DAY)
+    const ready = await createProject({ assigneeId: me.id, status: 'in_progress', title: 'Ready' })
+    await createTask(ready.id, { status: 'completed', completedAt: new Date(Date.now() - 3 * DAY) })
+    await createTask(ready.id, { status: 'completed', completedAt: lastDone })
+    await createTask(ready.id, { status: 'completed', completedAt: null })
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: ready.id,
+        volunteerId: helper.id,
+        interestType: 'want_to_contribute',
+        status: 'accepted',
+      },
+    })
+    // Not yet: a task still open, no tasks at all, or not running.
+    const open = await createProject({ assigneeId: me.id, status: 'in_progress', title: 'Open' })
+    await createTask(open.id, { status: 'completed' })
+    await createTask(open.id, { status: 'under_review' })
+    await createProject({ assigneeId: me.id, status: 'in_progress', title: 'Empty' })
+    const held = await createProject({ assigneeId: me.id, status: 'on_hold', title: 'Held' })
+    await createTask(held.id, { status: 'completed' })
+
+    const kindOf = async (v: Parameters<typeof clientAs>[0]) =>
+      (await clientAs(v).dashboard.get()).attention.filter((a) => a.kind === 'ready_to_complete')
+    expect(await kindOf(me)).toEqual([
+      expect.objectContaining({
+        title: '"Ready": every task is done',
+        href: `/projects/${ready.id}`,
+        action: 'Complete',
+        at: lastDone,
+      }),
+    ])
+    expect(await kindOf(helper)).toEqual([])
+    expect(await kindOf(admin)).toEqual([])
+  })
+
   it('offers discovery by skill, country and Quick Tasks, skipping my own', async () => {
     const me = await createVolunteer({ country: 'UK' })
     const skill = await createSkill({ name: 'Design' })
