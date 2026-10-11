@@ -2,11 +2,21 @@
 
 import type { ReactNode } from 'react'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
+import Tooltip from '@/components/Tooltip'
 import { formatDate } from '@/lib/format-date'
-import { deadlineSlip, deadlineStanding, movedSlip, movedText, pinConflictSlip } from '@/lib/slip'
+import {
+  dayRange,
+  deadlineLine,
+  deadlineSlip,
+  deadlineStanding,
+  movedText,
+  pinConflictSlip,
+} from '@/lib/slip'
+import { UNCLAIMED_LABEL } from '@/lib/status-labels'
 import { windowReading } from '@/lib/task-dates'
+import { quotedTitles } from '@/lib/task-status'
 import { diffInDays } from '@/lib/schedule'
-import { barFill } from './palette'
+import { barFill, statusLabel } from './palette'
 import {
   dateToX,
   markGeometry,
@@ -139,10 +149,6 @@ export default function GanttRow({
       )
     : null
   const standing = deadlineStanding(placement, row.status === 'completed')
-  const lateAria =
-    placement.deadline && standing
-      ? `deadline ${formatDate(placement.deadline)}, ${standing.text}`
-      : null
   const conflict = pinConflictSlip(placement, pinConflictLabel)
 
   // A task's bar already ends on its deadline, so it is marked only once it is late.
@@ -191,6 +197,49 @@ export default function GanttRow({
     ? 0
     : `${corner(mark.clippedStart)}px ${corner(mark.clippedEnd)}px ${corner(mark.clippedEnd)}px ${corner(mark.clippedStart)}px`
 
+  // What the bar's tooltip says, and its aria-label says too.
+  const blockedBy =
+    row.status === 'blocked' && row.blockedBy?.length ? quotedTitles(row.blockedBy) : null
+  const statusText = blockedBy ? `Blocked by ${blockedBy}` : statusLabel(row.status)
+  const holder =
+    row.assigneeName === undefined
+      ? null
+      : row.assigneeName
+        ? `Assigned to ${row.assigneeName}`
+        : UNCLAIMED_LABEL
+  const days = dayRange(placement.start, placement.end)
+  const deadlineText = deadlineLine(placement, row.status === 'completed')
+  const tip = (
+    <span className="flex flex-col gap-0.5 text-left">
+      <strong className="font-semibold">{row.label}</strong>
+      <span>{statusText}</span>
+      {holder && <span>{holder}</span>}
+      <span>{milestone ? `Milestone, ${days}` : days}</span>
+      {reading && <span>{reading}</span>}
+      {deadlineText && <span>{deadlineText}</span>}
+      {isAnchor && <span>★ Key date</span>}
+      {isCritical && <span>On the critical path</span>}
+      {conflict && <span>{conflict}</span>}
+    </span>
+  )
+  const lowerFirst = (text: string) => `${text[0].toLowerCase()}${text.slice(1)}`
+  const ariaLabel = `${row.label}: ${[
+    milestone ? `milestone on ${rangeLabel}` : rangeLabel,
+    reading?.toLowerCase(),
+    deadlineText && lowerFirst(deadlineText),
+    variance,
+    isAnchor && 'key date',
+    isCritical && 'on the critical path',
+    lowerFirst(statusText),
+    holder && lowerFirst(holder),
+    conflict,
+    offWindow && 'outside the visible range',
+  ]
+    .filter(Boolean)
+    .join(', ')}`
+  // A tip left behind at the bar's old place while it is dragged would only be in the way.
+  const dragging = Boolean(moveTransform || resizeTransform || linking)
+
   return (
     <div
       ref={dropRef}
@@ -223,95 +272,83 @@ export default function GanttRow({
       {/* Current schedule — the interactive bar, or a diamond when the item is a milestone.
           The diamond is a rotated inner square rather than a rotated button, so the markers
           hung off the button stay upright. */}
-      <button
-        ref={moveRef}
-        type="button"
-        {...(draggable ? moveListeners : {})}
-        {...(draggable ? moveAttrs : {})}
-        onClick={onSelect ? () => onSelect(row.id) : undefined}
-        aria-label={`${row.label}: ${milestone ? `milestone on ${rangeLabel}` : rangeLabel}${reading ? `, ${reading.toLowerCase()}` : ''}${lateAria ? `, ${lateAria}` : ''}${variance ? `, ${variance}` : ''}${isAnchor ? ', key date' : ''}${isCritical ? ', on the critical path' : ''}${offWindow ? ', outside the visible range' : ''}`}
-        aria-pressed={selected}
-        title={[
-          row.label,
-          milestone ? `Milestone — ${rangeLabel}` : rangeLabel,
-          reading,
-          late,
-          movedSlip(placement),
-          conflict,
-          isAnchor && '★ Key date — the plan is built around this date',
-          isCritical &&
-            'Critical path — zero slack, so a day late here is a day late for the key date',
-          offWindow && 'Outside the visible range',
-        ]
-          .filter(Boolean)
-          .join('\n')}
-        className="absolute border-0 p-0 text-left focus:outline-2 focus:outline-offset-2"
-        style={{
-          left: barLeft,
-          width: barWidth,
-          top: barTop,
-          height: barHeight,
-          borderRadius: barRadius,
-          background:
-            milestone && !offWindow
-              ? 'transparent'
-              : faint
-                ? `color-mix(in srgb, ${barFill(row.status)} 40%, transparent)`
-                : barFill(row.status),
-          opacity: offWindow ? 0.4 : 1,
-          cursor: draggable ? 'grab' : 'pointer',
-          boxShadow: milestone && !offWindow ? undefined : ring,
-          outlineColor: 'var(--color-brand-text)',
-          filter: highlighted ? 'brightness(1.12)' : undefined,
-          touchAction: 'none',
-        }}
-      >
-        {faint && !offWindow && barWidth >= 28 && (
-          <span
-            aria-hidden="true"
-            className="text-brand-text pointer-events-none flex h-full items-center px-1.5 text-[10px] leading-none font-semibold"
-          >
-            {effort}h
-          </span>
-        )}
-        {milestone && !offWindow && (
-          <span
-            aria-hidden="true"
-            className="block h-full w-full"
-            style={{
-              background: barFill(row.status),
-              boxShadow: ring,
-              borderRadius: 2,
-              transform: 'rotate(45deg)',
-            }}
-          />
-        )}
-        {isAnchor && !offWindow && (
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute leading-none"
-            style={{
-              left: '50%',
-              top: -13,
-              transform: 'translateX(-50%)',
-              color: 'var(--gantt-anchor)',
-              fontSize: 12,
-            }}
-          >
-            ★
-          </span>
-        )}
-        {placement.pinnedBeforePredecessor && !offWindow && (
-          <span
-            className="absolute -right-1 -top-1 block h-2.5 w-2.5 rounded-full"
-            style={{
-              background: 'var(--gantt-today)',
-              boxShadow: '0 0 0 1.5px var(--color-surface)',
-            }}
-            title={conflict ?? undefined}
-          />
-        )}
-      </button>
+      <Tooltip content={dragging ? null : tip} side="right" within="[data-gantt-chart]">
+        <button
+          ref={moveRef}
+          type="button"
+          {...(draggable ? moveListeners : {})}
+          {...(draggable ? moveAttrs : {})}
+          onClick={onSelect ? () => onSelect(row.id) : undefined}
+          aria-label={ariaLabel}
+          aria-pressed={selected}
+          className="absolute border-0 p-0 text-left focus:outline-2 focus:outline-offset-2"
+          style={{
+            left: barLeft,
+            width: barWidth,
+            top: barTop,
+            height: barHeight,
+            borderRadius: barRadius,
+            background:
+              milestone && !offWindow
+                ? 'transparent'
+                : faint
+                  ? `color-mix(in srgb, ${barFill(row.status)} 40%, transparent)`
+                  : barFill(row.status),
+            opacity: offWindow ? 0.4 : 1,
+            cursor: draggable ? 'grab' : 'pointer',
+            boxShadow: milestone && !offWindow ? undefined : ring,
+            outlineColor: 'var(--color-brand-text)',
+            filter: highlighted ? 'brightness(1.12)' : undefined,
+            touchAction: 'none',
+          }}
+        >
+          {faint && !offWindow && barWidth >= 28 && (
+            <span
+              aria-hidden="true"
+              className="text-brand-text pointer-events-none flex h-full items-center px-1.5 text-[10px] leading-none font-semibold"
+            >
+              {effort}h
+            </span>
+          )}
+          {milestone && !offWindow && (
+            <span
+              aria-hidden="true"
+              className="block h-full w-full"
+              style={{
+                background: barFill(row.status),
+                boxShadow: ring,
+                borderRadius: 2,
+                transform: 'rotate(45deg)',
+              }}
+            />
+          )}
+          {isAnchor && !offWindow && (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute leading-none"
+              style={{
+                left: '50%',
+                top: -13,
+                transform: 'translateX(-50%)',
+                color: 'var(--gantt-anchor)',
+                fontSize: 12,
+              }}
+            >
+              ★
+            </span>
+          )}
+          {placement.pinnedBeforePredecessor && !offWindow && (
+            <span
+              aria-hidden="true"
+              className="absolute -right-1 -top-1 block h-2.5 w-2.5 rounded-full"
+              style={{
+                background: 'var(--gantt-today)',
+                boxShadow: '0 0 0 1.5px var(--color-surface)',
+              }}
+            />
+          )}
+        </button>
+      </Tooltip>
 
       {draggable && (
         <>

@@ -261,7 +261,10 @@ export default function GanttChart({
   )
 
   const body = (
-    <div className="border-brand-border bg-surface overflow-hidden rounded-lg border">
+    <div
+      data-gantt-chart
+      className="border-brand-border bg-surface overflow-hidden rounded-lg border"
+    >
       {/* The date header sits outside the vertical scroller so it stays put on a tall chart —
           you cannot read a bar without knowing which day it is over. Its horizontal offset is
           driven by the body's scroll below. */}
@@ -616,7 +619,7 @@ export default function GanttChart({
         {body}
       </DndContext>
 
-      <GanttLegend editable={editable} highlightCritical={highlightCritical} />
+      <GanttLegend statuses={rows.map((r) => r.status)} />
     </div>
   )
 }

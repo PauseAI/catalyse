@@ -4,7 +4,15 @@
  * two facts about the same bar never have to fight over one colour.
  */
 
+import { projectStatusLabel } from '@/lib/project-status'
+import { TASK_STATUS_LABELS } from '@/lib/status-labels'
+
 export type BarTone = 'todo' | 'progress' | 'done' | 'hold'
+
+/** A row's status in words: a task's shown status, or a project's lifecycle status. */
+export function statusLabel(status: string): string {
+  return TASK_STATUS_LABELS[status] ?? projectStatusLabel(status)
+}
 
 /**
  * Statuses that mean "parked", across ProjectStatus and a task's shown status (Blocked and Ready

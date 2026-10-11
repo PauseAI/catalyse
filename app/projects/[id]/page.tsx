@@ -420,6 +420,8 @@ function TaskTimeline({
         placement,
         timing: task.timing,
         effortHours: task.estimatedHours,
+        assigneeName: task.assignedToName,
+        blockedBy: task.blockedBy,
       })
     }
   }

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  dayRange,
+  deadlineLine,
   deadlineSlip,
   deadlineStanding,
   lateText,
@@ -83,5 +85,32 @@ describe('slip wording', () => {
       'Starts 1 day too early for the work before it. Move it, or let it start when the work before it is done.',
     )
     expect(pinConflictSlip({ pinConflictDays: null, isAnchor: false }, undefined)).toBeNull()
+  })
+
+  it('writes a short day range, with the month once when both ends share it', () => {
+    const today = day('2026-10-11')
+    expect(dayRange(day('2026-10-02'), day('2026-10-09'), today)).toBe('2 – 9 Oct')
+    expect(dayRange(day('2026-09-28'), day('2026-10-03'), today)).toBe('28 Sept – 3 Oct')
+    expect(dayRange(day('2026-10-09'), day('2026-10-09'), today)).toBe('9 Oct')
+    expect(dayRange(day('2027-10-02'), day('2027-10-09'), today)).toBe('2 – 9 Oct 2027')
+    expect(dayRange(day('2026-10-02'), day('2027-10-02'), today)).toBe('2 Oct – 2 Oct 2027')
+  })
+
+  it('reads a deadline as how far away it is, and how the plan or the finish stands against it', () => {
+    const today = day('2026-10-11')
+    const deadline = day('2026-10-14')
+    expect(deadlineLine({ deadline, daysLate: -1 }, false, today)).toBe(
+      'Deadline 14 Oct, in 3 days',
+    )
+    expect(deadlineLine({ deadline, daysLate: 2 }, false, today)).toBe(
+      'Deadline 14 Oct, in 3 days, planned to finish 2 days late',
+    )
+    // Once it has passed, overdue says it all.
+    expect(deadlineLine({ deadline: day('2026-10-09'), daysLate: 2 }, false, today)).toBe(
+      'Deadline 9 Oct, 2 days overdue',
+    )
+    expect(deadlineLine({ deadline, daysLate: 0 }, true, today)).toBe('Deadline 14 Oct, on the day')
+    expect(deadlineLine({ deadline, daysLate: null }, true, today)).toBe('Deadline 14 Oct')
+    expect(deadlineLine({ deadline: null, daysLate: null }, false, today)).toBeNull()
   })
 })

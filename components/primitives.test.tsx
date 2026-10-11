@@ -9,7 +9,7 @@ import Checkbox from './Checkbox'
 import Alert from './ui/Alert'
 import ConfirmDialog from './ui/ConfirmDialog'
 import DescriptionTips from './DescriptionTips'
-import Tooltip from './Tooltip'
+import Tooltip, { placeTip } from './Tooltip'
 import Tabs from './Tabs'
 import Skeleton from './Skeleton'
 import EmptyState from './EmptyState'
@@ -141,6 +141,45 @@ describe('DescriptionTips / Tooltip', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('More info')
     await userEvent.unhover(screen.getByText('hover me'))
     expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('shows on keyboard focus, hides on Escape or blur, and shows nothing without content', () => {
+    render(
+      <div data-chart>
+        <Tooltip content="Beside" side="right" within="[data-chart]">
+          <button type="button">Bar</button>
+        </Tooltip>
+        <Tooltip content={null} within="[data-missing]">
+          <button type="button">Bare</button>
+        </Tooltip>
+      </div>,
+    )
+    const bar = screen.getByRole('button', { name: 'Bar' })
+    act(() => bar.focus())
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Beside')
+    fireEvent.keyDown(bar, { key: 'Enter' })
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
+    fireEvent.keyDown(bar, { key: 'Escape' })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    act(() => bar.blur())
+    act(() => screen.getByRole('button', { name: 'Bare' }).focus())
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('places the tip beside or above its trigger, and keeps it inside its bounds', () => {
+    const bounds = { left: 0, top: 0, right: 500, bottom: 300 }
+    const size = { width: 100, height: 40 }
+    const at = (left: number, right: number, top = 100) => ({
+      rect: { left, right, top, bottom: top + 20 },
+      bounds,
+    })
+    // Room on the right: just past the trigger, centred on it.
+    expect(placeTip('right', at(50, 150), size)).toEqual({ left: 156, top: 90 })
+    // None on the right: to its left instead.
+    expect(placeTip('right', at(380, 450), size)).toEqual({ left: 274, top: 90 })
+    // Above and centred, pushed down and in when it would leave the top or the side.
+    expect(placeTip('top', at(200, 300), size)).toEqual({ left: 200, top: 54 })
+    expect(placeTip('top', at(0, 20, 10), size)).toEqual({ left: 6, top: 6 })
   })
 })
 

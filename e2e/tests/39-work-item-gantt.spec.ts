@@ -657,4 +657,45 @@ test.describe('Work item scheduling and dependencies', () => {
       .hover()
     await expect(adminPage.getByRole('tooltip')).toContainText('measured towards the key dates')
   })
+
+  test('a bar says what it is at once, on hover and on keyboard focus', async ({
+    baseUrl,
+    adminPage,
+  }) => {
+    const api = createApiClient(baseUrl, readAdminToken(baseUrl))
+    const projectId = await makeProject(api, { startDate: day('2027-07-05') })
+    await addTask(api, projectId, {
+      title: 'Tip me',
+      startDate: day('2027-07-06'),
+      deadline: day('2027-07-09'),
+    })
+
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#timeline`)
+    const bar = adminPage.getByRole('button', { name: /^Tip me:/ })
+    await expect(bar).not.toHaveAttribute('title')
+
+    await bar.hover()
+    const tip = adminPage.getByRole('tooltip')
+    await expect(tip).toContainText('Tip me')
+    await expect(tip).toContainText('Ready')
+    await expect(tip).toContainText('Unclaimed')
+    await expect(tip).toContainText('6 – 9 Jul 2027')
+    await expect(tip).toContainText('Deadline 9 Jul 2027')
+
+    // The tip sits beside the bar, inside the chart.
+    const [tipBox, barBox] = [await tip.boundingBox(), await bar.boundingBox()]
+    expect(tipBox!.x).toBeGreaterThanOrEqual(barBox!.x + barBox!.width)
+
+    await adminPage.mouse.move(0, 0)
+    await expect(tip).toHaveCount(0)
+    await bar.focus()
+    await expect(adminPage.getByRole('tooltip')).toContainText('Tip me')
+
+    // The legend is one short line; the planning marks are explained in Planning tools.
+    await expect(adminPage.getByText('Today', { exact: true })).toBeVisible()
+    await expect(adminPage.getByText('Original plan', { exact: true })).toBeHidden()
+    await adminPage.getByText('Planning tools').click()
+    await expect(adminPage.getByText('What the marks mean')).toBeVisible()
+    await expect(adminPage.getByText('Original plan', { exact: true })).toBeVisible()
+  })
 })

@@ -223,12 +223,9 @@ describe('GanttChart', () => {
     ).toBeInTheDocument()
     expect(screen.getByText(/Too many days to label/)).toBeInTheDocument()
     expect(screen.getByTitle('1 day late (Deadline 5 Jun 2026)')).toHaveTextContent('+1d')
-    expect(
-      screen.getByTitle('“Print flyers” finishes 2 days after the key date.'),
-    ).toBeInTheDocument()
     await user.click(
       screen.getByRole('button', {
-        name: 'Print flyers: 4 June 2026 – 6 June 2026, deadline 5 June 2026, 1 day late, 1 day earlier than the original plan, on the critical path',
+        name: 'Print flyers: 4 June 2026 – 6 June 2026, deadline 5 Jun, today, planned to finish 1 day late, 1 day earlier than the original plan, on the critical path, in progress',
       }),
     )
     expect(onSelect).toHaveBeenCalledWith(2)
@@ -250,6 +247,87 @@ describe('GanttChart', () => {
     await user.click(screen.getByRole('button', { name: 'Month' }))
     await user.click(screen.getByRole('button', { name: '90 days' }))
     expect(screen.getByTitle('Today')).toBeInTheDocument()
+  })
+
+  it('shows what a bar is at once, on hover and on keyboard focus, with no native title', async () => {
+    const user = userEvent.setup({ advanceTimers: () => {} })
+    render(
+      <GanttChart
+        rows={[
+          {
+            id: 1,
+            label: 'Book venue',
+            status: 'in_progress',
+            assigneeName: 'Sam Organiser',
+            placement: placed(1, '2026-06-02', '2026-06-04', {
+              deadline: day('2026-06-09'),
+              daysLate: -5,
+            }),
+          },
+          {
+            id: 3,
+            label: 'Launch',
+            status: 'blocked',
+            blockedBy: [{ id: 1, title: 'Book venue' }],
+            assigneeName: null,
+            timing: 'fixed',
+            placement: placed(3, '2026-06-08', '2026-06-08', {
+              isMilestone: true,
+              isAnchor: true,
+              isCritical: true,
+              pinnedBeforePredecessor: true,
+              pinConflictDays: 3,
+              pinConflictWith: 1,
+            }),
+          },
+        ]}
+        edges={[]}
+        rangeStart={day('2026-06-01')}
+        rangeEnd={day('2026-06-10')}
+        editable
+      />,
+    )
+    const venue = screen.getByRole('button', { name: /^Book venue:/ })
+    expect(venue).not.toHaveAttribute('title')
+    expect(screen.queryByRole('tooltip')).toBeNull()
+
+    await user.hover(venue)
+    const tip = screen.getByRole('tooltip')
+    for (const line of [
+      'Book venue',
+      'In progress',
+      'Assigned to Sam Organiser',
+      '2 – 4 Jun',
+      'Deadline 9 Jun, in 4 days',
+    ]) {
+      expect(within(tip).getByText(line)).toBeInTheDocument()
+    }
+    expect(within(tip).queryByText('★ Key date')).toBeNull()
+    await user.unhover(venue)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+
+    // The keyboard gets the same tip as the pointer, and Escape puts it away.
+    const launch = screen.getByRole('button', { name: /^Launch:/ })
+    act(() => launch.focus())
+    const focused = screen.getByRole('tooltip')
+    for (const line of [
+      "Blocked by 'Book venue'",
+      'Unclaimed',
+      'Milestone, 8 Jun',
+      'A moment, not a stretch of work',
+      '★ Key date',
+      'On the critical path',
+      '“Book venue” finishes 2 days after the key date.',
+    ]) {
+      expect(within(focused).getByText(line)).toBeInTheDocument()
+    }
+    // The aria-label carries the same facts for a screen reader.
+    expect(launch).toHaveAccessibleName(
+      "Launch: milestone on 8 June 2026, a moment, not a stretch of work, key date, on the critical path, blocked by 'Book venue', unclaimed, “Book venue” finishes 2 days after the key date.",
+    )
+    fireEvent.keyDown(launch, { key: 'Escape' })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    act(() => launch.blur())
   })
 
   it('draws a flexible window faint with its hours, and set dates solid with an edge', () => {
@@ -573,17 +651,36 @@ describe('GanttDependencyLayer', () => {
 })
 
 describe('GanttLegend / BaselineDialog', () => {
-  it('lists every mark, with hover hints, and the critical path only while highlighted', async () => {
+  const legendEntries = (container: HTMLElement) =>
+    Array.from(container.firstElementChild!.children).map((entry) => entry.textContent)
+
+  it('is one short line: status colours, today, the deadline and the key date', async () => {
     const user = userEvent.setup({ advanceTimers: () => {} })
-    const { rerender } = render(<GanttLegend editable />)
-    await user.hover(screen.getByText('Key date', { selector: 'span span' }))
-    expect(screen.getByRole('tooltip')).toBeInTheDocument()
-    expect(screen.getByText('Critical path', { selector: 'span span' })).toBeInTheDocument()
-    rerender(<GanttLegend editable highlightCritical={false} />)
-    expect(screen.queryByText('Critical path', { selector: 'span span' })).toBeNull()
+    const { container } = render(<GanttLegend />)
+    expect(legendEntries(container)).toEqual([
+      'Blocked / Ready',
+      'In progress',
+      'Done',
+      'Today',
+      '▲Deadline (red once it is missed)',
+      '★Key date',
+    ])
+    await user.hover(screen.getByText('Key date'))
+    expect(screen.getByRole('tooltip')).toHaveTextContent('built around')
+    for (const mark of ['Original plan', 'Actual', 'Critical path', 'Project end', 'Milestone']) {
+      expect(screen.queryByText(mark)).toBeNull()
+    }
   })
 
-  it('folds the planner’s help into Planning tools', async () => {
+  it('names each colour by the statuses the chart draws in it', () => {
+    const { container } = render(
+      <GanttLegend statuses={['completed', 'on_hold', 'ready', 'under_review', 'ready']} />,
+    )
+    expect(legendEntries(container).slice(0, 3)).toEqual(['Ready', 'Submitted for review', 'Done'])
+    expect(legendEntries(container)).toContain('On Hold')
+  })
+
+  it('folds the planner’s help and every planning mark into Planning tools', async () => {
     render(
       <PlanningTools>
         <button type="button">Extra control</button>
@@ -592,17 +689,20 @@ describe('GanttLegend / BaselineDialog', () => {
     expect(screen.getByText('Planning tools')).toBeInTheDocument()
     expect(screen.getByText(/Drag a bar/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Extra control' })).toBeInTheDocument()
-  })
-
-  it('leaves the planning marks out of a read-only legend, but not the key date', () => {
-    render(<GanttLegend editable={false} />)
-    for (const mark of ['Original plan', 'Critical path']) {
-      expect(screen.queryByText(mark, { selector: 'span span' })).toBeNull()
+    expect(screen.getByText('What the marks mean')).toBeInTheDocument()
+    for (const mark of [
+      'Key date',
+      'Critical path',
+      'Original plan',
+      'Actual',
+      'Starts too early',
+      'Any time in the window',
+      'On exact dates',
+      'Milestone',
+      'Project end',
+    ]) {
+      expect(screen.getByText(mark, { selector: 'dt' })).toBeInTheDocument()
     }
-    expect(screen.getByText('Key date', { selector: 'span span' })).toBeInTheDocument()
-    expect(screen.queryByText(/Drag a bar/)).toBeNull()
-    expect(screen.getByText('Today')).toBeInTheDocument()
-    expect(screen.getByText(/^Deadline/)).toBeInTheDocument()
   })
 
   it('explains first-time versus replacement baselines', async () => {

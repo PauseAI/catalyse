@@ -5,6 +5,7 @@
 
 import { formatDateShort } from './format-date'
 import { plural } from './plural'
+import { relativeDue, shortDay } from './relative-date'
 import { diffInDays, type ScheduledItem } from './schedule'
 
 function cap(text: string): string {
@@ -81,4 +82,36 @@ export function deadlineStanding(
   }
   if (p.daysLate === null) return null
   return { text: lateText(p.daysLate), late: p.daysLate > 0, days: p.daysLate }
+}
+
+/** "2 – 9 Oct", "28 Sept – 3 Oct", or "9 Oct" for a single day. */
+export function dayRange(start: Date, end: Date, today: Date = new Date()): string {
+  const to = shortDay(end, today)
+  if (diffInDays(start, end) === 0) return to
+  const sameMonth =
+    start.getUTCMonth() === end.getUTCMonth() && start.getUTCFullYear() === end.getUTCFullYear()
+  return `${sameMonth ? start.getUTCDate() : shortDay(start, today)} – ${to}`
+}
+
+/**
+ * "Deadline 9 Oct, in 3 days", adding "planned to finish 1 day late" while the plan overruns a
+ * deadline still ahead. Finished work says how it finished against it: "Deadline 9 Oct, on the
+ * day". Null when the item has no deadline.
+ */
+export function deadlineLine(
+  p: Pick<ScheduledItem, 'deadline' | 'daysLate'>,
+  done: boolean,
+  today: Date = new Date(),
+): string | null {
+  if (p.deadline === null) return null
+  const head = `Deadline ${shortDay(p.deadline, today)}`
+  if (done) {
+    const standing = deadlineStanding(p, true, today)
+    return standing ? `${head}, ${standing.text}` : head
+  }
+  const overrun =
+    diffInDays(p.deadline, today) <= 0 && p.daysLate !== null && p.daysLate > 0
+      ? `, planned to finish ${lateText(p.daysLate)}`
+      : ''
+  return `${head}, ${relativeDue(p.deadline, today)}${overrun}`
 }
