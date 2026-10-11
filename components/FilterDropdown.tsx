@@ -198,6 +198,7 @@ export default function FilterDropdown<T extends string>({
       <div className="relative">
         <button
           ref={triggerRef}
+          id={searchable && open ? undefined : id}
           type="button"
           aria-label={ariaLabel}
           aria-expanded={open}

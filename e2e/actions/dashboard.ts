@@ -5,7 +5,7 @@ export const homeHeading = (page: Page) => page.getByRole('heading', { level: 1,
 
 /** The nav's Inbox item, which carries the needs-action count. */
 export const inboxButton = (page: Page) =>
-  page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: /^Inbox/ })
+  page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /^Inbox/ })
 
 /** Opens the Inbox showing every notification, whichever filter it would open on. */
 export async function goToInbox(baseUrl: string, page: Page): Promise<void> {
