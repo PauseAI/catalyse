@@ -95,11 +95,13 @@ describe('project page — visitor', () => {
 
     await openTab(/^Tasks/)
     expect(window.location.hash).toBe('#tasks')
-    expect(screen.getByText('Overdue')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('link', { name: 'Open task' }).closest('li')!).getByText('Overdue'),
+    ).toBeInTheDocument()
     expect(screen.getByLabelText('1 comment')).toBeInTheDocument()
 
     // Only people on the project can post, so there is no comment box until the claim.
-    await openTab(/^Discussion/)
+    await openTab(/^Overview/)
     await screen.findByRole('heading', { name: 'Discussion' })
     expect(screen.queryByLabelText('Add a comment')).toBeNull()
     await openTab(/^Tasks/)
@@ -124,7 +126,7 @@ describe('project page — visitor', () => {
     await waitFor(() => expect(screen.getAllByText('done')).toHaveLength(2))
     expect(taskOrder()).toEqual(['Ongoing task', 'Open task', 'Done task'])
     expect(screen.getByText('Done (2)')).toBeInTheDocument()
-    await openTab(/^Discussion/)
+    await openTab(/^Overview/)
     expect(await screen.findByLabelText('Add a comment')).toBeInTheDocument()
 
     // The claim put me on the project; leaving releases that, and the comment box goes too.
@@ -700,6 +702,178 @@ describe('project page — task list order', () => {
     await screen.findByText('Hand out flyers')
     expect(rowTitles()[0]).toBe('Count volunteers')
     expect(screen.queryByRole('button', { name: 'Your order' })).toBeNull()
+  })
+})
+
+describe('project page — Overview status bar and Discussion', () => {
+  const DAY = 86_400_000
+  const rowTitles = () =>
+    [...document.querySelectorAll('li > div.flex-1 > a')].map((a) => a.textContent)
+  const bar = () => screen.getByRole('navigation', { name: 'Task summary' })
+  // pushState, so jsdom does not queue a hashchange of its own after this one.
+  const goToHash = (hash: string) =>
+    act(() => {
+      window.history.pushState(null, '', hash)
+      window.dispatchEvent(new HashChangeEvent('hashchange'))
+    })
+
+  async function mixed() {
+    const owner = await createVolunteer()
+    const worker = await createVolunteer()
+    const project = await createProject({
+      status: 'in_progress',
+      assigneeId: owner.id,
+      description: 'What we are doing',
+      deadline: new Date(Date.now() + 10 * DAY),
+    })
+    const late = await createTask(project.id, {
+      title: 'Late task',
+      deadline: new Date('2020-01-01'),
+      sortOrder: 1,
+    })
+    const waiting = await createTask(project.id, { title: 'Waiting task', sortOrder: 2 })
+    await createTask(project.id, {
+      title: 'Doing task',
+      status: 'in_progress',
+      assigneeId: worker.id,
+      sortOrder: 3,
+    })
+    await createTask(project.id, {
+      title: 'Finished task',
+      status: 'completed',
+      completedAt: new Date(),
+      sortOrder: 4,
+    })
+    await prisma.workItemDependency.create({
+      data: { predecessorId: late.id, successorId: waiting.id },
+    })
+    return { owner, project }
+  }
+
+  it('has four tabs, and the Overview reads description, status bar, then Discussion', async () => {
+    const { owner, project } = await mixed()
+    await mount(project.id, owner)
+    const discussion = await screen.findByRole('heading', { name: 'Discussion' })
+    expect(screen.getAllByRole('tab').map((t) => t.textContent!.replace(/ \(\d+\)$/, ''))).toEqual([
+      'Overview',
+      'Tasks',
+      'Timeline',
+      'People',
+    ])
+    expect(
+      within(bar())
+        .getAllByRole('link')
+        .map((l) => [l.textContent, l.getAttribute('href')]),
+    ).toEqual([
+      ['4 tasks', '#tasks'],
+      ['1 done', '#tasks=done'],
+      ['1 overdue', '#tasks=overdue'],
+      ['1 blocked', '#tasks=blocked'],
+      ['2 unclaimed', '#tasks=unclaimed'],
+    ])
+    // Without a key date, the bar counts down to the project deadline.
+    expect(within(bar()).getByText(/^Deadline .+ · in 10 days$/)).toBeInTheDocument()
+    const follows = (a: Node, b: Node) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(follows(screen.getByText('What we are doing'), bar())).toBe(true)
+    expect(follows(bar(), discussion)).toBe(true)
+  })
+
+  it('opens the Tasks tab under the filter a count links to, and the list matches it', async () => {
+    const { owner, project } = await mixed()
+    await mount(project.id, owner)
+    await screen.findByRole('heading', { name: 'Discussion' })
+    await userEvent.click(within(bar()).getByRole('link', { name: '1 overdue' }))
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: /^Tasks/ })).toHaveAttribute('aria-selected', 'true'),
+    )
+    expect(screen.getByRole('button', { name: 'Overdue' })).toHaveAttribute('aria-pressed', 'true')
+    expect(rowTitles()).toEqual(['Late task'])
+
+    const pick = async (name: string) => userEvent.click(screen.getByRole('button', { name }))
+    await pick('Blocked')
+    expect(window.location.hash).toBe('#tasks=blocked')
+    expect(rowTitles()).toEqual(['Waiting task'])
+    await pick('Unclaimed')
+    expect(rowTitles()).toEqual(['Late task', 'Waiting task'])
+    // Done tasks are listed open under their filter, not folded away.
+    await pick('Done')
+    expect(rowTitles()).toEqual(['Finished task'])
+    expect(screen.queryByText(/^Done \(/)).toBeNull()
+    await pick('All')
+    expect(window.location.hash).toBe('#tasks')
+    expect(rowTitles()).toHaveLength(4)
+    expect(screen.getByText('Done (1)')).toBeInTheDocument()
+
+    // Your order is the whole list: it drops the filter, and a filter link leaves it.
+    await pick('Blocked')
+    await pick('Your order')
+    expect(window.location.hash).toBe('#tasks')
+    expect(screen.queryByRole('group', { name: 'Filter tasks' })).toBeNull()
+    expect(rowTitles()).toHaveLength(4)
+    goToHash('#tasks=done')
+    expect(screen.getByRole('button', { name: 'Your order' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    expect(rowTitles()).toEqual(['Finished task'])
+    // Leaving the tab drops the filter; an unknown one shows everything.
+    await openTab(/^Timeline/)
+    await openTab(/^Tasks/)
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+    goToHash('#tasks=nonsense')
+    expect(rowTitles()).toHaveLength(4)
+  })
+
+  it('lands a #discussion link on the Discussion in the Overview', async () => {
+    const { owner, project } = await mixed()
+    const scroll = vi.spyOn(Element.prototype, 'scrollIntoView')
+    await mount(project.id, owner, '#discussion')
+    await screen.findByRole('heading', { name: 'Discussion' })
+    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
+    const target = document.getElementById('discussion')
+    await waitFor(() => expect(scroll.mock.contexts).toEqual([target]))
+    // From another tab it switches back first; on the Overview it scrolls straight there.
+    await openTab(/^Tasks/)
+    goToHash('#discussion')
+    await waitFor(() => expect(scroll).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
+    goToHash('#discussion')
+    expect(scroll).toHaveBeenCalledTimes(3)
+    expect(scroll.mock.contexts.at(-1)).toBe(document.getElementById('discussion'))
+    scroll.mockRestore()
+  })
+
+  it('hides counts at zero except tasks and done, and counts down to the key date', async () => {
+    const owner = await createVolunteer()
+    const project = await createProject({
+      status: 'in_progress',
+      assigneeId: owner.id,
+      deadline: new Date(Date.now() + 20 * DAY),
+    })
+    await createTask(project.id, {
+      title: 'Rally',
+      isAnchor: true,
+      assigneeId: owner.id,
+      startDate: new Date(Date.now() + 5 * DAY),
+    })
+    await createTask(project.id, {
+      title: 'Vigil',
+      isAnchor: true,
+      assigneeId: owner.id,
+      startDate: new Date(Date.now() + 12 * DAY),
+    })
+    await mount(project.id, owner)
+    await screen.findByRole('heading', { name: 'Discussion' })
+    expect(
+      within(bar())
+        .getAllByRole('link')
+        .map((l) => l.textContent),
+    ).toEqual(['2 tasks', '0 done'])
+    // The soonest key date wins over a later one and over the project deadline.
+    expect(within(bar()).getByText(/^Key date .+ · in 5 days$/)).toBeInTheDocument()
+    await userEvent.click(within(bar()).getByRole('link', { name: '0 done' }))
+    expect(await screen.findByText('No done tasks.')).toBeInTheDocument()
   })
 })
 

@@ -99,7 +99,13 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import PageLoading from '@/components/PageLoading'
 import WorkItemCard from '@/components/WorkItemCard'
-import { tasksByStatus } from '@/lib/task-list-order'
+import {
+  TASK_FILTERS,
+  matchesTaskFilter,
+  tasksByStatus,
+  type TaskFilter,
+} from '@/lib/task-list-order'
+import TaskStatusBar, { taskFilterHash } from '@/components/TaskStatusBar'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -295,18 +301,20 @@ function SortableTaskItem({ task, ...parts }: TaskRowParts & { task: ProjectTask
 
 /**
  * The Tasks tab's list. By default it is grouped by what can happen next (`tasksByStatus`), with
- * done tasks folded under "Done (N)"; in `yourOrder` it is the manual order, which a manager
- * drags to change.
+ * done tasks folded under "Done (N)"; under a `filter` it is only the matching tasks, in the same
+ * order and unfolded; in `yourOrder` it is the manual order, which a manager drags to change.
  */
 function TaskList({
   tasks,
   yourOrder,
+  filter,
   sensors,
   onDragEnd,
   rowParts,
 }: {
   tasks: ProjectTask[]
   yourOrder: boolean
+  filter: TaskFilter | null
   sensors: ReturnType<typeof useSensors>
   onDragEnd: (event: DragEndEvent) => void
   rowParts: (task: ProjectTask) => TaskRowParts
@@ -326,6 +334,18 @@ function TaskList({
     )
   }
   const { open, done } = tasksByStatus(tasks)
+  if (filter) {
+    const shown = [...open, ...done].filter((t) => matchesTaskFilter(t, filter))
+    return shown.length === 0 ? (
+      <p className="text-text-light">No {filter} tasks.</p>
+    ) : (
+      <ul className={list}>
+        {shown.map((task) => (
+          <TaskRow key={task.id} {...rowParts(task)} />
+        ))}
+      </ul>
+    )
+  }
   return (
     <>
       <ul className={list}>
@@ -725,8 +745,10 @@ function TaskTimeline({
   )
 }
 
-type ProjectTab = 'overview' | 'tasks' | 'timeline' | 'discussion' | 'people'
-const HASH_TABS: ProjectTab[] = ['tasks', 'timeline', 'discussion', 'people']
+type ProjectTab = 'overview' | 'tasks' | 'timeline' | 'people'
+const HASH_TABS: ProjectTab[] = ['tasks', 'timeline', 'people']
+/** The Discussion sits on the Overview; `#discussion` opens it there and scrolls down to it. */
+const DISCUSSION = 'discussion'
 /**
  * This many tasks past plan at once is a plan nobody laid out ("Add all to timeline" and
  * never dragged), not this many people running late, so the list says so above the badges.
@@ -755,16 +777,27 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [orderedTasks, setOrderedTasks] = useState<ProjectTask[]>([])
   const [yourOrder, setYourOrder] = useState(false)
   const [tab, setTab] = useState<ProjectTab>('overview')
+  const [taskFilter, setTaskFilter] = useState<TaskFilter | null>(null)
+  // Set by a `#discussion` link that arrives before the Discussion is on the page.
+  const scrollToDiscussion = useRef(false)
 
   /**
-   * The open tab lives in the URL hash, so `#timeline` or `#discussion` is a shareable link
+   * The open tab lives in the URL hash, so `#timeline` or `#tasks=overdue` is a shareable link
    * straight to it and the browser's Back button steps between tabs. The hash is read after
    * mount rather than in the initial state, because the server render cannot see it.
    */
   useEffect(() => {
     const readHash = () => {
-      const hash = window.location.hash.slice(1)
-      setTab(HASH_TABS.find((t) => t === hash) ?? 'overview')
+      const [name, filter] = window.location.hash.slice(1).split('=')
+      if (name === DISCUSSION) {
+        const el = document.getElementById(DISCUSSION)
+        if (el) el.scrollIntoView({ block: 'start' })
+        else scrollToDiscussion.current = true
+      }
+      setTab(HASH_TABS.find((t) => t === name) ?? 'overview')
+      const picked = name === 'tasks' ? (TASK_FILTERS.find((f) => f === filter) ?? null) : null
+      setTaskFilter(picked)
+      if (picked) setYourOrder(false)
     }
     readHash()
     window.addEventListener('popstate', readHash)
@@ -778,11 +811,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   function selectTab(next: ProjectTab) {
     if (next === tab) return
     setTab(next)
+    setTaskFilter(null)
     // pushState rather than assigning location.hash: it adds the history entry without the
     // browser trying to scroll to an element of that name.
     const url =
       next === 'overview' ? `${window.location.pathname}${window.location.search}` : `#${next}`
     window.history.pushState(null, '', url)
+  }
+
+  /** A filter only narrows the grouped list, so picking one leaves Your order. */
+  function selectTaskFilter(next: TaskFilter | null) {
+    setTaskFilter(next)
+    if (next) setYourOrder(false)
+    window.history.replaceState(null, '', taskFilterHash(next))
   }
   const [taskAssignSelections, setTaskAssignSelections] = useState<Record<number, string>>({})
   const [showBaselineDialog, setShowBaselineDialog] = useState(false)
@@ -915,6 +956,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       router.replace('/projects')
     }
   }, [loadingProject, project, user, router])
+
+  useEffect(() => {
+    if (!scrollToDiscussion.current) return
+    const el = document.getElementById(DISCUSSION)
+    if (!el) return
+    scrollToDiscussion.current = false
+    el.scrollIntoView({ block: 'start' })
+  }, [tab, project])
 
   // A draft has no read-only view of its own — everything happens on its edit page.
   useEffect(() => {
@@ -1995,7 +2044,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 { key: 'overview', label: 'Overview' },
                 { key: 'tasks', label: `Tasks (${orderedTasks.length})` },
                 { key: 'timeline', label: 'Timeline' },
-                { key: 'discussion', label: 'Discussion' },
                 { key: 'people', label: `People (${peopleCount})` },
               ]}
               activeTab={tab}
@@ -2099,6 +2147,21 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   {project.outcomeNotes && <p className="mt-1 text-sm">{project.outcomeNotes}</p>}
                 </div>
               )}
+
+              <TaskStatusBar
+                counts={project.taskCounts}
+                keyDate={locked ? null : project.keyDate}
+                deadline={locked ? null : project.deadline}
+              />
+
+              <div className={`${card} scroll-mt-20`} id={DISCUSSION}>
+                <h2>Discussion</h2>
+                <CommentThread
+                  workItemId={project.id}
+                  emptyText="No messages yet."
+                  placeholder="Share an update or ask a question. Type @ to mention someone."
+                />
+              </div>
             </>
           )}
 
@@ -2119,7 +2182,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                           ? 'Show the list grouped by status'
                           : 'Show the list in your order, to drag tasks into place'
                       }
-                      onClick={() => setYourOrder((v) => !v)}
+                      onClick={() => {
+                        if (!yourOrder) selectTaskFilter(null)
+                        setYourOrder(!yourOrder)
+                      }}
                     >
                       Your order
                     </Button>
@@ -2244,6 +2310,22 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               )}
 
+              {tab === 'tasks' && !yourOrder && orderedTasks.length > 0 && (
+                <div role="group" aria-label="Filter tasks" className="flex flex-wrap gap-1 mb-3">
+                  {[null, ...TASK_FILTERS].map((f) => (
+                    <Button
+                      key={f ?? 'all'}
+                      variant="ghost"
+                      size="sm"
+                      active={taskFilter === f}
+                      aria-pressed={taskFilter === f}
+                      onClick={() => selectTaskFilter(f)}
+                    >
+                      {f ? f[0].toUpperCase() + f.slice(1) : 'All'}
+                    </Button>
+                  ))}
+                </div>
+              )}
               {tab === 'tasks' && canManageTasks && pastPlanCount >= STALE_PLAN_FROM && (
                 <p className="text-text-light mb-3 text-sm">
                   {pastPlanCount} tasks are past plan. If their bars were never placed, set real
@@ -2272,6 +2354,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   <TaskList
                     tasks={orderedTasks}
                     yourOrder={yourOrder && canManageTasks}
+                    filter={taskFilter}
                     sensors={taskDragSensors}
                     onDragEnd={handleTaskDragEnd}
                     rowParts={(task) => {
@@ -2514,17 +2597,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     }}
                   />
                 ))}
-            </div>
-          )}
-
-          {tab === 'discussion' && (
-            <div className={card} id="discussion">
-              <h2>Discussion</h2>
-              <CommentThread
-                workItemId={project.id}
-                emptyText="No messages yet."
-                placeholder="Share an update or ask a question. Type @ to mention someone."
-              />
             </div>
           )}
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { tasksByStatus } from './task-list-order'
+import { matchesTaskFilter, taskCounts, tasksByStatus } from './task-list-order'
 import type { TaskDisplayStatus } from './task-status'
 
 const task = (
@@ -40,5 +40,43 @@ describe('tasksByStatus', () => {
       task('sooner too', 'ready', { deadline: '2030-01-01' }),
     ])
     expect(names(open)).toEqual(['sooner', 'sooner too', 'later', 'no date A', 'no date B'])
+  })
+})
+
+describe('matchesTaskFilter / taskCounts', () => {
+  const now = new Date('2030-01-10T12:00:00Z')
+  const counted = (
+    status: string,
+    displayStatus: TaskDisplayStatus,
+    rest: { assignedToId?: number | null; deadline?: string | null } = {},
+  ) => ({ ...task(status, displayStatus, rest), status })
+  const tasks = [
+    counted('completed', 'completed', { deadline: '2030-01-01' }),
+    counted('under_review', 'under_review', { assignedToId: 1, deadline: '2030-01-01' }),
+    counted('in_progress', 'in_progress', { assignedToId: 1, deadline: '2030-01-09' }),
+    counted('not_started', 'blocked', { deadline: '2030-01-10' }),
+    counted('not_started', 'ready'),
+    counted('not_started', 'ready', { assignedToId: 2 }),
+  ]
+
+  it('counts each filter, with overdue from the day after the deadline and handed-in work off the clock', () => {
+    expect(taskCounts(tasks, now)).toEqual({
+      total: 6,
+      done: 1,
+      overdue: 1,
+      blocked: 1,
+      unclaimed: 2,
+    })
+    expect(tasks.filter((t) => matchesTaskFilter(t, 'overdue', now))).toEqual([tasks[2]])
+    expect(tasks.filter((t) => matchesTaskFilter(t, 'unclaimed', now))).toEqual([
+      tasks[3],
+      tasks[4],
+    ])
+  })
+
+  it('reads today by default', () => {
+    expect(taskCounts([counted('not_started', 'ready', { deadline: '2000-01-01' })]).overdue).toBe(
+      1,
+    )
   })
 })

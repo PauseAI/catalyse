@@ -34,6 +34,7 @@ import {
   projectEditable,
 } from '@/lib/work-item-lock'
 import { taskDisplayStatus, taskStatusViews } from '@/lib/task-status'
+import { taskCounts } from '@/lib/task-list-order'
 import { loadWorkItemSummaries, toWorkItemSummary } from '@/lib/work-item-summary'
 import { notifyUser, notifyAdmins, notifyTeamOfProject, clearNotifications } from '@/lib/notify'
 import { keyDateSides } from '@/lib/key-date'
@@ -880,6 +881,17 @@ export const projectsRouter = {
         commentCount: t._count.comments,
         featuredAsQuickTask: t.featuredAsQuickTask ?? false,
       }))
+      // The Overview counts down to the soonest key date still to come, as the timeline places it.
+      const keyDate =
+        sortedTasks
+          .flatMap((t, i) =>
+            t.isAnchor &&
+            t.status !== TaskStatus.completed &&
+            taskIsDated(t, hasPredecessor.has(t.id))
+              ? [schedule.scheduled[i].start]
+              : [],
+          )
+          .sort((a, b) => a.getTime() - b.getTime())[0] ?? null
 
       let interests:
         | Array<{
@@ -1025,6 +1037,8 @@ export const projectsRouter = {
       return {
         ...base,
         tasks: mappedTasks,
+        taskCounts: taskCounts(mappedTasks),
+        keyDate,
         interests,
         helpers,
         myInterest,

@@ -137,7 +137,7 @@ test.describe('Project Lifecycle', () => {
     await expect(adminPage.getByRole('heading', { name: 'Review Project' })).toBeVisible({
       timeout: 10_000,
     })
-    await adminPage.getByRole('tab', { name: 'Discussion' }).click()
+    // The Discussion is on the Overview, under the review form.
     await adminPage.getByLabel('Add a comment').fill(followUp)
     await adminPage.getByRole('button', { name: 'Post Comment' }).click()
     await expect(getAlert(adminPage)).toContainText('Comment added', { timeout: 10_000 })

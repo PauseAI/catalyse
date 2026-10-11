@@ -1,9 +1,52 @@
+import { handedIn, isOverdue } from './overdue'
 import type { TaskDisplayStatus } from './task-status'
 
 type ListedTask = {
   displayStatus: TaskDisplayStatus
   assignedToId: number | null
   deadline: Date | null
+}
+
+export type TaskFilter = 'done' | 'overdue' | 'blocked' | 'unclaimed'
+export const TASK_FILTERS: TaskFilter[] = ['done', 'overdue', 'blocked', 'unclaimed']
+
+/**
+ * Whether a task shows under one of the Tasks tab's filters. The Overview's status bar counts
+ * with this too, so each count matches the list its link opens. Unclaimed is open work with
+ * nobody on it, blocked or not.
+ */
+export function matchesTaskFilter(
+  task: ListedTask & { status: string },
+  filter: TaskFilter,
+  now: Date = new Date(),
+): boolean {
+  switch (filter) {
+    case 'done':
+      return task.displayStatus === 'completed'
+    case 'overdue':
+      return isOverdue(task.deadline, handedIn(task.status), now)
+    case 'blocked':
+      return task.displayStatus === 'blocked'
+    case 'unclaimed':
+      return task.assignedToId === null && !handedIn(task.status)
+  }
+}
+
+export type TaskCounts = { total: number } & Record<TaskFilter, number>
+
+export function taskCounts(
+  tasks: (ListedTask & { status: string })[],
+  now: Date = new Date(),
+): TaskCounts {
+  const count = (filter: TaskFilter) =>
+    tasks.filter((t) => matchesTaskFilter(t, filter, now)).length
+  return {
+    total: tasks.length,
+    done: count('done'),
+    overdue: count('overdue'),
+    blocked: count('blocked'),
+    unclaimed: count('unclaimed'),
+  }
 }
 
 /** Ready and unclaimed first, as that is what someone can pick up now; finished work last. */

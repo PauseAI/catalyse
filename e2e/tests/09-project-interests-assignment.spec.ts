@@ -306,6 +306,12 @@ test.describe('Project Interests and Assignment', () => {
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
     await expect(volunteer.page.getByText(commentText)).toBeVisible({ timeout: 10_000 })
+    // The Discussion is on the Overview, and the link scrolls to it.
+    await expect(volunteer.page.getByRole('tab', { name: 'Overview' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    await expect(volunteer.page.locator('#discussion')).toBeInViewport()
     await expect(volunteer.page.getByLabel('Add a comment')).not.toBeVisible({ timeout: 5_000 })
     await expect(volunteer.page.getByRole('button', { name: 'Post Comment' })).not.toBeVisible({
       timeout: 5_000,
@@ -336,7 +342,10 @@ test.describe('Project Interests and Assignment', () => {
 
     // The accepted helper can now post a comment
     const commentText = `helper comment ${Date.now()}`
+    // The page is already at this address, where the Discussion loaded before the accept, so
+    // reload it.
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#discussion`)
+    await volunteer.page.reload()
     await expect(volunteer.page.getByLabel('Add a comment')).toBeVisible({ timeout: 10_000 })
     await volunteer.page.getByLabel('Add a comment').fill(commentText)
     await volunteer.page.getByRole('button', { name: 'Post Comment' }).click()

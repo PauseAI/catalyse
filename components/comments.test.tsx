@@ -392,6 +392,31 @@ describe('CommentThread / BugReportCommentThread', () => {
     expect(await prisma.workItemComment.count({ where: { workItemId: task.id } })).toBe(1)
   })
 
+  it('lists the newest comment first, right under the comment box, with replies oldest first', async () => {
+    const owner = await createVolunteer()
+    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    const at = (day: number) => new Date(`2026-01-0${day}T10:00:00Z`)
+    const comment = (content: string, day: number, parentId?: number) =>
+      prisma.workItemComment.create({
+        data: { workItemId: project.id, authorId: owner.id, content, createdAt: at(day), parentId },
+      })
+    const older = await comment('Older', 1)
+    await comment('Newer', 2)
+    await comment('Late reply', 4, older.id)
+    await comment('Early reply', 3, older.id)
+    await renderApp(<CommentThread workItemId={project.id} />, { as: owner })
+    await screen.findByText('Older')
+    const texts = () => [...document.querySelectorAll('li > p')].map((p) => p.textContent)
+    expect(texts()).toEqual(['Newer', 'Older', 'Early reply', 'Late reply'])
+    const box = screen.getByLabelText('Add a comment')
+    const list = screen.getByText('Newer').closest('ul')!
+    expect(box.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    await userEvent.type(box, 'Newest')
+    await userEvent.click(screen.getByRole('button', { name: 'Post Comment' }))
+    await waitFor(() => expect(texts()[0]).toBe('Newest'))
+  })
+
   it('replies, edits and deletes work-item comments through the API', async () => {
     const owner = await createVolunteer()
     const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })

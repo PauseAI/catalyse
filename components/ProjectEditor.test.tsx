@@ -194,7 +194,9 @@ describe('ProjectEditor — new volunteer proposal', () => {
     await waitFor(() => expect(localStorage.getItem('authToken')).toBeTruthy())
     await userEvent.type(screen.getByLabelText('Project Title'), 'One too many')
     await userEvent.type(screen.getByLabelText('Task title'), 'Orphan')
-    await userEvent.click(screen.getByRole('button', { name: 'Add Task' }))
+    // On a slow run the autosave's own draft create is in flight here, and the button reads
+    // "Adding…" until it fails.
+    await userEvent.click(await screen.findByRole('button', { name: 'Add Task' }))
     expect(await screen.findByText(/already have 2 drafts/)).toBeInTheDocument()
     expect(await prisma.workItem.count({ where: { title: 'Orphan' } })).toBe(0)
   })
