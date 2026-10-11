@@ -946,7 +946,11 @@ describe('project page — admin', () => {
     )
     await waitFor(async () => expect((await row(pending.id)).assigneeId).toBeNull())
 
-    // Outcome on a completed project (admin-only status pick first).
+    // Outcome on a completed project (admin-only status pick first). The status control stays
+    // disabled until the removal's response lands, after the row is written.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'project status' })).toBeEnabled(),
+    )
     await userEvent.click(screen.getByRole('button', { name: 'project status' }))
     await userEvent.click(screen.getByRole('option', { name: 'Completed' }))
     await userEvent.click(await screen.findByRole('button', { name: 'Confirm' }))
@@ -1081,13 +1085,18 @@ describe('project page — timeline tab', () => {
     await waitFor(async () =>
       expect((await row(b.id)).deadline).toEqual(new Date('2027-06-30T00:00:00Z')),
     )
+    // The panel's controls stay disabled until the save's response lands, after the row is written.
+    const settled = (name: RegExp) =>
+      waitFor(() => expect(within(panel()).getByRole('checkbox', { name })).toBeEnabled())
     // Timing and effort are not schedule, so they go by the task update rather than the drag path.
+    await settled(/exact dates/)
     await userEvent.click(within(panel()).getByRole('checkbox', { name: /exact dates/ }))
     await userEvent.type(within(panel()).getByLabelText('Effort: about'), '3')
     fireEvent.submit(datesForm)
     await waitFor(async () =>
       expect(await row(b.id)).toMatchObject({ timing: 'fixed', estimatedHours: 3 }),
     )
+    await settled(/Key date/)
     await userEvent.click(within(panel()).getByRole('checkbox', { name: /Key date/ }))
     await waitFor(async () => expect((await row(b.id)).isAnchor).toBe(true))
     await screen.findByText('This is now the key date.')
@@ -1220,6 +1229,18 @@ describe('project page — timeline tab', () => {
     expect(screen.queryByRole('button', { name: 'Add all to timeline' })).toBeNull()
     expect(screen.getByText(/These tasks have no dates/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /baseline/i })).toBeNull()
+  })
+
+  it('widens the page for the Timeline tab only', async () => {
+    const { owner, project } = await setupTimeline()
+    await mount(project.id, owner, '#timeline')
+    await screen.findByRole('button', { name: /^Alpha:/ })
+    expect(screen.getByRole('main')).toHaveClass('container-wide')
+    expect(screen.getByRole('main')).not.toHaveClass('container')
+
+    await openTab(/^Overview/)
+    expect(screen.getByRole('main')).toHaveClass('container')
+    expect(screen.getByRole('main')).not.toHaveClass('container-wide')
   })
 })
 

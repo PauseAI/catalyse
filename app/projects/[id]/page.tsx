@@ -1615,9 +1615,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  const wide = tab === 'timeline'
+
   return (
     <>
-      <main className="container py-5 pb-15">
+      <main className={`${wide ? 'container-wide' : 'container'} py-5 pb-15`}>
         {/* [test hook] projectContent id used by action helpers to confirm page has loaded */}
         <h1 id="projectContent" role="heading" aria-level={1}>
           {project.title}
@@ -1639,23 +1641,25 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           onChange={(k) => selectTab(k as ProjectTab)}
         />
 
-        {/* One page width for every tab: the timeline scrolls inside its own card. */}
+        {/* The timeline takes the full width; the sidebar moves below it at a reading measure. */}
         <div className="grid grid-cols-1 gap-4 items-start lg:grid-cols-3">
           {/* Main column */}
-          <div className="min-w-0 lg:col-span-2">
-            <ChangesRequestedBanner
-              projectId={project.id}
-              requests={project.reviewRequests}
-              canResubmit={isOwner || project.proposedById === user.id}
-              editHref={`/projects/${idParam}/edit`}
-            />
-            {project.myInterest?.status === InterestStatus.invited && (
-              <ProjectInviteBanner
+          <div className={`min-w-0 ${wide ? 'lg:col-span-3' : 'lg:col-span-2'}`}>
+            <div className={wide ? 'max-w-3xl' : undefined}>
+              <ChangesRequestedBanner
                 projectId={project.id}
-                invitedByName={project.myInterest.invitedByName}
-                note={project.myInterest.message}
+                requests={project.reviewRequests}
+                canResubmit={isOwner || project.proposedById === user.id}
+                editHref={`/projects/${idParam}/edit`}
               />
-            )}
+              {project.myInterest?.status === InterestStatus.invited && (
+                <ProjectInviteBanner
+                  projectId={project.id}
+                  invitedByName={project.myInterest.invitedByName}
+                  note={project.myInterest.message}
+                />
+              )}
+            </div>
 
             {tab === 'overview' && (
               <>
@@ -1746,7 +1750,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </div>
 
                 {showTaskForm && canCreateTasks && (
-                  <div className="bg-brand-bg rounded-lg p-3 mb-4 border border-brand-border">
+                  <div
+                    className={`bg-brand-bg rounded-lg p-3 mb-4 border border-brand-border ${wide ? 'max-w-3xl' : ''}`}
+                  >
                     <form onSubmit={handleAddTask}>
                       <div className="mb-3">
                         <label htmlFor="new-task-title">Task title</label>
@@ -2130,7 +2136,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </div>
 
           {/* Sidebar */}
-          <div className="lg:col-span-1 min-w-0 flex flex-col gap-4">
+          <div
+            className={`min-w-0 flex flex-col gap-4 ${wide ? 'lg:col-span-3 max-w-3xl' : 'lg:col-span-1'}`}
+          >
             {/* Status */}
             <div className={card}>
               <h2 className="mb-3">Status</h2>

@@ -101,7 +101,7 @@ export default function AdminLandingPage() {
   ]
 
   return (
-    <main className="container py-5 pb-15">
+    <main className="container-wide py-5 pb-15">
       <h1>{user.isSuperAdmin ? 'Super Admin' : 'Admin'}</h1>
 
       {!loadingStats && stats && (
@@ -212,7 +212,7 @@ export default function AdminLandingPage() {
                   <strong className={!n.readAt ? 'text-brand-text' : 'text-text-light'}>
                     {n.title}
                   </strong>
-                  <p className="text-sm mt-1 mb-0 text-text-light">{n.body}</p>
+                  <p className="text-sm mt-1 mb-0 text-text-light max-w-3xl">{n.body}</p>
                   <div className="flex items-center gap-4 mt-2">
                     {n.link && (
                       <Link href={n.link} className="text-sm underline">

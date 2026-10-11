@@ -122,8 +122,8 @@
   max-width: 1280px;
 }
 
-/* For pages whose whole point is a wide canvas — the roadmap timeline — where the reading
-   measure that justifies `container` does not apply. */
+/* For visual views — timelines, dashboards — where the reading measure that justifies
+   `container` does not apply. Text blocks inside one keep it with `max-w-3xl`. */
 @utility container-wide {
   margin-inline: auto;
   padding-inline: 1.5rem;

@@ -81,7 +81,7 @@ export default function RoadmapPage() {
         <Button href="/suggest">Propose a project</Button>
       </div>
       <ViewSwitch label="Project views" views={PROJECT_VIEWS} current="/projects/gantt" />
-      <p className="text-text-light mb-4">
+      <p className="text-text-light mb-4 max-w-3xl">
         Each bar is a project, placed by its planned dates; the number after a name is how many
         tasks it has. Click a bar for details.
       </p>
@@ -103,7 +103,7 @@ export default function RoadmapPage() {
       {isPending ? (
         <p className="text-text-light">Loading timeline…</p>
       ) : rows.length === 0 ? (
-        <p className="text-text-light">
+        <p className="text-text-light max-w-3xl">
           No projects with a schedule match these filters. Give a project a start date or dated
           tasks to see it here.
         </p>
@@ -133,7 +133,7 @@ export default function RoadmapPage() {
         />
       )}
 
-      <p className="text-text-light mt-2 text-xs">
+      <p className="text-text-light mt-2 text-xs max-w-3xl">
         Each bar spans a project&apos;s tasks (or its set duration).
         {user.isAdmin && (
           <>
