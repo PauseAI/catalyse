@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRequireAuth } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
@@ -67,21 +67,22 @@ export default function InboxPage() {
     onSuccess: refresh,
   })
 
-  // Updates are informational: seeing them is reading them. They stay bold for this visit;
-  // only the counts refresh. Wait for this filter's own list, so the write cannot race the
-  // read that is still fetching it.
+  // Updates are informational: seeing them is reading them, once per visit, so one marked
+  // unread afterwards stays unread. They stay bold for this visit; only the counts refresh.
+  // Wait for this filter's own list, so the write cannot race the read that is still fetching it.
   const { mutate: readUpdates } = useMutation({
     ...orpc.notifications.readAll.mutationOptions(),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: orpc.notifications.counts.key() })
     },
   })
+  const updatesRead = useRef(false)
   const showsUpdates = filter === 'all' || filter === 'update'
-  const unreadUpdates = counts?.update ?? 0
   useEffect(() => {
-    if (!data || isPlaceholderData || !showsUpdates || unreadUpdates === 0) return
+    if (updatesRead.current || !data || isPlaceholderData || !showsUpdates) return
+    updatesRead.current = true
     readUpdates({ category: 'update' })
-  }, [data, isPlaceholderData, showsUpdates, unreadUpdates, readUpdates])
+  }, [data, isPlaceholderData, showsUpdates, readUpdates])
 
   if (loading || !user) return <PageLoading />
 

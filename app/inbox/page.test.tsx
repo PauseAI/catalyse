@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
+import { orpc } from '@/lib/orpc'
+import { queryClient } from '@/lib/query-client'
 import { connect, createProject, createTeam, createVolunteer } from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { clientAs } from '@/test/rpc'
@@ -275,6 +277,54 @@ describe('inbox', () => {
     await screen.findByRole('button', { name: 'Mark as read' })
     await userEvent.click(screen.getByRole('link', { name: 'Open' }))
     await waitFor(async () => expect((await note(one.id)).readAt).not.toBeNull())
+  })
+
+  it('reads updates once on arrival; each row then marks only itself, and it sticks', async () => {
+    const me = await createVolunteer()
+    const done = await Promise.all(
+      ['A', 'B', 'C'].map((t, i) =>
+        prisma.notification.create({
+          data: {
+            volunteerId: me.id,
+            type: 'task_done',
+            title: `Done: '${t}'`,
+            link: `/projects/1/tasks/${i + 1}`,
+            createdAt: day(i + 1),
+          },
+        }),
+      ),
+    )
+    const [a, b, c] = done
+    await renderApp(<InboxPage />, { as: me, url: '/inbox' })
+    const row = async (title: string) =>
+      within((await screen.findByText(title)).closest('li') as HTMLElement)
+    await screen.findByText("Done: 'A'")
+    await waitFor(async () =>
+      expect(await prisma.notification.count({ where: { volunteerId: me.id, readAt: null } })).toBe(
+        0,
+      ),
+    )
+    // Read on arrival, but still shown as new for this visit.
+    expect(screen.getAllByRole('button', { name: 'Mark as read' })).toHaveLength(3)
+
+    await userEvent.click((await row("Done: 'A'")).getByRole('button', { name: 'Mark as read' }))
+    await (await row("Done: 'A'")).findByRole('button', { name: 'Mark as unread' })
+    for (const t of ["Done: 'B'", "Done: 'C'"]) {
+      expect((await row(t)).getByRole('button', { name: 'Mark as read' })).toBeInTheDocument()
+    }
+
+    await userEvent.click((await row("Done: 'A'")).getByRole('button', { name: 'Mark as unread' }))
+    await (await row("Done: 'A'")).findByRole('button', { name: 'Mark as read' })
+    expect(await screen.findByRole('button', { name: /^Updates\s?1$/ })).toBeInTheDocument()
+
+    // A refetch shows what the server holds: only A unread.
+    await act(() => queryClient.invalidateQueries({ queryKey: orpc.notifications.key() }))
+    await (await row("Done: 'B'")).findByRole('button', { name: 'Mark as unread' })
+    expect((await row("Done: 'C'")).getByRole('button', { name: 'Mark as unread' })).toBeTruthy()
+    expect((await row("Done: 'A'")).getByRole('button', { name: 'Mark as read' })).toBeTruthy()
+    expect((await note(a.id)).readAt).toBeNull()
+    expect((await note(b.id)).readAt).not.toBeNull()
+    expect((await note(c.id)).readAt).not.toBeNull()
   })
 
   it('pages a long inbox', async () => {

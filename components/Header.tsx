@@ -62,8 +62,17 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/inbox', label: 'Inbox', active: (p) => under(p, '/inbox') },
 ]
 
-function WaitingBadge({ count }: { count: number }) {
-  if (count === 0) return null
+/** A number for what is waiting on the viewer; failing that, a dot for unread updates. */
+function WaitingBadge({ count, updates }: { count: number; updates: boolean }) {
+  if (count === 0) {
+    return updates ? (
+      <span
+        role="img"
+        aria-label="New updates"
+        className="inline-block w-2 h-2 rounded-full bg-primary ml-1"
+      />
+    ) : null
+  }
   return (
     <span className="bg-primary text-[#111827] text-xs px-2 py-0.5 rounded-full ml-1">
       <span className="sr-only">, waiting for you: </span>
@@ -92,9 +101,14 @@ export default function Header() {
   const { data: counts } = useQuery({
     ...orpc.notifications.counts.queryOptions(),
     enabled: !!user,
+    // Notifications caused by other people arrive without the viewer doing anything.
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   })
   // What is waiting on the viewer: things to act on and messages to read, not updates.
   const waiting = (counts?.needs_action ?? 0) + (counts?.message ?? 0)
+  const newUpdates = (counts?.update ?? 0) > 0
   const [inboxOpen, setInboxOpen] = useState(false)
   const closeInbox = useCallback(() => setInboxOpen(false), [])
 
@@ -164,7 +178,7 @@ export default function Header() {
                       onClick={() => setInboxOpen((o) => !o)}
                     >
                       {label}
-                      <WaitingBadge count={waiting} />
+                      <WaitingBadge count={waiting} updates={newUpdates} />
                     </Button>
                     {inboxOpen && <InboxPopover onClose={closeInbox} />}
                   </div>
@@ -290,12 +304,15 @@ export default function Header() {
               aria-label="Open menu"
               onClick={() => setMobileMenuOpen(true)}
             >
-              {mounted && !loading && user && (!user.locationConfirmedAt || waiting > 0) && (
-                <span
-                  className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-primary"
-                  aria-hidden="true"
-                />
-              )}
+              {mounted &&
+                !loading &&
+                user &&
+                (!user.locationConfirmedAt || waiting > 0 || newUpdates) && (
+                  <span
+                    className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-primary"
+                    aria-hidden="true"
+                  />
+                )}
               <svg
                 width="22"
                 height="22"
@@ -354,7 +371,7 @@ export default function Header() {
               NAV_ITEMS.map(({ href, label, active }) => (
                 <MobileNavLink key={href} href={href} active={active(pathname)}>
                   {label}
-                  {href === '/inbox' && <WaitingBadge count={waiting} />}
+                  {href === '/inbox' && <WaitingBadge count={waiting} updates={newUpdates} />}
                 </MobileNavLink>
               ))}
 

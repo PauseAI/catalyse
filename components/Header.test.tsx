@@ -110,6 +110,8 @@ describe('Header', () => {
         'Inbox, waiting for you: 2',
       ),
     )
+    // The number stands in for the updates' dot.
+    expect(screen.queryByRole('img', { name: 'New updates' })).toBeNull()
     // On mobile the menu button carries a dot while something is waiting.
     expect(screen.getByLabelText('Open menu').querySelector('span')).not.toBeNull()
 
@@ -121,6 +123,28 @@ describe('Header', () => {
         'Inbox, waiting for you: 1',
       ),
     )
+  })
+
+  it('picks up notifications others cause, every minute and when the window regains focus', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const vol = await createVolunteer({ locationConfirmedAt: new Date() })
+      await mount(vol, '/projects')
+      const inbox = await screen.findByRole('button', { name: 'Inbox' })
+      await prisma.notification.create({
+        data: { volunteerId: vol.id, type: 'task_done', title: "Done: 'Leaflets'" },
+      })
+      await act(() => vi.advanceTimersByTimeAsync(60_000))
+      expect(await within(inbox).findByRole('img', { name: 'New updates' })).toBeInTheDocument()
+
+      await prisma.notification.create({
+        data: { volunteerId: vol.id, type: 'mention', title: 'Sam mentioned you' },
+      })
+      act(() => window.dispatchEvent(new Event('visibilitychange')))
+      await waitFor(() => expect(inbox).toHaveTextContent('Inbox, waiting for you: 1'))
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('shows five items; the Inbox badge counts only what is waiting', async () => {
@@ -139,11 +163,15 @@ describe('Header', () => {
         'Inbox',
       ]),
     )
-    // An update is unread but needs nothing, so no badge.
-    expect(within(nav).getByRole('button', { name: 'Inbox' })).toHaveTextContent(/^Inbox$/)
+    // An update is unread but needs nothing, so a dot and no number.
+    const inbox = within(nav).getByRole('button', { name: /^Inbox/ })
+    expect(await within(inbox).findByRole('img', { name: 'New updates' })).toBeInTheDocument()
+    expect(inbox).toHaveTextContent(/^Inbox$/)
     // On mobile the Inbox is a plain link.
     await userEvent.click(screen.getByLabelText('Open menu'))
-    expect(screen.getByRole('link', { name: 'Inbox' })).toHaveAttribute('href', '/inbox')
+    const link = screen.getByRole('link', { name: /^Inbox/ })
+    expect(link).toHaveAttribute('href', '/inbox')
+    expect(within(link).getByRole('img', { name: 'New updates' })).toBeInTheDocument()
   })
 
   it('opens recent notifications from the Inbox item, and closes them again', async () => {

@@ -21,6 +21,40 @@ export function useRefreshInbox() {
   }
 }
 
+type ListPage = { notifications: InboxNotification[]; total: number }
+
+/**
+ * Marks one notification read or unread. Only that row changes in the lists on screen; a full
+ * refetch would also drop the unread look the Inbox keeps on updates it read on arrival.
+ */
+function useSetRead(id: number) {
+  const queryClient = useQueryClient()
+  const settle = (readAt: Date | null) => {
+    queryClient.setQueriesData<ListPage>({ queryKey: orpc.notifications.list.key() }, (page) =>
+      page
+        ? {
+            ...page,
+            notifications: page.notifications.map((n) => (n.id === id ? { ...n, readAt } : n)),
+          }
+        : page,
+    )
+    void queryClient.invalidateQueries({ queryKey: orpc.notifications.counts.key() })
+    void queryClient.invalidateQueries({ queryKey: orpc.dashboard.get.key() })
+  }
+  const read = useMutation({
+    ...orpc.notifications.markRead.mutationOptions(),
+    onSuccess: () => settle(new Date()),
+  })
+  const unread = useMutation({
+    ...orpc.notifications.markUnread.mutationOptions(),
+    onSuccess: () => settle(null),
+  })
+  return {
+    read: () => read.mutate({ id }),
+    unread: () => unread.mutate({ id }),
+  }
+}
+
 /**
  * One notification: its text, a link that marks it read, read/unread, and, when the thing it
  * is about is still waiting on the viewer, Accept and Decline in place.
@@ -45,14 +79,7 @@ export default function InboxRow({
     onError: (err: unknown) =>
       showToast(err instanceof Error ? err.message : 'Something went wrong', 'error'),
   })
-  const markRead = useMutation({
-    ...orpc.notifications.markRead.mutationOptions(),
-    onSuccess: refresh,
-  })
-  const markUnread = useMutation({
-    ...orpc.notifications.markUnread.mutationOptions(),
-    onSuccess: refresh,
-  })
+  const mark = useSetRead(n.id)
   const respond = useMutation({
     ...orpc.projects.respondToInterest.mutationOptions(),
     ...handlers('Answer sent'),
@@ -118,7 +145,7 @@ export default function InboxRow({
             href={n.link}
             className="text-sm underline"
             onClick={() => {
-              if (unread) markRead.mutate({ id: n.id })
+              if (unread) mark.read()
             }}
           >
             Open
@@ -128,9 +155,7 @@ export default function InboxRow({
           <button
             type="button"
             className="text-sm underline text-text-light cursor-pointer bg-transparent border-0 p-0"
-            onClick={() =>
-              unread ? markRead.mutate({ id: n.id }) : markUnread.mutate({ id: n.id })
-            }
+            onClick={unread ? mark.read : mark.unread}
           >
             {unread ? 'Mark as read' : 'Mark as unread'}
           </button>

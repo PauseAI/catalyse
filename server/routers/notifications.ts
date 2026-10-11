@@ -170,7 +170,7 @@ export const notificationsRouter = {
       }
     }),
 
-  /** Unread counts per category; the nav badge shows only what needs action. */
+  /** Unread counts per category; the nav badge numbers needs-action and messages, dots updates. */
   counts: authedProcedure.handler(async ({ context }) => {
     const [needs_action, update, message] = await Promise.all(
       NOTIFICATION_CATEGORIES.map((c) =>
