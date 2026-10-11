@@ -17,6 +17,7 @@ import SubmittedWork from '@/components/SubmittedWork'
 import RequestChangesButton from '@/components/RequestChangesButton'
 import QuickTaskReviewDialog from '@/components/QuickTaskReviewDialog'
 import { QUICK_TASK_CLAIMED_MESSAGE } from '@/lib/action-messages'
+import { CLAIM_TASK, CLAIMING } from '@/lib/action-labels'
 import { QuickTaskStatus } from '@/generated/prisma/enums'
 import { handedIn } from '@/lib/overdue'
 import PageLoading from '@/components/PageLoading'
@@ -147,7 +148,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
             onClick={() => claimMutation.mutate({ id: task.id })}
             disabled={claimMutation.isPending}
           >
-            {claimMutation.isPending ? 'Claiming…' : 'Claim'}
+            {claimMutation.isPending ? CLAIMING : CLAIM_TASK}
           </Button>
         )}
 

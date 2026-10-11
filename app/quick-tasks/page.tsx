@@ -21,6 +21,7 @@ import {
   QUICK_TASK_CLAIMED_MESSAGE,
   TASK_REQUESTED_MESSAGE,
 } from '@/lib/action-messages'
+import { ASSIGN_PICKED, CLAIM_TASK, CLAIMING, UNASSIGN, claimLabel } from '@/lib/action-labels'
 import {
   QUICK_TASK_STATUS_LABELS,
   QUICK_TASK_STATUS_VARIANTS,
@@ -350,8 +351,8 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                       }
                     >
                       {claimQuickMutation.isPending && claimQuickMutation.variables?.id === task.id
-                        ? 'Claiming…'
-                        : 'Claim'}
+                        ? CLAIMING
+                        : CLAIM_TASK}
                     </Button>
                   </QuickTaskCard>
                 ) : (
@@ -395,8 +396,8 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                     >
                       {claimProjectTaskMutation.isPending &&
                       claimProjectTaskMutation.variables?.taskId === task.id
-                        ? 'Claiming…'
-                        : 'Claim'}
+                        ? CLAIMING
+                        : claimLabel(task.claimViewer)}
                     </Button>
                   </QuickTaskCard>
                 ),
@@ -770,7 +771,7 @@ function AdminQuickTasksView() {
                     disabled={!taskAssignSelections[task.id] || assignTaskMutation.isPending}
                     onClick={() => handleAssignTask(task.id)}
                   >
-                    Assign
+                    {ASSIGN_PICKED}
                   </Button>
                 </div>
               )}
@@ -800,7 +801,7 @@ function AdminQuickTasksView() {
                       disabled={unassignTaskMutation.isPending}
                       onClick={() => handleUnassignTask(task.id)}
                     >
-                      Unassign
+                      {UNASSIGN}
                     </Button>
                   )}
                   {task.status === QuickTaskStatus.under_review && (
@@ -887,7 +888,7 @@ function AdminQuickTasksView() {
                       }
                       onClick={() => handleAssignProjectTask(task)}
                     >
-                      Assign
+                      {ASSIGN_PICKED}
                     </Button>
                   </div>
                 )}
@@ -911,7 +912,7 @@ function AdminQuickTasksView() {
                         disabled={unassignProjectTaskMutation.isPending}
                         onClick={() => handleUnassignProjectTask(task)}
                       >
-                        Unassign
+                        {UNASSIGN}
                       </Button>
                     )}
                   </div>

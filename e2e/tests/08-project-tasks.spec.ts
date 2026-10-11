@@ -285,7 +285,7 @@ test.describe('Project Tasks', () => {
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
 
     // Not on the project yet: claiming asks to join and holds the task meanwhile.
-    await volunteer.page.getByRole('button', { name: 'Join and claim' }).click()
+    await volunteer.page.getByRole('button', { name: 'Ask to take this' }).click()
     await expect(getAlert(volunteer.page)).toContainText('Requested. The task is held for you', {
       timeout: 10_000,
     })
@@ -324,7 +324,7 @@ test.describe('Project Tasks', () => {
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
 
-    await volunteer.page.getByRole('button', { name: 'Claim' }).click()
+    await volunteer.page.getByRole('button', { name: 'Claim task' }).click()
     await expect(getAlert(volunteer.page)).toContainText('Task claimed. Post an update', {
       timeout: 10_000,
     })

@@ -123,14 +123,16 @@ describe('quick tasks — volunteer view', () => {
       within(screen.getByText('Browse Quick Tasks').closest('section')!)
         .getByText(title)
         .closest('[role=article]') as HTMLElement
-    await userEvent.click(within(cardFor('Open quick')).getByRole('button', { name: 'Claim' }))
+    await userEvent.click(within(cardFor('Open quick')).getByRole('button', { name: 'Claim task' }))
     await screen.findByText(/Task claimed\. Submit it for review/)
     await waitFor(async () => expect((await row(open.id)).assigneeId).toBe(me.id))
     // A claim shows the task in my list.
     expect(screen.getByRole('tab', { name: /^Mine/ })).toHaveAttribute('aria-selected', 'true')
     await screen.findByRole('heading', { name: 'My Quick Tasks' })
     await userEvent.click(openTab())
-    await userEvent.click(within(cardFor('Featured task')).getByRole('button', { name: 'Claim' }))
+    await userEvent.click(
+      within(cardFor('Featured task')).getByRole('button', { name: 'Ask to take this' }),
+    )
     await waitFor(() =>
       expect(navigation.push).toHaveBeenCalledWith(`/projects/${project.id}/tasks/${featured.id}`),
     )
@@ -167,10 +169,10 @@ describe('quick tasks — volunteer view', () => {
     const browse = screen.getByText('Browse Quick Tasks').closest('section')!
     const cardFor = (title: string) =>
       within(browse).getByText(title).closest('[role=article]') as HTMLElement
-    await userEvent.click(within(cardFor('Taken')).getByRole('button', { name: 'Claim' }))
+    await userEvent.click(within(cardFor('Taken')).getByRole('button', { name: 'Claim task' }))
     await screen.findByText('This task has already been claimed')
     await prisma.workItem.delete({ where: { id: featured.id } })
-    await userEvent.click(within(cardFor('Gone')).getByRole('button', { name: 'Claim' }))
+    await userEvent.click(within(cardFor('Gone')).getByRole('button', { name: 'Ask to take this' }))
     await screen.findByText('Project or task not found')
     await prisma.workItem.delete({ where: { id: mine.id } })
     await userEvent.click(screen.getByRole('tab', { name: /^Mine/ }))

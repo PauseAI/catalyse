@@ -24,17 +24,19 @@ test.describe('Quick Tasks: self-serve', () => {
 
     const browseCard = browsePool.getByRole('article').filter({ hasText: taskTitle })
     await expect(browseCard).toBeVisible({ timeout: 10_000 })
-    await browseCard.getByRole('button', { name: 'Claim', exact: true }).click()
+    await browseCard.getByRole('button', { name: 'Claim task', exact: true }).click()
 
     await expect(getAlert(volunteer.page)).toContainText('Task claimed. Submit it for review', {
       timeout: 10_000,
     })
 
     // Moves out of the browse pool into "My Quick Tasks" — same title, now with a status
-    // badge and no Claim button, proving it's no longer the open/unclaimed browse card.
+    // badge and no Claim task button, proving it's no longer the open/unclaimed browse card.
     const claimedCard = myTasks.getByRole('article').filter({ hasText: taskTitle })
     await expect(claimedCard.getByRole('status')).toContainText('In progress', { timeout: 10_000 })
-    await expect(claimedCard.getByRole('button', { name: 'Claim', exact: true })).not.toBeVisible()
+    await expect(
+      claimedCard.getByRole('button', { name: 'Claim task', exact: true }),
+    ).not.toBeVisible()
     await expect(browseCard).toHaveCount(0, { timeout: 10_000 })
   })
 
@@ -53,7 +55,7 @@ test.describe('Quick Tasks: self-serve', () => {
     await expect(volunteer.page.getByRole('heading', { name: taskTitle, level: 1 })).toBeVisible({
       timeout: 10_000,
     })
-    await volunteer.page.getByRole('button', { name: 'Claim', exact: true }).click()
+    await volunteer.page.getByRole('button', { name: 'Claim task', exact: true }).click()
 
     await expect(getAlert(volunteer.page)).toContainText('Task claimed. Submit it for review', {
       timeout: 10_000,
@@ -104,7 +106,7 @@ test.describe('Quick Tasks: self-serve', () => {
 
     // Claiming from Quick Tasks when not on the project asks the owner to accept the
     // volunteer, and holds the task for them meanwhile.
-    await card.getByRole('button', { name: 'Claim', exact: true }).click()
+    await card.getByRole('button', { name: 'Ask to take this', exact: true }).click()
     await expect(getAlert(volunteer.page)).toContainText('Requested. The task is held for you', {
       timeout: 10_000,
     })

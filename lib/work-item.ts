@@ -13,6 +13,7 @@ import {
 } from '@/generated/prisma/enums'
 import { diffInDays } from './schedule'
 import { taskDisplayStatus, type TaskStatusView } from './task-status'
+import type { ClaimViewer } from './action-labels'
 
 // ── Comment access ────────────────────────────────────────────────────────────
 // Reading a work item's comment thread is gated identically to viewing the work
@@ -269,6 +270,52 @@ export async function resolveProjectMembership(
     }),
   ])
   return Boolean(membership || interest)
+}
+
+type ClaimProject = { id: number; teamId: number | null; assigneeId: number | null }
+
+/**
+ * Where `volunteer` stands on each of `projects`, for `claimLabel`: the returned function
+ * answers for any one of them. Mirrors `updateTask`'s self-claim, where the owner, an admin,
+ * a member and an invitee take the task and anyone else asks.
+ */
+export async function resolveClaimViewers(
+  projects: ClaimProject[],
+  volunteer: { id: number; isAdmin?: boolean | null },
+): Promise<(project: ClaimProject) => ClaimViewer> {
+  const teamIds = projects.flatMap((p) => (p.teamId === null ? [] : [p.teamId]))
+  const [memberships, interests] = await Promise.all([
+    prisma.teamMembership.findMany({
+      where: { volunteerId: volunteer.id, teamId: { in: teamIds } },
+      select: { teamId: true },
+    }),
+    prisma.workItemInterest.findMany({
+      where: {
+        volunteerId: volunteer.id,
+        workItemId: { in: projects.map((p) => p.id) },
+        status: { in: [InterestStatus.accepted, InterestStatus.invited] },
+      },
+      select: { workItemId: true, status: true },
+    }),
+  ])
+  const myTeams = new Set(memberships.map((m) => m.teamId))
+  const statusOn = new Map(interests.map((i) => [i.workItemId, i.status]))
+  return (p) => ({
+    onProject:
+      Boolean(volunteer.isAdmin) ||
+      p.assigneeId === volunteer.id ||
+      (p.teamId !== null && myTeams.has(p.teamId)) ||
+      statusOn.get(p.id) === InterestStatus.accepted,
+    invited: statusOn.get(p.id) === InterestStatus.invited,
+  })
+}
+
+/** `resolveClaimViewers` for one project. */
+export async function resolveClaimViewer(
+  project: ClaimProject,
+  volunteer: { id: number; isAdmin?: boolean | null },
+): Promise<ClaimViewer> {
+  return (await resolveClaimViewers([project], volunteer))(project)
 }
 
 /**

@@ -22,6 +22,7 @@ import {
   canCreateProjectTask,
   canDeleteProjectTask,
   resolveProjectMembership,
+  resolveClaimViewer,
   RELEASED_TASK,
   startWorkData,
 } from '@/lib/work-item'
@@ -1010,6 +1011,7 @@ export const projectsRouter = {
         helpers,
         myInterest,
         canClaimTasks,
+        claimViewer: await resolveClaimViewer(project, volunteer),
         canCreateTasks,
         canManageTasks,
         isDeputy,
@@ -1998,6 +2000,7 @@ export const projectsRouter = {
         projectTitle: project.title,
         projectOwnerId: project.assigneeId,
         canClaim,
+        claimViewer: await resolveClaimViewer(project, volunteer),
         canManage,
         assignedToName: task.assignee?.name ?? null,
         assigneeContactable:

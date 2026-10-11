@@ -217,10 +217,10 @@ describe('task detail page', () => {
     // Someone not on the project asks for a task: it is held for them, not given.
     const newcomer = await createVolunteer({ name: 'Nia Newcomer' })
     await mount(project.id, other.id, newcomer)
-    await userEvent.click(await screen.findByRole('button', { name: 'Claim' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Ask to take this' }))
     await screen.findByText(/^Requested\. The task is held for you/)
     await screen.findByText('Held for you until the owner accepts you onto the project.')
-    expect(screen.queryByRole('button', { name: 'Claim' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Ask to take this' })).toBeNull()
     cleanup()
     await mount(project.id, other.id, owner)
     await screen.findByText('Requested by Nia Newcomer, waiting for the owner.')
@@ -258,7 +258,7 @@ describe('task detail page', () => {
     const rule =
       "Post an update within 14 days. With no update we'll remind you at 14 days, warn you at 21, and release the task at 28."
     expect(screen.getByText(rule)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Claim' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Claim task' }))
     await screen.findByText(
       'Task claimed. Post an update within 14 days; after 28 days with none, the task is released.',
     )

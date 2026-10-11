@@ -45,7 +45,7 @@ describe('quick task detail', () => {
       'href',
       '/quick-tasks#browse-quick-tasks',
     )
-    await userEvent.click(screen.getByRole('button', { name: 'Claim' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Claim task' }))
     await screen.findByText(/Task claimed\. Submit it for review/)
     expect(await screen.findByRole('link', { name: '← Back to My Quick Tasks' })).toHaveAttribute(
       'href',
@@ -119,12 +119,12 @@ describe('quick task detail', () => {
     await renderApp(<QuickTaskDetailPage params={Promise.resolve({ id: String(task.id) })} />, {
       as: me,
     })
-    await screen.findByRole('button', { name: 'Claim' })
+    await screen.findByRole('button', { name: 'Claim task' })
     await prisma.workItem.update({
       where: { id: task.id },
       data: { assigneeId: rival.id, status: 'in_progress' },
     })
-    await userEvent.click(screen.getByRole('button', { name: 'Claim' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Claim task' }))
     await screen.findByText('This task has already been claimed')
     cleanup()
     const mine = await createQuickTask({ title: 'Mine', assigneeId: me.id, status: 'in_progress' })

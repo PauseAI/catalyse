@@ -12,6 +12,7 @@ import {
 import {
   CLAIM_BLOCKING_INTEREST_STATUSES,
   CLEARED_SUBMISSION,
+  resolveClaimViewers,
   serializeStarterTask,
   submissionData,
 } from '@/lib/work-item'
@@ -120,10 +121,16 @@ export const quickTasksRouter = {
           featuredAsQuickTask: true,
           parentId: { not: null, notIn: blockedProjectIds },
         },
-        include: { parent: { select: { id: true, title: true } } },
+        include: {
+          parent: { select: { id: true, title: true, teamId: true, assigneeId: true } },
+        },
         orderBy: { createdAt: 'desc' },
       }),
     ])
+    const claimViewerOn = await resolveClaimViewers(
+      projectTasks.flatMap((t) => (t.parent ? [t.parent] : [])),
+      context.volunteer,
+    )
 
     return [
       ...quickTasks.map((t) => ({
@@ -138,19 +145,24 @@ export const quickTasksRouter = {
         deadline: t.deadline,
         createdAt: t.createdAt,
       })),
-      ...projectTasks
-        .filter((t) => t.parentId !== null)
-        .map((t) => ({
-          kind: 'project_task' as const,
-          id: t.id,
-          title: t.title,
-          description: t.description,
-          projectId: t.parentId as number,
-          projectTitle: t.parent?.title ?? null,
-          estimatedHours: t.estimatedHours,
-          deadline: t.deadline,
-          createdAt: t.createdAt,
-        })),
+      ...projectTasks.flatMap((t) =>
+        t.parent
+          ? [
+              {
+                kind: 'project_task' as const,
+                id: t.id,
+                title: t.title,
+                description: t.description,
+                projectId: t.parent.id,
+                projectTitle: t.parent.title,
+                claimViewer: claimViewerOn(t.parent),
+                estimatedHours: t.estimatedHours,
+                deadline: t.deadline,
+                createdAt: t.createdAt,
+              },
+            ]
+          : [],
+      ),
     ].sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
   }),
 

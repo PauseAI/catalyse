@@ -103,8 +103,8 @@ describe('project page — visitor', () => {
     await screen.findByRole('heading', { name: 'Discussion' })
     expect(screen.queryByLabelText('Add a comment')).toBeNull()
     await openTab(/^Tasks/)
-    // A member of the project's team is already on it, so Claim takes the task at once.
-    await userEvent.click(await screen.findByRole('button', { name: 'Claim' }))
+    // A member of the project's team is already on it, so claiming takes the task at once.
+    await userEvent.click(await screen.findByRole('button', { name: 'Claim task' }))
     await screen.findByText(/Task claimed\. Post an update/)
     await waitFor(async () => expect((await row(open.id)).assigneeId).toBe(me.id))
     const taskOrder = () =>
@@ -321,7 +321,7 @@ describe('project page — joining and held tasks', () => {
       within(screen.getByRole('list', { name: 'Helpers' })).getAllByRole('listitem'),
     ).toHaveLength(5)
     expect(screen.getByText('and 1 more')).toBeInTheDocument()
-    await userEvent.click(await screen.findByRole('button', { name: 'Join and claim' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Ask to take this' }))
     await screen.findByText(/^Requested\. The task is held for you/)
     await screen.findByText('Held for you: waiting for the owner')
     await screen.findByText('Request sent: waiting for the owner')
@@ -880,6 +880,24 @@ describe('project page — invites', () => {
     await userEvent.click(within(banner).getByRole('button', { name: 'Accept' }))
     await screen.findByText('No invite found')
   })
+
+  it('an invitee claims a task outright, which accepts the invite', async () => {
+    const me = await createVolunteer()
+    const project = await createProject({ assigneeId: (await createVolunteer()).id })
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: project.id,
+        volunteerId: me.id,
+        interestType: 'want_to_contribute',
+        status: 'invited',
+      },
+    })
+    const task = await createTask(project.id, { title: 'Invited task' })
+    await mount(project.id, me, '#tasks')
+    await userEvent.click(await screen.findByRole('button', { name: 'Claim task' }))
+    await screen.findByText(/Task claimed\. Post an update/)
+    await waitFor(async () => expect((await row(task.id)).assigneeId).toBe(me.id))
+  })
 })
 
 describe('project page — admin', () => {
@@ -1096,7 +1114,7 @@ describe('project page — timeline tab', () => {
         }),
       ).toEqual([{ lagDays: 0 }]),
     )
-    await userEvent.click(within(panel()).getByRole('button', { name: 'Assign to me' }))
+    await userEvent.click(within(panel()).getByRole('button', { name: 'Claim task' }))
     await screen.findByText(/Task claimed\. Post an update/)
     await waitFor(async () => expect((await row(b.id)).assigneeId).toBe(owner.id))
     await userEvent.click(await within(panel()).findByRole('button', { name: 'Unassign' }))
@@ -1283,9 +1301,9 @@ describe('project page — remaining edges', () => {
     const gone = await createTask(project.id, { title: 'Gone task' })
     cleanup()
     await mount(project.id, me, '#tasks')
-    await screen.findByRole('button', { name: 'Join and claim' })
+    await screen.findByRole('button', { name: 'Ask to take this' })
     await prisma.workItem.delete({ where: { id: gone.id } })
-    await userEvent.click(screen.getByRole('button', { name: 'Join and claim' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Ask to take this' }))
     await screen.findByText('Project or task not found')
     await prisma.workItemInterest.create({
       data: { workItemId: project.id, volunteerId: me.id, interestType: 'want_to_contribute' },

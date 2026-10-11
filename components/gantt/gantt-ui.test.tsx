@@ -607,6 +607,7 @@ describe('GanttItemPanel', () => {
       assignment: {
         canAssign: false,
         canClaim: false,
+        claimViewer: { onProject: false, invited: false },
         options: [],
         onAssign: vi.fn(),
         onClaim: vi.fn(),
@@ -638,6 +639,7 @@ describe('GanttItemPanel', () => {
     const assignment = {
       canAssign: true,
       canClaim: true,
+      claimViewer: { onProject: true, invited: false },
       options: [
         { value: '', label: 'Pick', header: true },
         { value: '7', label: 'Zed' },
@@ -711,7 +713,7 @@ describe('GanttItemPanel', () => {
     fireEvent.submit(select.closest('form')!)
     expect(baseProps.onAddDependency).toHaveBeenCalledWith(3)
 
-    await user.click(screen.getByRole('button', { name: 'Assign to me' }))
+    await user.click(screen.getByRole('button', { name: 'Claim task' }))
     expect(assignment.onClaim).toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Assign' })).toBeDisabled()
     await user.selectOptions(screen.getByLabelText('Assign to a volunteer'), '7')
@@ -730,6 +732,17 @@ describe('GanttItemPanel', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Unassign' }))
     expect(assignment.onUnassign).toHaveBeenCalled()
-    expect(screen.queryByRole('button', { name: 'Assign to me' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Claim task' })).toBeNull()
+
+    // Someone not on the project asks for the task instead of taking it.
+    rerender(
+      <GanttItemPanel
+        {...baseProps}
+        row={late}
+        canManage={false}
+        assignment={{ ...assignment, claimViewer: { onProject: false, invited: false } }}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Ask to take this' })).toBeInTheDocument()
   })
 })

@@ -21,6 +21,7 @@ import { useToast } from '@/lib/toast'
 import { TaskStatus } from '@/generated/prisma/enums'
 import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS } from '@/lib/status-labels'
 import { PROJECT_TASK_CLAIMED_MESSAGE, TASK_REQUESTED_MESSAGE } from '@/lib/action-messages'
+import { UNASSIGN, claimLabel } from '@/lib/action-labels'
 import { TASK_INACTIVITY_RULE } from '@/lib/staleness'
 import { awaitsOwnerReview } from '@/lib/task-review'
 import { handedIn } from '@/lib/overdue'
@@ -294,7 +295,7 @@ export default function TaskDetailPage({
                   })
                 }
               >
-                Unassign
+                {UNASSIGN}
               </Button>
             </div>
           </section>
@@ -359,7 +360,7 @@ export default function TaskDetailPage({
                 disabled={updateMutation.isPending}
                 onClick={() => handleClaimTask(user.id)}
               >
-                Claim
+                {claimLabel(task.claimViewer)}
               </Button>
               <p className="text-sm text-text-light mt-2 mb-0">{TASK_INACTIVITY_RULE}</p>
             </div>

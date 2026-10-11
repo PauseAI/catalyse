@@ -33,6 +33,7 @@ import {
   INTEREST_DECLINED_MESSAGE,
   volunteerRemovedMessage,
 } from '@/lib/action-messages'
+import { ASSIGN_PICKED, UNASSIGN, claimLabel, type ClaimViewer } from '@/lib/action-labels'
 import CommentThread from '@/components/CommentThread'
 import ChangesRequestedBanner from '@/components/ChangesRequestedBanner'
 import ProjectInviteBanner from '@/components/ProjectInviteBanner'
@@ -275,6 +276,7 @@ function TaskTimeline({
   loading,
   canAssignTasks,
   canClaimTasks,
+  claimViewer,
   assignOptions,
   onAssignTask,
   onClaimTask,
@@ -286,6 +288,7 @@ function TaskTimeline({
   loading: boolean
   canAssignTasks: boolean
   canClaimTasks: boolean
+  claimViewer: ClaimViewer
   assignOptions: { value: string; label: string; header?: boolean }[]
   onAssignTask: (taskId: number, volunteerId: number) => void
   onClaimTask: (taskId: number) => void
@@ -543,6 +546,7 @@ function TaskTimeline({
                   canAssign: canAssignTasks,
                   // Claiming is only offered while the task is genuinely free.
                   canClaim: canClaimTasks && selectedTask.assignedToId === null,
+                  claimViewer,
                   options: assignOptions,
                   onAssign: (volunteerId) => onAssignTask(selectedRow.id, volunteerId),
                   onClaim: () => onClaimTask(selectedRow.id),
@@ -1812,6 +1816,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                       loading={!timeline}
                       canAssignTasks={canManageTasks}
                       canClaimTasks={canClaimTasks}
+                      claimViewer={project.claimViewer}
                       assignOptions={assignVolunteerOptions}
                       onAssignTask={(taskId, volunteerId) =>
                         assignTaskMutation.mutate({
@@ -2004,9 +2009,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                           size="sm"
                                           onClick={() => handleClaimTask(task.id)}
                                         >
-                                          {project.isMember || isOwnerOrAdmin
-                                            ? 'Claim'
-                                            : 'Join and claim'}
+                                          {claimLabel(project.claimViewer)}
                                         </Button>
                                       )}
                                     {!handedIn(task.status) && task.assignedToId === user.id && (
@@ -2069,7 +2072,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                                   close()
                                                 }}
                                               >
-                                                Assign
+                                                {ASSIGN_PICKED}
                                               </Button>
                                             </div>
                                           )}
@@ -2082,7 +2085,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                                 close()
                                               }}
                                             >
-                                              Unassign
+                                              {UNASSIGN}
                                             </button>
                                           )}
                                           {(canManageTasks || task.createdById === user.id) && (

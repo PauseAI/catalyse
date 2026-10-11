@@ -82,7 +82,7 @@ test.describe('Task Detail Page', () => {
     ).toBeVisible({ timeout: 10_000 })
 
     // Not on the project yet: the claim asks the owner and holds the task meanwhile.
-    await volunteer.page.getByRole('button', { name: 'Claim' }).click()
+    await volunteer.page.getByRole('button', { name: 'Ask to take this' }).click()
     await expect(getAlert(volunteer.page)).toContainText('Requested. The task is held for you', {
       timeout: 10_000,
     })
@@ -91,7 +91,7 @@ test.describe('Task Detail Page', () => {
         exact: true,
       }),
     ).toBeVisible({ timeout: 10_000 })
-    await expect(volunteer.page.getByRole('button', { name: 'Claim' })).not.toBeVisible()
+    await expect(volunteer.page.getByRole('button', { name: 'Ask to take this' })).not.toBeVisible()
   })
 
   test('A claimed task waiting on another reads Blocked, and In progress once its assignee starts', async ({

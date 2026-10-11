@@ -9,6 +9,7 @@ import { formatDateShort } from '@/lib/format-date'
 import DatesBlock from '@/components/DatesBlock'
 import { daysPastPlan } from '@/lib/replan'
 import { plural } from '@/lib/plural'
+import { ASSIGN_PICKED, UNASSIGN, claimLabel, type ClaimViewer } from '@/lib/action-labels'
 import { datesPayload, windowText, type DatesPayload, type DatesValue } from '@/lib/task-dates'
 import { deadlineStanding, movedText, pinConflictSlip } from '@/lib/slip'
 import { barFill, barTone, TONE_LABELS } from './palette'
@@ -23,6 +24,7 @@ import type { GanttRow } from './types'
 export type PanelAssignment = {
   canAssign: boolean
   canClaim: boolean
+  claimViewer: ClaimViewer
   /** Volunteers the manager may pick from, already grouped and labelled by the caller. */
   options: { value: string; label: string; header?: boolean }[]
   onAssign: (volunteerId: number) => void
@@ -381,12 +383,12 @@ export default function GanttItemPanel({
           <div className="mt-2 flex flex-wrap items-end gap-2">
             {assignment.canClaim && !assigneeName && (
               <Button size="sm" disabled={busy} onClick={assignment.onClaim}>
-                Assign to me
+                {claimLabel(assignment.claimViewer)}
               </Button>
             )}
             {assigneeName && assignment.canAssign && (
               <Button size="sm" variant="secondary" disabled={busy} onClick={assignment.onUnassign}>
-                Unassign
+                {UNASSIGN}
               </Button>
             )}
             {assignment.canAssign && (
@@ -417,7 +419,7 @@ export default function GanttItemPanel({
                     setPickedAssignee('')
                   }}
                 >
-                  Assign
+                  {ASSIGN_PICKED}
                 </Button>
               </>
             )}
