@@ -228,19 +228,67 @@ describe('home', () => {
     expect(within(row).getByText('3 days late')).toBeInTheDocument()
   })
 
-  it('shows the deadline of a task on Home, flagged Overdue once it has passed', async () => {
+  it('lists what needs attention now first, saying why, then everything else', async () => {
     const me = await createVolunteer()
-    await createQuickTask({
-      title: 'Late quick',
+    const project = await createProject({
+      title: 'Leafleting',
       assigneeId: me.id,
       status: 'in_progress',
+      deadline: new Date('2099-03-04T00:00:00Z'),
+    })
+    const mine = { assigneeId: me.id, status: 'in_progress' as const }
+    const due = (days: number) => new Date(Date.now() + days * DAY)
+    await createTask(project.id, { ...mine, title: 'Undated' })
+    await createTask(project.id, {
+      ...mine,
+      title: 'Far off',
+      deadline: due(20),
+      estimatedHours: 2,
+    })
+    await createTask(project.id, {
+      ...mine,
+      title: 'Big job',
+      deadline: due(6),
+      estimatedHours: 12,
+    })
+    await createTask(project.id, { ...mine, title: 'Soon', deadline: due(2) })
+    await createQuickTask({
+      ...mine,
+      title: 'Late quick',
       deadline: new Date('2020-01-02T00:00:00Z'),
     })
     await renderApp(<HomePage />, { as: me, url: '/dashboard' })
     const work = await screen.findByRole('region', { name: 'My work' })
-    const row = within(work).getByRole('link', { name: 'Late quick' }).closest('li')!
-    expect(within(row).getByText('Deadline 2 Jan 2020')).toBeInTheDocument()
-    expect(within(row).getByText('Overdue')).toBeInTheDocument()
+
+    // Sub-headings inside My work, not sections of their own.
+    const now = within(work).getByRole('heading', { level: 3, name: 'Needs attention now' })
+    const rest = within(work).getByRole('heading', { level: 3, name: 'Everything else' })
+    const [urgentList, restList] = within(work).getAllByRole('list')
+    expect(before(now, urgentList) && before(urgentList, rest) && before(rest, restList)).toBe(true)
+    const titles = (list: HTMLElement) =>
+      within(list)
+        .getAllByRole('listitem')
+        .map((li) => within(li).getAllByRole('link')[0].textContent)
+    expect(titles(urgentList)).toEqual(['Late quick', 'Soon', 'Big job'])
+    expect(titles(restList)).toEqual(['Far off', 'Leafleting', 'Undated'])
+
+    const row = (name: string) => within(work).getByRole('link', { name }).closest('li')!
+    expect(within(row('Late quick')).getByText(/^2 Jan 2020 · \d+ days overdue$/)).toHaveClass(
+      'text-error',
+    )
+    expect(within(row('Late quick')).getByText(/^\d+ days overdue$/)).toBeInTheDocument()
+    expect(within(row('Soon')).getByText('Due in 2 days')).toBeInTheDocument()
+    expect(
+      within(row('Big job')).getByText('About 12 hours of work, due in 6 days: start now'),
+    ).toBeInTheDocument()
+    expect(within(row('Big job')).getByText('In progress')).toBeInTheDocument()
+    expect(within(row('Undated')).getByText('No deadline')).toBeInTheDocument()
+    expect(within(row('Leafleting')).getByText('Deadline 4 Mar 2099')).toBeInTheDocument()
+
+    // A filter can leave only one part, which then needs no sub-heading of its own.
+    await userEvent.click(within(work).getByRole('button', { name: 'Projects' }))
+    expect(within(work).queryByRole('heading', { level: 3 })).toBeNull()
+    expect(within(work).getByRole('link', { name: 'Leafleting' })).toBeInTheDocument()
   })
 
   it('puts a task past its plan at the top for its owner, and flags it for the assignee', async () => {

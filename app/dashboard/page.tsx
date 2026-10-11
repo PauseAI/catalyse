@@ -11,6 +11,7 @@ import Button from '@/components/Button'
 import { plural } from '@/lib/plural'
 import { Badge, type BadgeVariant } from '@/components/Badge'
 import DeadlineChip from '@/components/DeadlineChip'
+import WorkItemCard from '@/components/WorkItemCard'
 import Modal from '@/components/ui/Modal'
 import Skeleton from '@/components/Skeleton'
 import { ApprovalStatus } from '@/generated/prisma/enums'
@@ -37,6 +38,10 @@ const ROLE_VARIANTS: Record<WorkRow['role'], BadgeVariant> = {
   Task: 'caution',
   Member: 'neutral',
 }
+
+// My work's buckets are small grey labels, so they never read as a section like "Needs your
+// attention" above them.
+const SUB_HEADING = 'text-sm font-semibold uppercase tracking-wide text-text-light mb-2'
 
 // Links into the old tabbed dashboard still land somewhere sensible.
 const PROJECT_HASHES = ['#tab-projects', '#tab-owned', '#tab-interests', '#tab-proposed']
@@ -230,30 +235,50 @@ export default function HomePage() {
   // Discovery waits until someone has nothing of their own to get on with.
   const showFind = findOpen ?? current.length === 0
 
+  const urgent = work.filter((w) => w.attention)
+  const rest = work.filter((w) => !w.attention)
+
   const workList = (rows: typeof work) => (
     <ul className="list-none p-0 m-0 bg-surface rounded-xl shadow">
-      {rows.map((w) => (
-        <li
-          key={w.key}
-          className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-brand-border last:border-0 wrap-break-word"
-        >
-          <div className="min-w-0">
-            <Link href={w.href} className="font-semibold">
-              {w.title}
-            </Link>
-            {w.context && <span className="text-sm text-text-light"> in {w.context}</span>}
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant={ROLE_VARIANTS[w.role]}>{w.role}</Badge>
-            {w.daysLate ? <Badge variant="danger">{plural(w.daysLate, 'day')} late</Badge> : null}
-            {w.deadline && <DeadlineChip deadline={w.deadline} done={false} />}
-            {w.pastPlanDays ? (
-              <Badge variant="warning">{plural(w.pastPlanDays, 'day')} past plan</Badge>
-            ) : null}
-            {w.status && <span className="text-sm text-text-light">{w.status}</span>}
-          </div>
-        </li>
-      ))}
+      {rows.map((w) =>
+        w.item ? (
+          <li
+            key={w.key}
+            className="p-4 border-b border-brand-border last:border-0 wrap-break-word"
+          >
+            <WorkItemCard
+              item={w.item}
+              variant="compact"
+              extra={
+                <>
+                  {w.context && <span className="text-text-light">in {w.context}</span>}
+                  {w.pastPlanDays ? (
+                    <Badge variant="warning">{plural(w.pastPlanDays, 'day')} past plan</Badge>
+                  ) : null}
+                </>
+              }
+            />
+            {w.attention && <p className="text-sm font-semibold m-0 mt-1">{w.attention}</p>}
+          </li>
+        ) : (
+          <li
+            key={w.key}
+            className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-brand-border last:border-0 wrap-break-word"
+          >
+            <div className="min-w-0">
+              <Link href={w.href} className="font-semibold">
+                {w.title}
+              </Link>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant={ROLE_VARIANTS[w.role]}>{w.role}</Badge>
+              {w.daysLate ? <Badge variant="danger">{plural(w.daysLate, 'day')} late</Badge> : null}
+              {w.deadline && <DeadlineChip deadline={w.deadline} done={w.done} />}
+              {w.status && <span className="text-sm text-text-light">{w.status}</span>}
+            </div>
+          </li>
+        ),
+      )}
     </ul>
   )
 
@@ -411,8 +436,19 @@ export default function HomePage() {
                   'Nothing here. Try another filter.'
                 )}
               </p>
+            ) : urgent.length === 0 ? (
+              workList(rest)
             ) : (
-              workList(work)
+              <>
+                <h3 className={`${SUB_HEADING} mt-0`}>Needs attention now</h3>
+                {workList(urgent)}
+                {rest.length > 0 && (
+                  <>
+                    <h3 className={`${SUB_HEADING} mt-5`}>Everything else</h3>
+                    {workList(rest)}
+                  </>
+                )}
+              </>
             )}
           </section>
         )}

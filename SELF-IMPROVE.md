@@ -29,6 +29,24 @@ GitHub issue. An entry here is about the work itself: something in the code
 structure, tooling, tests, docs or diagnostics that made a task slower or more
 confusing than it needed to be, and that will do so again.
 
+## 5x
+
+- [ ] **Two sessions running vitest at once share one test template database and one
+      `coverage/` directory, so one run wipes the other's.** During P4-05 another agent's
+      single-file reruns in the same checkout dropped `vitest_template` mid-run (about 70
+      suites failed with "template database does not exist"), and the next full run refused to
+      start on the coverage lock. In P4-14 a P4-07 agent's reruns of the task page test made
+      four of five runs of the project page test fail with bare `PrismaClientKnownRequestError`s,
+      and the full unit suite could not be run at all without breaking the other agent's. P4-07's
+      own full run then failed 49 tests on "Database `vitest_…` does not exist" while P4-14's
+      was going, and passed untouched once that had finished. P4-20's full run, with P4-19 and
+      P4-12 agents in the same tree, first hit the coverage lock and then failed every suite on
+      "Server has closed the connection", so its coverage was checked file by file instead.
+      P4-19's two full runs, beside the same agents, failed 50-100 suites on
+      `PrismaClientInitializationError` while every file passed alone (`--coverage.reportsDirectory`
+      at least got past the lock). A per-run database prefix and reports directory in
+      `test/pg.ts` and `scripts/test-unit.ts` (from an env var or the pid) would let runs overlap.
+
 ## 4x
 
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
@@ -46,20 +64,6 @@ confusing than it needed to be, and that will do so again.
       file under the same parallel load (for example all unit files at once with
       only the suspect repeated) would find them in one pass instead of one per
       full run.
-
-- [ ] **Two sessions running vitest at once share one test template database and one
-      `coverage/` directory, so one run wipes the other's.** During P4-05 another agent's
-      single-file reruns in the same checkout dropped `vitest_template` mid-run (about 70
-      suites failed with "template database does not exist"), and the next full run refused to
-      start on the coverage lock. In P4-14 a P4-07 agent's reruns of the task page test made
-      four of five runs of the project page test fail with bare `PrismaClientKnownRequestError`s,
-      and the full unit suite could not be run at all without breaking the other agent's. P4-07's
-      own full run then failed 49 tests on "Database `vitest_…` does not exist" while P4-14's
-      was going, and passed untouched once that had finished. P4-20's full run, with P4-19 and
-      P4-12 agents in the same tree, first hit the coverage lock and then failed every suite on
-      "Server has closed the connection", so its coverage was checked file by file instead. A
-      per-run database prefix and reports directory in `test/pg.ts` and `scripts/test-unit.ts`
-      (from an env var or the pid) would let runs overlap.
 
 ## 3x
 

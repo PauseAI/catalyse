@@ -123,6 +123,71 @@ describe('dashboard.get', () => {
     expect(work.at(-1)).toMatchObject({ title: 'Done P', done: true, href: `/projects/${done.id}` })
   })
 
+  it('puts work that needs attention now first, with why, each part by deadline', async () => {
+    const me = await createVolunteer()
+    const project = await createProject({
+      assigneeId: me.id,
+      status: 'in_progress',
+      title: 'Due P',
+      deadline: new Date(Date.now() + 10 * DAY),
+    })
+    const mine = { assigneeId: me.id, status: 'in_progress' as const }
+    await createTask(project.id, { ...mine, title: 'Someday' })
+    await createTask(project.id, {
+      ...mine,
+      title: 'Far',
+      deadline: new Date(Date.now() + 20 * DAY),
+      estimatedHours: 2,
+    })
+    await createTask(project.id, {
+      ...mine,
+      title: 'Big',
+      deadline: new Date(Date.now() + 6 * DAY),
+      estimatedHours: 12,
+    })
+    await createTask(project.id, {
+      ...mine,
+      title: 'Soon',
+      deadline: new Date(Date.now() + 2 * DAY),
+    })
+    await createTask(project.id, {
+      ...mine,
+      title: 'Late',
+      deadline: new Date(Date.now() - 3 * DAY),
+    })
+    // Handed in, so off my clock however close its deadline.
+    await createTask(project.id, {
+      assigneeId: me.id,
+      status: 'under_review',
+      title: 'Handed in',
+      deadline: new Date(Date.now() + DAY),
+    })
+    const team = await createTeam({ name: 'Crew' })
+    await prisma.teamMembership.create({ data: { teamId: team.id, volunteerId: me.id } })
+
+    const { work } = await clientAs(me).dashboard.get()
+    expect(work.map((w) => [w.title, w.attention ?? null])).toEqual([
+      ['Late', '3 days overdue'],
+      ['Soon', 'Due in 2 days'],
+      ['Big', 'About 12 hours of work, due in 6 days: start now'],
+      ['Handed in', null],
+      ['Due P', null],
+      ['Far', null],
+      ['Someday', null],
+      ['Crew', null],
+    ])
+    const big = work.find((w) => w.title === 'Big')!
+    expect(big).toMatchObject({ estimatedHours: 12, displayStatus: 'in_progress' })
+    expect(big.item).toMatchObject({
+      title: 'Big',
+      type: 'TASK',
+      displayStatus: 'in_progress',
+      assigneeName: me.name,
+      href: `/projects/${project.id}/tasks/${big.item!.id}`,
+    })
+    expect(work.find((w) => w.title === 'Due P')!.deadline).toEqual(project.deadline)
+  })
+
   it('collects what is waiting on me, and nothing of anyone else’s', async () => {
     const me = await createVolunteer()
     const other = await createVolunteer()

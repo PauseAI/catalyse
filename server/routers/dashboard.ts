@@ -12,6 +12,9 @@ import { daysQuiet } from '@/lib/staleness'
 import { lateProjects, pastPlanTasks } from '@/lib/project-schedule'
 import { pastPlanDetail } from '@/lib/replan'
 import { plural } from '@/lib/plural'
+import { handedIn } from '@/lib/overdue'
+import { attentionReason } from '@/lib/work-urgency'
+import { toWorkItemSummary, type WorkItemSummary } from '@/lib/work-item-summary'
 import {
   ApprovalStatus,
   ContactRequestStatus,
@@ -63,13 +66,25 @@ export type WorkRow = {
   done: boolean
   /** A project whose plan runs past its deadline, by this many days. */
   daysLate?: number
-  /** A task's deadline, shown with its Overdue flag. */
+  /** A task's or project's deadline. */
   deadline?: Date | null
   /** A task of mine whose plan ended this many days ago while it is not done. */
   pastPlanDays?: number
   /** A project task's shown status (lib/task-status.ts); `status` is its label. */
   displayStatus?: TaskDisplayStatus
   blockedBy?: TaskRef[]
+  /** A task as `WorkItemCard` draws it. */
+  item?: WorkItemSummary
+  estimatedHours?: number | null
+  /** Why a task is in "Needs attention now" (`attentionReason`); null below it. */
+  attention?: string | null
+}
+
+/** Earliest deadline first, rows without one last; otherwise the order they came in. */
+function byDeadline(a: WorkRow, b: WorkRow): number {
+  const at = (r: WorkRow) => (r.deadline ? new Date(r.deadline).getTime() : Infinity)
+  // Two rows without a deadline give Infinity - Infinity, NaN: treat them as equal.
+  return at(a) - at(b) || 0
 }
 
 export type FindItem = { id: number; title: string; href: string; reason: string | null }
@@ -359,7 +374,7 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
           },
         ],
       },
-      include: { parent: { select: { title: true } } },
+      include: { parent: { select: { title: true } }, assignee: { select: { name: true } } },
       orderBy: { updatedAt: 'desc' },
     }),
     prisma.teamMembership.findMany({
@@ -390,6 +405,7 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
       status,
       context: null,
       done: TERMINAL_STATUSES.includes(p.status),
+      deadline: p.deadline,
       updatedAt: p.updatedAt,
     })
   }
@@ -436,7 +452,10 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
   const projectTasks = tasks.filter((t) => t.type === WorkItemType.TASK)
   const loaded = await loadTaskStatusViews(projectTasks)
   const views = new Map(projectTasks.map((t, i) => [t.id, loaded[i]]))
+  const today = new Date()
   const taskRows: WorkRow[] = tasks.map((t) => {
+    const view = views.get(t.id)
+    const shown = view?.displayStatus ?? t.status
     const row: WorkRow = {
       key: `task-${t.id}`,
       kind: 'task',
@@ -448,8 +467,13 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
       done: false,
       deadline: t.deadline,
       pastPlanDays: pastPlan.get(t.id),
+      item: { ...toWorkItemSummary(t, shown), href: taskHref(t) },
+      estimatedHours: t.estimatedHours,
+      attention: attentionReason(
+        { deadline: t.deadline, estimatedHours: t.estimatedHours, done: handedIn(shown) },
+        today,
+      ),
     }
-    const view = views.get(t.id)
     if (!view) return row
     return {
       ...row,
@@ -470,9 +494,13 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
     done: false,
   }))
 
-  return [...taskRows, ...projectRows.filter((r) => !r.done), ...teamRows].concat(
-    projectRows.filter((r) => r.done),
-  )
+  // "Needs attention now" first, then everything else, each by deadline; finished work last.
+  const current = [...taskRows, ...projectRows.filter((r) => !r.done), ...teamRows]
+  return [
+    ...current.filter((r) => r.attention).sort(byDeadline),
+    ...current.filter((r) => !r.attention).sort(byDeadline),
+    ...projectRows.filter((r) => r.done),
+  ]
 }
 
 async function findFor(
