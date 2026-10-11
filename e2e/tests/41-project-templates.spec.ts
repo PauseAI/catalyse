@@ -1,4 +1,4 @@
-import { openManageMore } from '../actions/projects'
+import { openProjectMore } from '../actions/projects'
 import { test, expect, getAlert, readAdminToken, createApprovedVolunteer } from '../fixtures'
 import { createApiClient } from '../client'
 import { fake } from '../fake'
@@ -88,7 +88,7 @@ test.describe('Project templates', () => {
     const source = await adminCreateCountryProjectViaApi(baseUrl, sourceTitle)
 
     await adminPage.goto(`${baseUrl}/projects/${source.id}`)
-    await openManageMore(adminPage)
+    await openProjectMore(adminPage)
     await adminPage.getByRole('button', { name: 'Save as template' }).click()
     const templateTitle = `${sourceTitle} template`
     const dialog = adminPage.getByRole('dialog')

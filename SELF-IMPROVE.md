@@ -73,6 +73,16 @@ confusing than it needed to be, and that will do so again.
       enum rename diff carried it again. `scripts/new-migration.ts` should strip that
       statement from the diff it writes.
 
+- [ ] **Two sessions running vitest at once share one test template database and one
+      `coverage/` directory, so one run wipes the other's.** During P4-05 another agent's
+      single-file reruns in the same checkout dropped `vitest_template` mid-run (about 70
+      suites failed with "template database does not exist"), and the next full run refused to
+      start on the coverage lock. In P4-14 a P4-07 agent's reruns of the task page test made
+      four of five runs of the project page test fail with bare `PrismaClientKnownRequestError`s,
+      and the full unit suite could not be run at all without breaking the other agent's. A
+      per-run database prefix and reports directory in `test/pg.ts` and `scripts/test-unit.ts`
+      (from an env var or the pid) would let runs overlap.
+
 ## 1x
 
 - [ ] **Component tests count error toasts (`getAllByText(msg).length`), and a
@@ -126,11 +136,3 @@ confusing than it needed to be, and that will do so again.
       build failed on a symlinked `node_modules` ("points out of the filesystem root") until it
       was cloned with `cp -cR`. A `scripts/new-worktree.ts` that links the env files, clones
       `node_modules` and copies `generated/` would make a side worktree work first time.
-
-- [ ] **Two sessions running vitest at once share one test template database and one
-      `coverage/` directory, so one run wipes the other's.** During P4-05 another agent's
-      single-file reruns in the same checkout dropped `vitest_template` mid-run (about 70
-      suites failed with "template database does not exist"), and the next full run refused to
-      start on the coverage lock. A per-run database prefix and reports directory in
-      `test/pg.ts` and `scripts/test-unit.ts` (from an env var or the pid) would let runs
-      overlap.

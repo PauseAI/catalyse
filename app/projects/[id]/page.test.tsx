@@ -317,16 +317,16 @@ describe('project page — joining and held tasks', () => {
     await mount(project.id, me, '#tasks')
     await screen.findByRole('heading', { name: 'Busy project' })
     expect(screen.getByRole('tab', { name: 'People (7)' })).toBeInTheDocument()
-    expect(
-      within(screen.getByRole('list', { name: 'Helpers' })).getAllByRole('listitem'),
-    ).toHaveLength(5)
-    expect(screen.getByText('and 1 more')).toBeInTheDocument()
+    // Beside the owner, a one-line count that matches the People tab's.
+    expect(screen.getByRole('link', { name: 'Omar Owner' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '6 helpers' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Edit project' })).toBeNull()
     await userEvent.click(await screen.findByRole('button', { name: 'Ask to take this' }))
     await screen.findByText(/^Requested\. The task is held for you/)
     await screen.findByText('Held for you: waiting for the owner')
     await screen.findByText('Request sent: waiting for the owner')
     expect(await row(t.id)).toMatchObject({ requestedById: me.id, assigneeId: null })
-    await userEvent.click(screen.getByRole('button', { name: 'See everyone' }))
+    await userEvent.click(screen.getByRole('button', { name: '6 helpers' }))
     expect(screen.getByRole('tab', { name: 'People (7)' })).toHaveAttribute('aria-selected', 'true')
     expect(
       within(screen.getByRole('region', { name: 'People on this project' })).getByText('Helper 6'),
@@ -336,7 +336,7 @@ describe('project page — joining and held tasks', () => {
     await mount(project.id, owner, '#tasks')
     await screen.findByText('Requested by Mo Newcomer')
     await screen.findByText('1 waiting for an answer')
-    await userEvent.click(screen.getByRole('button', { name: 'Manage people' }))
+    await userEvent.click(screen.getByRole('button', { name: '6 helpers' }))
     expect(window.location.hash).toBe('#people')
   })
 })
@@ -516,15 +516,16 @@ describe('project page — owner', () => {
     expect(screen.getByText(/^Past \(/)).toBeInTheDocument()
     expect(interestCard('Otto Other')).toHaveTextContent('Invited, cancelled')
 
-    // Owner tools sit in the folded Manage panel, with the rarer ones under More.
-    await userEvent.click(screen.getByText('Manage'))
-    expect(screen.getByRole('link', { name: /Edit/ })).toHaveAttribute(
+    // Owner tools sit in the bar beside the tabs, with the rarer ones under More.
+    const bar = screen.getByRole('toolbar', { name: 'Status and actions' })
+    expect(within(bar).getByRole('link', { name: 'Edit project' })).toHaveAttribute(
       'href',
       `/projects/${project.id}/edit`,
     )
-    await userEvent.click(screen.getByText('More'))
+    await userEvent.click(within(bar).getByText('More'))
     await userEvent.click(screen.getByRole('button', { name: 'Export / Import' }))
     expect(screen.getByRole('dialog', { name: 'Export and import' })).toBeInTheDocument()
+    expect(within(bar).getByText('More').closest('details')).not.toHaveAttribute('open')
     await userEvent.keyboard('{Escape}')
   })
 
@@ -772,8 +773,11 @@ describe('project page — deputies', () => {
       `/projects/${project.id}/tasks/${waiting.id}`,
     )
     expect(screen.getByText('Deputy')).toBeInTheDocument()
-    // The Manage panel is the owner's: a deputy has no project-level controls.
-    expect(screen.queryByText('Manage')).toBeNull()
+    // Edit project and More are the owner's: a deputy sees the status and nothing to change it.
+    const bar = screen.getByRole('toolbar', { name: 'Status and actions' })
+    expect(within(bar).getByLabelText('project status')).toBeInTheDocument()
+    expect(within(bar).queryByRole('link', { name: 'Edit project' })).toBeNull()
+    expect(within(bar).queryByText('More')).toBeNull()
 
     await openTab(/^People/)
     expect(screen.queryByRole('button', { name: 'Make deputy' })).toBeNull()

@@ -332,7 +332,7 @@ export async function setProjectStatus(
   status: string,
 ): Promise<void> {
   await page.goto(`${baseUrl}/projects/${projectId}`)
-  await expect(page.getByRole('heading', { name: 'Status', exact: true })).toBeVisible({
+  await expect(page.getByRole('button', { name: 'project status' })).toBeVisible({
     timeout: 10_000,
   })
 
@@ -356,8 +356,10 @@ export async function joinProject(
   await dialog.getByRole('button', { name: 'Send request' }).click()
 }
 
-/** Opens the owner's folded Manage panel and its More section on the project page. */
-export async function openManageMore(page: Page): Promise<void> {
-  await page.locator('summary', { hasText: 'Manage' }).click()
-  await page.locator('summary', { hasText: 'More' }).click()
+/** Opens the More menu in the bar beside the project page's tabs. */
+export async function openProjectMore(page: Page): Promise<void> {
+  await page
+    .getByRole('toolbar', { name: 'Status and actions' })
+    .locator('summary', { hasText: 'More' })
+    .click()
 }

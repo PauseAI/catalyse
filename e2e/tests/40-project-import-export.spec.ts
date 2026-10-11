@@ -1,4 +1,4 @@
-import { openManageMore } from '../actions/projects'
+import { openProjectMore } from '../actions/projects'
 import { test, expect, readAdminToken, createApprovedVolunteer } from '../fixtures'
 import { fake } from '../fake'
 import { createApiClient } from '../client'
@@ -426,7 +426,7 @@ test.describe('Project import / export', () => {
     const projectId = await makeProject(api, { startDate: day('2027-04-01') })
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}`)
-    await openManageMore(adminPage)
+    await openProjectMore(adminPage)
     await adminPage.getByRole('button', { name: 'Export / Import' }).click()
 
     const modal = adminPage.getByRole('dialog')
@@ -461,7 +461,7 @@ test.describe('Project import / export', () => {
     })
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}`)
-    await openManageMore(adminPage)
+    await openProjectMore(adminPage)
     await adminPage.getByRole('button', { name: 'Export / Import' }).click()
 
     const modal = adminPage.getByRole('dialog')

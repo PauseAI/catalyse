@@ -49,6 +49,11 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import VolunteerSelect from '@/components/VolunteerSelect'
 import Tabs from '@/components/Tabs'
+import WorkItemHeader, {
+  PersonInitials,
+  WorkItemPerson,
+  initials,
+} from '@/components/WorkItemHeader'
 import GanttChart, { inStartOrder } from '@/components/gantt/GanttChart'
 import type { GanttRow as GanttRowData, GanttUndatedRow } from '@/components/gantt/types'
 import GanttItemPanel from '@/components/gantt/GanttItemPanel'
@@ -107,11 +112,6 @@ const ADMIN_EXTRA_STATUSES = toOptions(ADMIN_ONLY_STATUSES)
 const card = 'bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word'
 
 // ── Task list item ──────────────────────────────────────────────────────────
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase()
-}
 
 function TaskAvatar({ name }: { name: string | null }) {
   if (!name) {
@@ -578,7 +578,6 @@ function TaskTimeline({
 }
 
 type ProjectTab = 'overview' | 'tasks' | 'timeline' | 'discussion' | 'people'
-const SIDEBAR_PEOPLE = 5
 const HASH_TABS: ProjectTab[] = ['tasks', 'timeline', 'discussion', 'people']
 /**
  * This many tasks past plan at once is a plan nobody laid out ("Add all to timeline" and
@@ -1052,7 +1051,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   // newStatus is synced from the project in an effect, so it is empty for the first render.
   const shownStatus = newStatus || project.status
 
-  // Excludes the current owner — they're already shown in the Owner box above.
+  // Excludes the current owner — the header already names them.
   const volunteerInterests = (project.interests ?? []).filter(
     (i) => i.volunteerId !== project.ownerId,
   )
@@ -1328,13 +1327,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     })
   }
 
-  const sidebarHelpers = project.helpers ?? []
+  const helperCount = (project.helpers ?? []).length
   const waitingCount = isOwnerOrAdmin
     ? volunteerInterests.filter(
         (i) => i.status === InterestStatus.pending || i.status === InterestStatus.invited,
       ).length
     : 0
-  const peopleCount = sidebarHelpers.length + (project.owner ? 1 : 0)
+  const peopleCount = helperCount + (project.owner ? 1 : 0)
   const keyDateTask = orderedTasks.find((t) => t.keyDateSide === 'key')
   const pastPlanCount = orderedTasks.filter((t) => t.pastPlanDays).length
 
@@ -1562,815 +1561,806 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     </div>
   )
 
+  // Admins review a proposal and record a finished project's outcome above the tab content.
+  const adminCards = (
+    <>
+      {isAdmin &&
+        (project.status === ProjectStatus.pending_review ||
+          project.status === ProjectStatus.needs_discussion) &&
+        !reviewDone && (
+          <div className={card}>
+            <h2>Review Project</h2>
+            <form onSubmit={handleSubmitReview}>
+              <div className="mb-5">
+                <label className="flex items-center gap-2 cursor-pointer mb-2 font-normal">
+                  <input
+                    type="radio"
+                    name="review_status"
+                    value="approved"
+                    checked={reviewStatus === 'approved'}
+                    onChange={() => setReviewStatus('approved')}
+                  />
+                  Approve
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer font-normal">
+                  <input
+                    type="radio"
+                    name="review_status"
+                    value="needs_discussion"
+                    checked={reviewStatus === 'needs_discussion'}
+                    onChange={() => setReviewStatus('needs_discussion')}
+                  />
+                  Ask for changes
+                </label>
+              </div>
+              {reviewStatus === 'needs_discussion' && (
+                <div className="mb-5">
+                  <label htmlFor="review-message">Message to Proposer</label>
+                  <textarea
+                    id="review-message"
+                    aria-label="Message to Proposer"
+                    rows={3}
+                    value={reviewMessage}
+                    onChange={(e) => setReviewMessage(e.target.value)}
+                    placeholder="What needs to change before it goes live?"
+                  />
+                </div>
+              )}
+              <Button type="submit" disabled={reviewMutation.isPending}>
+                {reviewMutation.isPending ? 'Submitting…' : 'Submit Review'}
+              </Button>
+            </form>
+          </div>
+        )}
+
+      {/* Record Outcome */}
+      {isAdmin && project.status === ProjectStatus.completed && !project.outcome && (
+        <div className={card}>
+          <h2>Record Project Outcome</h2>
+          <form onSubmit={handleRecordOutcome}>
+            <div className="mb-5">
+              <FilterDropdown
+                id="outcome-select"
+                label="Outcome"
+                ariaLabel="Outcome"
+                value={outcomeValue}
+                options={outcomeOptions}
+                onChange={setOutcomeValue}
+              />
+            </div>
+            <div className="mb-5">
+              <label htmlFor="outcome-notes">Outcome Notes</label>
+              <textarea
+                id="outcome-notes"
+                aria-label="Outcome Notes"
+                rows={3}
+                value={outcomeNotes}
+                onChange={(e) => setOutcomeNotes(e.target.value)}
+                placeholder="Notes about the outcome…"
+              />
+            </div>
+            <Button type="submit" disabled={!outcomeValue || setOutcomeMutation.isPending}>
+              {setOutcomeMutation.isPending ? 'Recording…' : 'Record Outcome'}
+            </Button>
+          </form>
+        </div>
+      )}
+    </>
+  )
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   const wide = tab === 'timeline'
 
+  const locationParts = projectLocationParts(
+    project.country,
+    project.localGroup,
+    project.remoteEligibility,
+  )
+  const subtitle = (locationParts.length > 0 || project.team) && (
+    <>
+      {locationParts.length > 0 && <span>📍 {locationParts.join(' · ')}</span>}
+      {locationParts.length > 0 && project.team && ' · '}
+      {project.team && <span>🧑‍🤝‍🧑 {project.team.name}</span>}
+    </>
+  )
+
+  const ownerBlock = (
+    <WorkItemPerson
+      label="Owner"
+      summary={
+        <>
+          <button
+            type="button"
+            className="underline bg-transparent border-0 p-0 cursor-pointer text-primary-text"
+            onClick={() => selectTab('people')}
+          >
+            {helperCount === 0 ? 'No helpers yet' : plural(helperCount, 'helper')}
+          </button>
+          {waitingCount > 0 && (
+            <>
+              {' · '}
+              <span>{waitingCount} waiting for an answer</span>
+            </>
+          )}
+        </>
+      }
+      actions={
+        <>
+          {isAdmin && volunteers.length > 0 && (
+            <ActionMenu ariaLabel="Ownership actions">
+              {(close) => (
+                <>
+                  <div className="px-3 py-2 flex flex-col gap-2">
+                    <h3 className="m-0 text-sm">Transfer Ownership</h3>
+                    <VolunteerSelect
+                      id="transfer-to"
+                      label="Transfer to"
+                      ariaLabel="Transfer to"
+                      value={transferTo}
+                      onChange={(v) => setTransferTo(v)}
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={!transferTo || updateProjectMutation.isPending}
+                      onClick={() => {
+                        setShowTransferConfirm(true)
+                        close()
+                      }}
+                    >
+                      {updateProjectMutation.isPending ? 'Transferring…' : 'Transfer'}
+                    </Button>
+                  </div>
+                  {project.owner && (
+                    <button
+                      role="menuitem"
+                      className="w-full text-left px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-accent transition-colors cursor-pointer border-t border-brand-border mt-1"
+                      onClick={() => {
+                        setShowRemoveOwnerConfirm(true)
+                        close()
+                      }}
+                    >
+                      Remove ownership
+                    </button>
+                  )}
+                </>
+              )}
+            </ActionMenu>
+          )}
+          {project.canMessageOwner && !isAdmin && (
+            <Button
+              variant="secondary"
+              size="sm"
+              aria-label="Message owner"
+              onClick={() => setShowContactModal(true)}
+            >
+              Message
+            </Button>
+          )}
+        </>
+      }
+    >
+      {project.owner ? (
+        <span className="flex items-center gap-2 min-w-0">
+          <PersonInitials name={project.owner.name} />
+          <Link href={`/volunteers/${project.owner.id}`} className="underline truncate">
+            {project.owner.name}
+          </Link>
+        </span>
+      ) : isAdmin && proposer ? (
+        // Ownerless projects still have a proposer. Admins triaging the queue need
+        // to know who to talk to, so show them that name in place of the empty state.
+        <span className="flex items-center gap-2 min-w-0">
+          <PersonInitials name={proposer.name} />
+          <span className="truncate">
+            Proposer:{' '}
+            {proposer.volunteerId ? (
+              <Link href={`/volunteers/${proposer.volunteerId}`} className="underline">
+                {proposer.name}
+              </Link>
+            ) : (
+              proposer.name
+            )}
+          </span>
+        </span>
+      ) : (
+        <span className="text-text-light">No owner yet.</span>
+      )}
+    </WorkItemPerson>
+  )
+
+  const statusBlock = (
+    <>
+      {canPickStatus ? (
+        <StatusSplitButton
+          value={shownStatus}
+          options={statusOptions}
+          onSelect={handleSelectStatus}
+          disabled={updateProjectMutation.isPending}
+        />
+      ) : (
+        <Badge variant={projectStatusVariant(project.status)} aria-label="project status">
+          {projectStatusLabel(project.status)}
+        </Badge>
+      )}
+      {project.isSeekingOwner && <Badge variant="caution">Seeking Owner</Badge>}
+      {project.isSeekingHelp && <Badge variant="caution">Seeking Help</Badge>}
+      {project.needsTasks && <Badge variant="warning">Needs Tasks</Badge>}
+    </>
+  )
+
+  const actionsBlock = canManageProject && (
+    <>
+      <Button href={`/projects/${idParam}/edit`} variant="secondary" size="sm">
+        Edit project
+      </Button>
+      <details className="relative">
+        <summary className="list-none cursor-pointer text-sm font-medium px-3 py-1.5 rounded-md border border-brand-border hover:bg-accent">
+          More <span aria-hidden="true">▾</span>
+        </summary>
+        {/* Above the timeline's sticky labels; Save as template's dialog opens from in here. */}
+        <div className="absolute right-0 z-50 mt-1 w-56 bg-surface border border-brand-border rounded-lg shadow-lg p-2 flex flex-col items-start gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={(e) => {
+              e.currentTarget.closest('details')?.removeAttribute('open')
+              setShowPorting(true)
+            }}
+          >
+            Export / Import
+          </Button>
+          {isAdmin && <SaveAsTemplateButton projectId={project.id} defaultTitle={project.title} />}
+        </div>
+      </details>
+    </>
+  )
+
   return (
     <>
       <main className={`${wide ? 'container-wide' : 'container'} py-5 pb-15`}>
-        {/* [test hook] projectContent id used by action helpers to confirm page has loaded */}
-        <h1 id="projectContent" role="heading" aria-level={1}>
-          {project.title}
-        </h1>
+        <WorkItemHeader
+          // [test hook] projectContent id used by action helpers to confirm page has loaded
+          titleId="projectContent"
+          title={project.title}
+          subtitle={subtitle}
+          person={ownerBlock}
+          status={statusBlock}
+          actions={actionsBlock}
+          tabs={
+            <Tabs
+              role="tablist"
+              className="mb-0"
+              tabs={[
+                { key: 'overview', label: 'Overview' },
+                { key: 'tasks', label: `Tasks (${orderedTasks.length})` },
+                { key: 'timeline', label: 'Timeline' },
+                { key: 'discussion', label: 'Discussion' },
+                { key: 'people', label: `People (${peopleCount})` },
+              ]}
+              activeTab={tab}
+              onChange={(k) => selectTab(k as ProjectTab)}
+            />
+          }
+        >
+          {joinControl}
+        </WorkItemHeader>
 
-        {joinControl}
-
-        <Tabs
-          role="tablist"
-          className="mb-4"
-          tabs={[
-            { key: 'overview', label: 'Overview' },
-            { key: 'tasks', label: `Tasks (${orderedTasks.length})` },
-            { key: 'timeline', label: 'Timeline' },
-            { key: 'discussion', label: 'Discussion' },
-            { key: 'people', label: `People (${peopleCount})` },
-          ]}
-          activeTab={tab}
-          onChange={(k) => selectTab(k as ProjectTab)}
-        />
-
-        {/* The timeline takes the full width; the sidebar moves below it at a reading measure. */}
-        <div className="grid grid-cols-1 gap-4 items-start lg:grid-cols-3">
-          {/* Main column */}
-          <div className={`min-w-0 ${wide ? 'lg:col-span-3' : 'lg:col-span-2'}`}>
-            <div className={wide ? 'max-w-3xl' : undefined}>
-              <ChangesRequestedBanner
+        <div className="min-w-0">
+          {/* Notices and admin forms keep a reading measure while the tab below runs wide. */}
+          <div className="max-w-3xl">
+            {adminCards}
+            <ChangesRequestedBanner
+              projectId={project.id}
+              requests={project.reviewRequests}
+              canResubmit={isOwner || project.proposedById === user.id}
+              editHref={`/projects/${idParam}/edit`}
+            />
+            {project.myInterest?.status === InterestStatus.invited && (
+              <ProjectInviteBanner
                 projectId={project.id}
-                requests={project.reviewRequests}
-                canResubmit={isOwner || project.proposedById === user.id}
-                editHref={`/projects/${idParam}/edit`}
+                invitedByName={project.myInterest.invitedByName}
+                note={project.myInterest.message}
               />
-              {project.myInterest?.status === InterestStatus.invited && (
-                <ProjectInviteBanner
-                  projectId={project.id}
-                  invitedByName={project.myInterest.invitedByName}
-                  note={project.myInterest.message}
-                />
-              )}
-            </div>
-
-            {tab === 'overview' && (
-              <>
-                {/* Main project card */}
-                <div className={card}>
-                  <p className="whitespace-pre-wrap">
-                    <Linkify text={project.description} />
-                  </p>
-
-                  {project.skills.length > 0 && (
-                    <div className="mt-3">
-                      <strong>Skills needed:</strong>
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {project.skills.map((s) => (
-                          <span
-                            key={s.id}
-                            className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                              s.isRequired
-                                ? 'bg-secondary text-white dark:bg-gray-600'
-                                : 'bg-accent text-secondary-dark dark:bg-gray-700 dark:text-gray-300'
-                            }`}
-                          >
-                            {s.name}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Match score */}
-                  {!isOwner && project.match && project.match.totalRequired > 0 && (
-                    <p className="mt-3 mb-0 text-sm">
-                      You match {project.match.matchedRequiredCount} of{' '}
-                      {project.match.totalRequired} skill
-                      {project.match.totalRequired === 1 ? '' : 's'}
-                    </p>
-                  )}
-
-                  {isHttpUrl(project.collaborationLink) && (
-                    <p className="mt-2 text-sm">
-                      <a
-                        href={project.collaborationLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        role="link"
-                        className="underline text-primary-dark"
-                      >
-                        Open Project Doc →
-                      </a>
-                    </p>
-                  )}
-                </div>
-
-                {/* Outcome display */}
-                {project.outcome && (
-                  <div
-                    role="status"
-                    className="bg-emerald-100 dark:bg-emerald-900 border border-emerald-300 dark:border-emerald-600 rounded-xl p-6 mb-4"
-                  >
-                    <strong>Outcome: </strong>
-                    {project.outcome === 'successful'
-                      ? 'Successful'
-                      : project.outcome === 'partial'
-                        ? 'Partial'
-                        : project.outcome === 'not_completed'
-                          ? 'Not Completed'
-                          : project.outcome === 'ongoing'
-                            ? 'Ongoing'
-                            : project.outcome}
-                    {project.outcomeNotes && <p className="mt-1 text-sm">{project.outcomeNotes}</p>}
-                  </div>
-                )}
-              </>
             )}
-
-            {/* Tasks and Timeline */}
-            {(tab === 'tasks' || tab === 'timeline') && (
-              <div className={card}>
-                <div className="flex justify-between items-center mb-3">
-                  <h2 className="m-0">{tab === 'timeline' ? 'Timeline' : 'Tasks'}</h2>
-                  <div className="flex items-center gap-2">
-                    {canCreateTasks && (
-                      <Button variant="secondary" onClick={() => setShowTaskForm((v) => !v)}>
-                        Add Task
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {showTaskForm && canCreateTasks && (
-                  <div
-                    className={`bg-brand-bg rounded-lg p-3 mb-4 border border-brand-border ${wide ? 'max-w-3xl' : ''}`}
-                  >
-                    <form onSubmit={handleAddTask}>
-                      <div className="mb-3">
-                        <label htmlFor="new-task-title">Task title</label>
-                        <input
-                          id="new-task-title"
-                          type="text"
-                          aria-label="Task title"
-                          value={newTaskTitle}
-                          onChange={(e) => setNewTaskTitle(e.target.value)}
-                          placeholder="Describe the task…"
-                          autoFocus
-                        />
-                      </div>
-                      <div className="mb-3">
-                        <label htmlFor="new-task-description">Description</label>
-                        <textarea
-                          id="new-task-description"
-                          aria-label="Description"
-                          rows={3}
-                          value={newTaskDescription}
-                          onChange={(e) => setNewTaskDescription(e.target.value)}
-                          placeholder="Add any context, examples, or guidelines…"
-                        />
-                      </div>
-                      <div className="mb-1">
-                        <DatesBlock
-                          id="new-task"
-                          value={newTaskDates}
-                          onChange={setNewTaskDates}
-                          note={
-                            canManageTasks
-                              ? undefined
-                              : 'Only the project owner can change these dates once the task exists.'
-                          }
-                        />
-                      </div>
-                      <div className="mb-3">
-                        <Checkbox
-                          checked={newTaskFeatured}
-                          onChange={(e) => setNewTaskFeatured(e.target.checked)}
-                        >
-                          Add this task to the Quick Tasks page so volunteers can find and claim it
-                          without first clicking into this project
-                        </Checkbox>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button type="submit" disabled={createTaskMutation.isPending}>
-                          {createTaskMutation.isPending ? 'Creating…' : 'Create Task'}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => setShowTaskForm(false)}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </form>
-                  </div>
-                )}
-
-                {tab === 'timeline' && (
-                  <div className="overflow-x-auto">
-                    <TaskTimeline
-                      timeline={timeline}
-                      projectId={parseInt(idParam, 10)}
-                      loading={!timeline}
-                      canAssignTasks={canManageTasks}
-                      canClaimTasks={canClaimTasks}
-                      claimViewer={project.claimViewer}
-                      assignOptions={assignVolunteerOptions}
-                      onAssignTask={(taskId, volunteerId) =>
-                        assignTaskMutation.mutate({
-                          projectId: parseInt(idParam, 10),
-                          taskId,
-                          assigneeId: volunteerId,
-                        })
-                      }
-                      onClaimTask={handleClaimTask}
-                      onUnassignTask={handleUnassignTask}
-                      highlightCritical={highlightCritical}
-                    />
-                    {canManageTasks && (
-                      <PlanningTools>
-                        {canManageProject && (
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              disabled={setBaselineMutation.isPending}
-                              onClick={() => setShowBaselineDialog(true)}
-                            >
-                              {baselineSetAt ? 'Replace original plan' : 'Set original plan'}
-                            </Button>
-                            <span className="text-text-light text-xs">
-                              {baselineSetAt
-                                ? `Original plan set ${formatDateShort(baselineSetAt)}`
-                                : 'Save today’s dates as the plan to measure moves against.'}
-                            </span>
-                          </div>
-                        )}
-                        <Checkbox
-                          checked={highlightCritical}
-                          onChange={(e) => setHighlightCritical(e.target.checked)}
-                        >
-                          Highlight the critical path
-                        </Checkbox>
-                      </PlanningTools>
-                    )}
-                  </div>
-                )}
-
-                {tab === 'tasks' && canManageTasks && pastPlanCount >= STALE_PLAN_FROM && (
-                  <p className="text-text-light mb-3 text-sm">
-                    {pastPlanCount} tasks are past plan. If their bars were never placed, set real
-                    dates on the{' '}
-                    <button
-                      type="button"
-                      className="text-primary-text cursor-pointer border-0 bg-transparent p-0 underline"
-                      onClick={() => selectTab('timeline')}
-                    >
-                      Timeline
-                    </button>{' '}
-                    rather than replanning one at a time.
-                  </p>
-                )}
-                {tab === 'tasks' && keyDateTask && (
-                  <p className="text-text-light mb-3 text-sm">
-                    <span style={{ color: 'var(--gantt-anchor)' }}>★ Key date:</span>{' '}
-                    <strong>{keyDateTask.title}</strong>. The work it waits for is marked Before;
-                    the work that follows it, After.
-                  </p>
-                )}
-                {tab === 'tasks' &&
-                  (orderedTasks.length === 0 ? (
-                    <p className="text-text-light">No tasks yet.</p>
-                  ) : (
-                    <DndContext
-                      sensors={taskDragSensors}
-                      collisionDetection={closestCenter}
-                      onDragEnd={canManageTasks ? handleTaskDragEnd : undefined}
-                    >
-                      <SortableContext
-                        items={orderedTasks.map((t) => t.id)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        <ul className="list-none p-0 m-0">
-                          {orderedTasks.map((task) => {
-                            const isOverdue = deadlinePassed(task.deadline, handedIn(task.status))
-                            const canAssign =
-                              canRunTasks &&
-                              task.status !== TaskStatus.completed &&
-                              volunteers.length > 0
-                            const canUnassign =
-                              canRunTasks && task.assignedToId !== null && !handedIn(task.status)
-
-                            return (
-                              <SortableTaskItem
-                                key={task.id}
-                                task={task}
-                                draggable={canManageTasks}
-                                title={
-                                  <Link
-                                    href={`/projects/${idParam}/tasks/${task.id}`}
-                                    className="hover:underline"
-                                  >
-                                    {task.title}
-                                  </Link>
-                                }
-                                assigneeName={
-                                  task.status !== TaskStatus.completed ? task.assignedToName : null
-                                }
-                                chips={
-                                  <>
-                                    {task.status === TaskStatus.completed && (
-                                      <span className="text-success text-sm font-semibold">
-                                        <span aria-hidden="true">✓</span> <span>done</span>
-                                      </span>
-                                    )}
-                                    {task.requestedById !== null && (
-                                      <span className="text-text-light text-xs whitespace-nowrap">
-                                        {task.requestedById === user.id
-                                          ? 'Held for you: waiting for the owner'
-                                          : `Requested by ${task.requestedByName}`}
-                                      </span>
-                                    )}
-                                    {task.status !== TaskStatus.completed && (
-                                      <Badge variant={TASK_STATUS_VARIANTS[task.displayStatus]}>
-                                        {TASK_STATUS_LABELS[task.displayStatus]}
-                                      </Badge>
-                                    )}
-                                    {task.featuredAsQuickTask && (
-                                      <span
-                                        className="text-xs whitespace-nowrap"
-                                        title="Also shown on the Quick Tasks page"
-                                      >
-                                        ⚡ Quick Task
-                                      </span>
-                                    )}
-                                    {isOverdue && <Badge variant="danger">Overdue</Badge>}
-                                    {task.pastPlanDays ? (
-                                      <Badge variant="warning">
-                                        {plural(task.pastPlanDays, 'day')} past plan
-                                      </Badge>
-                                    ) : null}
-                                    {task.keyDateSide && task.keyDateSide !== 'other' && (
-                                      <span
-                                        className="text-xs whitespace-nowrap"
-                                        style={
-                                          task.keyDateSide === 'key'
-                                            ? { color: 'var(--gantt-anchor)' }
-                                            : undefined
-                                        }
-                                      >
-                                        {KEY_DATE_SIDE_LABELS[task.keyDateSide]}
-                                      </span>
-                                    )}
-                                    {task.estimatedHours !== null && (
-                                      <span className="text-text-light text-xs whitespace-nowrap">
-                                        ~{task.estimatedHours}h
-                                      </span>
-                                    )}
-                                    {task.deadline && (
-                                      <span className="text-text-light text-xs whitespace-nowrap">
-                                        Deadline {formatDate(task.deadline)}
-                                      </span>
-                                    )}
-                                    {task.commentCount > 0 && (
-                                      <Link
-                                        href={`/projects/${idParam}/tasks/${task.id}`}
-                                        className="flex items-center gap-1 text-text-light text-xs whitespace-nowrap hover:underline"
-                                        aria-label={`${task.commentCount} comment${task.commentCount !== 1 ? 's' : ''}`}
-                                      >
-                                        <svg
-                                          width="14"
-                                          height="14"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="2"
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          aria-hidden="true"
-                                        >
-                                          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                                        </svg>
-                                        {task.commentCount}
-                                      </Link>
-                                    )}
-                                  </>
-                                }
-                                primaryAction={
-                                  <>
-                                    {task.status === TaskStatus.not_started &&
-                                      task.assignedToId === null &&
-                                      task.requestedById === null &&
-                                      canClaimTasks && (
-                                        <Button
-                                          variant="secondary"
-                                          size="sm"
-                                          onClick={() => handleClaimTask(task.id)}
-                                        >
-                                          {claimLabel(project.claimViewer)}
-                                        </Button>
-                                      )}
-                                    {!handedIn(task.status) && task.assignedToId === user.id && (
-                                      <SubmitWorkButton
-                                        target={{
-                                          kind: 'project',
-                                          projectId: project.id,
-                                          taskId: task.id,
-                                        }}
-                                        reviewer={
-                                          awaitsOwnerReview(project, canRunTasks)
-                                            ? 'The project owner'
-                                            : null
-                                        }
-                                        size="sm"
-                                        variant="secondary"
-                                      />
-                                    )}
-                                    {task.status === TaskStatus.under_review && canRunTasks && (
-                                      <Button
-                                        variant="secondary"
-                                        size="sm"
-                                        href={`/projects/${idParam}/tasks/${task.id}`}
-                                      >
-                                        Review
-                                      </Button>
-                                    )}
-                                  </>
-                                }
-                                menu={
-                                  (canAssign || canManageTasks || task.createdById === user.id) && (
-                                    <ActionMenu ariaLabel={`Task actions for ${task.title}`}>
-                                      {(close) => (
-                                        <>
-                                          {canAssign && (
-                                            <div className="px-3 py-2 flex flex-col gap-2">
-                                              <FilterDropdown
-                                                id={`assign-task-${task.id}`}
-                                                label="Assign to"
-                                                ariaLabel={`Assign volunteer to ${task.title}`}
-                                                value={taskAssignSelections[task.id] ?? ''}
-                                                options={assignVolunteerOptions}
-                                                onChange={(v) =>
-                                                  setTaskAssignSelections((s) => ({
-                                                    ...s,
-                                                    [task.id]: v,
-                                                  }))
-                                                }
-                                                searchable
-                                              />
-                                              <Button
-                                                variant="secondary"
-                                                size="sm"
-                                                disabled={
-                                                  !taskAssignSelections[task.id] ||
-                                                  assignTaskMutation.isPending
-                                                }
-                                                onClick={() => {
-                                                  handleAssignTask(task.id)
-                                                  close()
-                                                }}
-                                              >
-                                                {ASSIGN_PICKED}
-                                              </Button>
-                                            </div>
-                                          )}
-                                          {canUnassign && (
-                                            <button
-                                              role="menuitem"
-                                              className={`w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors cursor-pointer ${canAssign ? 'border-t border-brand-border mt-1' : ''}`}
-                                              onClick={() => {
-                                                handleUnassignTask(task.id)
-                                                close()
-                                              }}
-                                            >
-                                              {UNASSIGN}
-                                            </button>
-                                          )}
-                                          {(canManageTasks || task.createdById === user.id) && (
-                                            <button
-                                              role="menuitem"
-                                              className={`w-full text-left px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-accent transition-colors cursor-pointer ${canAssign || canUnassign ? 'border-t border-brand-border mt-1' : ''}`}
-                                              onClick={() => {
-                                                setDeleteTaskId(task.id)
-                                                close()
-                                              }}
-                                            >
-                                              Delete task
-                                            </button>
-                                          )}
-                                        </>
-                                      )}
-                                    </ActionMenu>
-                                  )
-                                }
-                              />
-                            )
-                          })}
-                        </ul>
-                      </SortableContext>
-                    </DndContext>
-                  ))}
-              </div>
-            )}
-
-            {tab === 'discussion' && (
-              <div className={card} id="discussion">
-                <h2>Discussion</h2>
-                <CommentThread
-                  workItemId={project.id}
-                  emptyText="No messages yet."
-                  placeholder="Share an update or ask a question. Type @ to mention someone."
-                />
-              </div>
-            )}
-
-            {tab === 'people' && peopleTab}
           </div>
 
-          {/* Sidebar */}
-          <div
-            className={`min-w-0 flex flex-col gap-4 ${wide ? 'lg:col-span-3 max-w-3xl' : 'lg:col-span-1'}`}
-          >
-            {/* Status */}
-            <div className={card}>
-              <h2 className="mb-3">Status</h2>
-              {canPickStatus ? (
-                <StatusSplitButton
-                  value={shownStatus}
-                  options={statusOptions}
-                  onSelect={handleSelectStatus}
-                  disabled={updateProjectMutation.isPending}
-                />
-              ) : (
-                <Badge variant={projectStatusVariant(project.status)} aria-label="project status">
-                  {projectStatusLabel(project.status)}
-                </Badge>
-              )}
-              <div className="flex gap-1 flex-wrap mt-2">
-                {project.isSeekingOwner && <Badge variant="caution">Seeking Owner</Badge>}
-                {project.isSeekingHelp && <Badge variant="caution">Seeking Help</Badge>}
-                {project.needsTasks && <Badge variant="warning">Needs Tasks</Badge>}
-              </div>
-              {(() => {
-                const parts = projectLocationParts(
-                  project.country,
-                  project.localGroup,
-                  project.remoteEligibility,
-                )
-                return (
-                  parts.length > 0 && (
-                    <p className="text-sm text-text-light mt-3 mb-0">📍 {parts.join(' · ')}</p>
-                  )
-                )
-              })()}
-              {project.team && (
-                <p className="text-sm text-text-light mt-1 mb-0">🧑‍🤝‍🧑 {project.team.name}</p>
-              )}
-              {pendingStatus !== null && (
-                <Modal
-                  id="confirm-status-change"
-                  title="Change project status?"
-                  isOpen
-                  onClose={() => setPendingStatus(null)}
-                >
-                  <p>
-                    Change status from <strong>{projectStatusLabel(newStatus)}</strong> to{' '}
-                    <strong>{projectStatusLabel(pendingStatus)}</strong>?
-                  </p>
-                  <div className="mt-4 flex justify-end gap-2">
-                    <Button variant="secondary" onClick={() => setPendingStatus(null)}>
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={() => handleConfirmStatus(pendingStatus)}
-                      disabled={updateProjectMutation.isPending}
-                    >
-                      {updateProjectMutation.isPending ? 'Updating…' : 'Confirm'}
-                    </Button>
-                  </div>
-                </Modal>
-              )}
+          {tab === 'overview' && (
+            <>
+              {/* Main project card */}
+              <div className={card}>
+                <p className="whitespace-pre-wrap">
+                  <Linkify text={project.description} />
+                </p>
 
-              {/* Ownership — same panel as Status/Team above */}
-              <div className="mt-4 pt-4 border-t border-brand-border">
-                <h2>Owner</h2>
-                <div className="flex items-center justify-between gap-2">
-                  {project.owner ? (
-                    <div className="flex items-center gap-2 min-w-0">
-                      <TaskAvatar name={project.owner.name} />
-                      <Link href={`/volunteers/${project.owner.id}`} className="underline truncate">
-                        {project.owner.name}
-                      </Link>
+                {project.skills.length > 0 && (
+                  <div className="mt-3">
+                    <strong>Skills needed:</strong>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {project.skills.map((s) => (
+                        <span
+                          key={s.id}
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                            s.isRequired
+                              ? 'bg-secondary text-white dark:bg-gray-600'
+                              : 'bg-accent text-secondary-dark dark:bg-gray-700 dark:text-gray-300'
+                          }`}
+                        >
+                          {s.name}
+                        </span>
+                      ))}
                     </div>
-                  ) : isAdmin && proposer ? (
-                    // Ownerless projects still have a proposer. Admins triaging the queue need
-                    // to know who to talk to, so show them that name in place of the empty state.
-                    <div className="flex items-center gap-2 min-w-0">
-                      <TaskAvatar name={proposer.name} />
-                      <span className="truncate">
-                        Proposer:{' '}
-                        {proposer.volunteerId ? (
-                          <Link href={`/volunteers/${proposer.volunteerId}`} className="underline">
-                            {proposer.name}
-                          </Link>
-                        ) : (
-                          proposer.name
-                        )}
-                      </span>
-                    </div>
-                  ) : (
-                    <p className="text-text-light text-sm m-0">No owner yet.</p>
-                  )}
-                  {isAdmin && volunteers.length > 0 && (
-                    <ActionMenu ariaLabel="Ownership actions">
-                      {(close) => (
-                        <>
-                          <div className="px-3 py-2 flex flex-col gap-2">
-                            <h3 className="m-0 text-sm">Transfer Ownership</h3>
-                            <VolunteerSelect
-                              id="transfer-to"
-                              label="Transfer to"
-                              ariaLabel="Transfer to"
-                              value={transferTo}
-                              onChange={(v) => setTransferTo(v)}
-                            />
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              disabled={!transferTo || updateProjectMutation.isPending}
-                              onClick={() => {
-                                setShowTransferConfirm(true)
-                                close()
-                              }}
-                            >
-                              {updateProjectMutation.isPending ? 'Transferring…' : 'Transfer'}
-                            </Button>
-                          </div>
-                          {project.owner && (
-                            <button
-                              role="menuitem"
-                              className="w-full text-left px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-accent transition-colors cursor-pointer border-t border-brand-border mt-1"
-                              onClick={() => {
-                                setShowRemoveOwnerConfirm(true)
-                                close()
-                              }}
-                            >
-                              Remove ownership
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </ActionMenu>
-                  )}
-                </div>
-                {project.canMessageOwner && !isAdmin && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="mt-3"
-                    onClick={() => setShowContactModal(true)}
-                  >
-                    Message owner
-                  </Button>
+                  </div>
                 )}
 
-                <div className="mt-4 pt-4 border-t border-brand-border">
-                  <h3 className="text-sm mb-2">People</h3>
-                  {sidebarHelpers.length === 0 ? (
-                    <p className="text-text-light text-sm m-0">No helpers yet.</p>
-                  ) : (
-                    <ul aria-label="Helpers" className="list-none p-0 m-0 flex flex-col gap-1">
-                      {sidebarHelpers.slice(0, SIDEBAR_PEOPLE).map((h) => (
-                        <li key={h.id} className="flex items-center gap-2 text-sm">
-                          <TaskAvatar name={h.volunteerName} />
-                          <span className="truncate">{h.volunteerName}</span>
-                        </li>
-                      ))}
-                    </ul>
+                {/* Match score */}
+                {!isOwner && project.match && project.match.totalRequired > 0 && (
+                  <p className="mt-3 mb-0 text-sm">
+                    You match {project.match.matchedRequiredCount} of {project.match.totalRequired}{' '}
+                    skill
+                    {project.match.totalRequired === 1 ? '' : 's'}
+                  </p>
+                )}
+
+                {isHttpUrl(project.collaborationLink) && (
+                  <p className="mt-2 text-sm">
+                    <a
+                      href={project.collaborationLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      role="link"
+                      className="underline text-primary-dark"
+                    >
+                      Open Project Doc →
+                    </a>
+                  </p>
+                )}
+              </div>
+
+              {/* Outcome display */}
+              {project.outcome && (
+                <div
+                  role="status"
+                  className="bg-emerald-100 dark:bg-emerald-900 border border-emerald-300 dark:border-emerald-600 rounded-xl p-6 mb-4"
+                >
+                  <strong>Outcome: </strong>
+                  {project.outcome === 'successful'
+                    ? 'Successful'
+                    : project.outcome === 'partial'
+                      ? 'Partial'
+                      : project.outcome === 'not_completed'
+                        ? 'Not Completed'
+                        : project.outcome === 'ongoing'
+                          ? 'Ongoing'
+                          : project.outcome}
+                  {project.outcomeNotes && <p className="mt-1 text-sm">{project.outcomeNotes}</p>}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Tasks and Timeline */}
+          {(tab === 'tasks' || tab === 'timeline') && (
+            <div className={card}>
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="m-0">{tab === 'timeline' ? 'Timeline' : 'Tasks'}</h2>
+                <div className="flex items-center gap-2">
+                  {canCreateTasks && (
+                    <Button variant="secondary" onClick={() => setShowTaskForm((v) => !v)}>
+                      Add Task
+                    </Button>
                   )}
-                  {sidebarHelpers.length > SIDEBAR_PEOPLE && (
-                    <p className="text-text-light text-xs mt-1 mb-0">
-                      and {sidebarHelpers.length - SIDEBAR_PEOPLE} more
-                    </p>
-                  )}
-                  {waitingCount > 0 && (
-                    <p className="text-sm mt-2 mb-0">{waitingCount} waiting for an answer</p>
-                  )}
-                  <button
-                    type="button"
-                    className="text-sm underline mt-2 bg-transparent border-0 p-0 cursor-pointer text-primary-text"
-                    onClick={() => selectTab('people')}
-                  >
-                    {isOwnerOrAdmin ? 'Manage people' : 'See everyone'}
-                  </button>
                 </div>
               </div>
-            </div>
 
-            {canManageProject && (
-              <details className={card}>
-                <summary className="cursor-pointer font-semibold">Manage</summary>
-                <div className="flex flex-col items-start gap-2 mt-3">
-                  <Button href={`/projects/${idParam}/edit`} variant="secondary" size="sm">
-                    Edit Project
-                  </Button>
-                  <details>
-                    <summary className="cursor-pointer text-sm">More</summary>
-                    <div className="flex flex-col items-start gap-2 mt-2">
-                      <Button variant="secondary" size="sm" onClick={() => setShowPorting(true)}>
-                        Export / Import
+              {showTaskForm && canCreateTasks && (
+                <div
+                  className={`bg-brand-bg rounded-lg p-3 mb-4 border border-brand-border ${wide ? 'max-w-3xl' : ''}`}
+                >
+                  <form onSubmit={handleAddTask}>
+                    <div className="mb-3">
+                      <label htmlFor="new-task-title">Task title</label>
+                      <input
+                        id="new-task-title"
+                        type="text"
+                        aria-label="Task title"
+                        value={newTaskTitle}
+                        onChange={(e) => setNewTaskTitle(e.target.value)}
+                        placeholder="Describe the task…"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label htmlFor="new-task-description">Description</label>
+                      <textarea
+                        id="new-task-description"
+                        aria-label="Description"
+                        rows={3}
+                        value={newTaskDescription}
+                        onChange={(e) => setNewTaskDescription(e.target.value)}
+                        placeholder="Add any context, examples, or guidelines…"
+                      />
+                    </div>
+                    <div className="mb-1">
+                      <DatesBlock
+                        id="new-task"
+                        value={newTaskDates}
+                        onChange={setNewTaskDates}
+                        note={
+                          canManageTasks
+                            ? undefined
+                            : 'Only the project owner can change these dates once the task exists.'
+                        }
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <Checkbox
+                        checked={newTaskFeatured}
+                        onChange={(e) => setNewTaskFeatured(e.target.checked)}
+                      >
+                        Add this task to the Quick Tasks page so volunteers can find and claim it
+                        without first clicking into this project
+                      </Checkbox>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="submit" disabled={createTaskMutation.isPending}>
+                        {createTaskMutation.isPending ? 'Creating…' : 'Create Task'}
                       </Button>
-                      {isAdmin && (
-                        <SaveAsTemplateButton projectId={project.id} defaultTitle={project.title} />
-                      )}
+                      <Button type="button" variant="ghost" onClick={() => setShowTaskForm(false)}>
+                        Cancel
+                      </Button>
                     </div>
-                  </details>
-                </div>
-              </details>
-            )}
-
-            {/* Admin triage */}
-            {isAdmin &&
-              (project.status === ProjectStatus.pending_review ||
-                project.status === ProjectStatus.needs_discussion) &&
-              !reviewDone && (
-                <div className={card}>
-                  <h2>Review Project</h2>
-                  <form onSubmit={handleSubmitReview}>
-                    <div className="mb-5">
-                      <label className="flex items-center gap-2 cursor-pointer mb-2 font-normal">
-                        <input
-                          type="radio"
-                          name="review_status"
-                          value="approved"
-                          checked={reviewStatus === 'approved'}
-                          onChange={() => setReviewStatus('approved')}
-                        />
-                        Approve
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer font-normal">
-                        <input
-                          type="radio"
-                          name="review_status"
-                          value="needs_discussion"
-                          checked={reviewStatus === 'needs_discussion'}
-                          onChange={() => setReviewStatus('needs_discussion')}
-                        />
-                        Ask for changes
-                      </label>
-                    </div>
-                    {reviewStatus === 'needs_discussion' && (
-                      <div className="mb-5">
-                        <label htmlFor="review-message">Message to Proposer</label>
-                        <textarea
-                          id="review-message"
-                          aria-label="Message to Proposer"
-                          rows={3}
-                          value={reviewMessage}
-                          onChange={(e) => setReviewMessage(e.target.value)}
-                          placeholder="What needs to change before it goes live?"
-                        />
-                      </div>
-                    )}
-                    <Button type="submit" disabled={reviewMutation.isPending}>
-                      {reviewMutation.isPending ? 'Submitting…' : 'Submit Review'}
-                    </Button>
                   </form>
                 </div>
               )}
 
-            {/* Record Outcome */}
-            {isAdmin && project.status === ProjectStatus.completed && !project.outcome && (
-              <div className={card}>
-                <h2>Record Project Outcome</h2>
-                <form onSubmit={handleRecordOutcome}>
-                  <div className="mb-5">
-                    <FilterDropdown
-                      id="outcome-select"
-                      label="Outcome"
-                      ariaLabel="Outcome"
-                      value={outcomeValue}
-                      options={outcomeOptions}
-                      onChange={setOutcomeValue}
-                    />
-                  </div>
-                  <div className="mb-5">
-                    <label htmlFor="outcome-notes">Outcome Notes</label>
-                    <textarea
-                      id="outcome-notes"
-                      aria-label="Outcome Notes"
-                      rows={3}
-                      value={outcomeNotes}
-                      onChange={(e) => setOutcomeNotes(e.target.value)}
-                      placeholder="Notes about the outcome…"
-                    />
-                  </div>
-                  <Button type="submit" disabled={!outcomeValue || setOutcomeMutation.isPending}>
-                    {setOutcomeMutation.isPending ? 'Recording…' : 'Record Outcome'}
-                  </Button>
-                </form>
-              </div>
-            )}
-          </div>
+              {tab === 'timeline' && (
+                <div className="overflow-x-auto">
+                  <TaskTimeline
+                    timeline={timeline}
+                    projectId={parseInt(idParam, 10)}
+                    loading={!timeline}
+                    canAssignTasks={canManageTasks}
+                    canClaimTasks={canClaimTasks}
+                    claimViewer={project.claimViewer}
+                    assignOptions={assignVolunteerOptions}
+                    onAssignTask={(taskId, volunteerId) =>
+                      assignTaskMutation.mutate({
+                        projectId: parseInt(idParam, 10),
+                        taskId,
+                        assigneeId: volunteerId,
+                      })
+                    }
+                    onClaimTask={handleClaimTask}
+                    onUnassignTask={handleUnassignTask}
+                    highlightCritical={highlightCritical}
+                  />
+                  {canManageTasks && (
+                    <PlanningTools>
+                      {canManageProject && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={setBaselineMutation.isPending}
+                            onClick={() => setShowBaselineDialog(true)}
+                          >
+                            {baselineSetAt ? 'Replace original plan' : 'Set original plan'}
+                          </Button>
+                          <span className="text-text-light text-xs">
+                            {baselineSetAt
+                              ? `Original plan set ${formatDateShort(baselineSetAt)}`
+                              : 'Save today’s dates as the plan to measure moves against.'}
+                          </span>
+                        </div>
+                      )}
+                      <Checkbox
+                        checked={highlightCritical}
+                        onChange={(e) => setHighlightCritical(e.target.checked)}
+                      >
+                        Highlight the critical path
+                      </Checkbox>
+                    </PlanningTools>
+                  )}
+                </div>
+              )}
+
+              {tab === 'tasks' && canManageTasks && pastPlanCount >= STALE_PLAN_FROM && (
+                <p className="text-text-light mb-3 text-sm">
+                  {pastPlanCount} tasks are past plan. If their bars were never placed, set real
+                  dates on the{' '}
+                  <button
+                    type="button"
+                    className="text-primary-text cursor-pointer border-0 bg-transparent p-0 underline"
+                    onClick={() => selectTab('timeline')}
+                  >
+                    Timeline
+                  </button>{' '}
+                  rather than replanning one at a time.
+                </p>
+              )}
+              {tab === 'tasks' && keyDateTask && (
+                <p className="text-text-light mb-3 text-sm">
+                  <span style={{ color: 'var(--gantt-anchor)' }}>★ Key date:</span>{' '}
+                  <strong>{keyDateTask.title}</strong>. The work it waits for is marked Before; the
+                  work that follows it, After.
+                </p>
+              )}
+              {tab === 'tasks' &&
+                (orderedTasks.length === 0 ? (
+                  <p className="text-text-light">No tasks yet.</p>
+                ) : (
+                  <DndContext
+                    sensors={taskDragSensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={canManageTasks ? handleTaskDragEnd : undefined}
+                  >
+                    <SortableContext
+                      items={orderedTasks.map((t) => t.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <ul className="list-none p-0 m-0">
+                        {orderedTasks.map((task) => {
+                          const isOverdue = deadlinePassed(task.deadline, handedIn(task.status))
+                          const canAssign =
+                            canRunTasks &&
+                            task.status !== TaskStatus.completed &&
+                            volunteers.length > 0
+                          const canUnassign =
+                            canRunTasks && task.assignedToId !== null && !handedIn(task.status)
+
+                          return (
+                            <SortableTaskItem
+                              key={task.id}
+                              task={task}
+                              draggable={canManageTasks}
+                              title={
+                                <Link
+                                  href={`/projects/${idParam}/tasks/${task.id}`}
+                                  className="hover:underline"
+                                >
+                                  {task.title}
+                                </Link>
+                              }
+                              assigneeName={
+                                task.status !== TaskStatus.completed ? task.assignedToName : null
+                              }
+                              chips={
+                                <>
+                                  {task.status === TaskStatus.completed && (
+                                    <span className="text-success text-sm font-semibold">
+                                      <span aria-hidden="true">✓</span> <span>done</span>
+                                    </span>
+                                  )}
+                                  {task.requestedById !== null && (
+                                    <span className="text-text-light text-xs whitespace-nowrap">
+                                      {task.requestedById === user.id
+                                        ? 'Held for you: waiting for the owner'
+                                        : `Requested by ${task.requestedByName}`}
+                                    </span>
+                                  )}
+                                  {task.status !== TaskStatus.completed && (
+                                    <Badge variant={TASK_STATUS_VARIANTS[task.displayStatus]}>
+                                      {TASK_STATUS_LABELS[task.displayStatus]}
+                                    </Badge>
+                                  )}
+                                  {task.featuredAsQuickTask && (
+                                    <span
+                                      className="text-xs whitespace-nowrap"
+                                      title="Also shown on the Quick Tasks page"
+                                    >
+                                      ⚡ Quick Task
+                                    </span>
+                                  )}
+                                  {isOverdue && <Badge variant="danger">Overdue</Badge>}
+                                  {task.pastPlanDays ? (
+                                    <Badge variant="warning">
+                                      {plural(task.pastPlanDays, 'day')} past plan
+                                    </Badge>
+                                  ) : null}
+                                  {task.keyDateSide && task.keyDateSide !== 'other' && (
+                                    <span
+                                      className="text-xs whitespace-nowrap"
+                                      style={
+                                        task.keyDateSide === 'key'
+                                          ? { color: 'var(--gantt-anchor)' }
+                                          : undefined
+                                      }
+                                    >
+                                      {KEY_DATE_SIDE_LABELS[task.keyDateSide]}
+                                    </span>
+                                  )}
+                                  {task.estimatedHours !== null && (
+                                    <span className="text-text-light text-xs whitespace-nowrap">
+                                      ~{task.estimatedHours}h
+                                    </span>
+                                  )}
+                                  {task.deadline && (
+                                    <span className="text-text-light text-xs whitespace-nowrap">
+                                      Deadline {formatDate(task.deadline)}
+                                    </span>
+                                  )}
+                                  {task.commentCount > 0 && (
+                                    <Link
+                                      href={`/projects/${idParam}/tasks/${task.id}`}
+                                      className="flex items-center gap-1 text-text-light text-xs whitespace-nowrap hover:underline"
+                                      aria-label={`${task.commentCount} comment${task.commentCount !== 1 ? 's' : ''}`}
+                                    >
+                                      <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        aria-hidden="true"
+                                      >
+                                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                                      </svg>
+                                      {task.commentCount}
+                                    </Link>
+                                  )}
+                                </>
+                              }
+                              primaryAction={
+                                <>
+                                  {task.status === TaskStatus.not_started &&
+                                    task.assignedToId === null &&
+                                    task.requestedById === null &&
+                                    canClaimTasks && (
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        onClick={() => handleClaimTask(task.id)}
+                                      >
+                                        {claimLabel(project.claimViewer)}
+                                      </Button>
+                                    )}
+                                  {!handedIn(task.status) && task.assignedToId === user.id && (
+                                    <SubmitWorkButton
+                                      target={{
+                                        kind: 'project',
+                                        projectId: project.id,
+                                        taskId: task.id,
+                                      }}
+                                      reviewer={
+                                        awaitsOwnerReview(project, canRunTasks)
+                                          ? 'The project owner'
+                                          : null
+                                      }
+                                      size="sm"
+                                      variant="secondary"
+                                    />
+                                  )}
+                                  {task.status === TaskStatus.under_review && canRunTasks && (
+                                    <Button
+                                      variant="secondary"
+                                      size="sm"
+                                      href={`/projects/${idParam}/tasks/${task.id}`}
+                                    >
+                                      Review
+                                    </Button>
+                                  )}
+                                </>
+                              }
+                              menu={
+                                (canAssign || canManageTasks || task.createdById === user.id) && (
+                                  <ActionMenu ariaLabel={`Task actions for ${task.title}`}>
+                                    {(close) => (
+                                      <>
+                                        {canAssign && (
+                                          <div className="px-3 py-2 flex flex-col gap-2">
+                                            <FilterDropdown
+                                              id={`assign-task-${task.id}`}
+                                              label="Assign to"
+                                              ariaLabel={`Assign volunteer to ${task.title}`}
+                                              value={taskAssignSelections[task.id] ?? ''}
+                                              options={assignVolunteerOptions}
+                                              onChange={(v) =>
+                                                setTaskAssignSelections((s) => ({
+                                                  ...s,
+                                                  [task.id]: v,
+                                                }))
+                                              }
+                                              searchable
+                                            />
+                                            <Button
+                                              variant="secondary"
+                                              size="sm"
+                                              disabled={
+                                                !taskAssignSelections[task.id] ||
+                                                assignTaskMutation.isPending
+                                              }
+                                              onClick={() => {
+                                                handleAssignTask(task.id)
+                                                close()
+                                              }}
+                                            >
+                                              {ASSIGN_PICKED}
+                                            </Button>
+                                          </div>
+                                        )}
+                                        {canUnassign && (
+                                          <button
+                                            role="menuitem"
+                                            className={`w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors cursor-pointer ${canAssign ? 'border-t border-brand-border mt-1' : ''}`}
+                                            onClick={() => {
+                                              handleUnassignTask(task.id)
+                                              close()
+                                            }}
+                                          >
+                                            {UNASSIGN}
+                                          </button>
+                                        )}
+                                        {(canManageTasks || task.createdById === user.id) && (
+                                          <button
+                                            role="menuitem"
+                                            className={`w-full text-left px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-accent transition-colors cursor-pointer ${canAssign || canUnassign ? 'border-t border-brand-border mt-1' : ''}`}
+                                            onClick={() => {
+                                              setDeleteTaskId(task.id)
+                                              close()
+                                            }}
+                                          >
+                                            Delete task
+                                          </button>
+                                        )}
+                                      </>
+                                    )}
+                                  </ActionMenu>
+                                )
+                              }
+                            />
+                          )
+                        })}
+                      </ul>
+                    </SortableContext>
+                  </DndContext>
+                ))}
+            </div>
+          )}
+
+          {tab === 'discussion' && (
+            <div className={card} id="discussion">
+              <h2>Discussion</h2>
+              <CommentThread
+                workItemId={project.id}
+                emptyText="No messages yet."
+                placeholder="Share an update or ask a question. Type @ to mention someone."
+              />
+            </div>
+          )}
+
+          {tab === 'people' && peopleTab}
         </div>
       </main>
+
+      {pendingStatus !== null && (
+        <Modal
+          id="confirm-status-change"
+          title="Change project status?"
+          isOpen
+          onClose={() => setPendingStatus(null)}
+        >
+          <p>
+            Change status from <strong>{projectStatusLabel(newStatus)}</strong> to{' '}
+            <strong>{projectStatusLabel(pendingStatus)}</strong>?
+          </p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setPendingStatus(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => handleConfirmStatus(pendingStatus)}
+              disabled={updateProjectMutation.isPending}
+            >
+              {updateProjectMutation.isPending ? 'Updating…' : 'Confirm'}
+            </Button>
+          </div>
+        </Modal>
+      )}
 
       <Modal
         id="project-porting"
