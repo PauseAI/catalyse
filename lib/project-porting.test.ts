@@ -29,6 +29,7 @@ function state(over: Partial<CurrentState> = {}): CurrentState {
         timing: 'flexible',
         submissionPrompt: null,
         submissionAsksLink: false,
+        helpersWanted: 2,
         sortOrder: 1,
       },
     ],

@@ -611,6 +611,7 @@ export type TaskLike = ScheduleFieldsLike & {
   completedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
+  helpersWanted: number | null
 } & SubmissionLike &
   SubmissionAskLike
 
@@ -718,6 +719,7 @@ export function serializeTask(t: TaskLike) {
     completedAt: t.completedAt,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
+    helpersWanted: t.helpersWanted,
     submission: serializeSubmission(t),
     ...serializeSubmissionAsk(t),
     ...serializeScheduleFields(t),

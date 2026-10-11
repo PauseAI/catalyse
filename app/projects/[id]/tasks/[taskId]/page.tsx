@@ -42,6 +42,11 @@ import SubmittedWork from '@/components/SubmittedWork'
 import RequestChangesButton from '@/components/RequestChangesButton'
 import ReopenTaskDialog from '@/components/ReopenTaskDialog'
 import LockedProjectBanner from '@/components/LockedProjectBanner'
+import TaskHelpers from '@/components/TaskHelpers'
+import HelpersWantedField, {
+  helpersWantedDraft,
+  helpersWantedPayload,
+} from '@/components/HelpersWantedField'
 import { TERMINAL_STATUSES } from '@/lib/project-status'
 
 /** "Waiting on 1 of 2.", or that everything it waits on is done; nothing once it is handed in. */
@@ -149,6 +154,7 @@ export default function TaskDetailPage({
   const [editDates, setEditDates] = useState<DatesValue>(EMPTY_DATES)
   const [editFeatured, setEditFeatured] = useState(false)
   const [editAsk, setEditAsk] = useState(NEW_SUBMISSION_ASK)
+  const [editHelpers, setEditHelpers] = useState('')
   const [initialized, setInitialized] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [messaging, setMessaging] = useState(false)
@@ -165,6 +171,7 @@ export default function TaskDetailPage({
     setEditDates(datesValueFrom(task))
     setEditFeatured(task.featuredAsQuickTask)
     setEditAsk(submissionAskDraft(task))
+    setEditHelpers(helpersWantedDraft(task.helpersWanted))
   }, [task, initialized])
 
   const updateMutation = useMutation({
@@ -222,6 +229,7 @@ export default function TaskDetailPage({
         ...datesPayload(editDates),
         featuredAsQuickTask: editFeatured,
         ...submissionAskPayload(editAsk),
+        ...helpersWantedPayload(editHelpers),
       },
     })
   }
@@ -292,7 +300,10 @@ export default function TaskDetailPage({
           title={task.title}
           person={
             <WorkItemPerson
-              label="Assigned to"
+              // A task worked by several people names the one in charge as its lead.
+              label={
+                task.helpersWanted !== null || task.helpers.length > 0 ? 'Lead' : 'Assigned to'
+              }
               summary={assigneeSince(task)}
               actions={
                 task.assignedToId !== null &&
@@ -450,6 +461,8 @@ export default function TaskDetailPage({
           </p>
         )}
 
+        <TaskHelpers projectId={projectId} taskId={taskId} state={task} />
+
         {task.requestedById !== null && (
           <p className="text-sm text-text-light mt-4 mb-0">
             {task.requestedById === user.id
@@ -561,6 +574,7 @@ export default function TaskDetailPage({
             </div>
 
             <SubmissionAskFields id="edit-task" value={editAsk} onChange={setEditAsk} />
+            <HelpersWantedField id="edit-task" value={editHelpers} onChange={setEditHelpers} />
 
             <div className="mb-5">
               <Checkbox checked={editFeatured} onChange={(e) => setEditFeatured(e.target.checked)}>
@@ -584,6 +598,7 @@ export default function TaskDetailPage({
                   setEditDates(datesValueFrom(task))
                   setEditFeatured(task.featuredAsQuickTask)
                   setEditAsk(submissionAskDraft(task))
+                  setEditHelpers(helpersWantedDraft(task.helpersWanted))
                 }}
               >
                 Cancel

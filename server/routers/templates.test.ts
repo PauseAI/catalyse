@@ -31,6 +31,7 @@ async function saveTemplate() {
     durationDays: 2,
     skills: { create: [{ skillId: skill.id, isRequired: false }] },
     submissionAsksLink: true,
+    helpersWanted: 3,
   })
   const b = await createTask(project.id, {
     title: 'Print posters',
@@ -80,6 +81,7 @@ describe('templates.saveAsTemplate / get / list', () => {
       [null, true],
       ['Where did they go up?', false],
     ])
+    expect(structure.tasks.map((x) => x.helpersWanted)).toEqual([3, null])
     expect(structure.tasks[0].skills).toEqual([{ skillId: skill.id, isRequired: false }])
     expect(structure.tasks[1].dependsOn).toEqual([{ on: `task-${project.id + 1}`, lagDays: 1 }])
     expect(JSON.stringify(structure)).not.toContain('Leeds')
@@ -211,10 +213,11 @@ describe('templates.instantiate / canInstantiate', () => {
         t.startDate,
         t.submissionPrompt,
         t.submissionAsksLink,
+        t.helpersWanted,
       ]),
     ).toEqual([
-      ['Book venue', 1, null, null, true],
-      ['Print posters', 2, null, 'Where did they go up?', false],
+      ['Book venue', 1, null, null, true, 3],
+      ['Print posters', 2, null, 'Where did they go up?', false, null],
     ])
     expect(draft.children[0].skills).toEqual([
       expect.objectContaining({ skillId: skill.id, isRequired: false }),

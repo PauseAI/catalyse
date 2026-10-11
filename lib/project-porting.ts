@@ -42,6 +42,7 @@ export type CurrentTask = {
   timing: 'flexible' | 'fixed'
   submissionPrompt: string | null
   submissionAsksLink: boolean
+  helpersWanted: number | null
   sortOrder: number | null
 }
 
@@ -118,6 +119,7 @@ const ImportTaskSchema = z
     timing: z.enum(['flexible', 'fixed']).optional(),
     submissionPrompt: z.string().max(200).nullable().optional(),
     submissionAsksLink: z.boolean().optional(),
+    helpersWanted: z.number().int().min(1).max(100).nullable().optional(),
     dependsOn: z.array(DependsOnSchema).max(MAX_DEPENDENCIES_PER_TASK).optional(),
   })
   .transform((t) => {
@@ -188,6 +190,7 @@ export type ProjectExportPayload = {
     timing: 'flexible' | 'fixed'
     submissionPrompt: string | null
     submissionAsksLink: boolean
+    helpersWanted: number | null
     dependsOn: Array<{ on: number; lagDays: number }>
   }>
 }
@@ -243,6 +246,7 @@ export function serializeProjectExport(state: CurrentState, appUrl?: string): Pr
       timing: t.timing,
       submissionPrompt: t.submissionPrompt,
       submissionAsksLink: t.submissionAsksLink,
+      helpersWanted: t.helpersWanted,
       dependsOn: state.dependencies
         .filter((d) => d.successorId === t.id)
         .sort((a, b) => a.predecessorId - b.predecessorId)
@@ -279,6 +283,7 @@ function canonicalise(state: CurrentState): string {
       timing: t.timing,
       submissionPrompt: t.submissionPrompt,
       submissionAsksLink: t.submissionAsksLink,
+      helpersWanted: t.helpersWanted,
     }))
     .sort((a, b) => a.id - b.id)
   const dependencies = [...state.dependencies]
@@ -375,6 +380,7 @@ const TASK_FIELDS = [
   'timing',
   'submissionPrompt',
   'submissionAsksLink',
+  'helpersWanted',
 ] as const
 
 type NormalisedTask = {
@@ -390,6 +396,7 @@ type NormalisedTask = {
   timing: 'flexible' | 'fixed'
   submissionPrompt: string | null
   submissionAsksLink: boolean
+  helpersWanted: number | null
 }
 
 function normaliseCurrent(t: CurrentTask): NormalisedTask {
@@ -406,6 +413,7 @@ function normaliseCurrent(t: CurrentTask): NormalisedTask {
     timing: t.timing,
     submissionPrompt: t.submissionPrompt,
     submissionAsksLink: t.submissionAsksLink,
+    helpersWanted: t.helpersWanted,
   }
 }
 
@@ -676,6 +684,7 @@ function createTaskFieldList(ft: ImportTask): FieldChange[] {
     timing: ft.timing ?? 'flexible',
     submissionPrompt: ft.submissionPrompt ?? null,
     submissionAsksLink: ft.submissionAsksLink ?? false,
+    helpersWanted: ft.helpersWanted ?? null,
   }
   const rec = effective as unknown as Record<string, unknown>
   const out: FieldChange[] = []
@@ -831,6 +840,7 @@ export type TaskWriteFields = {
   timing?: 'flexible' | 'fixed'
   submissionPrompt?: string | null
   submissionAsksLink?: boolean
+  helpersWanted?: number | null
 }
 
 export type LocalRef = { kind: 'existing'; id: number } | { kind: 'created'; ref: string }
@@ -867,6 +877,7 @@ function writeFieldsForUpdate(node: TaskNode): TaskWriteFields {
   if (changed.has('timing')) fields.timing = ft.timing
   if (changed.has('submissionPrompt')) fields.submissionPrompt = ft.submissionPrompt ?? null
   if (changed.has('submissionAsksLink')) fields.submissionAsksLink = ft.submissionAsksLink
+  if (changed.has('helpersWanted')) fields.helpersWanted = ft.helpersWanted ?? null
   return fields
 }
 
@@ -884,6 +895,7 @@ function writeFieldsForCreate(ft: ImportTask): TaskWriteFields {
     timing: ft.timing ?? 'flexible',
     submissionPrompt: ft.submissionPrompt ?? null,
     submissionAsksLink: ft.submissionAsksLink ?? false,
+    helpersWanted: ft.helpersWanted ?? null,
   }
 }
 

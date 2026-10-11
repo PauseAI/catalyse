@@ -35,6 +35,14 @@ import {
 } from '@/lib/work-item-lock'
 import { recordChange, recordEvent, updateWorkItem, workItemChanges } from '@/lib/work-item-events'
 import { taskDisplayStatus, taskStatusViews } from '@/lib/task-status'
+import {
+  HELPER_COUNT,
+  TASK_HELPER,
+  endHelpingOnProject,
+  loadTaskHelpers,
+  stopHelpingAsLead,
+  taskHelperIds,
+} from '@/lib/task-helpers'
 import { taskCounts } from '@/lib/task-list-order'
 import { loadWorkItemSummaries, toWorkItemSummary } from '@/lib/work-item-summary'
 import {
@@ -59,6 +67,7 @@ import { notifyMatchingVolunteers } from '@/lib/project-match-notify'
 import { html } from '@/lib/email'
 import { formatDateShort } from '@/lib/format-date'
 import { awaitsOwnerReview } from '@/lib/task-review'
+import { handedIn } from '@/lib/overdue'
 import { canReach } from '@/lib/contact'
 import {
   CreateProjectSchema,
@@ -247,6 +256,216 @@ async function findProjectTask(projectId: number, taskId: number) {
   ])
   if (!project || !task) throw new ORPCError('NOT_FOUND', { message: 'Project or task not found' })
   return { project, task }
+}
+
+// ── Task helpers ──────────────────────────────────────────────────────────────
+// expressInterest, withdrawInterest and respondToInterest given a `taskId` act on the task's
+// helpers (lib/task-helpers.ts) through these, and none of the project-only steps (held tasks,
+// deputies, ownership) run.
+
+/** Can't join, leave or change the helpers of a task that is handed in or done. */
+function assertTaskTakesHelpers(task: { status: string }): void {
+  assertTaskEditable(task)
+  if (task.status === TaskStatus.under_review) {
+    throw new ORPCError('BAD_REQUEST', { message: 'This task has been handed in' })
+  }
+}
+
+/** Tells the task's lead, or the project's owner when it has none, about its helpers. */
+async function tellLeadAboutHelpers(
+  project: { id: number; assigneeId: number | null },
+  task: { id: number; title: string; assigneeId: number | null },
+  actorId: number,
+  title: string,
+): Promise<void> {
+  const to = task.assigneeId ?? project.assigneeId
+  if (to === null || to === actorId) return
+  await notifyUser(
+    to,
+    'task_helpers_changed',
+    title,
+    null,
+    `/projects/${project.id}/tasks/${task.id}`,
+    undefined,
+    task.id,
+  )
+}
+
+/** Tells a task's helpers, less `actorId`, what happened to it. */
+async function tellHelpers(
+  task: { id: number; parentId: number | null },
+  actorId: number,
+  type: string,
+  title: string,
+  body: string | null,
+): Promise<void> {
+  for (const id of await taskHelperIds(task.id, actorId)) {
+    await notifyUser(
+      id,
+      type,
+      title,
+      body,
+      `/projects/${task.parentId}/tasks/${task.id}`,
+      undefined,
+      task.id,
+    )
+  }
+}
+
+/** A member of the project joins a task that seeks helpers, until it has as many as it wants. */
+async function joinTaskAsHelper(
+  projectId: number,
+  taskId: number,
+  volunteer: { id: number; name: string; isAdmin: boolean | null },
+  message: string | null,
+): Promise<{ message: string }> {
+  const { project, task } = await findProjectTask(projectId, taskId)
+  assertTaskTakesHelpers(task)
+  if (task.helpersWanted === null) {
+    throw new ORPCError('BAD_REQUEST', { message: 'This task is not looking for helpers' })
+  }
+  if (task.assigneeId === volunteer.id) {
+    throw new ORPCError('BAD_REQUEST', { message: 'You already lead this task' })
+  }
+  if (!(await resolveClaimViewer(project, volunteer)).onProject) {
+    throw new ORPCError('FORBIDDEN', { message: 'Join the project to help on its tasks' })
+  }
+  const wanted = task.helpersWanted
+
+  await prisma.$transaction(async (tx) => {
+    // Holds the task row so two people taking the last place cannot both get it.
+    await tx.$queryRaw`SELECT id FROM work_items WHERE id = ${taskId} FOR UPDATE`
+    const existing = await tx.workItemInterest.findFirst({
+      where: { workItemId: taskId, volunteerId: volunteer.id },
+    })
+    if (existing?.status === InterestStatus.accepted) {
+      throw new ORPCError('BAD_REQUEST', { message: 'You are already helping on this task' })
+    }
+    // As on a project, leaving keeps the way back open; being taken off does not.
+    if (existing?.status === InterestStatus.removed) {
+      throw new ORPCError('FORBIDDEN', { message: 'You were taken off this task' })
+    }
+    const helping = await tx.workItemInterest.count({
+      where: { workItemId: taskId, status: InterestStatus.accepted },
+    })
+    if (helping >= wanted) {
+      throw new ORPCError('BAD_REQUEST', { message: 'This task has all the helpers it wants' })
+    }
+    const data = {
+      interestType: TASK_HELPER,
+      message,
+      status: InterestStatus.accepted,
+      origin: InterestOrigin.applied,
+      respondedAt: new Date(),
+      responseMessage: null,
+      invitedById: null,
+    }
+    if (existing) {
+      await tx.workItemInterest.update({ where: { id: existing.id }, data })
+    } else {
+      await tx.workItemInterest.create({
+        data: { ...data, volunteerId: volunteer.id, workItemId: taskId },
+      })
+    }
+    await recordEvent(tx, {
+      workItemId: taskId,
+      actorId: volunteer.id,
+      kind: 'helper_joined',
+      before: {},
+      after: { helperId: volunteer.id },
+    })
+  })
+
+  await tellLeadAboutHelpers(
+    project,
+    task,
+    volunteer.id,
+    `${volunteer.name} joined '${task.title}' as a helper`,
+  )
+  return { message: "You're helping on this task" }
+}
+
+/** A helper leaves a task. */
+async function leaveTaskAsHelper(
+  projectId: number,
+  taskId: number,
+  volunteer: { id: number; name: string },
+): Promise<{ message: string }> {
+  const { project, task } = await findProjectTask(projectId, taskId)
+  assertTaskTakesHelpers(task)
+  await prisma.$transaction(async (tx) => {
+    const left = await tx.workItemInterest.updateMany({
+      where: { workItemId: taskId, volunteerId: volunteer.id, status: InterestStatus.accepted },
+      data: { status: InterestStatus.withdrawn, respondedAt: new Date() },
+    })
+    if (left.count === 0) {
+      throw new ORPCError('NOT_FOUND', { message: 'You are not helping on this task' })
+    }
+    await recordEvent(tx, {
+      workItemId: taskId,
+      actorId: volunteer.id,
+      kind: 'helper_left',
+      before: { helperId: volunteer.id },
+      after: {},
+    })
+  })
+  await tellLeadAboutHelpers(
+    project,
+    task,
+    volunteer.id,
+    `${volunteer.name} stopped helping on '${task.title}'`,
+  )
+  return { message: 'You are no longer helping on this task' }
+}
+
+/** The task's lead, or whoever manages the project's tasks, takes a helper off it. */
+async function removeTaskHelper(
+  projectId: number,
+  taskId: number,
+  interestId: number,
+  volunteer: { id: number; name: string; isAdmin: boolean | null },
+  responseMessage: string | null,
+): Promise<{ message: string }> {
+  const { project, task } = await findProjectTask(projectId, taskId)
+  const manages = canManageProjectTasks(
+    project,
+    volunteer,
+    await isProjectDeputy(project.id, volunteer.id),
+  )
+  if (task.assigneeId !== volunteer.id && !manages) {
+    throw new ORPCError('FORBIDDEN', {
+      message: 'Only the task lead or the project owner can remove a helper',
+    })
+  }
+  assertTaskTakesHelpers(task)
+  const helper = await prisma.workItemInterest.findFirst({
+    where: { id: interestId, workItemId: taskId, status: InterestStatus.accepted },
+  })
+  if (!helper) throw new ORPCError('NOT_FOUND', { message: 'Helper not found' })
+
+  await prisma.$transaction(async (tx) => {
+    await tx.workItemInterest.update({
+      where: { id: helper.id },
+      data: { status: InterestStatus.removed, responseMessage, respondedAt: new Date() },
+    })
+    await recordEvent(tx, {
+      workItemId: taskId,
+      actorId: volunteer.id,
+      kind: 'helper_removed',
+      before: {},
+      after: { helperId: helper.volunteerId },
+    })
+  })
+  await notifyUser(
+    helper.volunteerId,
+    'helper_removed',
+    `Removed: you're no longer helping on '${task.title}'`,
+    responseMessage,
+    `/projects/${projectId}/tasks/${taskId}`,
+    undefined,
+    taskId,
+  )
+  return { message: 'Helper removed' }
 }
 
 /** A submitted task the volunteer may accept or send back: the project's owner, a deputy or an admin. */
@@ -911,7 +1130,12 @@ export const projectsRouter = {
           assignee: { select: { name: true } },
           creator: { select: { name: true } },
           requestedBy: { select: { name: true } },
-          _count: { select: { comments: true } },
+          _count: {
+            select: {
+              comments: true,
+              interests: { where: { status: InterestStatus.accepted } },
+            },
+          },
         },
       })
 
@@ -951,6 +1175,7 @@ export const projectsRouter = {
         requestedByName: t.requestedBy?.name ?? null,
         sortOrder: t.sortOrder,
         commentCount: t._count.comments,
+        helperCount: t._count.interests,
         featuredAsQuickTask: t.featuredAsQuickTask ?? false,
       }))
       // The Overview counts down to the soonest key date still to come, as the timeline places it.
@@ -1459,11 +1684,24 @@ export const projectsRouter = {
     return { message: `Project '${project.title}' deleted` }
   }),
 
+  /** Asks to help on or lead a project; given a `taskId`, joins that task as a helper. */
   expressInterest: confirmedProcedure
-    .input(z.object({ projectId: z.number().int() }).merge(ProjectInterestBodySchema))
+    .input(
+      z
+        .object({ projectId: z.number().int(), taskId: z.number().int().optional() })
+        .merge(ProjectInterestBodySchema),
+    )
     .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
+      if ((input.taskId !== undefined) !== (input.interestType === TASK_HELPER)) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: 'Helping on a task is for tasks; leading or helping a project is for projects',
+        })
+      }
+      if (input.taskId !== undefined) {
+        return joinTaskAsHelper(input.projectId, input.taskId, volunteer, input.message ?? null)
+      }
       const project = await prisma.workItem.findFirst({
         where: {
           id: input.projectId,
@@ -1534,10 +1772,14 @@ export const projectsRouter = {
       return { message: 'Interest expressed successfully' }
     }),
 
+  /** Leaves a project, or applying to it; given a `taskId`, stops helping on that task. */
   withdrawInterest: authedProcedure
-    .input(z.object({ projectId: z.number().int() }))
+    .input(z.object({ projectId: z.number().int(), taskId: z.number().int().optional() }))
     .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
+      if (input.taskId !== undefined) {
+        return leaveTaskAsHelper(input.projectId, input.taskId, context.volunteer)
+      }
       const result = await prisma.workItemInterest.updateMany({
         where: {
           workItemId: input.projectId,
@@ -1549,6 +1791,7 @@ export const projectsRouter = {
       if (result.count === 0) throw new ORPCError('NOT_FOUND', { message: 'No interest found' })
 
       await releaseTasksHeldBy(input.projectId, context.volunteer.id, context.volunteer.id)
+      await endHelpingOnProject(input.projectId, context.volunteer.id, InterestStatus.withdrawn)
       const project = await prisma.workItem.findFirst({
         where: { id: input.projectId, type: WorkItemType.PROJECT },
         select: { id: true, title: true, assigneeId: true },
@@ -1558,10 +1801,15 @@ export const projectsRouter = {
       return { message: 'Interest withdrawn' }
     }),
 
+  /**
+   * The owner accepts, declines or removes someone on a project. Given a `taskId`, the task's
+   * lead or a manager removes a helper (`declined`); helpers join themselves, so none is accepted.
+   */
   respondToInterest: authedProcedure
     .input(
       z.object({
         projectId: z.number().int(),
+        taskId: z.number().int().optional(),
         interestId: z.number().int(),
         status: z.enum([InterestStatus.accepted, InterestStatus.declined]),
         responseMessage: z.string().optional().nullable(),
@@ -1570,6 +1818,20 @@ export const projectsRouter = {
     .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
+      if (input.taskId !== undefined) {
+        if (input.status === InterestStatus.accepted) {
+          throw new ORPCError('BAD_REQUEST', {
+            message: 'Helpers join a task themselves; there is nobody to accept',
+          })
+        }
+        return removeTaskHelper(
+          input.projectId,
+          input.taskId,
+          input.interestId,
+          volunteer,
+          input.responseMessage ?? null,
+        )
+      }
       const project = await prisma.workItem.findFirst({
         where: { id: input.projectId, type: WorkItemType.PROJECT },
       })
@@ -1617,6 +1879,7 @@ export const projectsRouter = {
 
       if (status === InterestStatus.removed) {
         await endDeputyRole(project, interest.volunteerId, interest.volunteer.name)
+        await endHelpingOnProject(input.projectId, interest.volunteerId, InterestStatus.removed)
       }
 
       if (status === InterestStatus.accepted) {
@@ -1991,6 +2254,7 @@ export const projectsRouter = {
         include: {
           assignee: { select: { name: true } },
           creator: { select: { name: true } },
+          ...HELPER_COUNT,
         },
       })
 
@@ -2022,6 +2286,7 @@ export const projectsRouter = {
           ...views[i],
           assignedToName: t.assignee?.name ?? null,
           createdByName: t.creator?.name ?? null,
+          helperCount: t._count.interests,
           sortOrder: t.sortOrder,
         })),
         dependencies: dependencyRows,
@@ -2152,12 +2417,35 @@ export const projectsRouter = {
             }
           : null
 
+      const helpers = await loadTaskHelpers(task.id)
+      const claimViewer = await resolveClaimViewer(project, volunteer)
+      const myHelperRow = await prisma.workItemInterest.findFirst({
+        where: { workItemId: task.id, volunteerId: volunteer.id },
+        select: { status: true },
+      })
+      const isHelper = myHelperRow?.status === InterestStatus.accepted
+      // Joining, leaving and removing helpers stop once the task is handed in (joinTaskAsHelper).
+      const takesHelpers = !locked && !handedIn(task.status)
+      const canJoinAsHelper =
+        takesHelpers &&
+        task.helpersWanted !== null &&
+        helpers.length < task.helpersWanted &&
+        task.assigneeId !== volunteer.id &&
+        claimViewer.onProject &&
+        myHelperRow?.status !== InterestStatus.accepted &&
+        myHelperRow?.status !== InterestStatus.removed
+
       return {
         ...serializeTask(task),
         ...taskDisplayStatus(
           task,
           predecessorRows.map((r) => r.predecessor),
         ),
+        helpers,
+        isHelper,
+        canJoinAsHelper,
+        canLeaveAsHelper: takesHelpers && isHelper,
+        canRemoveHelpers: takesHelpers && (task.assigneeId === volunteer.id || manages),
         changesRequested,
         autoAcceptTasks: project.autoAcceptTasks,
         projectTitle: project.title,
@@ -2165,7 +2453,7 @@ export const projectsRouter = {
         projectStatus: project.status,
         projectCompletedAt: project.completedAt,
         canClaim,
-        claimViewer: await resolveClaimViewer(project, volunteer),
+        claimViewer,
         canManage: !locked && manages,
         assignedToName: task.assignee?.name ?? null,
         assigneeContactable:
@@ -2228,6 +2516,7 @@ export const projectsRouter = {
             featuredAsQuickTask: input.featuredAsQuickTask ?? false,
             submissionPrompt: input.submissionPrompt ?? null,
             submissionAsksLink: input.submissionAsksLink ?? false,
+            helpersWanted: input.helpersWanted ?? null,
             timing: input.timing ?? TaskTiming.flexible,
             creatorId: volunteer.id,
             sortOrder: (max._max.sortOrder ?? 0) + 1,
@@ -2423,6 +2712,7 @@ export const projectsRouter = {
         input.data.featuredAsQuickTask === undefined &&
         input.data.submissionPrompt === undefined &&
         input.data.submissionAsksLink === undefined &&
+        input.data.helpersWanted === undefined &&
         input.data.isAnchor === undefined &&
         input.data.timing === undefined &&
         input.data.startDate === undefined &&
@@ -2518,6 +2808,7 @@ export const projectsRouter = {
         data.submissionPrompt = input.data.submissionPrompt
       if (input.data.submissionAsksLink !== undefined)
         data.submissionAsksLink = input.data.submissionAsksLink
+      if (input.data.helpersWanted !== undefined) data.helpersWanted = input.data.helpersWanted
       if (input.data.isAnchor !== undefined) data.isAnchor = input.data.isAnchor
       if (input.data.timing !== undefined) data.timing = input.data.timing
       applyScheduleWrite(data, { ...input.data, taskDeadline: input.data.deadline })
@@ -2566,6 +2857,7 @@ export const projectsRouter = {
         await recordChange(tx, { row: task, data, actorId: volunteer.id })
       })
       if (data.status === TaskStatus.completed) await askOwnerToComplete(project.id)
+      if (typeof data.assigneeId === 'number') await stopHelpingAsLead(task.id, data.assigneeId)
 
       if (isSelfClaim) {
         const existingInterest = await prisma.workItemInterest.findFirst({
@@ -2665,6 +2957,7 @@ export const projectsRouter = {
       const link = `/projects/${project.id}/tasks/${task.id}`
       const said = submission.submissionNote ?? submission.submissionUrl
       if (accepted) {
+        await tellHelpers(task, volunteer.id, 'task_done', `Done: '${task.title}'`, null)
         if (reviewerId !== null && reviewerId !== volunteer.id) {
           notifyUser(
             reviewerId,
@@ -2724,6 +3017,7 @@ export const projectsRouter = {
       )
       await clearNotifications('task_submitted', task.id)
       await askOwnerToComplete(input.projectId)
+      await tellHelpers(task, volunteer.id, 'task_done', `Done: '${task.title}'`, null)
       if (task.assigneeId !== null) {
         notifyUser(
           task.assigneeId,
@@ -2840,6 +3134,13 @@ export const projectsRouter = {
           task.id,
         )
       }
+      await tellHelpers(
+        task,
+        volunteer.id,
+        'task_reopened',
+        `Reopened: '${task.title}'`,
+        `${who} reopened it.`,
+      )
       return { message: 'Task reopened', status }
     }),
 
@@ -2895,6 +3196,7 @@ export const projectsRouter = {
         },
         { actorId: volunteer.id, extra: deputyContext(isDeputy) },
       )
+      await stopHelpingAsLead(task.id, input.assigneeId)
 
       await notifyUser(
         input.assigneeId,
@@ -2994,6 +3296,13 @@ export const projectsRouter = {
           task.id,
         )
       }
+      await tellHelpers(
+        task,
+        volunteer.id,
+        'task_replanned',
+        `'${task.title}' now finishes ${endText}`,
+        input.reason,
+      )
       const titleOf = new Map(tasks.map((t) => [t.id, t]))
       for (const m of preview.moved) {
         const movedTask = titleOf.get(m.id)

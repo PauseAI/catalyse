@@ -407,11 +407,13 @@ describe('task detail page', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: /quick task/i }))
     await userEvent.type(screen.getByLabelText('What to submit (optional)'), 'Photos of the stall')
     await userEvent.click(screen.getByRole('checkbox', { name: 'Ask for a link to the work' }))
+    await userEvent.type(screen.getByLabelText('Helpers wanted (optional)'), '3')
     fireEvent.submit(title.closest('form')!)
     await screen.findByText('Task updated!')
     expect(await row(task.id)).toMatchObject({
       submissionPrompt: 'Photos of the stall',
       submissionAsksLink: true,
+      helpersWanted: 3,
       title: 'Renamed task',
       description: null,
       estimatedHours: null,
@@ -779,4 +781,82 @@ describe('task detail page — a completed project', () => {
     await screen.findByText('Archived. Read-only.')
     await screen.findByRole('button', { name: 'Reopen project' })
   })
+
+  it('lets members join as helpers beside the lead, leave, and be removed', async () => {
+    const lead = await createVolunteer({ name: 'Lee Lead' })
+    const ann = await createVolunteer({ name: 'Ann Helper' })
+    const bob = await createVolunteer({ name: 'Bob Late' })
+    const project = await createProject({ status: 'in_progress' })
+    for (const m of [lead, ann, bob]) {
+      await prisma.workItemInterest.create({
+        data: {
+          workItemId: project.id,
+          volunteerId: m.id,
+          interestType: 'want_to_contribute',
+          status: 'accepted',
+        },
+      })
+    }
+    const task = await createTask(project.id, {
+      title: 'Flyering',
+      assigneeId: lead.id,
+      helpersWanted: 2,
+    })
+    const helpers = () => screen.getByRole('region', { name: 'Helpers' })
+
+    await mount(project.id, task.id, ann)
+    await screen.findByRole('heading', { name: 'Flyering' })
+    // A task worked by several people names its lead.
+    expect(screen.getByText('Lead').parentElement).toHaveTextContent('Lee Lead')
+    expect(within(helpers()).getByText('2 helpers wanted')).toBeInTheDocument()
+    await userEvent.click(within(helpers()).getByRole('button', { name: 'Join as helper' }))
+    await screen.findByText("You're helping on this task")
+    await within(helpers()).findByText('1 helper (1 more wanted)')
+    expect(within(helpers()).getByText('Ann Helper')).toBeInTheDocument()
+    expect(within(helpers()).queryByRole('button', { name: 'Join as helper' })).toBeNull()
+    await userEvent.click(within(helpers()).getByRole('button', { name: 'Stop helping' }))
+    await screen.findByText('You are no longer helping on this task')
+    await waitFor(async () =>
+      expect(
+        (
+          await prisma.workItemInterest.findUniqueOrThrow({
+            where: { volunteerId_workItemId: { volunteerId: ann.id, workItemId: task.id } },
+          })
+        ).status,
+      ).toBe('withdrawn'),
+    )
+    await within(helpers()).findByRole('button', { name: 'Join as helper' })
+
+    // The last place goes while Bob has the page open.
+    await prisma.workItem.update({ where: { id: task.id }, data: { helpersWanted: 1 } })
+    cleanup()
+    await mount(project.id, task.id, bob)
+    const joinButton = await screen.findByRole('button', { name: 'Join as helper' })
+    await clientJoin(ann.id, task.id)
+    await userEvent.click(joinButton)
+    await screen.findByText('This task has all the helpers it wants')
+
+    // The lead takes a helper off, after saying so.
+    cleanup()
+    await mount(project.id, task.id, lead)
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove Ann Helper' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Remove Ann Helper?' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Ann Helper' }))
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Remove Ann Helper?' })).getByRole(
+        'button',
+        { name: 'Remove' },
+      ),
+    )
+    await screen.findByText('Helper removed')
+    await within(helpers()).findByText('1 helper wanted')
+  })
 })
+
+/** Puts someone on a task's helpers directly, as another tab would. */
+const clientJoin = (volunteerId: number, workItemId: number) =>
+  prisma.workItemInterest.update({
+    where: { volunteerId_workItemId: { volunteerId, workItemId } },
+    data: { status: 'accepted' },
+  })

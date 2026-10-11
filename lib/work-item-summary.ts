@@ -1,5 +1,6 @@
 import { ApprovalStatus, WorkItemType } from '@/generated/prisma/enums'
 import { prisma } from './prisma'
+import { HELPER_COUNT } from './task-helpers'
 import { canViewWorkItem, loadTaskStatusViews, resolveProjectPrivy } from './work-item'
 
 /**
@@ -15,6 +16,9 @@ export type WorkItemSummary = {
   /** A task's shown status (`taskDisplayStatus`); a Quick Task's stored one. */
   displayStatus: string
   assigneeName: string | null
+  /** A task's helpers beside its assignee, and how many it seeks (null for none). */
+  helperCount: number
+  helpersWanted: number | null
   deadline: Date | null
   completedAt: Date | null
   href: string
@@ -29,6 +33,9 @@ type SummaryRow = {
   deadline: Date | null
   completedAt: Date | null
   assignee: { name: string } | null
+  helpersWanted: number | null
+  /** Loaded with HELPER_COUNT (lib/task-helpers.ts). */
+  _count: { interests: number }
 }
 
 export function toWorkItemSummary(item: SummaryRow, displayStatus: string): WorkItemSummary {
@@ -40,6 +47,8 @@ export function toWorkItemSummary(item: SummaryRow, displayStatus: string): Work
     type: isTask ? WorkItemType.TASK : WorkItemType.QUICK_TASK,
     displayStatus,
     assigneeName: item.assignee?.name ?? null,
+    helperCount: item._count.interests,
+    helpersWanted: item.helpersWanted,
     deadline: item.deadline,
     completedAt: item.completedAt,
     href: isTask ? `/projects/${item.parentId}/tasks/${item.id}` : `/quick-tasks/${item.id}`,
@@ -70,7 +79,7 @@ export async function loadWorkItemSummaries(
 ): Promise<Map<number, WorkItemSummary>> {
   const items = await prisma.workItem.findMany({
     where: { id: { in: ids }, type: { in: [WorkItemType.TASK, WorkItemType.QUICK_TASK] } },
-    include: { assignee: { select: { name: true } }, parent: true },
+    include: { assignee: { select: { name: true } }, parent: true, ...HELPER_COUNT },
   })
   const projects = new Map(items.flatMap((i) => (i.parent ? [[i.parent.id, i.parent]] : [])))
   const privies = new Map(

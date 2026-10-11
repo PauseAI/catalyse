@@ -154,6 +154,7 @@ export async function runDeadlineRemindersJob(now: Date = new Date()) {
     group: string,
     href: string,
     skipOwnerOverdue: boolean,
+    helperIds: number[] = [],
   ) {
     const takenAt =
       task.assigneeId !== null
@@ -226,6 +227,18 @@ export async function runDeadlineRemindersJob(now: Date = new Date()) {
         }
       }
     }
+    // A helper is told only the day before; the lead has the rest.
+    if (st.daysLeft === 1) {
+      for (const helperId of helperIds) {
+        const text = `${t} is due ${formatDateShort(finishBy)}`
+        await tell(
+          helperId,
+          key('helper_day_before'),
+          { role: 'assignee', kind: 'due_tomorrow', group, href, text },
+          { type: 'finish_by_soon', title: text, body: null, entityId: task.id },
+        )
+      }
+    }
     const ownerText: Record<OwnerStage, string> = {
       at_risk: `${t}: no update yet, ${plural(st.daysLeft ?? 0, 'day')} to go`,
       due_tomorrow: `${t} is due tomorrow`,
@@ -266,7 +279,10 @@ export async function runDeadlineRemindersJob(now: Date = new Date()) {
     ]
     const tasks = await prisma.workItem.findMany({
       where: { parentId: project.id, type: WorkItemType.TASK },
-      include: { assignee: { select: { name: true } } },
+      include: {
+        assignee: { select: { name: true } },
+        interests: { where: { status: InterestStatus.accepted }, select: { volunteerId: true } },
+      },
     })
     const { schedule, edges } = await loadProjectTaskSchedule(project, tasks)
     const hasPredecessor = new Set(edges.map((e) => e.successorId))
@@ -319,6 +335,7 @@ export async function runDeadlineRemindersJob(now: Date = new Date()) {
           project.title,
           href,
           pastPlan !== null,
+          task.interests.map((i) => i.volunteerId),
         )
       }
     }

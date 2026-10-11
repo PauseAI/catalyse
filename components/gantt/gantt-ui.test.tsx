@@ -762,6 +762,8 @@ describe('GanttItemPanel', () => {
           type: 'TASK' as const,
           displayStatus: 'completed',
           assigneeName: 'Ann',
+          helperCount: 0,
+          helpersWanted: null,
           deadline: day('2026-06-03'),
           completedAt: day('2026-06-03'),
           href: '/projects/1/tasks/1',
@@ -782,10 +784,16 @@ describe('GanttItemPanel', () => {
       href: '/projects/1/tasks/3',
     }
     const { container } = render(
-      <GanttItemPanel {...baseProps} canManage={false} successors={[successor]} />,
+      <GanttItemPanel
+        {...baseProps}
+        canManage={false}
+        successors={[successor]}
+        helpers="2 helpers wanted"
+      />,
     )
     expect(screen.getByText('In progress')).toBeInTheDocument()
     expect(screen.getByText('Unclaimed')).toBeInTheDocument()
+    expect(screen.getByText('· 2 helpers wanted')).toBeInTheDocument()
     expect(screen.getByText('Print them')).toBeInTheDocument()
     // When, what it waits on, what waits on it: in that order, with nothing to edit.
     expect(screen.getAllByRole('heading', { level: 4 }).map((h) => h.textContent)).toEqual([

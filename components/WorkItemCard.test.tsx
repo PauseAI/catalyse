@@ -13,6 +13,8 @@ const task = (overrides: Partial<WorkItemSummary> = {}): WorkItemSummary => ({
   type: 'TASK',
   displayStatus: 'ready',
   assigneeName: null,
+  helperCount: 0,
+  helpersWanted: null,
   deadline: null,
   completedAt: null,
   href: '/projects/3/tasks/7',
@@ -45,6 +47,16 @@ describe('WorkItemCard', () => {
     expect(screen.getByText('In progress')).toBeInTheDocument()
     expect(screen.getByText('Sam')).toBeInTheDocument()
     expect(screen.getByText('14 Oct · in 3 days')).not.toHaveClass('text-error')
+  })
+
+  it('shows the lead and helpers of a task that has or seeks them', () => {
+    card(task({ assigneeName: 'Sam', helperCount: 3, helpersWanted: 5 }))
+    expect(screen.getByText('Lead: Sam · 3 helpers (2 more wanted)')).toBeInTheDocument()
+  })
+
+  it('says how many helpers an unclaimed task seeks', () => {
+    card(task({ helpersWanted: 2 }))
+    expect(screen.getByText('Unclaimed · 2 helpers wanted')).toBeInTheDocument()
   })
 
   it('shows a blocked task as Blocked', () => {

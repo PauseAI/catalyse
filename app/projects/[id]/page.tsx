@@ -103,6 +103,8 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import PageLoading from '@/components/PageLoading'
 import WorkItemCard from '@/components/WorkItemCard'
+import HelpersWantedField, { helpersWantedPayload } from '@/components/HelpersWantedField'
+import { helperSummary } from '@/lib/helper-summary'
 import {
   TASK_FILTERS,
   matchesTaskFilter,
@@ -566,6 +568,8 @@ function TaskTimeline({
     type: WorkItemType.TASK,
     displayStatus: t.displayStatus,
     assigneeName: t.assignedToName,
+    helperCount: t.helperCount,
+    helpersWanted: t.helpersWanted,
     deadline: t.deadline,
     completedAt: t.completedAt,
     href: `/projects/${projectId}/tasks/${t.id}`,
@@ -670,6 +674,7 @@ function TaskTimeline({
               dates={datesValueFrom(selectedTask)}
               description={selectedTask.description}
               assigneeName={selectedTask.assignedToName}
+              helpers={helperSummary(selectedTask.helperCount, selectedTask.helpersWanted)}
               canManage={canManage}
               busy={busy}
               predecessors={selectedLinks.flatMap((d) => {
@@ -863,6 +868,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [highlightCritical, setHighlightCritical] = useState(false)
   const [newTaskFeatured, setNewTaskFeatured] = useState(false)
   const [newTaskAsk, setNewTaskAsk] = useState(NEW_SUBMISSION_ASK)
+  const [newTaskHelpers, setNewTaskHelpers] = useState('')
   const [orderedTasks, setOrderedTasks] = useState<ProjectTask[]>([])
   const [yourOrder, setYourOrder] = useState(false)
   const [tab, setTab] = useState<ProjectTab>('overview')
@@ -1094,6 +1100,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       setNewTaskDates(EMPTY_DATES)
       setNewTaskFeatured(false)
       setNewTaskAsk(NEW_SUBMISSION_ASK)
+      setNewTaskHelpers('')
       setShowTaskForm(false)
       showToast('Task added!', 'success')
       void invalidateProject()
@@ -1486,6 +1493,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       ...datesPayload(newTaskDates),
       featuredAsQuickTask: newTaskFeatured,
       ...submissionAskPayload(newTaskAsk),
+      ...helpersWantedPayload(newTaskHelpers),
     })
   }
 
@@ -2343,6 +2351,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                       value={newTaskAsk}
                       onChange={setNewTaskAsk}
                     />
+                    <HelpersWantedField
+                      id="new-task"
+                      value={newTaskHelpers}
+                      onChange={setNewTaskHelpers}
+                    />
                     <div className="mb-3">
                       <Checkbox
                         checked={newTaskFeatured}
@@ -2539,6 +2552,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                 }
                               >
                                 {KEY_DATE_SIDE_LABELS[task.keyDateSide]}
+                              </span>
+                            )}
+                            {helperSummary(task.helperCount, task.helpersWanted) && (
+                              <span className="text-text-light text-xs whitespace-nowrap">
+                                {helperSummary(task.helperCount, task.helpersWanted)}
                               </span>
                             )}
                             {task.estimatedHours !== null && (

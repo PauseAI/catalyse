@@ -139,6 +139,7 @@ describe('projects.applyImport', () => {
           timing: 'fixed',
           submissionPrompt: 'Where is it?',
           submissionAsksLink: false,
+          helpersWanted: 4,
         },
         { ...file.tasks[1], assigneeEmail: null, dependsOn: [{ on: a.id, lagDays: 3 }] },
         {
@@ -146,6 +147,7 @@ describe('projects.applyImport', () => {
           title: 'New',
           submissionPrompt: 'Photos of the stall',
           submissionAsksLink: true,
+          helpersWanted: 2,
           assigneeEmail: owner.email,
           startDate: '2026-11-01',
           durationDays: 3,
@@ -181,6 +183,7 @@ describe('projects.applyImport', () => {
       deadline: new Date('2026-12-01T00:00:00Z'),
       submissionPrompt: 'Where is it?',
       submissionAsksLink: false,
+      helpersWanted: 4,
     })
     expect(await prisma.workItem.findUniqueOrThrow({ where: { id: b.id } })).toMatchObject({
       assigneeId: null,
@@ -201,8 +204,11 @@ describe('projects.applyImport', () => {
       ['Photos of the stall', true],
       [null, false],
     ])
+    // The number of helpers sought is carried; who helps is not.
+    expect(created.map((t) => t.helpersWanted)).toEqual([2, null])
     // What a task asks for comes back out as it went in.
     const again = await c.projects.exportPlan({ projectId: project.id })
+    expect(again.tasks.map((t) => t.helpersWanted)).toEqual([4, null, 2, null])
     expect(again.tasks.map((t) => [t.title, t.submissionPrompt, t.submissionAsksLink])).toEqual([
       ['A2', 'Where is it?', false],
       ['B', 'How many?', false],

@@ -28,6 +28,9 @@ export type EventKind =
   | 'dependency_added'
   | 'dependency_removed'
   | 'dependency_lag'
+  | 'helper_joined'
+  | 'helper_left'
+  | 'helper_removed'
 
 export type EventValues = Prisma.InputJsonObject
 
@@ -47,6 +50,7 @@ const TRACKED_FIELDS = [
   'featuredAsQuickTask',
   'submissionPrompt',
   'submissionAsksLink',
+  'helpersWanted',
   'submissionNote',
   'submissionUrl',
   'changesRequestedNote',
@@ -190,7 +194,7 @@ export function eventPersonIds(events: { before: unknown; after: unknown }[]): n
   const ids = new Set<number>()
   for (const e of events) {
     for (const values of [e.before as Values, e.after as Values]) {
-      for (const field of ['assigneeId', 'requestedById']) {
+      for (const field of ['assigneeId', 'requestedById', 'helperId']) {
         if (typeof values[field] === 'number') ids.add(values[field])
       }
     }
@@ -225,6 +229,7 @@ const FIELD_NAMES: Record<string, string> = {
   featuredAsQuickTask: 'Quick Tasks listing',
   submissionPrompt: 'submission box',
   submissionAsksLink: 'submission box',
+  helpersWanted: 'helpers wanted',
   skillId: 'skill',
   projectType: 'project type',
   estimatedDuration: 'estimated duration',
@@ -357,6 +362,12 @@ export function describeEvent(
       return after.lagDays === 0
         ? `${actor} removed the gap after '${after.predecessorTitle as string}'`
         : `${actor} ${gapPhrase(after.lagDays as number, after.predecessorTitle as string)}`
+    case 'helper_joined':
+      return `${actor} joined as a helper`
+    case 'helper_left':
+      return `${actor} stopped helping`
+    case 'helper_removed':
+      return `${actor} took ${nameOf(after.helperId as number)} off the helpers`
     default: {
       const phrases = changePhrases(itemType, before, after, nameOf)
       return phrases.length > 0 ? `${actor} ${listOf(phrases)}` : `${actor} changed this`

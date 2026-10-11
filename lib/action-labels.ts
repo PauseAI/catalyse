@@ -24,6 +24,15 @@ export const RELEASE = 'Release'
 /** Whoever hands tasks out taking it off the assignee. */
 export const UNASSIGN = 'Unassign'
 
+/** A project member joining a task that seeks helpers, beside its lead. */
+export const JOIN_AS_HELPER = 'Join as helper'
+
+/** A helper leaving the task. */
+export const LEAVE_HELPING = 'Stop helping'
+
+/** The lead or whoever runs the project taking a helper off the task. */
+export const REMOVE_HELPER = 'Remove'
+
 /**
  * Where the viewer stands on a task's project, which is all that decides whether claiming
  * takes the task or asks first. `onProject` covers the owner, an admin, a deputy, an accepted

@@ -21,6 +21,8 @@ describe('toWorkItemSummary', () => {
     deadline: new Date('2026-10-14T00:00:00Z'),
     completedAt: null,
     assignee: { name: 'Sam' },
+    helpersWanted: 3,
+    _count: { interests: 1 },
   }
 
   it('links a task under its project', () => {
@@ -31,6 +33,8 @@ describe('toWorkItemSummary', () => {
       type: 'TASK',
       displayStatus: 'ready',
       assigneeName: 'Sam',
+      helperCount: 1,
+      helpersWanted: 3,
       deadline: row.deadline,
       completedAt: null,
       href: '/projects/3/tasks/7',

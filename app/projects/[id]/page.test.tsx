@@ -386,12 +386,16 @@ describe('project page — owner', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: /quick task/i }))
     await userEvent.type(screen.getByLabelText('What to submit (optional)'), 'Where you put it')
     await userEvent.click(screen.getByRole('checkbox', { name: 'Ask for a link to the work' }))
+    await userEvent.type(screen.getByLabelText('Helpers wanted (optional)'), '4')
     fireEvent.submit(screen.getByLabelText('Task title').closest('form')!)
     await screen.findByText('Task added!')
+    // The task list says how many helpers it seeks.
+    await screen.findByText('4 helpers wanted')
     const t3 = await prisma.workItem.findFirstOrThrow({ where: { title: 'Third task' } })
     expect(t3).toMatchObject({
       submissionPrompt: 'Where you put it',
       submissionAsksLink: true,
+      helpersWanted: 4,
       estimatedHours: 2,
       startDate: new Date('2029-12-01T00:00:00Z'),
       deadline: new Date('2030-01-01T00:00:00Z'),

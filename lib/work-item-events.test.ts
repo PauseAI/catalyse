@@ -175,6 +175,16 @@ describe('describeEvent', () => {
     expect(say('released', { status: 'in_progress' }, { status: 'open' })).toBe('Sam released this')
   })
 
+  it('words helpers joining, leaving and being taken off', () => {
+    expect(say('helper_joined', {}, { helperId: 1 })).toBe('Sam joined as a helper')
+    expect(say('helper_left', { helperId: 1 }, {})).toBe('Sam stopped helping')
+    expect(say('helper_removed', {}, { helperId: 2 })).toBe('Sam took Ali off the helpers')
+    expect(say('edited', { helpersWanted: null }, { helpersWanted: 3 })).toBe(
+      'Sam changed the helpers wanted',
+    )
+    expect(eventPersonIds([{ before: {}, after: { helperId: 2 } }])).toEqual([2])
+  })
+
   it('words dependency changes with the task waited on', () => {
     const link = (lagDays: number) => ({ predecessorId: 9, predecessorTitle: 'Venue', lagDays })
     expect(say('dependency_added', {}, link(0))).toBe("Sam made this wait on 'Venue'")

@@ -10,6 +10,7 @@ import {
 } from '@/lib/work-item'
 import { mentionedIds, mentionsToPlain, type MentionMember } from '@/lib/mentions'
 import { describeEvent, eventPersonIds, updateWorkItem } from '@/lib/work-item-events'
+import { taskHelperIds } from '@/lib/task-helpers'
 import { authedProcedure } from '../procedures'
 import { ApprovalStatus, InterestStatus, WorkItemType } from '@/generated/prisma/enums'
 
@@ -344,6 +345,7 @@ export const workItemCommentsRouter = {
         loaded.item.assigneeId,
         loaded.parent?.assigneeId ?? null,
         parent?.authorId ?? null,
+        ...(loaded.item.type === WorkItemType.TASK ? await taskHelperIds(loaded.item.id) : []),
       ]) {
         if (id && id !== volunteer.id && !mentioned.has(id)) recipientIds.add(id)
       }

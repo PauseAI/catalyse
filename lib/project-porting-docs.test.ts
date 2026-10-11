@@ -50,6 +50,7 @@ describe('the guide only names fields the schema accepts', () => {
     'isAnchor',
     'submissionPrompt',
     'submissionAsksLink',
+    'helpersWanted',
     'dependsOn',
   ]
 

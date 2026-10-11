@@ -101,7 +101,7 @@ project page instead.
 Task: \`id\`, \`ref\`, \`title\` (required), \`description\`, \`status\` (\`not_started\`,
 \`in_progress\`, \`completed\`), \`assigneeEmail\`, \`deadline\`, \`startDate\`,
 \`durationDays\`, \`featuredAsQuickTask\`, \`isAnchor\`, \`timing\`, \`submissionPrompt\`,
-\`submissionAsksLink\`, \`dependsOn\`.
+\`submissionAsksLink\`, \`helpersWanted\`, \`dependsOn\`.
 
 - \`status\` is the work's progress, not who has it: a task someone has claimed but not begun is
   still \`not_started\`. Blocked and Ready are worked out from \`dependsOn\`, so they are not
@@ -127,6 +127,8 @@ Task: \`id\`, \`ref\`, \`title\` (required), \`description\`, \`status\` (\`not_
   went out, and where?" — at most 200 characters; \`null\` asks "What did you do?".
   \`submissionAsksLink\` adds a field for a link to the work; a new task has none unless this
   is \`true\`.
+- \`helpersWanted\` is how many volunteers the task seeks to help its assignee, from 1 to 100;
+  \`null\` or absent seeks none. The file carries the number, never who is helping.
 
 ## Dependencies
 

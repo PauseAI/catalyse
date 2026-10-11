@@ -1,16 +1,23 @@
 import { prisma } from '@/lib/prisma'
 import { loadTaskStatusViews, serializeSubmissionAsk } from '@/lib/work-item'
 import { authedProcedure } from '../procedures'
-import { TaskStatus, WorkItemType } from '@/generated/prisma/enums'
+import { InterestStatus, TaskStatus, WorkItemType } from '@/generated/prisma/enums'
 
 export const myRouter = {
-  /** Project tasks the volunteer has claimed and not handed in, started or not. */
+  /**
+   * Project tasks the volunteer leads (has claimed) or helps on and that are not handed in,
+   * started or not.
+   */
   projectTasks: authedProcedure.handler(async ({ context }) => {
+    const me = context.volunteer.id
     const tasks = await prisma.workItem.findMany({
       where: {
         type: WorkItemType.TASK,
         status: { in: [TaskStatus.not_started, TaskStatus.in_progress] },
-        assigneeId: context.volunteer.id,
+        OR: [
+          { assigneeId: me },
+          { interests: { some: { volunteerId: me, status: InterestStatus.accepted } } },
+        ],
       },
       include: { parent: { select: { title: true } } },
       orderBy: { updatedAt: 'asc' },
@@ -22,6 +29,7 @@ export const myRouter = {
       projectId: t.parentId,
       title: t.title,
       projectTitle: t.parent?.title ?? null,
+      role: t.assigneeId === me ? ('Lead' as const) : ('Helper' as const),
       status: t.status,
       ...views[i],
       updatedAt: t.updatedAt,

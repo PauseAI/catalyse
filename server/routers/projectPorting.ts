@@ -68,6 +68,7 @@ async function loadState(
       timing: t.timing ?? 'flexible',
       submissionPrompt: t.submissionPrompt,
       submissionAsksLink: t.submissionAsksLink,
+      helpersWanted: t.helpersWanted,
       sortOrder: t.sortOrder,
     })),
     dependencies,
@@ -227,6 +228,7 @@ export const projectPortingRouter = {
           if (f.timing !== undefined) data.timing = f.timing
           if (f.submissionPrompt !== undefined) data.submissionPrompt = f.submissionPrompt
           if (f.submissionAsksLink !== undefined) data.submissionAsksLink = f.submissionAsksLink
+          if (f.helpersWanted !== undefined) data.helpersWanted = f.helpersWanted
           if (f.status !== undefined) data.status = f.status
           if (f.assigneeEmail !== undefined) {
             data.assigneeId = f.assigneeEmail === null ? null : idForEmail(f.assigneeEmail)
@@ -259,6 +261,7 @@ export const projectPortingRouter = {
               timing: f.timing ?? 'flexible',
               submissionPrompt: f.submissionPrompt ?? null,
               submissionAsksLink: f.submissionAsksLink ?? false,
+              helpersWanted: f.helpersWanted ?? null,
               assigneeId: f.assigneeEmail ? idForEmail(f.assigneeEmail) : null,
               claimedAt: f.assigneeEmail ? now : null,
               creatorId: volunteer.id,

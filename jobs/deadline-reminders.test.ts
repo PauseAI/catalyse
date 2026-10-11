@@ -76,6 +76,45 @@ describe('runDeadlineRemindersJob', () => {
     void task
   })
 
+  it('gives a helper the day-before reminder only, while the lead gets the rest', async () => {
+    const lead = await createVolunteer({ email: 'lead@example.org' })
+    const helper = await createVolunteer({ email: 'helper@example.org' })
+    const project = await createProject({ status: 'in_progress' })
+    const helpOn = (taskId: number) =>
+      prisma.workItemInterest.create({
+        data: {
+          workItemId: taskId,
+          volunteerId: helper.id,
+          interestType: 'want_to_help_task',
+          status: 'accepted',
+        },
+      })
+    const tomorrow = await createTask(project.id, {
+      title: 'Flyer the station',
+      status: 'in_progress',
+      assigneeId: lead.id,
+      deadline: addDays(today, 1),
+      startedAt: addDays(today, -1),
+    })
+    const dueToday = await createTask(project.id, {
+      title: 'Flyer the market',
+      status: 'in_progress',
+      assigneeId: lead.id,
+      deadline: today,
+      startedAt: addDays(today, -5),
+    })
+    await helpOn(tomorrow.id)
+    await helpOn(dueToday.id)
+
+    await runDeadlineRemindersJob(now)
+    const soon = await notes(helper.id, 'finish_by_soon')
+    expect(soon.map((n) => n.title)).toEqual([
+      `“Flyer the station” is due ${formatDateShort(addDays(today, 1))}`,
+    ])
+    expect(await notes(helper.id, 'finish_by_today')).toHaveLength(0)
+    expect(await notes(lead.id, 'finish_by_today')).toHaveLength(1)
+  })
+
   it('puts a task past its plan in front of the owner every day until they act', async () => {
     const owner = await createVolunteer({ email: 'o2@example.org' })
     const deputy = await createVolunteer({ email: 'd2@example.org' })

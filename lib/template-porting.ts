@@ -59,6 +59,7 @@ const TemplateTaskSchema = z.object({
   timing: z.enum(['flexible', 'fixed']).default('flexible'),
   submissionPrompt: z.string().max(200).nullable().default(null),
   submissionAsksLink: z.boolean().default(false),
+  helpersWanted: z.number().int().min(1).max(100).nullable().default(null),
   skills: z.array(TemplateSkillSchema).default([]),
   dependsOn: z.array(TemplateDependsOnSchema).default([]),
 })
@@ -178,6 +179,7 @@ export function serializeProjectAsTemplate(
       timing: t.timing,
       submissionPrompt: t.submissionPrompt,
       submissionAsksLink: t.submissionAsksLink,
+      helpersWanted: t.helpersWanted,
       skills: t.skills,
       dependsOn: dependencies
         .filter((d) => d.successorId === t.id)
@@ -218,6 +220,7 @@ export type InstantiateTaskCreate = {
   timing: 'flexible' | 'fixed'
   submissionPrompt: string | null
   submissionAsksLink: boolean
+  helpersWanted: number | null
   skills: SourceSkill[]
 }
 
@@ -301,6 +304,7 @@ export function buildInstantiatePlan(
         timing: t.timing,
         submissionPrompt: t.submissionPrompt,
         submissionAsksLink: t.submissionAsksLink,
+        helpersWanted: t.helpersWanted,
         skills: t.skills,
       }
     }),

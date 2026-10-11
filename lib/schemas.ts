@@ -224,7 +224,8 @@ export const UpdateProjectSchema = WorkItemSchema.pick({
   })
 
 export const ProjectInterestBodySchema = z.object({
-  interestType: z.enum(['want_to_contribute', 'want_to_own'], {
+  // `want_to_help_task` joins a task as a helper (lib/task-helpers.ts); the others are a project's.
+  interestType: z.enum(['want_to_contribute', 'want_to_own', 'want_to_help_task'], {
     error: 'Invalid interestType',
   }),
   message: z.string().optional().nullable(),
@@ -248,6 +249,15 @@ export const SUBMISSION_ASK_FIELDS = {
   submissionAsksLink: z.boolean().optional(),
 }
 
+/** How many helpers a task seeks beside its lead; null seeks none. */
+const HelpersWantedSchema = z
+  .number()
+  .int()
+  .min(1, { message: 'Ask for at least one helper, or none' })
+  .max(100, { message: 'Ask for at most 100 helpers' })
+  .nullable()
+  .optional()
+
 export const CreateProjectTaskSchema = WorkItemSchema.pick({
   title: true,
   description: true,
@@ -265,7 +275,11 @@ export const CreateProjectTaskSchema = WorkItemSchema.pick({
     timing: true,
     ...SCHEDULE_INPUT_FIELDS,
   })
-  .extend({ durationDays: TaskDurationSchema, ...SUBMISSION_ASK_FIELDS })
+  .extend({
+    durationDays: TaskDurationSchema,
+    helpersWanted: HelpersWantedSchema,
+    ...SUBMISSION_ASK_FIELDS,
+  })
 
 export const UpdateProjectTaskSchema = WorkItemSchema.pick({
   title: true,
@@ -282,6 +296,7 @@ export const UpdateProjectTaskSchema = WorkItemSchema.pick({
   .extend({
     status: TaskStatusSchema.optional(),
     durationDays: TaskDurationSchema,
+    helpersWanted: HelpersWantedSchema,
     ...SUBMISSION_ASK_FIELDS,
   })
 

@@ -97,6 +97,7 @@ export const quickTasksRouter = {
       where: {
         volunteerId: context.volunteer.id,
         status: { in: CLAIM_BLOCKING_INTEREST_STATUSES },
+        workItem: { type: WorkItemType.PROJECT },
       },
       select: { workItemId: true },
     })

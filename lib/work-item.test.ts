@@ -296,6 +296,7 @@ describe('serializers', () => {
   it('serializeTask maps work item columns to the task API shape', () => {
     const out = serializeTask({
       ...schedule,
+      helpersWanted: null,
       id: 1,
       parentId: 2,
       title: 'T',

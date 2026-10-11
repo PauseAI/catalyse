@@ -31,6 +31,7 @@ function task(id: number, over: Partial<CurrentTask> = {}): CurrentTask {
     timing: 'flexible',
     submissionPrompt: null,
     submissionAsksLink: false,
+    helpersWanted: null,
     sortOrder: id,
     ...over,
   }
@@ -148,6 +149,7 @@ describe('computeProjectDiff', () => {
             timing: 'fixed',
             submissionPrompt: 'How many?',
             submissionAsksLink: true,
+            helpersWanted: 3,
           },
           { ref: 'new', title: 'New one', durationDays: 2, assigneeEmail: 'a@b.c' },
         ],
@@ -167,6 +169,7 @@ describe('computeProjectDiff', () => {
         { field: 'timing', from: 'flexible', to: 'fixed' },
         { field: 'submissionPrompt', from: null, to: 'How many?' },
         { field: 'submissionAsksLink', from: false, to: true },
+        { field: 'helpersWanted', from: null, to: 3 },
       ]),
     )
     expect(diff.tasks[1].fieldChanges.map((c) => c.field)).toEqual([

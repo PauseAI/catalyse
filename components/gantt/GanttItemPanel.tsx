@@ -88,6 +88,7 @@ export default function GanttItemPanel({
   dates,
   description,
   assigneeName,
+  helpers,
   canManage,
   predecessors,
   successors = [],
@@ -104,6 +105,8 @@ export default function GanttItemPanel({
   dates: DatesValue
   description?: string | null
   assigneeName?: string | null
+  /** Its helpers in a few words (helperSummary); omit for none. */
+  helpers?: string | null
   canManage: boolean
   predecessors: PanelPredecessor[]
   /** The tasks that wait on this one. */
@@ -165,6 +168,7 @@ export default function GanttItemPanel({
       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
         <Badge variant={TASK_STATUS_VARIANTS[row.status]}>{TASK_STATUS_LABELS[row.status]}</Badge>
         <span className="text-text-light">{assigneeName || UNCLAIMED_LABEL}</span>
+        {helpers && <span className="text-text-light">· {helpers}</span>}
         {p.isMilestone && (
           <span className="border-brand-border text-text-light rounded-full border px-2 py-0.5 text-xs">
             Milestone

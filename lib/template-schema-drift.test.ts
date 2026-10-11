@@ -62,6 +62,7 @@ const TASK_INPUT_FIELD_NAMES = [
   'timing',
   'submissionPrompt',
   'submissionAsksLink',
+  'helpersWanted',
   'startDate',
   'durationDays',
 ] as const

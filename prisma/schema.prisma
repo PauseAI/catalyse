@@ -337,6 +337,9 @@ model WorkItem {
   // it offers a link field.
   submissionPrompt     String?   @map("submission_prompt")
   submissionAsksLink   Boolean   @default(false) @map("submission_asks_link")
+  // How many helpers a TASK seeks beside its assignee, the lead; null seeks none. Helpers are
+  // accepted WorkItemInterest rows on the task (interestType `want_to_help_task`).
+  helpersWanted        Int?      @map("helpers_wanted")
 
   // Project-specific (nullable for TASK/QUICK_TASK)
   projectType                String?   @map("project_type") // TODO: enum — sprint, container, ongoing, one_off
@@ -549,7 +552,9 @@ model WorkItemInterest {
   id              Int            @id @default(autoincrement())
   volunteerId     Int            @map("volunteer_id")
   workItemId      Int            @map("work_item_id")
-  interestType    String         @map("interest_type") // TODO: enum — want_to_contribute, want_to_own
+  // A row on a PROJECT is an application, invite or membership; on a TASK, a helper beside the
+  // assignee (see lib/task-helpers.ts).
+  interestType    String         @map("interest_type") // TODO: enum — want_to_contribute, want_to_own (PROJECT); want_to_help_task (TASK)
   /// The applicant's message, or the inviter's note on an invite.
   message         String?
   status          InterestStatus @default(pending)

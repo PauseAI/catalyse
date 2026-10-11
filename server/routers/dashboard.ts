@@ -15,6 +15,7 @@ import { plural } from '@/lib/plural'
 import { handedIn } from '@/lib/overdue'
 import { attentionReason } from '@/lib/work-urgency'
 import { toWorkItemSummary, type WorkItemSummary } from '@/lib/work-item-summary'
+import { HELPER_COUNT } from '@/lib/task-helpers'
 import {
   ApprovalStatus,
   ContactRequestStatus,
@@ -398,19 +399,30 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
     }),
     prisma.workItem.findMany({
       where: {
-        assigneeId: viewer.id,
         OR: [
           {
+            assigneeId: viewer.id,
             type: WorkItemType.TASK,
             status: { in: [...HELD_TASK_STATUSES, TaskStatus.under_review] },
           },
           {
+            assigneeId: viewer.id,
             type: WorkItemType.QUICK_TASK,
             status: { in: [QuickTaskStatus.in_progress, QuickTaskStatus.under_review] },
           },
+          // Tasks I help on beside their lead.
+          {
+            type: WorkItemType.TASK,
+            status: { in: [...HELD_TASK_STATUSES, TaskStatus.under_review] },
+            interests: { some: { volunteerId: viewer.id, status: InterestStatus.accepted } },
+          },
         ],
       },
-      include: { parent: { select: { title: true } }, assignee: { select: { name: true } } },
+      include: {
+        parent: { select: { title: true } },
+        assignee: { select: { name: true } },
+        ...HELPER_COUNT,
+      },
       orderBy: { updatedAt: 'desc' },
     }),
     prisma.teamMembership.findMany({
@@ -497,7 +509,7 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
       kind: 'task',
       title: t.title,
       href: taskHref(t),
-      role: 'Task',
+      role: t.assigneeId === viewer.id ? 'Task' : 'Helper',
       status: QUICK_TASK_STATUS_LABELS[t.status],
       context: t.parent?.title ?? null,
       done: false,
