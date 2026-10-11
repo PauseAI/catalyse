@@ -406,7 +406,7 @@ function TaskTimeline({
         id: task.id,
         label: task.title,
         href: `/projects/${projectId}/tasks/${task.id}`,
-        status: task.status,
+        status: task.displayStatus,
         placement,
         timing: task.timing,
         effortHours: task.estimatedHours,
@@ -875,9 +875,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     onSuccess: (data, variables) => {
       if (data.requested) {
         showToast(TASK_REQUESTED_MESSAGE, 'success')
-      } else if (variables.data.status === TaskStatus.in_progress) {
+      } else if (variables.data.assigneeId !== undefined) {
         showToast(PROJECT_TASK_CLAIMED_MESSAGE, 'success')
-      } else if (variables.data.status === TaskStatus.open) {
+      } else if (variables.data.status === TaskStatus.not_started) {
         showToast('Task unassigned!', 'success')
       }
       void invalidateProject()
@@ -1277,7 +1277,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     updateTaskMutation.mutate({
       projectId: parseInt(idParam, 10),
       taskId,
-      data: { status: TaskStatus.in_progress, assigneeId: user!.id },
+      data: { assigneeId: user!.id },
     })
   }
 
@@ -1285,7 +1285,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     updateTaskMutation.mutate({
       projectId: parseInt(idParam, 10),
       taskId,
-      data: { status: TaskStatus.open },
+      data: { status: TaskStatus.not_started },
     })
   }
 
@@ -1905,9 +1905,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                               task.status !== TaskStatus.completed &&
                               volunteers.length > 0
                             const canUnassign =
-                              canRunTasks &&
-                              task.assignedToId !== null &&
-                              task.status === TaskStatus.in_progress
+                              canRunTasks && task.assignedToId !== null && !handedIn(task.status)
 
                             return (
                               <SortableTaskItem
@@ -1939,9 +1937,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                           : `Requested by ${task.requestedByName}`}
                                       </span>
                                     )}
-                                    {task.status === TaskStatus.under_review && (
-                                      <Badge variant={TASK_STATUS_VARIANTS.under_review}>
-                                        {TASK_STATUS_LABELS.under_review}
+                                    {task.status !== TaskStatus.completed && (
+                                      <Badge variant={TASK_STATUS_VARIANTS[task.displayStatus]}>
+                                        {TASK_STATUS_LABELS[task.displayStatus]}
                                       </Badge>
                                     )}
                                     {task.featuredAsQuickTask && (
@@ -2006,7 +2004,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                 }
                                 primaryAction={
                                   <>
-                                    {task.status === TaskStatus.open &&
+                                    {task.status === TaskStatus.not_started &&
+                                      task.assignedToId === null &&
                                       task.requestedById === null &&
                                       canClaimTasks && (
                                         <Button
@@ -2019,23 +2018,22 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                             : 'Join and claim'}
                                         </Button>
                                       )}
-                                    {task.status === TaskStatus.in_progress &&
-                                      task.assignedToId === user.id && (
-                                        <SubmitWorkButton
-                                          target={{
-                                            kind: 'project',
-                                            projectId: project.id,
-                                            taskId: task.id,
-                                          }}
-                                          reviewer={
-                                            awaitsOwnerReview(project, canRunTasks)
-                                              ? 'The project owner'
-                                              : null
-                                          }
-                                          size="sm"
-                                          variant="secondary"
-                                        />
-                                      )}
+                                    {!handedIn(task.status) && task.assignedToId === user.id && (
+                                      <SubmitWorkButton
+                                        target={{
+                                          kind: 'project',
+                                          projectId: project.id,
+                                          taskId: task.id,
+                                        }}
+                                        reviewer={
+                                          awaitsOwnerReview(project, canRunTasks)
+                                            ? 'The project owner'
+                                            : null
+                                        }
+                                        size="sm"
+                                        variant="secondary"
+                                      />
+                                    )}
                                     {task.status === TaskStatus.under_review && canRunTasks && (
                                       <Button
                                         variant="secondary"

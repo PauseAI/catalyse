@@ -98,9 +98,13 @@ Project: \`id\`, \`title\` (required), \`description\`.
 lifecycle is a decision with review rules attached, not a file edit. It is changed on the
 project page instead.
 
-Task: \`id\`, \`ref\`, \`title\` (required), \`description\`, \`status\` (\`open\`,
+Task: \`id\`, \`ref\`, \`title\` (required), \`description\`, \`status\` (\`not_started\`,
 \`in_progress\`, \`completed\`), \`assigneeEmail\`, \`deadline\`, \`startDate\`,
 \`durationDays\`, \`featuredAsQuickTask\`, \`isAnchor\`, \`timing\`, \`dependsOn\`.
+
+- \`status\` is the work's progress, not who has it: a task someone has claimed but not begun is
+  still \`not_started\`. Blocked and Ready are worked out from \`dependsOn\`, so they are not
+  statuses to write. Older files saying \`open\` are read as \`not_started\`.
 
 - Dates are \`YYYY-MM-DD\` strings. Any other format is rejected.
 - A file may carry at most 1000 tasks, each with at most 100 \`dependsOn\` entries. Titles cap

@@ -68,7 +68,12 @@ const PROJECT_STATUSES = [
   'archived',
 ] as const
 
-const TASK_STATUSES = ['open', 'in_progress', 'completed'] as const
+const TASK_STATUSES = ['not_started', 'in_progress', 'completed'] as const
+
+/** Files exported before the status split say `open` for `not_started`. */
+const TaskStatusFieldSchema = z
+  .enum([...TASK_STATUSES, 'open'])
+  .transform((s) => (s === 'open' ? 'not_started' : s))
 
 /**
  * Bounds on how much one file may ask for. The byte cap on the upload alone would allow tens
@@ -101,7 +106,7 @@ const ImportTaskSchema = z
     ref: z.string().min(1).max(64).optional(),
     title: z.string().min(1).max(300),
     description: z.string().max(20_000).nullable().optional(),
-    status: z.enum(TASK_STATUSES).optional(),
+    status: TaskStatusFieldSchema.optional(),
     assigneeEmail: z.string().email().nullable().optional(),
     deadline: ymd.optional(),
     startDate: ymd.optional(),
@@ -645,7 +650,7 @@ function createTaskFieldList(ft: ImportTask): FieldChange[] {
   const effective: NormalisedTask = {
     title: ft.title,
     description: ft.description ?? null,
-    status: ft.status ?? 'open',
+    status: ft.status ?? 'not_started',
     assigneeEmail: ft.assigneeEmail ?? null,
     deadline: ft.deadline ?? null,
     startDate: ft.startDate ?? null,
@@ -847,7 +852,7 @@ function writeFieldsForCreate(ft: ImportTask): TaskWriteFields {
   return {
     title: ft.title,
     description: ft.description ?? null,
-    status: ft.status ?? 'open',
+    status: ft.status ?? 'not_started',
     assigneeEmail: ft.assigneeEmail ?? null,
     deadline: fromYmd(ft.deadline ?? null),
     startDate: fromYmd(ft.startDate ?? null),

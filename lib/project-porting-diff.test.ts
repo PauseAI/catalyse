@@ -19,7 +19,7 @@ function task(id: number, over: Partial<CurrentTask> = {}): CurrentTask {
     id,
     title: `Task ${id}`,
     description: null,
-    status: 'open',
+    status: 'not_started',
     assigneeId: null,
     assigneeEmail: null,
     deadline: null,
@@ -158,7 +158,7 @@ describe('computeProjectDiff', () => {
     expect(diff.tasks[0].fieldChanges).toEqual(
       expect.arrayContaining([
         { field: 'title', from: 'Task 10', to: 'Renamed' },
-        { field: 'status', from: 'open', to: 'completed' },
+        { field: 'status', from: 'not_started', to: 'completed' },
         { field: 'isAnchor', from: false, to: true },
         { field: 'timing', from: 'flexible', to: 'fixed' },
       ]),
@@ -335,7 +335,7 @@ describe('buildApplyPlan', () => {
     expect(plan.taskCreates).toEqual([
       {
         ref: 'n',
-        fields: expect.objectContaining({ title: 'N', status: 'open', deadline: null }),
+        fields: expect.objectContaining({ title: 'N', status: 'not_started', deadline: null }),
       },
       { ref: 'n2', fields: expect.objectContaining({ title: 'N2' }) },
     ])

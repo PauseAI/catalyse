@@ -90,7 +90,7 @@ export const adminProjectsRouter = {
       await tx.workItem.createMany({
         data: tasks.map((t) => ({
           type: WorkItemType.TASK,
-          status: TaskStatus.open,
+          status: TaskStatus.not_started,
           parentId: newProject.id,
           title: t.title,
           description: t.description ?? null,

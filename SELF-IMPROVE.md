@@ -66,6 +66,13 @@ confusing than it needed to be, and that will do so again.
       with coverage limited to files changed since `main` and prints their uncovered lines would
       find these in a minute.
 
+- [ ] **`npm run new-migration` always writes an unrelated `ALTER TABLE "schema_migrations"`
+      line that must be deleted by hand, and if `npm run migrate` runs first it is applied
+      and recorded.** In R-08 a failed rename let migrate apply it; undoing it needed a
+      hand-run `psql` from the owner, because editing an applied migration is blocked. P4-05's
+      enum rename diff carried it again. `scripts/new-migration.ts` should strip that
+      statement from the diff it writes.
+
 ## 1x
 
 - [ ] **Component tests count error toasts (`getAllByText(msg).length`), and a
@@ -83,11 +90,6 @@ confusing than it needed to be, and that will do so again.
       `app/dashboard/page.tsx`. Reading query parameters through one hook
       (`lib/hooks/useOneTimeNotice.ts` reads on mount) and a line in `AGENTS.md` would stop
       the next page repeating it.
-- [ ] **`npm run new-migration` always writes an unrelated `ALTER TABLE "schema_migrations"`
-      line that must be deleted by hand, and if `npm run migrate` runs first it is applied
-      and recorded.** In R-08 a failed rename let migrate apply it; undoing it needed a
-      hand-run `psql` from the owner, because editing an applied migration is blocked.
-      `scripts/new-migration.ts` should strip that statement from the diff it writes.
 - [ ] **Component tests that remount a page as a different user read the previous user's
       cached query first, so a `getBy…` right after the remount sees stale data.** It cost
       a debugging round in R-06 and two more in R-08 (the owner's buttons, then the
@@ -124,3 +126,11 @@ confusing than it needed to be, and that will do so again.
       build failed on a symlinked `node_modules` ("points out of the filesystem root") until it
       was cloned with `cp -cR`. A `scripts/new-worktree.ts` that links the env files, clones
       `node_modules` and copies `generated/` would make a side worktree work first time.
+
+- [ ] **Two sessions running vitest at once share one test template database and one
+      `coverage/` directory, so one run wipes the other's.** During P4-05 another agent's
+      single-file reruns in the same checkout dropped `vitest_template` mid-run (about 70
+      suites failed with "template database does not exist"), and the next full run refused to
+      start on the coverage lock. A per-run database prefix and reports directory in
+      `test/pg.ts` and `scripts/test-unit.ts` (from an env var or the pid) would let runs
+      overlap.

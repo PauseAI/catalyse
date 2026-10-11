@@ -222,7 +222,7 @@ describe('a task past its plan', () => {
     await clientAs(admin).projects.updateTask({
       projectId: project.id,
       taskId: late.id,
-      data: { status: 'open' },
+      data: { status: 'not_started' },
     })
     expect((await firstNote(pat.id, 'task_released')).title).toBe("'Book venue' is open again")
   })

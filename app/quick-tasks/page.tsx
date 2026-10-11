@@ -359,9 +359,9 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                     key={`project-task-${task.id}`}
                     title={task.title}
                     titleHref={`/projects/${task.projectId}/tasks/${task.id}`}
-                    status="open"
-                    statusVariant={TASK_STATUS_VARIANTS.open}
-                    statusLabel={TASK_STATUS_LABELS.open}
+                    status="not_started"
+                    statusVariant={TASK_STATUS_VARIANTS.not_started}
+                    statusLabel={TASK_STATUS_LABELS.not_started}
                     description={task.description}
                     meta={[
                       task.projectTitle && (
@@ -385,7 +385,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                         claimProjectTaskMutation.mutate({
                           projectId: task.projectId,
                           taskId: task.id,
-                          data: { status: TaskStatus.in_progress, assigneeId: user.id },
+                          data: { assigneeId: user.id },
                         })
                       }
                       disabled={
@@ -642,7 +642,7 @@ function AdminQuickTasksView() {
     unassignProjectTaskMutation.mutate({
       projectId: task.projectId,
       taskId: task.id,
-      data: { status: TaskStatus.open },
+      data: { status: TaskStatus.not_started },
     })
   }
 
@@ -864,7 +864,7 @@ function AdminQuickTasksView() {
                   ),
                 ]}
               >
-                {task.status === TaskStatus.open && (
+                {task.status === TaskStatus.not_started && task.assignedToId === null && (
                   <div className="flex gap-2 items-end mb-3">
                     <div className="flex-1 max-w-75">
                       <VolunteerSelect

@@ -99,7 +99,7 @@ test.describe('Approval Gate', () => {
       body: {
         projectId,
         taskId,
-        data: { status: 'in_progress', assigneeId: pending.id },
+        data: { assigneeId: pending.id },
       },
     })
 

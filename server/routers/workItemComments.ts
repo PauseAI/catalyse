@@ -2,7 +2,12 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { notifyUser } from '@/lib/notify'
-import { canViewWorkItem, canPostComment, resolveProjectPrivy } from '@/lib/work-item'
+import {
+  canViewWorkItem,
+  canPostComment,
+  resolveProjectPrivy,
+  startWorkData,
+} from '@/lib/work-item'
 import { mentionedIds, mentionsToPlain, type MentionMember } from '@/lib/mentions'
 import { authedProcedure } from '../procedures'
 import { ApprovalStatus, InterestStatus, WorkItemType } from '@/generated/prisma/enums'
@@ -278,11 +283,17 @@ export const workItemCommentsRouter = {
       })
 
       // The assignee's comment on their project task is the update the inactivity job
-      // waits for, so it restarts the clock.
+      // waits for, so it restarts the clock; their first one starts the work.
       if (loaded.item.type === WorkItemType.TASK && loaded.item.assigneeId === volunteer.id) {
+        const now = new Date()
         await prisma.workItem.update({
           where: { id: loaded.item.id },
-          data: { updatedAt: new Date(), nudgeSentAt: null, finalWarningSentAt: null },
+          data: {
+            ...startWorkData(loaded.item, now),
+            updatedAt: now,
+            nudgeSentAt: null,
+            finalWarningSentAt: null,
+          },
         })
       }
 

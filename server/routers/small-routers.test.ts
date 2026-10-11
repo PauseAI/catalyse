@@ -118,17 +118,32 @@ describe('my.projectTasks', () => {
       data: { updatedAt: new Date('2020-01-01T00:00:00Z') },
     })
     await createTask(project.id, { title: 'Done', status: 'completed', assigneeId: me.id })
-    await createTask(project.id, { title: 'Open', status: 'open' })
+    const open = await createTask(project.id, { title: 'Open' })
     await createTask(project.id, { title: 'Theirs', status: 'in_progress', assigneeId: other.id })
     await createQuickTask({ assigneeId: me.id, status: 'in_progress' })
+    // Claimed, not started, waiting on 'Open': still mine, shown as Blocked.
+    const claimed = await createTask(project.id, { title: 'Claimed', assigneeId: me.id })
+    await prisma.workItemDependency.create({
+      data: { predecessorId: open.id, successorId: claimed.id },
+    })
+    await prisma.workItem.update({
+      where: { id: claimed.id },
+      data: { updatedAt: new Date('2021-01-01T00:00:00Z') },
+    })
 
     const tasks = await clientAs(me).my.projectTasks()
-    expect(tasks.map((t) => t.id)).toEqual([quiet.id, recent.id])
+    expect(tasks.map((t) => t.id)).toEqual([quiet.id, claimed.id, recent.id])
     expect(tasks[0]).toMatchObject({
       title: 'Quiet',
       projectId: project.id,
       projectTitle: 'Host',
       status: 'in_progress',
+      displayStatus: 'in_progress',
+    })
+    expect(tasks[1]).toMatchObject({
+      status: 'not_started',
+      displayStatus: 'blocked',
+      blockedBy: [{ id: open.id, title: 'Open' }],
     })
   })
 })

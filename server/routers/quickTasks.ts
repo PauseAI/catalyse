@@ -114,7 +114,7 @@ export const quickTasksRouter = {
       prisma.workItem.findMany({
         where: {
           type: WorkItemType.TASK,
-          status: TaskStatus.open,
+          status: TaskStatus.not_started,
           assigneeId: null,
           requestedById: null,
           featuredAsQuickTask: true,

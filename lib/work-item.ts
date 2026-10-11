@@ -12,6 +12,7 @@ import {
   TaskTiming,
 } from '@/generated/prisma/enums'
 import { diffInDays } from './schedule'
+import { taskDisplayStatus, type TaskStatusView } from './task-status'
 
 // ── Comment access ────────────────────────────────────────────────────────────
 // Reading a work item's comment thread is gated identically to viewing the work
@@ -559,6 +560,7 @@ export type TaskLike = ScheduleFieldsLike & {
   status: string
   estimatedHours: number | null
   deadline: Date | null
+  claimedAt: Date | null
   completedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -600,6 +602,51 @@ export function submissionData(input: { note?: string | null; url?: string | nul
   }
 }
 
+/**
+ * Shown statuses, in the order given, for project tasks loaded without their project's task
+ * list (Home, My tasks): each one's predecessors are fetched here.
+ */
+export async function loadTaskStatusViews(
+  tasks: { id: number; title: string; status: string }[],
+): Promise<TaskStatusView[]> {
+  const rows = await prisma.workItemDependency.findMany({
+    where: {
+      successorId: { in: tasks.map((t) => t.id) },
+      predecessor: { type: WorkItemType.TASK },
+    },
+    select: { successorId: true, predecessor: { select: { id: true, title: true, status: true } } },
+  })
+  return tasks.map((t) =>
+    taskDisplayStatus(
+      t,
+      rows.filter((r) => r.successorId === t.id).map((r) => r.predecessor),
+    ),
+  )
+}
+
+/**
+ * The write that starts a task's work, or nothing when it has already started: the assignee
+ * pressing Start, posting their first update or submitting it.
+ */
+export function startWorkData(task: { status: string }, now: Date = new Date()) {
+  return task.status === TaskStatus.not_started
+    ? { status: TaskStatus.in_progress, startedAt: now }
+    : {}
+}
+
+/** Writes that hand a task back to nobody, unstarted. */
+export const RELEASED_TASK = {
+  status: TaskStatus.not_started,
+  assigneeId: null,
+  requestedById: null,
+  claimedAt: null,
+  startedAt: null,
+  completedAt: null,
+  nudgeSentAt: null,
+  finalWarningSentAt: null,
+  ...CLEARED_SUBMISSION,
+} as const
+
 export function serializeTask(t: TaskLike) {
   return {
     id: t.id,
@@ -612,6 +659,7 @@ export function serializeTask(t: TaskLike) {
     status: t.status,
     estimatedHours: t.estimatedHours,
     deadline: t.deadline,
+    claimedAt: t.claimedAt,
     completedAt: t.completedAt,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,

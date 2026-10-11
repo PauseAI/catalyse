@@ -7,6 +7,7 @@ import {
   isEmailConfigured,
 } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
+import { RELEASED_TASK } from '@/lib/work-item'
 import {
   TASK_FINAL_WARNING_AFTER_DAYS,
   TASK_RELEASE_AFTER_DAYS,
@@ -33,7 +34,8 @@ export async function runNudgesJob(): Promise<Record<string, unknown>> {
   const assignedTasks = await prisma.workItem.findMany({
     where: {
       type: WorkItemType.TASK,
-      status: TaskStatus.in_progress,
+      // Held, started or not: claiming stamps `updatedAt` as well as `claimedAt`.
+      status: { in: [TaskStatus.not_started, TaskStatus.in_progress] },
       assigneeId: { not: null },
       updatedAt: { lt: daysAgo(TASK_REMINDER_AFTER_DAYS) },
       assignee: { email: { not: null }, deletedAt: null },
@@ -59,13 +61,7 @@ export async function runNudgesJob(): Promise<Record<string, unknown>> {
     if (daysInactive >= TASK_RELEASE_AFTER_DAYS) {
       await prisma.workItem.update({
         where: { id: task.id },
-        data: {
-          status: TaskStatus.open,
-          assigneeId: null,
-          updatedAt: now,
-          nudgeSentAt: null,
-          finalWarningSentAt: null,
-        },
+        data: { ...RELEASED_TASK, updatedAt: now },
       })
       await createNotification(
         assignee.id,

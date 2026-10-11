@@ -64,14 +64,26 @@ describe('canViewWorkItem', () => {
     // Remote within Sweden is still Sweden's; remote anywhere is everyone's.
     expect(canViewWorkItem({ ...swedish, remoteEligibility: 'COUNTRY' }, inUk)).toBe(false)
     expect(canViewWorkItem({ ...swedish, remoteEligibility: 'GLOBAL' }, inUk)).toBe(true)
-    const task = { type: 'TASK', status: 'open', creatorId: 2, assigneeId: null, ...anywhere }
+    const task = {
+      type: 'TASK',
+      status: 'not_started',
+      creatorId: 2,
+      assigneeId: null,
+      ...anywhere,
+    }
     expect(canViewWorkItem(task, inUk, swedish)).toBe(false)
     expect(isOutsideCountry(swedish, 'UK')).toBe(true)
     expect(isOutsideCountry(swedish, null)).toBe(false)
   })
 
   it('a task follows its parent project, or is admin-only without one', () => {
-    const task = { type: 'TASK', status: 'open', creatorId: 2, assigneeId: null, ...anywhere }
+    const task = {
+      type: 'TASK',
+      status: 'not_started',
+      creatorId: 2,
+      assigneeId: null,
+      ...anywhere,
+    }
     expect(canViewWorkItem(task, other, project)).toBe(true)
     expect(canViewWorkItem(task, other, null)).toBe(false)
     expect(canViewWorkItem(task, admin)).toBe(true)
@@ -104,7 +116,7 @@ describe('canPostComment', () => {
     expect(canPostComment(project, other, { isAcceptedHelper: true })).toBe(true)
   })
   it('task: assignee, project owner or accepted helper', () => {
-    const task = { type: 'TASK', status: 'open', creatorId: 3, assigneeId: 4, ...anywhere }
+    const task = { type: 'TASK', status: 'not_started', creatorId: 3, assigneeId: 4, ...anywhere }
     expect(canPostComment(task, other)).toBe(true)
     expect(canPostComment(task, owner, { parent: project })).toBe(true)
     expect(canPostComment(task, creator)).toBe(false)
@@ -290,9 +302,10 @@ describe('serializers', () => {
       assigneeId: 3,
       creatorId: 4,
       requestedById: null,
-      status: 'open',
+      status: 'not_started',
       estimatedHours: 1.5,
       deadline: null,
+      claimedAt: null,
       completedAt: null,
       createdAt: null,
       updatedAt: null,

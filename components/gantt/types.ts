@@ -6,7 +6,7 @@ export type GanttRow = {
   label: string
   /** Optional deep link for the row's name. */
   href?: string
-  /** Status string (TaskStatus / ProjectStatus) — drives the bar colour. */
+  /** A task's shown status (lib/task-status.ts) or a ProjectStatus — drives the bar colour. */
   status: string
   placement: ScheduledItem
   /** Tasks only: how to read the window (see lib/task-dates.ts). */

@@ -80,7 +80,7 @@ const rows: GanttRow[] = [
   {
     id: 3,
     label: 'Launch',
-    status: 'open',
+    status: 'ready',
     placement: placed(3, '2026-06-08', '2026-06-08', {
       isMilestone: true,
       isAnchor: true,
@@ -90,7 +90,7 @@ const rows: GanttRow[] = [
     }),
   },
   { id: 4, label: 'Wrap up', status: 'on_hold', placement: placed(4, '2026-09-01', '2026-09-02') },
-  { id: 5, label: 'Long ago', status: 'open', placement: placed(5, '2025-01-01', '2025-01-02') },
+  { id: 5, label: 'Long ago', status: 'ready', placement: placed(5, '2025-01-01', '2025-01-02') },
 ]
 const edges = [
   { id: 10, predecessorId: 1, successorId: 2, lagDays: 0 },
@@ -123,8 +123,9 @@ describe('palette / drag maths', () => {
     expect(barTone('completed')).toBe('done')
     expect(barTone('under_review')).toBe('progress')
     expect(barTone('archived')).toBe('hold')
-    expect(barTone('open')).toBe('todo')
-    expect(barFill('open')).toBe('var(--gantt-bar-todo)')
+    expect(barTone('ready')).toBe('todo')
+    expect(barTone('blocked')).toBe('todo')
+    expect(barFill('ready')).toBe('var(--gantt-bar-todo)')
     expect(deltaToDays(70, 30)).toBe(2)
     expect(patchFromDrag(rows[0], { kind: 'move', rowId: 1 }, 5, 30)).toBeNull()
     expect(patchFromDrag(rows[0], { kind: 'move', rowId: 1 }, 60, 30)).toEqual({
@@ -257,7 +258,7 @@ describe('GanttChart', () => {
           {
             id: 7,
             label: 'Print flyers',
-            status: 'open',
+            status: 'ready',
             timing: 'flexible',
             effortHours: 6,
             placement: placed(7, '2026-06-01', '2026-06-07'),
@@ -265,7 +266,7 @@ describe('GanttChart', () => {
           {
             id: 8,
             label: 'Staff the stall',
-            status: 'open',
+            status: 'ready',
             timing: 'fixed',
             effortHours: null,
             placement: placed(8, '2026-06-08', '2026-06-08'),
@@ -425,8 +426,8 @@ describe('GanttDependencyLayer', () => {
   it('draws forward and backward elbows, marks removal only for the selected row', () => {
     const onRemove = vi.fn()
     const flat: GanttRow[] = [
-      { id: 1, label: 'A', status: 'open', placement: placed(1, '2026-06-01', '2026-06-02') },
-      { id: 2, label: 'B', status: 'open', placement: placed(2, '2026-06-10', '2026-06-11') },
+      { id: 1, label: 'A', status: 'ready', placement: placed(1, '2026-06-01', '2026-06-02') },
+      { id: 2, label: 'B', status: 'ready', placement: placed(2, '2026-06-10', '2026-06-11') },
     ]
     const { container, rerender } = render(
       <GanttDependencyLayer

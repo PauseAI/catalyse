@@ -21,7 +21,7 @@ import {
 export const DEADLINE_REMINDERS_JOB = 'deadline-reminders'
 
 const LIVE_PROJECT_STATUSES: string[] = [ProjectStatus.ready, ProjectStatus.in_progress]
-const OPEN_TASK_STATUSES: string[] = [TaskStatus.open, TaskStatus.in_progress]
+const OPEN_TASK_STATUSES: string[] = [TaskStatus.not_started, TaskStatus.in_progress]
 const OPEN_QUICK_TASK_STATUSES: string[] = [QuickTaskStatus.open, QuickTaskStatus.in_progress]
 
 type Person = {
@@ -35,6 +35,8 @@ type ReminderTask = {
   title: string
   assigneeId: number | null
   deadline: Date
+  /** Set on a project task when it is claimed. A Quick Task starts when claimed, so it has none. */
+  claimedAt: Date | null
   startedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -153,7 +155,10 @@ export async function runDeadlineRemindersJob(now: Date = new Date()) {
     href: string,
     skipOwnerOverdue: boolean,
   ) {
-    const takenAt = task.assigneeId !== null ? (task.startedAt ?? task.updatedAt ?? today) : null
+    const takenAt =
+      task.assigneeId !== null
+        ? (task.claimedAt ?? task.startedAt ?? task.updatedAt ?? today)
+        : null
     const created = task.createdAt ?? today
     const clockStart = plannedStart
       ? laterOf(takenAt ?? created, plannedStart)
@@ -423,7 +428,7 @@ export async function runDeadlineRemindersJob(now: Date = new Date()) {
         select: { id: true, title: true },
       }),
       prisma.workItem.findMany({
-        where: { parentId: project.id, startedAt: { gte: since }, assigneeId: { not: null } },
+        where: { parentId: project.id, claimedAt: { gte: since }, assigneeId: { not: null } },
         select: { id: true, title: true, assigneeId: true, assignee: { select: { name: true } } },
       }),
       prisma.workItemInterest.findMany({

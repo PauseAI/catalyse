@@ -23,6 +23,8 @@ import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS } from '@/lib/status-labels'
 import { PROJECT_TASK_CLAIMED_MESSAGE, TASK_REQUESTED_MESSAGE } from '@/lib/action-messages'
 import { TASK_INACTIVITY_RULE } from '@/lib/staleness'
 import { awaitsOwnerReview } from '@/lib/task-review'
+import { handedIn } from '@/lib/overdue'
+import { quotedTitles } from '@/lib/task-status'
 import PageLoading from '@/components/PageLoading'
 import NotFoundCard from '@/components/NotFoundCard'
 import SubmitWorkButton from '@/components/SubmitWorkButton'
@@ -74,7 +76,7 @@ export default function TaskDetailPage({
       showToast(
         data.requested
           ? TASK_REQUESTED_MESSAGE
-          : variables.data.status === TaskStatus.in_progress
+          : variables.data.assigneeId !== undefined
             ? PROJECT_TASK_CLAIMED_MESSAGE
             : variables.data.isAnchor === true
               ? 'This is now the key date.'
@@ -172,12 +174,18 @@ export default function TaskDetailPage({
     })
   }
 
+  const startMutation = useMutation({
+    ...orpc.projects.startTask.mutationOptions(),
+    onSuccess: () => {
+      showToast('Started. Post updates as you go.', 'success')
+      void invalidateTask()
+    },
+    onError: (err: unknown) =>
+      showToast(err instanceof Error ? err.message : 'Failed to start the task', 'error'),
+  })
+
   function handleClaimTask(assigneeId: number) {
-    updateMutation.mutate({
-      projectId,
-      taskId,
-      data: { status: TaskStatus.in_progress, assigneeId },
-    })
+    updateMutation.mutate({ projectId, taskId, data: { assigneeId } })
   }
 
   if (loading || !user) return <PageLoading />
@@ -216,8 +224,8 @@ export default function TaskDetailPage({
         <div className="flex justify-between items-start mb-3 gap-4">
           <h1 className="m-0">{task.title}</h1>
           <div className="flex items-center gap-2 shrink-0">
-            <Badge variant={TASK_STATUS_VARIANTS[task.status] ?? 'neutral'}>
-              {TASK_STATUS_LABELS[task.status] ?? task.status}
+            <Badge variant={TASK_STATUS_VARIANTS[task.displayStatus]}>
+              {TASK_STATUS_LABELS[task.displayStatus]}
             </Badge>
             {canEdit && !isEditing && (
               <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>
@@ -237,10 +245,20 @@ export default function TaskDetailPage({
             openStart={task.startDate === null && task.predecessors.length === 0}
             placement={task.placement}
             assigneeName={task.assignedToName}
+            claimedAt={task.claimedAt}
             startedAt={task.startedAt}
             completedAt={task.completedAt}
-            hasPosted={task.assigneeHasPosted}
           />
+        )}
+        {task.blockedBy.length > 0 && (
+          <p className="mb-4 text-sm">
+            <strong>Blocked by</strong> {quotedTitles(task.blockedBy)}
+          </p>
+        )}
+        {task.waitingOn.length > 0 && (
+          <p role="status" className="border-warning-text mb-4 rounded-lg border p-3 text-sm">
+            Still waiting on {quotedTitles(task.waitingOn)}.
+          </p>
         )}
         {task.pastPlanDays !== null && task.canManage && !isEditing && (
           <section
@@ -283,7 +301,11 @@ export default function TaskDetailPage({
                 variant="secondary"
                 disabled={updateMutation.isPending}
                 onClick={() =>
-                  updateMutation.mutate({ projectId, taskId, data: { status: TaskStatus.open } })
+                  updateMutation.mutate({
+                    projectId,
+                    taskId,
+                    data: { status: TaskStatus.not_started },
+                  })
                 }
               >
                 Unassign
@@ -364,19 +386,22 @@ export default function TaskDetailPage({
           </p>
         )}
 
-        {task.status === TaskStatus.open && task.requestedById === null && task.canClaim && (
-          <div className="mt-4">
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={updateMutation.isPending}
-              onClick={() => handleClaimTask(user.id)}
-            >
-              Claim
-            </Button>
-            <p className="text-sm text-text-light mt-2 mb-0">{TASK_INACTIVITY_RULE}</p>
-          </div>
-        )}
+        {task.status === TaskStatus.not_started &&
+          task.assignedToId === null &&
+          task.requestedById === null &&
+          task.canClaim && (
+            <div className="mt-4">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={updateMutation.isPending}
+                onClick={() => handleClaimTask(user.id)}
+              >
+                Claim
+              </Button>
+              <p className="text-sm text-text-light mt-2 mb-0">{TASK_INACTIVITY_RULE}</p>
+            </div>
+          )}
 
         <SubmittedWork submission={task.submission} changesRequested={task.changesRequested} />
 
@@ -395,8 +420,17 @@ export default function TaskDetailPage({
           </div>
         )}
 
-        {task.status === TaskStatus.in_progress && task.assignedToId === user.id && (
-          <div className="mt-4">
+        {!handedIn(task.status) && task.assignedToId === user.id && (
+          <div className="mt-4 flex flex-wrap items-start gap-2">
+            {task.status === TaskStatus.not_started && (
+              <Button
+                size="sm"
+                disabled={startMutation.isPending}
+                onClick={() => startMutation.mutate({ projectId, taskId })}
+              >
+                Start
+              </Button>
+            )}
             <SubmitWorkButton
               target={{ kind: 'project', projectId, taskId }}
               reviewer={
@@ -410,7 +444,7 @@ export default function TaskDetailPage({
               size="sm"
               variant="secondary"
             />
-            <p className="text-sm text-text-light mt-2 mb-0">{TASK_INACTIVITY_RULE}</p>
+            <p className="text-sm text-text-light mt-2 mb-0 basis-full">{TASK_INACTIVITY_RULE}</p>
           </div>
         )}
 

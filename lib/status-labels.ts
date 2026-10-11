@@ -24,20 +24,30 @@ export const QUICK_TASK_STATUS_VARIANTS: Record<string, BadgeVariant> = {
   completed: 'success',
 }
 
-/** Project tasks: claimed, then submitted, and accepted by the owner unless they auto-accept. */
+/**
+ * Project tasks, by stored status and by the shown status (`taskDisplayStatus`): Blocked and
+ * Ready are what Not started reads as, depending on what the task waits on.
+ */
 export const TASK_STATUS_LABELS: Record<string, string> = {
-  open: 'Not started',
+  not_started: 'Not started',
+  blocked: 'Blocked',
+  ready: 'Ready',
   in_progress: 'In progress',
   under_review: 'Submitted for review',
   completed: 'Done',
 }
 
 export const TASK_STATUS_VARIANTS: Record<string, BadgeVariant> = {
-  open: 'neutral',
+  not_started: 'neutral',
+  blocked: 'caution',
+  ready: 'info',
   in_progress: 'info',
   under_review: 'caution',
   completed: 'success',
 }
+
+/** Who holds a task, beside its status: the two are separate. */
+export const UNCLAIMED_LABEL = 'Unclaimed'
 
 /** A volunteer's interest in a project, from their side and the owner's. */
 export const INTEREST_STATUS_LABELS: Record<string, string> = {

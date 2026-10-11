@@ -359,7 +359,7 @@ describe('quick tasks — admin view', () => {
     await screen.findByText('Could not copy the link')
     await userEvent.click(await within(card()).findByRole('button', { name: 'Unassign' }))
     await waitFor(async () =>
-      expect(await row(task.id)).toMatchObject({ assigneeId: null, status: 'open' }),
+      expect(await row(task.id)).toMatchObject({ assigneeId: null, status: 'not_started' }),
     )
 
     // Backdrop / cancel closes each modal.

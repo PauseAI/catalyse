@@ -109,7 +109,7 @@ describe('workItemComments.add', () => {
     const orphan = await prisma.workItem.create({
       data: {
         type: 'TASK',
-        status: 'open',
+        status: 'not_started',
         title: 'orphan',
         assigneeId: admin.id,
         creatorId: owner.id,

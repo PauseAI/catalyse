@@ -162,13 +162,13 @@ describe('runDeadlineRemindersJob', () => {
     const owner = await createVolunteer({ email: 'o3@example.org' })
     const sam = await createVolunteer({ email: 's3@example.org' })
     const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
-    // Taken 1 Oct, due 11 Oct: the check-in is on the 6th.
+    // Claimed 1 Oct and not started, due 11 Oct: the clock runs from the claim, so the check-in
+    // is on the 6th.
     const task = await createTask(project.id, {
       title: 'Secure speakers',
-      status: 'in_progress',
       assigneeId: sam.id,
       deadline: addDays(today, 5),
-      startedAt: addDays(today, -5),
+      claimedAt: addDays(today, -5),
       updatedAt: addDays(today, -5),
     })
     await runDeadlineRemindersJob(now)
@@ -237,9 +237,8 @@ describe('runDeadlineRemindersJob', () => {
     const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
     const task = await createTask(project.id, {
       title: 'Leaflets',
-      status: 'in_progress',
       assigneeId: jo.id,
-      startedAt: addDays(now, -0.5),
+      claimedAt: addDays(now, -0.5),
     })
     const done = await createTask(project.id, {
       title: 'Banner',

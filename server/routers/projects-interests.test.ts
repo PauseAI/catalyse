@@ -83,7 +83,7 @@ describe('projects.expressInterest / withdrawInterest', () => {
     expect((await interestRow(me.id, p.id)).status).toBe('withdrawn')
     expect(await prisma.workItem.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({
       assigneeId: null,
-      status: 'open',
+      status: 'not_started',
     })
     expect(
       (await prisma.workItem.findUniqueOrThrow({ where: { id: doneTask.id } })).assigneeId,

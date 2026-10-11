@@ -60,6 +60,12 @@ describe('dashboard.get', () => {
     })
     const qt = await createQuickTask({ assigneeId: me.id, status: 'under_review', title: 'QT1' })
     await createTask(lead.id, { assigneeId: me.id, status: 'under_review', title: 'T2' })
+    // Claimed but not started is still my work, shown with what it waits on.
+    const first = await createTask(lead.id, { title: 'Emergency thing' })
+    const blocked = await createTask(lead.id, { assigneeId: me.id, title: 'T3' })
+    await prisma.workItemDependency.create({
+      data: { predecessorId: first.id, successorId: blocked.id },
+    })
     const team = await createTeam({ name: 'Comms' })
     const ledTeam = await createTeam({ name: 'Leads' })
     await prisma.teamMembership.createMany({
@@ -91,7 +97,14 @@ describe('dashboard.get', () => {
       context: 'Lead P',
       href: `/projects/${lead.id}/tasks/${task.id}`,
     })
+    expect(byTitle['T1']).toMatchObject({ status: 'In progress', displayStatus: 'in_progress' })
     expect(byTitle['T2']).toMatchObject({ status: 'Submitted for review' })
+    expect(byTitle['T3']).toMatchObject({
+      status: 'Blocked',
+      displayStatus: 'blocked',
+      blockedBy: [{ id: first.id, title: 'Emergency thing' }],
+    })
+    expect(byTitle['Emergency thing']).toBeUndefined()
     expect(byTitle['Loose']).toMatchObject({
       context: null,
       href: '/dashboard',

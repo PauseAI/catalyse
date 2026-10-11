@@ -60,7 +60,7 @@ export async function createTask(
   return prisma.workItem.create({
     data: {
       type: WorkItemType.TASK,
-      status: 'open',
+      status: 'not_started',
       title: `Task ${n}`,
       parentId,
       ...overrides,

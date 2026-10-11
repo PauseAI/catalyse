@@ -224,6 +224,7 @@ export const projectPortingRouter = {
           if (f.status !== undefined) data.status = f.status
           if (f.assigneeEmail !== undefined) {
             data.assigneeId = f.assigneeEmail === null ? null : idForEmail(f.assigneeEmail)
+            data.claimedAt = f.assigneeEmail === null ? null : now
           }
           applyScheduleWrite(data, { startDate: f.startDate, durationDays: f.durationDays }, now)
           await tx.workItem.update({ where: { id: upd.id }, data })
@@ -242,7 +243,7 @@ export const projectPortingRouter = {
           const created = await tx.workItem.create({
             data: {
               type: WorkItemType.TASK,
-              status: f.status ?? TaskStatus.open,
+              status: f.status ?? TaskStatus.not_started,
               parentId: input.projectId,
               title: f.title ?? 'Untitled task',
               description: f.description ?? null,
@@ -251,6 +252,7 @@ export const projectPortingRouter = {
               isAnchor: f.isAnchor ?? false,
               timing: f.timing ?? 'flexible',
               assigneeId: f.assigneeEmail ? idForEmail(f.assigneeEmail) : null,
+              claimedAt: f.assigneeEmail ? now : null,
               creatorId: volunteer.id,
               sortOrder: ++sortOrder,
               ...scheduleData,

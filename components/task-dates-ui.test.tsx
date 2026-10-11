@@ -116,9 +116,9 @@ describe('TaskDatesSummary', () => {
     openStart: false,
     placement: { start: day('2099-09-14'), end: day('2099-09-20'), daysLate: null },
     assigneeName: 'Chelsie',
-    startedAt: day('2099-09-14'),
+    claimedAt: day('2099-09-14'),
+    startedAt: null,
     completedAt: null,
-    hasPosted: false,
   }
   const dd = (label: string) => screen.getByText(label).nextSibling
 
@@ -158,10 +158,16 @@ describe('TaskDatesSummary', () => {
 
   it('reads set dates, a milestone and a task off the timeline', () => {
     const { rerender } = render(
-      <TaskDatesSummary {...base} timing="fixed" durationDays={0} deadline={null} hasPosted />,
+      <TaskDatesSummary
+        {...base}
+        timing="fixed"
+        durationDays={0}
+        deadline={null}
+        startedAt={day('2099-09-15')}
+      />,
     )
     expect(dd('When')).toHaveTextContent('A moment, not a stretch of work')
-    expect(dd('Who')).toHaveTextContent('Chelsie, started 14 Sept 2099')
+    expect(dd('Who')).toHaveTextContent('Chelsie, started 15 Sept 2099')
 
     rerender(
       <TaskDatesSummary
@@ -169,11 +175,14 @@ describe('TaskDatesSummary', () => {
         placement={null}
         deadline={null}
         assigneeName="Chelsie"
-        startedAt={null}
+        claimedAt={null}
       />,
     )
     expect(dd('When')).toHaveTextContent('Not on the timeline yetAbout 6 hours of work')
-    expect(dd('Who')).toHaveTextContent('Chelsie')
+    expect(dd('Who')).toHaveTextContent(/^Chelsie$/)
+
+    rerender(<TaskDatesSummary {...base} assigneeName={null} claimedAt={null} />)
+    expect(dd('Who')).toHaveTextContent(/^Unclaimed$/)
 
     rerender(
       <TaskDatesSummary

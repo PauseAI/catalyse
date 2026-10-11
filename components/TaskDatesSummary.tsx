@@ -2,6 +2,7 @@ import { formatDateShort } from '@/lib/format-date'
 import { deadlineStanding } from '@/lib/slip'
 import { diffInDays } from '@/lib/schedule'
 import { plural } from '@/lib/plural'
+import { UNCLAIMED_LABEL } from '@/lib/status-labels'
 import { windowReading, windowText, type TaskTimingValue } from '@/lib/task-dates'
 
 type Placement = {
@@ -23,9 +24,9 @@ export default function TaskDatesSummary({
   openStart,
   placement,
   assigneeName,
+  claimedAt,
   startedAt,
   completedAt,
-  hasPosted,
 }: {
   timing: TaskTimingValue
   durationDays: number | null
@@ -36,10 +37,9 @@ export default function TaskDatesSummary({
   /** Where the plan puts the task; null when it is not on the timeline. */
   placement: Placement | null
   assigneeName: string | null
+  claimedAt: Date | string | null
   startedAt: Date | string | null
   completedAt: Date | string | null
-  /** The assignee has posted an update, so the task reads as started rather than just claimed. */
-  hasPosted: boolean
 }) {
   const span = placement
     ? durationDays === 0
@@ -86,12 +86,14 @@ export default function TaskDatesSummary({
         {assigneeName === null
           ? completedAt
             ? `Finished ${formatDateShort(completedAt)}`
-            : 'Nobody yet'
+            : UNCLAIMED_LABEL
           : completedAt
             ? `${assigneeName}, finished ${formatDateShort(completedAt)}`
             : startedAt
-              ? `${assigneeName}, ${hasPosted ? 'started' : 'claimed on'} ${formatDateShort(startedAt)}`
-              : assigneeName}
+              ? `${assigneeName}, started ${formatDateShort(startedAt)}`
+              : claimedAt
+                ? `${assigneeName}, claimed on ${formatDateShort(claimedAt)}`
+                : assigneeName}
       </dd>
     </dl>
   )

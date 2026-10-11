@@ -211,7 +211,7 @@ test.describe('Quick Tasks: self-serve', () => {
     expect(interestResult.status).toBe(200)
 
     const claimResult = await volApi.projects.updateTask({
-      body: { projectId, taskId, data: { status: 'in_progress', assigneeId: volunteer.id } },
+      body: { projectId, taskId, data: { assigneeId: volunteer.id } },
     })
     expect(claimResult.status).toBe(200)
 
@@ -307,7 +307,7 @@ test.describe('Leaving a project', () => {
     expect(declined.status).toBe(200)
 
     const claim = await volApi.projects.updateTask({
-      body: { projectId, taskId, data: { status: 'in_progress', assigneeId: volunteer.id } },
+      body: { projectId, taskId, data: { assigneeId: volunteer.id } },
     })
     expect(claim.status).toBe(403)
 
@@ -328,7 +328,7 @@ test.describe('Leaving a project', () => {
     const volApi = createApiClient(baseUrl, volunteer.token)
 
     const claim = await volApi.projects.updateTask({
-      body: { projectId, taskId, data: { status: 'in_progress', assigneeId: volunteer.id } },
+      body: { projectId, taskId, data: { assigneeId: volunteer.id } },
     })
     expect(claim.status).toBe(200)
 
@@ -336,12 +336,12 @@ test.describe('Leaving a project', () => {
     expect(withdrawn.status).toBe(200)
 
     const task = await adminApi.projects.getTask({ body: { projectId, taskId } })
-    expect((task.body as { status: string }).status).toBe('open')
+    expect((task.body as { status: string }).status).toBe('not_started')
     expect((task.body as { assignedToId: number | null }).assignedToId).toBeNull()
 
     // Having left, they can no longer pick it back up.
     const reclaim = await volApi.projects.updateTask({
-      body: { projectId, taskId, data: { status: 'in_progress', assigneeId: volunteer.id } },
+      body: { projectId, taskId, data: { assigneeId: volunteer.id } },
     })
     expect(reclaim.status).toBe(403)
   })

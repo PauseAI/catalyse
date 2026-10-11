@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
-import { projectScopeWhere, type ProjectViewer } from '@/lib/work-item'
+import { loadTaskStatusViews, projectScopeWhere, type ProjectViewer } from '@/lib/work-item'
+import type { TaskDisplayStatus, TaskRef } from '@/lib/task-status'
 import { authedProcedure } from '../procedures'
 import { ADVERTISABLE_STATUSES, TERMINAL_STATUSES, projectStatusLabel } from '@/lib/project-status'
 import {
@@ -66,12 +67,18 @@ export type WorkRow = {
   deadline?: Date | null
   /** A task of mine whose plan ended this many days ago while it is not done. */
   pastPlanDays?: number
+  /** A project task's shown status (lib/task-status.ts); `status` is its label. */
+  displayStatus?: TaskDisplayStatus
+  blockedBy?: TaskRef[]
 }
 
 export type FindItem = { id: number; title: string; href: string; reason: string | null }
 export type FindRow = { count: number; items: FindItem[] }
 
 const FIND_ROW_SIZE = 3
+
+/** A project task someone holds and has not handed in: claimed, whether or not started. */
+const HELD_TASK_STATUSES: TaskStatus[] = [TaskStatus.not_started, TaskStatus.in_progress]
 
 type Viewer = ProjectViewer & { id: number }
 
@@ -111,7 +118,7 @@ async function attentionFor(viewer: Viewer): Promise<AttentionItem[]> {
           assigneeId: viewer.id,
           changesRequestedNote: null,
           OR: [
-            { type: WorkItemType.TASK, status: TaskStatus.in_progress },
+            { type: WorkItemType.TASK, status: { in: HELD_TASK_STATUSES } },
             { type: WorkItemType.QUICK_TASK, status: QuickTaskStatus.in_progress },
           ],
         },
@@ -344,7 +351,7 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
         OR: [
           {
             type: WorkItemType.TASK,
-            status: { in: [TaskStatus.in_progress, TaskStatus.under_review] },
+            status: { in: [...HELD_TASK_STATUSES, TaskStatus.under_review] },
           },
           {
             type: WorkItemType.QUICK_TASK,
@@ -426,21 +433,31 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
       ])
     ).map((p) => [p.id, p.daysPast]),
   )
-  const taskRows: WorkRow[] = tasks.map((t) => ({
-    key: `task-${t.id}`,
-    kind: 'task',
-    title: t.title,
-    href: taskHref(t),
-    role: 'Task',
-    status:
-      t.type === WorkItemType.QUICK_TASK
-        ? QUICK_TASK_STATUS_LABELS[t.status]
-        : TASK_STATUS_LABELS[t.status],
-    context: t.parent?.title ?? null,
-    done: false,
-    deadline: t.deadline,
-    pastPlanDays: pastPlan.get(t.id),
-  }))
+  const projectTasks = tasks.filter((t) => t.type === WorkItemType.TASK)
+  const loaded = await loadTaskStatusViews(projectTasks)
+  const views = new Map(projectTasks.map((t, i) => [t.id, loaded[i]]))
+  const taskRows: WorkRow[] = tasks.map((t) => {
+    const row: WorkRow = {
+      key: `task-${t.id}`,
+      kind: 'task',
+      title: t.title,
+      href: taskHref(t),
+      role: 'Task',
+      status: QUICK_TASK_STATUS_LABELS[t.status],
+      context: t.parent?.title ?? null,
+      done: false,
+      deadline: t.deadline,
+      pastPlanDays: pastPlan.get(t.id),
+    }
+    const view = views.get(t.id)
+    if (!view) return row
+    return {
+      ...row,
+      status: TASK_STATUS_LABELS[view.displayStatus],
+      displayStatus: view.displayStatus,
+      blockedBy: view.blockedBy,
+    }
+  })
 
   const teamRows: WorkRow[] = memberships.map((m) => ({
     key: `team-${m.team.id}`,

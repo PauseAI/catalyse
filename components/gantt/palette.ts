@@ -6,7 +6,10 @@
 
 export type BarTone = 'todo' | 'progress' | 'done' | 'hold'
 
-/** Statuses that mean "parked", across both TaskStatus and ProjectStatus. */
+/**
+ * Statuses that mean "parked", across ProjectStatus and a task's shown status (Blocked and Ready
+ * are still to do).
+ */
 const HOLD_STATUSES = new Set(['on_hold', 'archived', 'cancelled', 'needs_discussion'])
 
 export function barTone(status: string): BarTone {

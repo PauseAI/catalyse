@@ -17,7 +17,7 @@ function state(over: Partial<CurrentState> = {}): CurrentState {
         id: 10,
         title: 'Book the venue',
         description: null,
-        status: 'open',
+        status: 'not_started',
         assigneeId: null,
         assigneeEmail: null,
         deadline: day('2026-09-04'),
@@ -129,6 +129,18 @@ describe('a task length in a file', () => {
       [null, undefined],
       [0, undefined],
     ])
+  })
+})
+
+describe('a task status in a file', () => {
+  it('reads an older export’s `open` as not_started, so it changes nothing', () => {
+    const file = roundTrip()
+    file.tasks[0].status = 'open'
+    const parsed = parseImportFile(JSON.stringify(file))
+    expect(parsed.ok).toBe(true)
+    const read = parsed.ok ? parsed.file : file
+    expect(read.tasks[0].status).toBe('not_started')
+    expect(computeProjectDiff(state(), read).tasks[0].op).toBe('noop')
   })
 })
 

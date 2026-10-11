@@ -94,6 +94,38 @@ test.describe('Task Detail Page', () => {
     await expect(volunteer.page.getByRole('button', { name: 'Claim' })).not.toBeVisible()
   })
 
+  test('A claimed task waiting on another reads Blocked, and In progress once its assignee starts', async ({
+    adminPage,
+    baseUrl,
+  }) => {
+    const adminApi = createApiClient(baseUrl, readAdminToken(baseUrl))
+    const projectId = await createAdminProject(adminApi, 'Task status test')
+    const first = await adminApi.projects.createTask({
+      body: { projectId, title: 'Do this first' },
+    })
+    const then = await adminApi.projects.createTask({ body: { projectId, title: 'Then this' } })
+    const firstId = (first.body as { id: number }).id
+    const taskId = (then.body as { id: number }).id
+    await adminApi.dependencies.add({ body: { predecessorId: firstId, successorId: taskId } })
+    const assignee = await signupApprovedVolunteer(baseUrl)
+    await adminApi.projects.assignTask({ body: { projectId, taskId, assigneeId: assignee.id } })
+
+    await adminPage.goto(`${baseUrl}/projects/${projectId}/tasks/${taskId}`)
+    await expect(
+      adminPage.locator('p').filter({ hasText: "Blocked by 'Do this first'" }),
+    ).toBeVisible({ timeout: 10_000 })
+
+    const started = await createApiClient(baseUrl, assignee.token).projects.startTask({
+      body: { projectId, taskId },
+    })
+    expect(started.status).toBe(200)
+    await adminPage.reload()
+    await expect(adminPage.getByText("Still waiting on 'Do this first'.")).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(adminPage.getByText('In progress', { exact: true })).toBeVisible()
+  })
+
   test('Owner edits a task’s title, description, hours, and deadline from its detail page', async ({
     adminPage,
     baseUrl,

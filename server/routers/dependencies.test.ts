@@ -36,10 +36,10 @@ describe('dependencies.add', () => {
     })
     const t3 = await createTask(p.id)
     const orphan = await prisma.workItem.create({
-      data: { type: 'TASK', status: 'open', title: 'orphan', parentId: null },
+      data: { type: 'TASK', status: 'not_started', title: 'orphan', parentId: null },
     })
     const orphan2 = await prisma.workItem.create({
-      data: { type: 'TASK', status: 'open', title: 'orphan2', parentId: null },
+      data: { type: 'TASK', status: 'not_started', title: 'orphan2', parentId: null },
     })
     await expect(add(orphan.id, orphan2.id)).rejects.toMatchObject({ message: 'Project not found' })
     const other = await createVolunteer()

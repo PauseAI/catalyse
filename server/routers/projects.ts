@@ -19,11 +19,13 @@ import {
   canManageProjectTasks,
   isProjectDeputy,
   submissionData,
-  CLEARED_SUBMISSION,
   canCreateProjectTask,
   canDeleteProjectTask,
   resolveProjectMembership,
+  RELEASED_TASK,
+  startWorkData,
 } from '@/lib/work-item'
+import { taskDisplayStatus, taskStatusViews } from '@/lib/task-status'
 import { notifyUser, notifyAdmins, notifyTeamOfProject, clearNotifications } from '@/lib/notify'
 import { keyDateSides } from '@/lib/key-date'
 import { daysPastPlan, previewReplan, replanWrite } from '@/lib/replan'
@@ -133,14 +135,7 @@ async function releaseTasksHeldBy(projectId: number, volunteerId: number): Promi
       assigneeId: volunteerId,
       status: { not: TaskStatus.completed },
     },
-    data: {
-      assigneeId: null,
-      status: TaskStatus.open,
-      updatedAt: new Date(),
-      nudgeSentAt: null,
-      finalWarningSentAt: null,
-      ...CLEARED_SUBMISSION,
-    },
+    data: { ...RELEASED_TASK, updatedAt: new Date() },
   })
 }
 
@@ -187,14 +182,13 @@ async function assignHeldTasks(projectId: number, volunteerId: number): Promise<
       parentId: projectId,
       type: WorkItemType.TASK,
       requestedById: volunteerId,
-      status: TaskStatus.open,
+      status: TaskStatus.not_started,
       assigneeId: null,
     },
     data: {
       assigneeId: volunteerId,
-      status: TaskStatus.in_progress,
       requestedById: null,
-      startedAt: now,
+      claimedAt: now,
       updatedAt: now,
       nudgeSentAt: null,
       finalWarningSentAt: null,
@@ -297,7 +291,7 @@ async function endDeputyRole(
 // Unfinished tasks share a bucket so claiming, assigning or submitting a task doesn't
 // disturb its priority position — only completed tasks sink to the bottom.
 const TASK_ORDER: Record<string, number> = {
-  [TaskStatus.open]: 0,
+  [TaskStatus.not_started]: 0,
   [TaskStatus.in_progress]: 0,
   [TaskStatus.under_review]: 0,
   [TaskStatus.completed]: 1,
@@ -659,7 +653,7 @@ export const projectsRouter = {
       await tx.workItem.createMany({
         data: tasks.map((t) => ({
           type: WorkItemType.TASK,
-          status: TaskStatus.open,
+          status: TaskStatus.not_started,
           parentId: newProject.id,
           title: t.title,
           description: t.description ?? null,
@@ -851,9 +845,11 @@ export const projectsRouter = {
       const { schedule, edges } = await loadProjectTaskSchedule(project, sortedTasks)
       const hasPredecessor = new Set(edges.map((e) => e.successorId))
       const sides = keyDateSides(sortedTasks, edges)
+      const views = taskStatusViews(sortedTasks, edges)
 
       const mappedTasks = sortedTasks.map((t, i) => ({
         ...serializeTask(t),
+        ...views[i],
         keyDateSide: sides.get(t.id) ?? null,
         pastPlanDays: taskIsDated(t, hasPredecessor.has(t.id))
           ? daysPastPlan(schedule.scheduled[i].end, {
@@ -1863,9 +1859,12 @@ export const projectsRouter = {
         select: { id: true, predecessorId: true, successorId: true, lagDays: true },
       })
 
+      const views = taskStatusViews(tasks, dependencyRows)
+
       return {
-        tasks: tasks.map((t) => ({
+        tasks: tasks.map((t, i) => ({
           ...serializeTask(t),
+          ...views[i],
           assignedToName: t.assignee?.name ?? null,
           createdByName: t.creator?.name ?? null,
           sortOrder: t.sortOrder,
@@ -1939,10 +1938,10 @@ export const projectsRouter = {
         Boolean(volunteer.isAdmin) ||
         !(await isBlockedFromClaiming(input.projectId, volunteer.id))
 
-      const [predecessorRows, siblingTasks, assigneeUpdates] = await Promise.all([
+      const [predecessorRows, siblingTasks] = await Promise.all([
         prisma.workItemDependency.findMany({
           where: { successorId: input.taskId },
-          include: { predecessor: { select: { id: true, title: true } } },
+          include: { predecessor: { select: { id: true, title: true, status: true } } },
         }),
         prisma.workItem.findMany({
           where: {
@@ -1952,9 +1951,6 @@ export const projectsRouter = {
           },
           select: { id: true, title: true },
           orderBy: { sortOrder: 'asc' },
-        }),
-        prisma.workItemComment.count({
-          where: { workItemId: task.id, authorId: task.assigneeId ?? -1 },
         }),
       ])
 
@@ -1993,8 +1989,10 @@ export const projectsRouter = {
 
       return {
         ...serializeTask(task),
-        // The assignee has said something on the task, so it reads as under way.
-        assigneeHasPosted: assigneeUpdates > 0,
+        ...taskDisplayStatus(
+          task,
+          predecessorRows.map((r) => r.predecessor),
+        ),
         changesRequested,
         autoAcceptTasks: project.autoAcceptTasks,
         projectTitle: project.title,
@@ -2058,7 +2056,7 @@ export const projectsRouter = {
         const newTask = await tx.workItem.create({
           data: {
             type: WorkItemType.TASK,
-            status: TaskStatus.open,
+            status: TaskStatus.not_started,
             parentId: input.projectId,
             title: input.title,
             description: input.description ?? null,
@@ -2259,11 +2257,13 @@ export const projectsRouter = {
         input.data.timing === undefined &&
         input.data.startDate === undefined &&
         input.data.durationDays === undefined
+      // Claiming sets the assignee only; the work starts when they press Start or post.
       const isSelfClaim =
         onlyTouchesStatusAndAssignee &&
-        newStatus === TaskStatus.in_progress &&
+        newStatus === undefined &&
         newAssigneeId === volunteer.id &&
-        task.status === TaskStatus.open
+        task.status === TaskStatus.not_started &&
+        task.assigneeId === null
 
       const isDraftCreator =
         project.creatorId === volunteer.id && project.status === ProjectStatus.draft
@@ -2300,7 +2300,7 @@ export const projectsRouter = {
           const held = await prisma.workItem.updateMany({
             where: {
               id: input.taskId,
-              status: TaskStatus.open,
+              status: TaskStatus.not_started,
               assigneeId: null,
               requestedById: null,
             },
@@ -2331,6 +2331,7 @@ export const projectsRouter = {
         }
       }
 
+      const now = new Date()
       const data: Record<string, unknown> = {}
       let releasedFrom: number | null = null
       if (input.data.title !== undefined) data.title = input.data.title
@@ -2341,26 +2342,26 @@ export const projectsRouter = {
       if (input.data.isAnchor !== undefined) data.isAnchor = input.data.isAnchor
       if (input.data.timing !== undefined) data.timing = input.data.timing
       applyScheduleWrite(data, { ...input.data, taskDeadline: input.data.deadline })
+      if (input.data.assigneeId !== undefined) {
+        data.assigneeId = input.data.assigneeId
+        if (input.data.assigneeId === null) data.claimedAt = null
+        else if (input.data.assigneeId !== task.assigneeId) data.claimedAt = now
+      }
       if (input.data.status !== undefined) {
         data.status = input.data.status
-        if (input.data.status === TaskStatus.completed) data.completedAt = new Date()
+        if (input.data.status === TaskStatus.completed) data.completedAt = now
         else if (input.data.status === TaskStatus.in_progress) {
           // Actual start, recorded once. Re-entering in_progress after a pause keeps the
           // original date — the work did start then.
-          if (task.startedAt === null) data.startedAt = new Date()
-        } else if (input.data.status === TaskStatus.open) {
+          if (task.startedAt === null) data.startedAt = now
+        } else if (input.data.status === TaskStatus.not_started) {
+          // Back to nobody's, unstarted: the actuals and any submission describe work that is
+          // no longer claimed.
           releasedFrom = task.assigneeId
-          data.assigneeId = null
-          data.requestedById = null
-          data.completedAt = null
-          // Back to unstarted: the actuals and any submission describe work that is no
-          // longer claimed.
-          data.startedAt = null
-          Object.assign(data, CLEARED_SUBMISSION)
+          Object.assign(data, RELEASED_TASK)
         }
       }
-      if (input.data.assigneeId !== undefined) data.assigneeId = input.data.assigneeId
-      data.updatedAt = new Date()
+      data.updatedAt = now
       data.nudgeSentAt = null
       data.finalWarningSentAt = null
 
@@ -2370,7 +2371,7 @@ export const projectsRouter = {
         const claimed = await prisma.workItem.updateMany({
           where: {
             id: input.taskId,
-            status: TaskStatus.open,
+            status: TaskStatus.not_started,
             assigneeId: null,
             requestedById: null,
           },
@@ -2409,6 +2410,26 @@ export const projectsRouter = {
       return { message: 'Task updated', requested: false }
     }),
 
+  /** The assignee says they have begun. Allowed while Blocked too: prep can start early. */
+  startTask: approvedProcedure
+    .input(z.object({ projectId: z.number().int(), taskId: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      const { task } = await findProjectTask(input.projectId, input.taskId)
+      if (task.assigneeId !== context.volunteer.id) {
+        throw new ORPCError('FORBIDDEN', {
+          message: 'Only the person doing this task can start it',
+        })
+      }
+      if (task.status !== TaskStatus.not_started) {
+        throw new ORPCError('BAD_REQUEST', { message: 'This task has already started' })
+      }
+      await prisma.workItem.update({
+        where: { id: task.id },
+        data: { ...startWorkData(task), updatedAt: new Date() },
+      })
+      return { message: 'Task started' }
+    }),
+
   /**
    * The assignee hands in their work. It waits for the owner as Submitted for review, unless
    * the project auto-accepts, has no owner to review it, or the submitter could accept it.
@@ -2425,8 +2446,8 @@ export const projectsRouter = {
           message: 'Only the person doing this task can submit it',
         })
       }
-      if (task.status !== TaskStatus.in_progress) {
-        throw new ORPCError('BAD_REQUEST', { message: 'Only a task in progress can be submitted' })
+      if (task.status !== TaskStatus.in_progress && task.status !== TaskStatus.not_started) {
+        throw new ORPCError('BAD_REQUEST', { message: 'This task has already been submitted' })
       }
       const submission = submissionData(input)
       if (!submission) {
@@ -2441,6 +2462,8 @@ export const projectsRouter = {
       await prisma.workItem.update({
         where: { id: task.id },
         data: {
+          // Handing it in without pressing Start still records when the work began.
+          ...startWorkData(task, submission.submittedAt),
           ...submission,
           status: accepted ? TaskStatus.completed : TaskStatus.under_review,
           ...(accepted ? { completedAt: submission.submittedAt } : {}),
@@ -2598,17 +2621,17 @@ export const projectsRouter = {
         })
       }
 
+      // Assigning sets who holds it, not how far the work has got: work in flight stays started.
+      const now = new Date()
       await prisma.workItem.update({
         where: { id: input.taskId },
         data: {
           assigneeId: input.assigneeId,
           requestedById: null,
-          status: TaskStatus.in_progress,
-          updatedAt: new Date(),
+          ...(input.assigneeId !== task.assigneeId ? { claimedAt: now } : {}),
+          updatedAt: now,
           nudgeSentAt: null,
           finalWarningSentAt: null,
-          // Actual start, recorded once — reassigning a task in flight does not restart it.
-          ...(task.startedAt === null ? { startedAt: new Date() } : {}),
         },
       })
 

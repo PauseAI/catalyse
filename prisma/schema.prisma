@@ -50,8 +50,10 @@ enum RemoteEligibility {
   GLOBAL
 }
 
+// The work's own progress, apart from who holds it (`assigneeId`). Blocked and Ready are not
+// stored: they are worked out from dependencies (lib/task-status.ts).
 enum TaskStatus {
-  open
+  not_started
   in_progress
   under_review
   completed
@@ -378,6 +380,9 @@ model WorkItem {
   scheduleUpdatedAt    DateTime?  @map("schedule_updated_at")
   // Actual start. `completedAt` above is the actual finish.
   startedAt            DateTime?  @map("started_at")
+  // When the current assignee took it (TASK). Claiming does not start the work, so the reminder
+  // and inactivity clocks count from here rather than from `startedAt`.
+  claimedAt            DateTime?  @map("claimed_at")
 
   country           String?
   localGroup        String?           @map("local_group")

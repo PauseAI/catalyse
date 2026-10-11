@@ -15,6 +15,7 @@ import {
 import { approvedProcedure, adminProcedure } from '../procedures'
 import {
   ProjectStatus,
+  TaskStatus,
   WorkItemType,
   TemplateSourceType,
   TeamMembershipRole,
@@ -388,7 +389,7 @@ export const templatesRouter = {
           const createdTask = await tx.workItem.create({
             data: {
               type: WorkItemType.TASK,
-              status: 'open',
+              status: TaskStatus.not_started,
               parentId: newProject.id,
               title: taskCreate.title,
               description: taskCreate.description,

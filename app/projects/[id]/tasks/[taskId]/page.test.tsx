@@ -20,29 +20,31 @@ const mount = (
   )
 
 describe('task detail page', () => {
-  it('lets the assignee submit their work, and reads Claimed on until they post an update', async () => {
+  it('lets the assignee start and submit their work, reading Claimed on until they start', async () => {
     const me = await createVolunteer()
     const someoneElse = await createVolunteer()
     const project = await createProject({ status: 'in_progress' })
     const task = await createTask(project.id, {
       title: 'Mine',
-      status: 'in_progress',
       assigneeId: me.id,
-      startedAt: new Date('2030-01-02T00:00:00Z'),
+      claimedAt: new Date('2030-01-02T00:00:00Z'),
     })
     await mount(project.id, task.id, someoneElse)
     await screen.findByRole('heading', { name: 'Mine' })
     expect(screen.queryByRole('button', { name: 'Submit work' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Start' })).toBeNull()
 
     cleanup()
     await mount(project.id, task.id, me)
     await screen.findByText(/claimed on 2 Jan 2030/)
-    await prisma.workItemComment.create({
-      data: { workItemId: task.id, authorId: me.id, content: 'Going well' },
-    })
-    cleanup()
-    await mount(project.id, task.id, me)
-    await screen.findByText(/started 2 Jan 2030/)
+    // Claimed is not started: nothing it waits on, so it reads Ready.
+    expect(screen.getByText('Ready')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }))
+    await screen.findByText('Started. Post updates as you go.')
+    await screen.findByText(`started ${formatDateShort(new Date())}`, { exact: false })
+    expect(screen.getByText('In progress')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start' })).toBeNull()
+    expect((await row(task.id)).status).toBe('in_progress')
 
     // A project with no owner to review it takes the work as done.
     await userEvent.click(screen.getByRole('button', { name: 'Submit work' }))
@@ -66,6 +68,24 @@ describe('task detail page', () => {
     await screen.findByRole('heading', { name: 'Submitted work' })
     expect(screen.getByText('Wrote it up')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Submit work' })).toBeNull()
+  })
+
+  it('keeps started work In progress when what it waits on is open, with a warning', async () => {
+    const me = await createVolunteer()
+    const project = await createProject({ status: 'in_progress' })
+    const before = await createTask(project.id, { title: 'Emergency thing' })
+    const task = await createTask(project.id, {
+      title: 'Do the flyering',
+      status: 'in_progress',
+      assigneeId: me.id,
+    })
+    await prisma.workItemDependency.create({
+      data: { predecessorId: before.id, successorId: task.id },
+    })
+    await mount(project.id, task.id, me)
+    await screen.findByText("Still waiting on 'Emergency thing'.")
+    expect(screen.getByText('In progress')).toBeInTheDocument()
+    expect(screen.queryByText('Blocked')).toBeNull()
   })
 
   it('queues work for the owner, who accepts it or asks for changes', async () => {
@@ -144,14 +164,18 @@ describe('task detail page', () => {
       status: 'in_progress',
       autoAcceptTasks: false,
     })
-    const task = await createTask(project.id, { status: 'in_progress', assigneeId: me.id })
+    const task = await createTask(project.id, { assigneeId: me.id })
     await mount(project.id, task.id, me)
+    await screen.findByRole('button', { name: 'Start' })
+    await prisma.workItem.update({ where: { id: task.id }, data: { status: 'in_progress' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }))
+    await screen.findByText('This task has already started')
     await userEvent.click(await screen.findByRole('button', { name: 'Submit work' }))
     const dialog = await screen.findByRole('dialog', { name: 'Submit your work' })
     await userEvent.type(within(dialog).getByLabelText('What did you do?'), 'Done')
-    await prisma.workItem.update({ where: { id: task.id }, data: { status: 'open' } })
+    await prisma.workItem.update({ where: { id: task.id }, data: { status: 'completed' } })
     await userEvent.click(within(dialog).getByRole('button', { name: 'Submit work' }))
-    await screen.findByText('Only a task in progress can be submitted')
+    await screen.findByText('This task has already been submitted')
 
     cleanup()
     await prisma.workItem.update({ where: { id: task.id }, data: { status: 'under_review' } })
@@ -220,7 +244,12 @@ describe('task detail page', () => {
     expect(screen.getByText('When').nextSibling).toHaveTextContent(
       /^1 Dec 2029 – 1 Jan 2030Any time in this window, about 2 hours of work$/,
     )
-    expect(screen.getByText('Who').nextSibling).toHaveTextContent('Nobody yet')
+    expect(screen.getByText('Who').nextSibling).toHaveTextContent('Unclaimed')
+    // Its predecessor is not done, so it is Blocked, and says by what.
+    expect(screen.getByText('Blocked')).toBeInTheDocument()
+    expect(screen.getByText('Blocked by').parentElement).toHaveTextContent(
+      "Blocked by 'Predecessor'",
+    )
     expect(screen.getByRole('link', { name: 'Predecessor' })).toBeInTheDocument()
     const depRow = (name: string) => screen.getByRole('link', { name }).closest('li') as HTMLElement
     expect(within(depRow('Predecessor')).getByRole('spinbutton')).toBeDisabled()
@@ -237,6 +266,10 @@ describe('task detail page', () => {
     expect(screen.getByText(rule)).toBeInTheDocument()
     await waitFor(async () => expect((await row(task.id)).assigneeId).toBe(me.id))
     await screen.findByText(`${me.name}, claimed on`, { exact: false })
+    // Claiming does not start it: still Blocked, with Start offered for prep.
+    expect((await row(task.id)).status).toBe('not_started')
+    expect(screen.getByText('Blocked')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start' })).toBeInTheDocument()
 
     cleanup()
     await mount(project.id, task.id, owner)
