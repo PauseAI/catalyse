@@ -555,6 +555,23 @@ function TaskTimeline({
   const selectedLinks = selectedRow
     ? timeline.dependencies.filter((d) => d.successorId === selectedRow.id)
     : []
+  const summaryOf = (t: (typeof timeline.tasks)[number]) => ({
+    id: t.id,
+    projectId,
+    title: t.title,
+    type: WorkItemType.TASK,
+    displayStatus: t.displayStatus,
+    assigneeName: t.assignedToName,
+    deadline: t.deadline,
+    completedAt: t.completedAt,
+    href: `/projects/${projectId}/tasks/${t.id}`,
+  })
+  const selectedSuccessors = selectedRow
+    ? timeline.dependencies.flatMap((d) => {
+        const t = d.predecessorId === selectedRow.id ? taskById.get(d.successorId) : undefined
+        return t ? [summaryOf(t)] : []
+      })
+    : []
   // A done task's links and key date are locked until it is reopened (lib/work-item-lock.ts).
   const planMenu =
     canManage && selectedTask && selectedTask.status !== TaskStatus.completed ? (
@@ -659,21 +676,12 @@ function TaskTimeline({
                         dependencyId: d.id,
                         predecessorId: d.predecessorId,
                         predecessorTitle: t.title,
-                        item: {
-                          id: t.id,
-                          projectId,
-                          title: t.title,
-                          type: WorkItemType.TASK,
-                          displayStatus: t.displayStatus,
-                          assigneeName: t.assignedToName,
-                          deadline: t.deadline,
-                          completedAt: t.completedAt,
-                          href: `/projects/${projectId}/tasks/${t.id}`,
-                        },
+                        item: summaryOf(t),
                       },
                     ]
                   : []
               })}
+              successors={selectedSuccessors}
               onClose={() => setSelectedId(null)}
               onSaveDates={(p) => {
                 reschedule.mutate({

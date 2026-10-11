@@ -22,6 +22,7 @@ export default function TaskDatesSummary({
   placement,
   handedIn,
   today = new Date(),
+  className = 'mb-4',
 }: {
   estimatedHours: number | null
   deadline: Date | string | null
@@ -32,6 +33,8 @@ export default function TaskDatesSummary({
   /** Submitted or done: how far away the deadline is no longer matters. */
   handedIn: boolean
   today?: Date
+  /** Spacing around the block, which differs between the task page and the timeline panel. */
+  className?: string
 }) {
   const start = placement && !openStart ? new Date(placement.start) : null
   const from =
@@ -44,7 +47,7 @@ export default function TaskDatesSummary({
   const overrun = !handedIn && deadline !== null && !overdue && daysLate > 0
 
   return (
-    <div role="group" aria-label="When it is due" className="mb-4 text-sm">
+    <div role="group" aria-label="When it is due" className={`${className} text-sm`}>
       {deadline ? (
         <p className="m-0 font-medium">
           Due {shortDay(deadline, today)}

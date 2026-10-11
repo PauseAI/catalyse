@@ -1371,19 +1371,25 @@ describe('project page — timeline tab', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Beta:/ }))
     const panel = () => screen.getByRole('complementary')
     await within(panel()).findByText('Beta')
-    const datesForm = within(panel()).getByLabelText('Deadline').closest('form')!
+    // The Dates block opens from Edit dates, and folds away again on Save.
+    const editDates = async () => {
+      // The panel's controls stay disabled until a save's response lands, after the row is written.
+      const edit = within(panel()).getByRole('button', { name: 'Edit dates' })
+      await waitFor(() => expect(edit).toBeEnabled())
+      await userEvent.click(edit)
+      return within(panel()).getByLabelText('Deadline').closest('form')!
+    }
+    const deadlineForm = await editDates()
     fireEvent.change(within(panel()).getByLabelText('Deadline'), {
       target: { value: '2027-06-30' },
     })
-    fireEvent.submit(datesForm)
+    fireEvent.submit(deadlineForm)
+    expect(within(panel()).queryByLabelText('Deadline')).toBeNull()
     await waitFor(async () =>
       expect((await row(b.id)).deadline).toEqual(new Date('2027-06-30T00:00:00Z')),
     )
-    // The panel's controls stay disabled until the save's response lands, after the row is written.
-    const settled = (name: RegExp) =>
-      waitFor(() => expect(within(panel()).getByRole('checkbox', { name })).toBeEnabled())
     // Timing and effort are not schedule, so they go by the task update rather than the drag path.
-    await settled(/exact dates/)
+    const datesForm = await editDates()
     await userEvent.click(within(panel()).getByRole('checkbox', { name: /exact dates/ }))
     await userEvent.type(within(panel()).getByLabelText('Effort: about'), '3')
     fireEvent.submit(datesForm)
@@ -1394,6 +1400,8 @@ describe('project page — timeline tab', () => {
     expect(within(panel()).queryByRole('checkbox', { name: /Key date/ })).toBeNull()
     expect(within(panel()).queryByLabelText('Add a dependency')).toBeNull()
     expect(within(panel()).getByRole('link', { name: 'Alpha' })).toBeInTheDocument()
+    // Beta was linked to Gamma above, so Gamma is what it unblocks.
+    expect(within(panel()).getByRole('link', { name: 'Gamma' })).toBeInTheDocument()
     await userEvent.click(within(panel()).getByRole('button', { name: 'Plan “Beta”' }))
     const plan = await screen.findByRole('dialog', { name: 'Plan “Beta”' })
     const makeKey = within(plan).getByRole('button', { name: 'Make this the key date' })
@@ -1524,6 +1532,7 @@ describe('project page — timeline tab', () => {
     await screen.findByText('One or both items were not found')
     await userEvent.keyboard('{Escape}')
     // A failed reschedule is rolled back and the timeline refetched (which drops the panel).
+    await userEvent.click(within(panel).getByRole('button', { name: 'Edit dates' }))
     fireEvent.submit(within(panel).getByLabelText('Deadline').closest('form')!)
     await screen.findByText('One or more items were not found')
     await userEvent.click(await screen.findByRole('button', { name: 'Replace original plan' }))
@@ -1848,7 +1857,7 @@ describe('project page — reopening a done task', () => {
     await mount(project.id, owner, '#timeline')
     await userEvent.click(await screen.findByRole('button', { name: /^Built stage:/ }))
     const panel = () => screen.getByRole('complementary')
-    expect(within(panel()).queryByLabelText('Deadline')).toBeNull()
+    expect(within(panel()).queryByRole('button', { name: 'Edit dates' })).toBeNull()
 
     await userEvent.click(within(panel()).getByRole('button', { name: 'Reopen' }))
     await userEvent.click(
@@ -1861,7 +1870,7 @@ describe('project page — reopening a done task', () => {
     )
     await screen.findByText('Reopened. It can be edited again.')
     expect(await row(done.id)).toMatchObject({ status: 'not_started', completedAt: null })
-    await within(panel()).findByLabelText('Deadline')
+    await within(panel()).findByRole('button', { name: 'Edit dates' })
   })
 })
 

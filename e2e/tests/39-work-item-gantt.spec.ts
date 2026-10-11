@@ -508,7 +508,7 @@ test.describe('Work item scheduling and dependencies', () => {
 
     const panel = adminPage.getByRole('complementary')
     await expect(panel.getByRole('heading', { name: 'Panel task' })).toBeVisible()
-    await expect(panel.getByText('Depends on')).toBeVisible()
+    await expect(panel.getByText('Waits on')).toBeVisible()
   })
 
   test('the Timeline is reachable by its own URL and its controls are all usable', async ({
@@ -552,7 +552,8 @@ test.describe('Work item scheduling and dependencies', () => {
 
     const panel = adminPage.getByRole('complementary')
     await expect(panel.getByRole('heading', { name: 'Visible task' })).toBeVisible()
-    // Every editing affordance the panel owns is reachable for a manager.
+    // Every editing affordance the panel owns is reachable for a manager; the dates behind Edit dates.
+    await panel.getByRole('button', { name: 'Edit dates' }).click()
     await expect(panel.getByLabel('Start (optional)', { exact: true })).toBeVisible()
     await expect(panel.getByLabel('Deadline', { exact: true })).toBeVisible()
     await expect(panel.getByRole('button', { name: 'Plan “Visible task”' })).toBeVisible()
@@ -582,7 +583,7 @@ test.describe('Work item scheduling and dependencies', () => {
     await adminPage.getByRole('button', { name: /Anchor me:/ }).click()
 
     const panel = adminPage.getByRole('complementary')
-    // The Plan menu beside the selected bar is the same as the one in the panel header.
+    // The Plan menu beside the selected bar is the same as the one in the panel footer.
     await adminPage.getByRole('button', { name: 'Plan “Anchor me”' }).first().click()
     const plan = adminPage.getByRole('dialog', { name: 'Plan “Anchor me”' })
     await plan.getByRole('button', { name: 'Make this the key date' }).click()
