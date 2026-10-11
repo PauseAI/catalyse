@@ -1,6 +1,7 @@
 // Post-generate patches for generated/prisma/client.ts.
 // Run via "npm run generate" after prisma generate completes.
 // Add new patches below following the same pattern.
+import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 
 const file = 'generated/prisma/client.ts'
@@ -39,3 +40,8 @@ if (dirty) {
 } else {
   console.log(`${file}: no changes needed`)
 }
+
+// Records which schema.prisma this generate ran against, so `predev`
+// (scripts/ensure-generated.ts) can detect a stale client on branch switches.
+const schemaHash = createHash('sha256').update(readFileSync('prisma/schema.prisma')).digest('hex')
+writeFileSync('generated/prisma/.schema-hash', schemaHash)

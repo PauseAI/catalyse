@@ -7,6 +7,7 @@
     "local-setup": "cp -n .env.local.example .env.local; npm install && npm run install:browsers && npm run install:pg-tools && npm run fetch-prod-db && npm run migrate && npm run generate",
     "seed-preview": "tsx scripts/seed-preview.ts",
     "check-all": "tsx scripts/check-all.ts",
+    "predev": "tsx scripts/ensure-generated.ts",
     "dev": "next dev --turbo",
     "build": "prisma generate && next build",
     "start": "next start",
