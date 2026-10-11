@@ -542,10 +542,10 @@ describe('projects.updateTask', () => {
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
 
-    // Claim race: the guarded hold finds the task already taken.
+    // Claim race: the guarded hold finds the task already held for someone else, and records
+    // nothing.
     const open = await createProject({ assigneeId: owner.id, status: 'in_progress' })
-    const t4 = await createTask(open.id)
-    const spy = vi.spyOn(prisma.workItem, 'updateMany').mockResolvedValueOnce({ count: 0 })
+    const t4 = await createTask(open.id, { requestedById: owner.id })
     await expect(
       clientAs(rival).projects.updateTask({
         projectId: open.id,
@@ -553,7 +553,7 @@ describe('projects.updateTask', () => {
         data: { assigneeId: rival.id },
       }),
     ).rejects.toMatchObject({ message: 'This task has already been claimed' })
-    spy.mockRestore()
+    expect(await prisma.workItemEvent.count({ where: { workItemId: t4.id } })).toBe(0)
 
     // The creator of a draft may edit its tasks.
     const draft = await createProject({ status: 'draft', creatorId: me.id })
@@ -629,8 +629,8 @@ describe('projects.assignTask', () => {
 describe('projects.reopenTask', () => {
   const notes = (volunteerId: number, type: string) =>
     prisma.notification.findMany({ where: { volunteerId, type } })
-  const comments = (workItemId: number) =>
-    prisma.workItemComment.findMany({ where: { workItemId }, select: { content: true } })
+  const events = (workItemId: number) =>
+    prisma.workItemEvent.findMany({ where: { workItemId }, select: { kind: true, after: true } })
 
   async function doneTaskSetup() {
     const owner = await createVolunteer({ name: 'Olive' })
@@ -669,7 +669,9 @@ describe('projects.reopenTask', () => {
       startedAt: day('2026-09-01'),
       submissionNote: 'Booked it',
     })
-    expect(await comments(t.id)).toEqual([{ content: 'Reopened by Olive' }])
+    expect(await events(t.id)).toEqual([
+      { kind: 'reopened', after: { status: 'in_progress', completedAt: null } },
+    ])
     expect(await notes(sam.id, 'task_reopened')).toEqual([
       expect.objectContaining({
         title: `Reopened: '${t.title}'`,
@@ -722,7 +724,9 @@ describe('projects.reopenTask', () => {
       submissionNote: null,
       submittedAt: null,
     })
-    expect(await comments(unheld.id)).toEqual([{ content: 'Reopened by Dee (deputy)' }])
+    expect(await events(unheld.id)).toMatchObject([
+      { kind: 'reopened', after: { status: 'not_started', asDeputy: true } },
+    ])
 
     // An admin takes back work waiting for review; the reviewers' prompt goes with it.
     const admin = await createAdmin()

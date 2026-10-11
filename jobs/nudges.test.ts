@@ -66,6 +66,9 @@ describe('runNudgesJob', () => {
       claimedAt: null,
       startedAt: null,
     })
+    expect(
+      await prisma.workItemEvent.findMany({ where: { workItemId: gone.task.id } }),
+    ).toMatchObject([{ actorId: null, kind: 'released', before: { assigneeId: gone.assignee.id } }])
     expect(emails.lastTo(gone.assignee.email!)?.subject).toBe(subjects.releasedAssignee('gone'))
     expect(emails.lastTo(gone.owner.email!)?.subject).toBe(subjects.releasedOwner('gone'))
 

@@ -33,6 +33,7 @@ import {
   isProjectLocked,
   projectEditable,
 } from '@/lib/work-item-lock'
+import { recordChange, recordEvent, updateWorkItem, workItemChanges } from '@/lib/work-item-events'
 import { taskDisplayStatus, taskStatusViews } from '@/lib/task-status'
 import { taskCounts } from '@/lib/task-list-order'
 import { loadWorkItemSummaries, toWorkItemSummary } from '@/lib/work-item-summary'
@@ -139,19 +140,31 @@ async function isBlockedFromClaiming(projectId: number, volunteerId: number): Pr
  * tasks you hold on it. Completed tasks keep their assignee: they are a record of work
  * done, not an outstanding commitment.
  */
-async function releaseTasksHeldBy(projectId: number, volunteerId: number): Promise<void> {
-  await prisma.workItem.updateMany({
-    where: { parentId: projectId, type: WorkItemType.TASK, requestedById: volunteerId },
-    data: { requestedById: null },
-  })
-  await prisma.workItem.updateMany({
+async function releaseTasksHeldBy(
+  projectId: number,
+  volunteerId: number,
+  actorId: number,
+): Promise<void> {
+  const held = await prisma.workItem.findMany({
     where: {
       parentId: projectId,
       type: WorkItemType.TASK,
-      assigneeId: volunteerId,
-      status: { not: TaskStatus.completed },
+      OR: [
+        { requestedById: volunteerId },
+        { assigneeId: volunteerId, status: { not: TaskStatus.completed } },
+      ],
     },
-    data: { ...RELEASED_TASK, updatedAt: new Date() },
+  })
+  const now = new Date()
+  await prisma.$transaction(async (tx) => {
+    for (const task of held) {
+      const data =
+        task.assigneeId === volunteerId
+          ? { ...RELEASED_TASK, updatedAt: now }
+          : { requestedById: null }
+      await tx.workItem.update({ where: { id: task.id }, data })
+      await recordChange(tx, { row: task, data, actorId, kind: 'released' })
+    }
   })
 }
 
@@ -191,9 +204,12 @@ async function notifyOwnerOfInterest(
  * Hands someone the tasks held for them while their request to join waited, now that they
  * are on the project.
  */
-async function assignHeldTasks(projectId: number, volunteerId: number): Promise<void> {
-  const now = new Date()
-  await prisma.workItem.updateMany({
+async function assignHeldTasks(
+  projectId: number,
+  volunteerId: number,
+  actorId: number,
+): Promise<void> {
+  const held = await prisma.workItem.findMany({
     where: {
       parentId: projectId,
       type: WorkItemType.TASK,
@@ -201,14 +217,24 @@ async function assignHeldTasks(projectId: number, volunteerId: number): Promise<
       status: TaskStatus.not_started,
       assigneeId: null,
     },
-    data: {
-      assigneeId: volunteerId,
-      requestedById: null,
-      claimedAt: now,
-      updatedAt: now,
-      nudgeSentAt: null,
-      finalWarningSentAt: null,
-    },
+  })
+  const now = new Date()
+  const data = {
+    assigneeId: volunteerId,
+    requestedById: null,
+    claimedAt: now,
+    updatedAt: now,
+    nudgeSentAt: null,
+    finalWarningSentAt: null,
+  }
+  await prisma.$transaction(async (tx) => {
+    for (const task of held) {
+      const taken = await tx.workItem.updateMany({
+        where: { id: task.id, requestedById: volunteerId, assigneeId: null },
+        data,
+      })
+      if (taken.count > 0) await recordChange(tx, { row: task, data, actorId, kind: 'assigned' })
+    }
   })
 }
 
@@ -301,6 +327,11 @@ async function askOwnerToComplete(projectId: number): Promise<void> {
 
 function actorLabel(volunteer: { name: string }, isDeputy: boolean): string {
   return isDeputy ? `${volunteer.name} (deputy)` : volunteer.name
+}
+
+/** The event context that labels a deputy's action as theirs, as actorLabel does. */
+function deputyContext(isDeputy: boolean) {
+  return isDeputy ? { asDeputy: true } : undefined
 }
 
 /** Accepted helpers the owner has made deputies, minus `exceptId`. */
@@ -779,10 +810,11 @@ export const projectsRouter = {
         // lib/template-porting.ts).
         const newStatus =
           project.assigneeId === null ? ProjectStatus.ready : ProjectStatus.in_progress
-        await prisma.workItem.update({
-          where: { id: input.id },
-          data: { status: newStatus, updatedAt: new Date() },
-        })
+        await updateWorkItem(
+          project,
+          { status: newStatus, updatedAt: new Date() },
+          { actorId: volunteer.id, kind: 'status' },
+        )
 
         notifyMatchingVolunteers(project.id).catch((e) => console.error('[MATCH NOTIFY]', e))
         if (project.teamId) {
@@ -794,10 +826,11 @@ export const projectsRouter = {
         return { message: 'Project published' }
       }
 
-      await prisma.workItem.update({
-        where: { id: input.id },
-        data: { status: ProjectStatus.pending_review, updatedAt: new Date() },
-      })
+      await updateWorkItem(
+        project,
+        { status: ProjectStatus.pending_review, updatedAt: new Date() },
+        { actorId: volunteer.id, kind: 'status' },
+      )
 
       await notifyAdmins(
         'new_project_proposal',
@@ -1132,10 +1165,11 @@ export const projectsRouter = {
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: { requestedBy: { select: { id: true, deletedAt: true } } },
       })
-      await prisma.workItem.update({
-        where: { id: project.id },
-        data: { status: ProjectStatus.pending_review, updatedAt: new Date() },
-      })
+      await updateWorkItem(
+        project,
+        { status: ProjectStatus.pending_review, updatedAt: new Date() },
+        { actorId: volunteer.id, kind: 'status' },
+      )
       await prisma.projectReviewRequest.updateMany({
         where: { projectId: project.id, resolvedAt: null },
         data: { resolvedAt: new Date() },
@@ -1342,7 +1376,10 @@ export const projectsRouter = {
       }
 
       data.updatedAt = new Date()
-      await prisma.workItem.update({ where: { id: input.id }, data })
+      await updateWorkItem(project, data, {
+        actorId: volunteer.id,
+        kind: reopening ? 'reopened' : undefined,
+      })
 
       // Tagging a team onto a project that's already visible alerts that team right away;
       // tagging one still in review waits until it goes live (see admin/projects.ts).
@@ -1368,16 +1405,6 @@ export const projectsRouter = {
             })),
           })
         }
-      }
-
-      if (reopening) {
-        await prisma.workItemComment.create({
-          data: {
-            workItemId: project.id,
-            authorId: volunteer.id,
-            content: `Reopened by ${volunteer.name}`,
-          },
-        })
       }
 
       // Covers the implicit ready ⇄ in_progress moves above, not just an explicit pick.
@@ -1521,7 +1548,7 @@ export const projectsRouter = {
       })
       if (result.count === 0) throw new ORPCError('NOT_FOUND', { message: 'No interest found' })
 
-      await releaseTasksHeldBy(input.projectId, context.volunteer.id)
+      await releaseTasksHeldBy(input.projectId, context.volunteer.id, context.volunteer.id)
       const project = await prisma.workItem.findFirst({
         where: { id: input.projectId, type: WorkItemType.PROJECT },
         select: { id: true, title: true, assigneeId: true },
@@ -1593,9 +1620,9 @@ export const projectsRouter = {
       }
 
       if (status === InterestStatus.accepted) {
-        await assignHeldTasks(input.projectId, interest.volunteerId)
+        await assignHeldTasks(input.projectId, interest.volunteerId, volunteer.id)
       } else {
-        await releaseTasksHeldBy(input.projectId, interest.volunteerId)
+        await releaseTasksHeldBy(input.projectId, interest.volunteerId, volunteer.id)
       }
 
       // A project that already has an owner changes hands only through a transfer.
@@ -1604,16 +1631,17 @@ export const projectsRouter = {
         interest.interestType === 'want_to_own' &&
         project.assigneeId === null
       ) {
-        await prisma.workItem.update({
-          where: { id: input.projectId },
-          data: {
+        await updateWorkItem(
+          project,
+          {
             assigneeId: interest.volunteerId,
             // A new owner starts the work, but never carries a proposal past triage.
             ...(UNAPPROVED_STATUSES.includes(project.status)
               ? {}
               : { status: ProjectStatus.in_progress }),
           },
-        })
+          { actorId: volunteer.id, kind: 'assigned' },
+        )
       }
 
       await notifyUser(
@@ -1699,7 +1727,7 @@ export const projectsRouter = {
           data: { status: InterestStatus.accepted, respondedAt: new Date() },
         })
         await clearNotifications('new_interest', existing.id)
-        await assignHeldTasks(input.projectId, input.volunteerId)
+        await assignHeldTasks(input.projectId, input.volunteerId, inviter.id)
         await notifyUser(
           input.volunteerId,
           'interest_accepted',
@@ -1894,21 +1922,22 @@ export const projectsRouter = {
         })
       }
 
-      await assignHeldTasks(input.projectId, input.volunteerId)
+      await assignHeldTasks(input.projectId, input.volunteerId, volunteer.id)
 
       // Assigning someone as owner has to actually set the owner. This previously only
       // cleared the (now derived) isSeekingOwner flag, leaving the project ownerless and
       // no longer advertising for one — unlike respondToInterest, which took the same
       // intent and did set the assignee.
       if (input.interestType === 'want_to_own' && project.assigneeId === null) {
-        await prisma.workItem.update({
-          where: { id: input.projectId },
-          data: {
+        await updateWorkItem(
+          project,
+          {
             assigneeId: input.volunteerId,
             status: ProjectStatus.in_progress,
             updatedAt: new Date(),
           },
-        })
+          { actorId: volunteer.id, kind: 'assigned' },
+        )
       }
 
       await notifyUser(
@@ -2274,20 +2303,18 @@ export const projectsRouter = {
           : []),
       ]
       const now = new Date()
-      await prisma.$transaction(
-        targets
-          .filter((t) => t.startDate !== null || t.durationDays !== null)
-          .map((t) =>
-            prisma.workItem.update({
-              where: { id: t.id },
-              data: {
-                baselineStartDate: t.startDate,
-                baselineDurationDays: baselineLength(t),
-                baselineSetAt: now,
-              },
-            }),
-          ),
-      )
+      await prisma.$transaction(async (tx) => {
+        for (const t of targets) {
+          if (t.startDate === null && t.durationDays === null) continue
+          const data = {
+            baselineStartDate: t.startDate,
+            baselineDurationDays: baselineLength(t),
+            baselineSetAt: now,
+          }
+          await tx.workItem.update({ where: { id: t.id }, data })
+          await recordChange(tx, { row: t, data, actorId: volunteer.id, kind: 'baseline' })
+        }
+      })
       return { message: 'Baseline updated' }
     }),
 
@@ -2441,18 +2468,22 @@ export const projectsRouter = {
           await clearNotifications('project_invite', interest.id)
         } else if (!(await resolveProjectMembership(project.teamId, project.id, volunteer.id))) {
           // Not on the project yet: ask the owner, and hold the task until they answer.
-          const held = await prisma.workItem.updateMany({
-            where: {
-              id: input.taskId,
-              status: TaskStatus.not_started,
-              assigneeId: null,
-              requestedById: null,
-            },
-            data: { requestedById: volunteer.id, updatedAt: new Date() },
+          await prisma.$transaction(async (tx) => {
+            const data = { requestedById: volunteer.id, updatedAt: new Date() }
+            const held = await tx.workItem.updateMany({
+              where: {
+                id: input.taskId,
+                status: TaskStatus.not_started,
+                assigneeId: null,
+                requestedById: null,
+              },
+              data,
+            })
+            if (held.count === 0) {
+              throw new ORPCError('BAD_REQUEST', { message: 'This task has already been claimed' })
+            }
+            await recordChange(tx, { row: task, data, actorId: volunteer.id, kind: 'requested' })
           })
-          if (held.count === 0) {
-            throw new ORPCError('BAD_REQUEST', { message: 'This task has already been claimed' })
-          }
           if (interest?.status !== InterestStatus.pending) {
             const message = `Asked to take '${task.title}'`
             const request = {
@@ -2513,24 +2544,27 @@ export const projectsRouter = {
       data.nudgeSentAt = null
       data.finalWarningSentAt = null
 
-      if (isSelfClaim) {
-        // Two volunteers hitting claim at once must not both win — only the update that
-        // still sees the task open and unheld takes it.
-        const claimed = await prisma.workItem.updateMany({
-          where: {
-            id: input.taskId,
-            status: TaskStatus.not_started,
-            assigneeId: null,
-            requestedById: null,
-          },
-          data,
-        })
-        if (claimed.count === 0) {
-          throw new ORPCError('BAD_REQUEST', { message: 'This task has already been claimed' })
+      await prisma.$transaction(async (tx) => {
+        if (isSelfClaim) {
+          // Two volunteers hitting claim at once must not both win — only the update that
+          // still sees the task open and unheld takes it.
+          const claimed = await tx.workItem.updateMany({
+            where: {
+              id: input.taskId,
+              status: TaskStatus.not_started,
+              assigneeId: null,
+              requestedById: null,
+            },
+            data,
+          })
+          if (claimed.count === 0) {
+            throw new ORPCError('BAD_REQUEST', { message: 'This task has already been claimed' })
+          }
+        } else {
+          await tx.workItem.update({ where: { id: input.taskId }, data })
         }
-      } else {
-        await prisma.workItem.update({ where: { id: input.taskId }, data })
-      }
+        await recordChange(tx, { row: task, data, actorId: volunteer.id })
+      })
       if (data.status === TaskStatus.completed) await askOwnerToComplete(project.id)
 
       if (isSelfClaim) {
@@ -2573,10 +2607,11 @@ export const projectsRouter = {
       if (task.status !== TaskStatus.not_started) {
         throw new ORPCError('BAD_REQUEST', { message: 'This task has already started' })
       }
-      await prisma.workItem.update({
-        where: { id: task.id },
-        data: { ...startWorkData(task), updatedAt: new Date() },
-      })
+      await updateWorkItem(
+        task,
+        { ...startWorkData(task), updatedAt: new Date() },
+        { actorId: context.volunteer.id, kind: 'started' },
+      )
       return { message: 'Task started' }
     }),
 
@@ -2610,9 +2645,9 @@ export const projectsRouter = {
         { autoAcceptTasks: project.autoAcceptTasks, ownerId: reviewerId },
         canManageProjectTasks(project, volunteer, await isProjectDeputy(project.id, volunteer.id)),
       )
-      await prisma.workItem.update({
-        where: { id: task.id },
-        data: {
+      await updateWorkItem(
+        task,
+        {
           // Handing it in without pressing Start still records when the work began.
           ...startWorkData(task, submission.submittedAt),
           ...submission,
@@ -2622,7 +2657,8 @@ export const projectsRouter = {
           nudgeSentAt: null,
           finalWarningSentAt: null,
         },
-      })
+        { actorId: volunteer.id, kind: 'submitted' },
+      )
       await clearNotifications('task_changes_requested', task.id)
       if (accepted) await askOwnerToComplete(project.id)
 
@@ -2674,9 +2710,9 @@ export const projectsRouter = {
       const volunteer = context.volunteer
       const { task, isDeputy } = await findTaskToReview(input.projectId, input.taskId, volunteer)
       const now = new Date()
-      await prisma.workItem.update({
-        where: { id: task.id },
-        data: {
+      await updateWorkItem(
+        task,
+        {
           status: TaskStatus.completed,
           completedAt: now,
           reviewedById: volunteer.id,
@@ -2684,7 +2720,8 @@ export const projectsRouter = {
           changesRequestedNote: null,
           updatedAt: now,
         },
-      })
+        { actorId: volunteer.id, kind: 'accepted', extra: deputyContext(isDeputy) },
+      )
       await clearNotifications('task_submitted', task.id)
       await askOwnerToComplete(input.projectId)
       if (task.assigneeId !== null) {
@@ -2710,16 +2747,17 @@ export const projectsRouter = {
       const volunteer = context.volunteer
       const { task, isDeputy } = await findTaskToReview(input.projectId, input.taskId, volunteer)
       const now = new Date()
-      await prisma.workItem.update({
-        where: { id: task.id },
-        data: {
+      await updateWorkItem(
+        task,
+        {
           status: TaskStatus.in_progress,
           changesRequestedNote: input.message,
           reviewedById: volunteer.id,
           reviewedAt: now,
           updatedAt: now,
         },
-      })
+        { actorId: volunteer.id, kind: 'changes_requested', extra: deputyContext(isDeputy) },
+      )
       await clearNotifications('task_submitted', task.id)
       if (task.assigneeId !== null) {
         notifyUser(
@@ -2756,34 +2794,41 @@ export const projectsRouter = {
 
       const status = task.assigneeId === null ? TaskStatus.not_started : TaskStatus.in_progress
       const now = new Date()
-      const reopened = await prisma.workItem.updateMany({
-        where: { id: task.id, status: { in: [TaskStatus.completed, TaskStatus.under_review] } },
-        data: {
-          status,
-          completedAt: null,
-          reviewedById: null,
-          reviewedAt: null,
-          changesRequestedNote: null,
-          // Its holder keeps what they handed in, as when changes are requested; a task nobody
-          // holds forgets it, as a released one does.
-          ...(status === TaskStatus.in_progress
-            ? { startedAt: task.startedAt ?? now }
-            : { ...CLEARED_SUBMISSION, startedAt: null }),
-          updatedAt: now,
-          nudgeSentAt: null,
-          finalWarningSentAt: null,
-        },
-      })
-      if (reopened.count === 0) {
-        throw new ORPCError('BAD_REQUEST', { message: 'This task is not done' })
+      const data = {
+        status,
+        completedAt: null,
+        reviewedById: null,
+        reviewedAt: null,
+        changesRequestedNote: null,
+        // Its holder keeps what they handed in, as when changes are requested; a task nobody
+        // holds forgets it, as a released one does.
+        ...(status === TaskStatus.in_progress
+          ? { startedAt: task.startedAt ?? now }
+          : { ...CLEARED_SUBMISSION, startedAt: null }),
+        updatedAt: now,
+        nudgeSentAt: null,
+        finalWarningSentAt: null,
       }
+      await prisma.$transaction(async (tx) => {
+        const reopened = await tx.workItem.updateMany({
+          where: { id: task.id, status: { in: [TaskStatus.completed, TaskStatus.under_review] } },
+          data,
+        })
+        if (reopened.count === 0) {
+          throw new ORPCError('BAD_REQUEST', { message: 'This task is not done' })
+        }
+        await recordChange(tx, {
+          row: task,
+          data,
+          actorId: volunteer.id,
+          kind: 'reopened',
+          extra: deputyContext(isDeputy),
+        })
+      })
       await clearNotifications('task_submitted', task.id)
       await clearNotifications(READY_TO_COMPLETE, project.id)
 
       const who = actorLabel(volunteer, isDeputy)
-      await prisma.workItemComment.create({
-        data: { workItemId: task.id, authorId: volunteer.id, content: `Reopened by ${who}` },
-      })
       if (task.assigneeId !== null && task.assigneeId !== volunteer.id) {
         await notifyUser(
           task.assigneeId,
@@ -2838,9 +2883,9 @@ export const projectsRouter = {
 
       // Assigning sets who holds it, not how far the work has got: work in flight stays started.
       const now = new Date()
-      await prisma.workItem.update({
-        where: { id: input.taskId },
-        data: {
+      await updateWorkItem(
+        task,
+        {
           assigneeId: input.assigneeId,
           requestedById: null,
           ...(input.assigneeId !== task.assigneeId ? { claimedAt: now } : {}),
@@ -2848,7 +2893,8 @@ export const projectsRouter = {
           nudgeSentAt: null,
           finalWarningSentAt: null,
         },
-      })
+        { actorId: volunteer.id, extra: deputyContext(isDeputy) },
+      )
 
       await notifyUser(
         input.assigneeId,
@@ -2916,15 +2962,22 @@ export const projectsRouter = {
 
       const data: Record<string, unknown> = { updatedAt: new Date() }
       applyScheduleWrite(data, write)
-      await prisma.workItem.update({ where: { id: task.id }, data })
-
-      const who = actorLabel(volunteer, isDeputy)
-      await prisma.workItemComment.create({
-        data: {
+      // Recorded even if the dates come out unchanged: the reason is worth keeping.
+      await prisma.$transaction(async (tx) => {
+        await tx.workItem.update({ where: { id: task.id }, data })
+        const { before, after } = workItemChanges(task, data)
+        await recordEvent(tx, {
           workItemId: task.id,
-          authorId: volunteer.id,
-          content: `Replanned by ${who}: ${input.reason}`,
-        },
+          actorId: volunteer.id,
+          kind: 'replanned',
+          before,
+          after: {
+            ...after,
+            finish: startOfUtcDay(input.newEnd).toISOString(),
+            reason: input.reason,
+            ...deputyContext(isDeputy),
+          },
+        })
       })
       await clearNotifications('task_needs_decision', task.id)
 

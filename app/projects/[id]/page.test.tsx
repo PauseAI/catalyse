@@ -783,6 +783,31 @@ describe('project page — Overview status bar and Discussion', () => {
     expect(follows(bar(), discussion)).toBe(true)
   })
 
+  it("shows a project's changes in the Discussion among its comments, to a helper too", async () => {
+    const owner = await createVolunteer({ name: 'Olive' })
+    const helper = await createVolunteer({ name: 'Hal' })
+    const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: project.id,
+        volunteerId: helper.id,
+        interestType: 'want_to_contribute',
+        status: 'accepted',
+      },
+    })
+    await clientAs(helper).workItemComments.add({ workItemId: project.id, content: 'Ready?' })
+    await prisma.workItemComment.updateMany({
+      where: { workItemId: project.id },
+      data: { createdAt: new Date(Date.now() - 60_000) },
+    })
+    await clientAs(owner).projects.update({ id: project.id, status: 'on_hold' })
+    await mount(project.id, helper)
+    const line = await screen.findByText(/^Olive moved this to On Hold · /)
+    expect(
+      line.compareDocumentPosition(screen.getByText('Ready?')) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
   it('opens the Tasks tab under the filter a count links to, and the list matches it', async () => {
     const { owner, project } = await mixed()
     await mount(project.id, owner)

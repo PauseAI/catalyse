@@ -8,6 +8,7 @@ import {
   applyScheduleWrite,
 } from '@/lib/work-item'
 import { notifyUser, notifyTeamOfProject, clearNotifications } from '@/lib/notify'
+import { updateWorkItem } from '@/lib/work-item-events'
 import { html } from '@/lib/email'
 import { notifyMatchingVolunteers } from '@/lib/project-match-notify'
 import { AdminCreateProjectSchema, ReviewProjectSchema, OutcomeProjectSchema } from '@/lib/schemas'
@@ -133,9 +134,9 @@ export const adminProjectsRouter = {
         const newStatus =
           project.assigneeId === null ? ProjectStatus.ready : ProjectStatus.in_progress
 
-        await prisma.workItem.update({
-          where: { id: input.id },
-          data: {
+        await updateWorkItem(
+          project,
+          {
             status: newStatus,
             reviewNotes,
             stakeholderId: admin.id,
@@ -143,7 +144,8 @@ export const adminProjectsRouter = {
             reviewedAt: new Date(),
             updatedAt: new Date(),
           },
-        })
+          { actorId: admin.id, kind: 'status' },
+        )
 
         if (comment && comment.trim()) {
           await prisma.workItemComment.create({
@@ -181,9 +183,9 @@ export const adminProjectsRouter = {
           )
         }
       } else {
-        await prisma.workItem.update({
-          where: { id: input.id },
-          data: {
+        await updateWorkItem(
+          project,
+          {
             status: ProjectStatus.needs_discussion,
             reviewNotes,
             stakeholderId: admin.id,
@@ -191,7 +193,8 @@ export const adminProjectsRouter = {
             reviewedAt: new Date(),
             updatedAt: new Date(),
           },
-        })
+          { actorId: admin.id, kind: 'status' },
+        )
 
         if (comment && comment.trim()) {
           await prisma.workItemComment.create({
@@ -250,9 +253,9 @@ export const adminProjectsRouter = {
       const { outcome, outcomeNotes = null } = input
       const isCompleted = ['successful', 'partial', 'not_completed'].includes(outcome)
 
-      await prisma.workItem.update({
-        where: { id: input.id },
-        data: {
+      await updateWorkItem(
+        project,
+        {
           outcome,
           outcomeNotes,
           completedAt: isCompleted ? new Date() : null,
@@ -262,7 +265,8 @@ export const adminProjectsRouter = {
           ...(isCompleted ? { status: ProjectStatus.completed, isSeekingHelp: false } : {}),
           updatedAt: new Date(),
         },
-      })
+        { actorId: admin.id },
+      )
 
       if (project.assigneeId && outcomeNotes) {
         await prisma.adminNote.create({

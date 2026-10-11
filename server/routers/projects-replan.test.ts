@@ -127,10 +127,19 @@ describe('a task past its plan', () => {
       durationDays: null,
       deadline: newEnd,
     })
-    const comment = await prisma.workItemComment.findFirstOrThrow({
-      where: { workItemId: late.id },
+    const event = await prisma.workItemEvent.findFirstOrThrow({ where: { workItemId: late.id } })
+    expect(event).toMatchObject({
+      actorId: deputy.id,
+      kind: 'replanned',
+      before: { startDate: addDays(today, -7).toISOString() },
+      after: {
+        startDate: addDays(newEnd, -4).toISOString(),
+        deadline: newEnd.toISOString(),
+        finish: newEnd.toISOString(),
+        reason: 'waiting on the venue',
+        asDeputy: true,
+      },
     })
-    expect(comment.content).toBe('Replanned by Dee (deputy): waiting on the venue')
     expect(await notes(owner.id, 'task_needs_decision')).toHaveLength(0)
     expect(await firstNote(sam.id, 'task_replanned')).toMatchObject({
       body: 'waiting on the venue',

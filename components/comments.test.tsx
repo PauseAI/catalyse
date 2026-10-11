@@ -13,6 +13,7 @@ import CommentComposer from './CommentComposer'
 import Footer from './Footer'
 import AiEditingHelp from './AiEditingHelp'
 import { ToastProvider } from '@/lib/toast'
+import { useMutation } from '@tanstack/react-query'
 
 describe('CommentThreadView', () => {
   const comments = [
@@ -377,6 +378,16 @@ describe('CommentThreadView discussion actions', () => {
   })
 })
 
+/** A button that runs some write through react-query, as any page's mutation does. */
+function MutationButton({ run }: { run: () => Promise<unknown> }) {
+  const mutation = useMutation({ mutationFn: run })
+  return (
+    <button type="button" onClick={() => mutation.mutate()}>
+      Run
+    </button>
+  )
+}
+
 describe('CommentThread / BugReportCommentThread', () => {
   it('load and post work-item comments through the API', async () => {
     const owner = await createVolunteer()
@@ -415,6 +426,57 @@ describe('CommentThread / BugReportCommentThread', () => {
     await userEvent.type(box, 'Newest')
     await userEvent.click(screen.getByRole('button', { name: 'Post Comment' }))
     await waitFor(() => expect(texts()[0]).toBe('Newest'))
+  })
+
+  it('shows recorded changes as plain lines among the comments, in time order', async () => {
+    const owner = await createVolunteer({ name: 'Olive' })
+    const helper = await createVolunteer({ name: 'Hal' })
+    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    const task = await createTask(project.id)
+    await prisma.workItemComment.create({
+      data: {
+        workItemId: task.id,
+        authorId: owner.id,
+        content: 'Who can take this?',
+        createdAt: new Date('2026-10-09T13:00:00Z'),
+      },
+    })
+    await clientAs(owner).projects.assignTask({
+      projectId: project.id,
+      taskId: task.id,
+      assigneeId: helper.id,
+    })
+    // Seen by a helper who is not on the task: event lines are for everyone who can see it.
+    const reader = await createVolunteer()
+    await renderApp(<CommentThread workItemId={task.id} />, { as: reader })
+    const line = await screen.findByText(/^Olive assigned this to Hal · /)
+    const items = [...document.querySelectorAll('ul > li')].map((li) => li.textContent)
+    expect(items[0]).toMatch(/^Olive assigned this to Hal · /)
+    expect(items[1]).toMatch(/^Who can take this\?/)
+    expect(line.id).toMatch(/^event-\d+$/)
+    expect(within(line).queryByRole('button')).toBeNull()
+  })
+
+  it('refreshes an open Discussion after any successful write', async () => {
+    const owner = await createVolunteer({ name: 'Olive' })
+    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    const task = await createTask(project.id, { title: 'Banners' })
+    const rename = () =>
+      clientAs(owner).projects.updateTask({
+        projectId: project.id,
+        taskId: task.id,
+        data: { title: 'Flags' },
+      })
+    await renderApp(
+      <>
+        <MutationButton run={rename} />
+        <CommentThread workItemId={task.id} />
+      </>,
+      { as: owner },
+    )
+    await screen.findByLabelText('Add a comment')
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }))
+    expect(await screen.findByText(/^Olive renamed this 'Flags' · /)).toBeInTheDocument()
   })
 
   it('replies, edits and deletes work-item comments through the API', async () => {

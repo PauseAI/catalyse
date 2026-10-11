@@ -456,8 +456,14 @@ describe('reopening a project', () => {
       completedAt: null,
     })
     expect(
-      await prisma.workItemComment.findFirst({ where: { workItemId: l.project.id } }),
-    ).toMatchObject({ authorId: l.owner.id, content: `Reopened by ${l.owner.name}` })
+      await prisma.workItemEvent.findMany({ where: { workItemId: l.project.id } }),
+    ).toMatchObject([
+      {
+        actorId: l.owner.id,
+        kind: 'reopened',
+        after: { status: 'in_progress', completedAt: null },
+      },
+    ])
     await vi.waitFor(async () => {
       expect(
         await prisma.notification.findFirst({

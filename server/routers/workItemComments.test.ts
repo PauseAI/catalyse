@@ -10,6 +10,13 @@ import {
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 
+type Listed = Awaited<ReturnType<ReturnType<typeof clientAs>['workItemComments']['list']>>
+
+/** The comments in a listed feed, without its event lines. */
+function commentsIn(listed: Listed) {
+  return listed.feed.flatMap((item) => (item.type === 'comment' ? [item] : []))
+}
+
 describe('workItemComments.list', () => {
   it('follows work-item visibility, and reports whether the viewer may post', async () => {
     const owner = await createVolunteer()
@@ -92,7 +99,9 @@ describe('workItemComments.add', () => {
       expect(notes.map((n) => n.volunteerId).sort()).toEqual([owner.id].sort())
       expect(notes[0].link).toBe(`/projects/${project.id}`)
     })
-    const { comments } = await clientAs(owner).workItemComments.list({ workItemId: task.id })
+    const comments = commentsIn(
+      await clientAs(owner).workItemComments.list({ workItemId: task.id }),
+    )
     expect(comments[0]).toMatchObject({ content: 'done', authorName: assignee.name })
 
     // Project comment by the owner notifies the creator; quick-task link points at the task.
@@ -187,7 +196,9 @@ describe('workItemComments replies', () => {
     })
     await clientAs(owner).workItemComments.add({ workItemId: project.id, content: 'Later' })
 
-    const { comments } = await clientAs(helper).workItemComments.list({ workItemId: project.id })
+    const comments = commentsIn(
+      await clientAs(helper).workItemComments.list({ workItemId: project.id }),
+    )
     expect(comments.map((c) => c.content)).toEqual(['Later', 'Who has banners?'])
     expect(comments[1].replies.map((r) => [r.content, r.parentId])).toEqual([
       ['I do', top.id],
@@ -314,11 +325,12 @@ describe('workItemComments edit and delete', () => {
     expect(
       await clientAs(helper).workItemComments.edit({ id, content: '  second  ' }),
     ).toMatchObject({ message: 'Comment updated' })
-    const [c] = (await clientAs(helper).workItemComments.list({ workItemId: project.id })).comments
+    const [c] = commentsIn(await clientAs(helper).workItemComments.list({ workItemId: project.id }))
     expect(c).toMatchObject({ content: 'second', canEdit: true, canDelete: true })
     expect(c.editedAt).not.toBeNull()
-    const asOwner = (await clientAs(owner).workItemComments.list({ workItemId: project.id }))
-      .comments[0]
+    const [asOwner] = commentsIn(
+      await clientAs(owner).workItemComments.list({ workItemId: project.id }),
+    )
     expect(asOwner).toMatchObject({ canEdit: false, canDelete: false })
 
     // Once they have left the project they can no longer edit, but can still delete.
@@ -358,9 +370,79 @@ describe('workItemComments edit and delete', () => {
       clientAs(helper).workItemComments.edit({ id: top.id, content: 'x' }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
 
-    const [c] = (await clientAs(owner).workItemComments.list({ workItemId: project.id })).comments
+    const [c] = commentsIn(await clientAs(owner).workItemComments.list({ workItemId: project.id }))
     expect(c).toMatchObject({ deleted: true, content: '', canEdit: false, canDelete: false })
     expect(c.replies).toMatchObject([{ deleted: true, content: '' }])
     expect(await prisma.workItemComment.count({ where: { workItemId: project.id } })).toBe(2)
+  })
+})
+
+describe('workItemComments.list feed', () => {
+  it('interleaves the recorded changes with the comments, newest first, for every viewer', async () => {
+    const { owner, helper, outsider, project } = await discussion()
+    const task = await createTask(project.id, { title: 'Banners' })
+    const at = (minute: number) => new Date(Date.UTC(2026, 9, 9, 14, minute))
+    const { id: question } = await clientAs(owner).workItemComments.add({
+      workItemId: task.id,
+      content: 'Who can do this?',
+    })
+    await clientAs(helper).projects.updateTask({
+      projectId: project.id,
+      taskId: task.id,
+      data: { assigneeId: helper.id },
+    })
+    const { id: answer } = await clientAs(helper).workItemComments.add({
+      workItemId: task.id,
+      content: 'Me',
+    })
+    await clientAs(owner).projects.updateTask({
+      projectId: project.id,
+      taskId: task.id,
+      data: { status: 'completed' },
+    })
+    // Pin the times, so the order under test is the order the feed sorts by.
+    const [claimed, started, done] = await prisma.workItemEvent.findMany({
+      where: { workItemId: task.id },
+      orderBy: { id: 'asc' },
+    })
+    await prisma.workItemComment.update({ where: { id: question }, data: { createdAt: at(1) } })
+    await prisma.workItemEvent.update({ where: { id: claimed.id }, data: { createdAt: at(2) } })
+    await prisma.workItemComment.update({ where: { id: answer }, data: { createdAt: at(3) } })
+    await prisma.workItemEvent.update({ where: { id: started.id }, data: { createdAt: at(3) } })
+    await prisma.workItemEvent.update({ where: { id: done.id }, data: { createdAt: at(4) } })
+
+    for (const viewer of [owner, helper, outsider]) {
+      const { feed } = await clientAs(viewer).workItemComments.list({ workItemId: task.id })
+      expect(feed.map((i) => (i.type === 'event' ? i.text : i.content))).toEqual([
+        'Olive Owner moved this to Done',
+        'Hal Helper started this',
+        'Me',
+        'Hal Helper claimed this',
+        'Who can do this?',
+      ])
+    }
+    // An event line carries only its words and time: nothing to reply to, edit or delete.
+    const [newest] = (await clientAs(outsider).workItemComments.list({ workItemId: task.id })).feed
+    expect(newest).toEqual({
+      type: 'event',
+      id: done.id,
+      text: 'Olive Owner moved this to Done',
+      createdAt: at(4),
+    })
+  })
+
+  it('names someone whose account has gone as someone', async () => {
+    const { owner, project } = await discussion()
+    const task = await createTask(project.id)
+    const gone = await createVolunteer()
+    await clientAs(owner).projects.assignTask({
+      projectId: project.id,
+      taskId: task.id,
+      assigneeId: gone.id,
+    })
+    await prisma.workItem.update({ where: { id: task.id }, data: { assigneeId: null } })
+    await prisma.volunteer.delete({ where: { id: gone.id } })
+    const { feed } = await clientAs(owner).workItemComments.list({ workItemId: task.id })
+    expect(feed).toMatchObject([{ type: 'event', text: 'Olive Owner assigned this to someone' }])
   })
 })

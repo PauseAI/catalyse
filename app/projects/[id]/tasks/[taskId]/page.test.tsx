@@ -598,7 +598,8 @@ describe('task detail page — past plan', () => {
     await userEvent.type(within(dialog).getByLabelText('Why is the plan changing?'), 'venue')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Replan' }))
     await screen.findByText(/^Replanned\. 'Book venue' now finishes/)
-    await screen.findByText(/^Replanned by .*: venue$/)
+    // The Discussion shows the replan as a line, reason and all.
+    await screen.findByText(/^Olive Owner.* replanned this to finish .*: venue · /)
     await waitFor(async () =>
       expect(await row(late.id)).toMatchObject({
         startDate: addDays(today, -1),
@@ -698,7 +699,7 @@ describe('task detail page — a done task', () => {
     const bar = screen.getByRole('toolbar', { name: 'Status and actions' })
     expect(within(bar).getByRole('button', { name: 'Edit' })).toBeInTheDocument()
     expect(within(bar).queryByRole('button', { name: 'Reopen' })).toBeNull()
-    await screen.findByText('Reopened by Olive')
+    await screen.findByText(/^Olive reopened this · /)
   })
 
   it('says when a task nobody holds goes back, and reports a failed reopen', async () => {

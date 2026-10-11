@@ -17,6 +17,7 @@ import {
   serializeStarterTask,
   submissionData,
 } from '@/lib/work-item'
+import { recordChange, updateWorkItem } from '@/lib/work-item-events'
 import { adminProcedure, approvedProcedure, authedProcedure } from '../procedures'
 import { TERMINAL_STATUSES } from '@/lib/project-status'
 import { ApprovalStatus, QuickTaskStatus, TaskStatus, WorkItemType } from '@/generated/prisma/enums'
@@ -224,15 +225,15 @@ export const quickTasksRouter = {
         ...SUBMISSION_ASK_FIELDS,
       }),
     )
-    .handler(async ({ input }) => {
+    .handler(async ({ input, context }) => {
       const task = await prisma.workItem.findFirst({
         where: { id: input.id, type: WorkItemType.QUICK_TASK },
       })
       if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
 
-      const updated = await prisma.workItem.update({
-        where: { id: input.id },
-        data: {
+      await updateWorkItem(
+        task,
+        {
           ...(input.title !== undefined && { title: input.title.trim() }),
           ...(input.description !== undefined && { description: input.description.trim() }),
           ...('skillId' in input && { skillId: input.skillId }),
@@ -243,8 +244,9 @@ export const quickTasksRouter = {
             submissionAsksLink: input.submissionAsksLink,
           }),
         },
-      })
-      return { id: updated.id, message: 'Task updated' }
+        { actorId: context.volunteer.id },
+      )
+      return { id: task.id, message: 'Task updated' }
     }),
 
   delete: adminProcedure.input(z.object({ id: z.number().int() })).handler(async ({ input }) => {
@@ -279,9 +281,9 @@ export const quickTasksRouter = {
         })
       }
 
-      await prisma.workItem.update({
-        where: { id: input.id },
-        data: {
+      await updateWorkItem(
+        task,
+        {
           assigneeId: input.volunteerId,
           creatorId: admin.id,
           status: QuickTaskStatus.in_progress,
@@ -289,7 +291,8 @@ export const quickTasksRouter = {
           // Actual start, recorded once — reassigning a task in flight does not restart it.
           ...(task.startedAt === null ? { startedAt: new Date() } : {}),
         },
-      })
+        { actorId: admin.id },
+      )
 
       notifyUser(
         input.volunteerId,
@@ -312,43 +315,50 @@ export const quickTasksRouter = {
       if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
       // Guarded update rather than check-then-write: two volunteers claiming at the same
       // moment must not both succeed, with the second silently taking the task.
-      const claimed = await prisma.workItem.updateMany({
-        where: { id: input.id, status: QuickTaskStatus.open, assigneeId: null },
-        data: {
-          assigneeId: volunteer.id,
-          status: QuickTaskStatus.in_progress,
-          updatedAt: new Date(),
-          // The guard above proves the task was open and unheld, so this is a fresh start.
-          startedAt: new Date(),
-        },
-      })
-      if (claimed.count === 0) {
-        throw new ORPCError('BAD_REQUEST', { message: 'This task has already been claimed' })
+      const data = {
+        assigneeId: volunteer.id,
+        status: QuickTaskStatus.in_progress,
+        updatedAt: new Date(),
+        // The guard below proves the task was open and unheld, so this is a fresh start.
+        startedAt: new Date(),
       }
+      await prisma.$transaction(async (tx) => {
+        const claimed = await tx.workItem.updateMany({
+          where: { id: input.id, status: QuickTaskStatus.open, assigneeId: null },
+          data,
+        })
+        if (claimed.count === 0) {
+          throw new ORPCError('BAD_REQUEST', { message: 'This task has already been claimed' })
+        }
+        await recordChange(tx, { row: task, data, actorId: volunteer.id, kind: 'claimed' })
+      })
 
       return { message: 'Task claimed' }
     }),
 
-  unassign: adminProcedure.input(z.object({ id: z.number().int() })).handler(async ({ input }) => {
-    const task = await prisma.workItem.findFirst({
-      where: { id: input.id, type: WorkItemType.QUICK_TASK },
-    })
-    if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
+  unassign: adminProcedure
+    .input(z.object({ id: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      const task = await prisma.workItem.findFirst({
+        where: { id: input.id, type: WorkItemType.QUICK_TASK },
+      })
+      if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
 
-    await prisma.workItem.update({
-      where: { id: input.id },
-      data: {
-        assigneeId: null,
-        creatorId: null,
-        status: QuickTaskStatus.open,
-        updatedAt: new Date(),
-        // Back to unstarted: the actual start and any submission describe nobody's work.
-        startedAt: null,
-        ...CLEARED_SUBMISSION,
-      },
-    })
-    return { message: 'Task unassigned' }
-  }),
+      await updateWorkItem(
+        task,
+        {
+          assigneeId: null,
+          creatorId: null,
+          status: QuickTaskStatus.open,
+          updatedAt: new Date(),
+          // Back to unstarted: the actual start and any submission describe nobody's work.
+          startedAt: null,
+          ...CLEARED_SUBMISSION,
+        },
+        { actorId: context.volunteer.id, kind: 'released' },
+      )
+      return { message: 'Task unassigned' }
+    }),
 
   submit: authedProcedure
     .input(z.object({ id: z.number().int() }).merge(SubmitWorkSchema))
@@ -367,10 +377,11 @@ export const quickTasksRouter = {
         throw new ORPCError('BAD_REQUEST', { message: 'Say what you did or add a link to it' })
       }
 
-      await prisma.workItem.update({
-        where: { id: input.id },
-        data: { ...submission, status: QuickTaskStatus.under_review, updatedAt: new Date() },
-      })
+      await updateWorkItem(
+        task,
+        { ...submission, status: QuickTaskStatus.under_review, updatedAt: new Date() },
+        { actorId: volunteer.id, kind: 'submitted' },
+      )
       await clearNotifications('task_changes_requested', input.id)
 
       // A task someone claimed has no creator, so any admin may review it.
@@ -397,16 +408,17 @@ export const quickTasksRouter = {
       if (task.status !== QuickTaskStatus.under_review)
         throw new ORPCError('BAD_REQUEST', { message: 'Task is not awaiting review' })
 
-      await prisma.workItem.update({
-        where: { id: input.id },
-        data: {
+      await updateWorkItem(
+        task,
+        {
           status: QuickTaskStatus.in_progress,
           changesRequestedNote: input.message,
           reviewedById: admin.id,
           reviewedAt: new Date(),
           updatedAt: new Date(),
         },
-      })
+        { actorId: admin.id, kind: 'changes_requested' },
+      )
       await clearNotifications('quick_task_submitted', input.id)
       if (task.assigneeId) {
         notifyUser(
@@ -433,9 +445,9 @@ export const quickTasksRouter = {
       if (task.status !== QuickTaskStatus.under_review)
         throw new ORPCError('BAD_REQUEST', { message: 'Task is not awaiting review' })
 
-      await prisma.workItem.update({
-        where: { id: input.id },
-        data: {
+      await updateWorkItem(
+        task,
+        {
           status: QuickTaskStatus.completed,
           reviewRating: input.reviewRating,
           reviewNotes: input.reviewNotes ?? null,
@@ -444,7 +456,8 @@ export const quickTasksRouter = {
           updatedAt: new Date(),
           changesRequestedNote: null,
         },
-      })
+        { actorId: admin.id, kind: 'accepted' },
+      )
 
       if (input.comment && input.comment.trim()) {
         await prisma.workItemComment.create({

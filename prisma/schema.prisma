@@ -410,6 +410,7 @@ model WorkItem {
   skill                Skill?                 @relation(fields: [skillId], references: [id], onUpdate: NoAction)
   team                 Team?                  @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   comments             WorkItemComment[]
+  events               WorkItemEvent[]
   finishByReminders    FinishByReminder[]
   reviewRequests       ProjectReviewRequest[]
   skills               WorkItemSkill[]
@@ -472,6 +473,25 @@ model WorkItemComment {
   @@index([workItemId, createdAt], map: "idx_work_item_comments_thread")
   @@index([parentId], map: "idx_work_item_comments_parent")
   @@map("work_item_comments")
+}
+
+/// One change to a work item: who made it, what kind, and the changed values before and after.
+/// Shown as a line in the item's Discussion. Written only by recordEvent in
+/// lib/work-item-events.ts.
+model WorkItemEvent {
+  id         Int        @id @default(autoincrement())
+  workItemId Int        @map("work_item_id")
+  /// Null for a change the system made, such as releasing a task nobody updated.
+  actorId    Int?       @map("actor_id")
+  kind       String
+  before     Json
+  after      Json
+  createdAt  DateTime   @default(now()) @map("created_at")
+  workItem   WorkItem   @relation(fields: [workItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  actor      Volunteer? @relation("WorkItemEventActor", fields: [actorId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([workItemId, createdAt], map: "idx_work_item_events_thread")
+  @@map("work_item_events")
 }
 
 /// Finish-to-start dependency between two WorkItems in the same scheduling scope — that is,
@@ -929,6 +949,7 @@ model Volunteer {
   deputyRoles                             ProjectDeputy[]          @relation("DeputyVolunteer")
   deputiesAppointed                       ProjectDeputy[]          @relation("DeputyAppointedBy")
   workItemComments                        WorkItemComment[]        @relation("WorkItemCommentAuthor")
+  workItemEvents                          WorkItemEvent[]          @relation("WorkItemEventActor")
   projectReviewRequests                   ProjectReviewRequest[]
   workItemsCreated                        WorkItem[]               @relation("WorkItemCreator")
   workItemsAssigned                       WorkItem[]               @relation("WorkItemAssignee")

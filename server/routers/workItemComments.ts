@@ -9,6 +9,7 @@ import {
   startWorkData,
 } from '@/lib/work-item'
 import { mentionedIds, mentionsToPlain, type MentionMember } from '@/lib/mentions'
+import { describeEvent, eventPersonIds, updateWorkItem } from '@/lib/work-item-events'
 import { authedProcedure } from '../procedures'
 import { ApprovalStatus, InterestStatus, WorkItemType } from '@/generated/prisma/enums'
 
@@ -173,6 +174,42 @@ async function loadComment(id: number) {
   return { comment, loaded: await withParent(comment.workItem as LoadedWorkItem) }
 }
 
+/** The item's recorded changes as Discussion lines, worded for everyone who can see it. */
+async function eventLines(item: LoadedWorkItem) {
+  const events = await prisma.workItemEvent.findMany({
+    where: { workItemId: item.id },
+    include: { actor: { select: { name: true } } },
+  })
+  const people = await prisma.volunteer.findMany({
+    where: { id: { in: eventPersonIds(events) } },
+    select: { id: true, name: true },
+  })
+  const names = new Map(people.map((p) => [p.id, p.name]))
+  const nameOf = (id: number) => names.get(id) ?? 'someone'
+  return events.map((e) => ({
+    type: 'event' as const,
+    id: e.id,
+    text: describeEvent({ ...e, actorName: e.actor?.name ?? null }, item.type, nameOf),
+    createdAt: e.createdAt,
+  }))
+}
+
+/**
+ * Newest first. At the same moment an event goes above a comment, since a comment can cause one
+ * (the assignee's first starts the work); then the later row of one type first.
+ */
+function newestFirst<T extends { type: string; id: number; createdAt: Date | null }>(
+  items: T[],
+): T[] {
+  const rank = (i: T) => (i.type === 'event' ? 1 : 0)
+  return items.sort(
+    (a, b) =>
+      (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0) ||
+      rank(b) - rank(a) ||
+      b.id - a.id,
+  )
+}
+
 export const workItemCommentsRouter = {
   list: authedProcedure
     .input(z.object({ workItemId: z.number().int() }))
@@ -230,14 +267,14 @@ export const workItemCommentsRouter = {
       }
       const comments = rows
         .filter((c) => c.parentId === null)
-        .map((c) => ({ ...shape(c), replies: replies.get(c.id) ?? [] }))
+        .map((c) => ({ type: 'comment' as const, ...shape(c), replies: replies.get(c.id) ?? [] }))
 
       return {
         canPost,
         mentionable: canPost
           ? (await mentionableMembers(loaded.item, loaded.parent)).filter((m) => m.id !== viewer.id)
           : [],
-        comments,
+        feed: newestFirst([...comments, ...(await eventLines(loaded.item))]),
       }
     }),
 
@@ -286,15 +323,16 @@ export const workItemCommentsRouter = {
       // waits for, so it restarts the clock; their first one starts the work.
       if (loaded.item.type === WorkItemType.TASK && loaded.item.assigneeId === volunteer.id) {
         const now = new Date()
-        await prisma.workItem.update({
-          where: { id: loaded.item.id },
-          data: {
+        await updateWorkItem(
+          loaded.item,
+          {
             ...startWorkData(loaded.item, now),
             updatedAt: now,
             nudgeSentAt: null,
             finalWarningSentAt: null,
           },
-        })
+          { actorId: volunteer.id, kind: 'started' },
+        )
       }
 
       const mentioned = await notifyMentions(loaded, volunteer, comment.id, content)

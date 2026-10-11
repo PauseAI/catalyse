@@ -8,6 +8,7 @@ import {
 } from '@/lib/email'
 import { createNotification } from '@/lib/notify'
 import { RELEASED_TASK } from '@/lib/work-item'
+import { updateWorkItem } from '@/lib/work-item-events'
 import {
   TASK_FINAL_WARNING_AFTER_DAYS,
   TASK_RELEASE_AFTER_DAYS,
@@ -59,10 +60,11 @@ export async function runNudgesJob(): Promise<Record<string, unknown>> {
     const lastActivityDate = formatDate(updatedAt)
 
     if (daysInactive >= TASK_RELEASE_AFTER_DAYS) {
-      await prisma.workItem.update({
-        where: { id: task.id },
-        data: { ...RELEASED_TASK, updatedAt: now },
-      })
+      await updateWorkItem(
+        task,
+        { ...RELEASED_TASK, updatedAt: now },
+        { actorId: null, kind: 'released' },
+      )
       await createNotification(
         assignee.id,
         'task_released',

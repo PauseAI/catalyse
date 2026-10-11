@@ -8,6 +8,7 @@ import {
   isProjectDeputy,
 } from '@/lib/work-item'
 import { assertProjectEditable, assertTaskEditable } from '@/lib/work-item-lock'
+import { recordChange } from '@/lib/work-item-events'
 import { approvedProcedure } from '../procedures'
 import { WorkItemType } from '@/generated/prisma/enums'
 
@@ -92,8 +93,8 @@ export const scheduleRouter = {
       for (const w of items) if (w.type === WorkItemType.TASK) assertTaskEditable(w)
 
       const now = new Date()
-      await prisma.$transaction(
-        input.items.map((item) => {
+      await prisma.$transaction(async (tx) => {
+        for (const item of input.items) {
           const data: Record<string, unknown> = {}
           applyScheduleWrite(
             data,
@@ -104,9 +105,15 @@ export const scheduleRouter = {
             },
             now,
           )
-          return prisma.workItem.update({ where: { id: item.id }, data })
-        }),
-      )
+          await tx.workItem.update({ where: { id: item.id }, data })
+          await recordChange(tx, {
+            row: byId.get(item.id) as { id: number },
+            data,
+            actorId: volunteer.id,
+            kind: 'rescheduled',
+          })
+        }
+      })
 
       return { count: input.items.length }
     }),
