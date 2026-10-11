@@ -89,3 +89,26 @@ commit goes in with it, including edits you never made and edits about something
 else entirely. It is the human's working notes as much as yours, so leaving a
 change of theirs behind strands it there until whatever you commit next. Never
 split it into a commit of its own, and never leave it out for being unrelated.
+
+## End-to-end tests
+
+`npm run test:e2e` drives a production build in a real browser, four workers each with its own server and Postgres schema (`e2e/`). The unit suite proves lines execute; this suite proves flows work, and it is the only place a page is rendered by the real Next server, routed, hydrated and clicked.
+
+- **A user-facing flow gets a happy-path test here**: a page, a dialog, a form that saves, a status transition, a permission boundary. Add it to the spec that owns the area (`e2e/tests/NN-*.spec.ts`) or start a new numbered spec for a new area. Sprinkle the error paths a user can reach: a refused save, a validation message, a page that turns them away.
+- **Drive the real UI the way a person would** with role and label locators, and assert on what they would see. Set up state through the API client (`e2e/client.ts`) where the flow being tested is not the setup; `e2e/actions/` holds the shared steps.
+- **A test that never opens a page is not an e2e test.** A rule the API enforces, a permission check, what a router returns: those belong in `server/routers/*.test.ts`, which runs against the same real Postgres and is fifty times faster. Reserve this suite for what only a browser and a running server can show. The two exceptions are a Next route being served and a value built from the server's own environment.
+- **Tests share a schema with the rest of their worker**, so assert on what this test made, never on the world being empty: the row it created leaves the list, not the list is empty. Fake data comes from `e2e/fake.ts` and is seeded per test, so a title is the same every run and different for every test; do not rely on `--repeat-each`, which reuses a seed.
+- **Failures print Playwright's call log**; read it before the component. "Resolved, then detached" means the step before changed the screen; "never resolved" means the markup moved or the action did nothing.
+
+## Visual snapshots
+
+`npm run snapshots` runs the e2e suite with every test photographed, in four lanes (desktop and mobile, light and dark), and writes `snapshots/index.html`: each picture beside the one the previous run took, with changed pixels in red. Full guide: `e2e/snapshots/README.md`.
+
+- **Run it when a change can move pixels**: a component, a stylesheet, a layout, a page's data. `npm run check-all` does not include it. Narrow it while iterating (`npm run snapshots -- e2e/tests/11-dashboard.spec.ts`, `-- --grep "marks all notifications as read"` for one test by title, `-- --project=mobile-dark`); a spec in one lane takes seconds; the whole suite runs every lane at once on a worker pool sized to the machine. Read the gallery, not only the terminal: a run that exits zero can still have changed a picture you did not mean to change.
+- **Look at the pictures, not just the diff.** While working on a screen, capture the spec that reaches it and open the PNG under `snapshots/current/` (or the row in the gallery) to check the result looks right, on mobile and in dark mode as well as desktop light. Do this before calling UI work done: the diff says what moved, and only the picture says whether it should have.
+- **Check uncommitted work against a ref in two runs**: `npm run snapshots -- --against=main` captures main and pins it as the baseline; a plain `npm run snapshots` then diffs your tree against it. `--clear-baseline` drops the pin.
+- **A new user-facing flow gets a picture.** Every test's final frame is captured on its own. For the state in the middle (a dialog open, validation errors showing), call the `snap` fixture: `await snap(page, 'edit dialog open')`. Label the state, not the step. `snap` is a no-op in a plain `npm run test:e2e`.
+- **Keep the picture deterministic.** Fake data is seeded per test, dates are rewritten before the shot, and the page must hold still. A capture reported as **unsettled** holds something that never stops moving; fix that rather than re-running. Don't put a wall-clock value, a random choice or a live counter in a screen without a way to hold it.
+- **A red mark or count means pixels changed against the previous capture of that test.** The first run after a change to the capture machinery itself marks many rows; run again and they clear. A picture with nothing to compare against is **New**, and is not counted.
+- **Compare with the sidecar, never by hashing the PNG**: `diffPixels` and `diff` in each capture's `.json` are the comparison the gallery uses.
+- Commit nothing under `snapshots/`. Nothing in CI runs this yet; it is a local tool.

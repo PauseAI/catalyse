@@ -255,3 +255,114 @@ describe('projects.applyImport', () => {
     ).toMatchObject({ updated: 0, created: 0 })
   })
 })
+
+describe('what an import may and may not say', () => {
+  it('round-trips an unchanged export as a diff of nothing', async () => {
+    const { project, c, file } = await setup()
+    const diff = await c.projects.previewImport({
+      projectId: project.id,
+      file: JSON.stringify(file),
+    })
+    expect(diff.errors).toHaveLength(0)
+    expect(diff.project.op).toBe('noop')
+    expect(diff.tasks.every((t) => t.op === 'noop')).toBe(true)
+    expect(diff.dependencies.every((d) => d.op === 'noop')).toBe(true)
+  })
+
+  it('creates a task the file adds by ref', async () => {
+    const { project, c, file } = await setup()
+    const edited = {
+      ...file,
+      tasks: [
+        ...file.tasks,
+        {
+          ref: 'new1',
+          title: 'Fresh task',
+          description: null,
+          status: 'open',
+          assigneeEmail: null,
+          deadline: null,
+          startDate: '2026-05-04',
+          durationDays: 2,
+          featuredAsQuickTask: false,
+          dependsOn: [],
+        },
+      ],
+    }
+    const diff = await c.projects.previewImport({
+      projectId: project.id,
+      file: JSON.stringify(edited),
+    })
+    expect(diff.errors).toHaveLength(0)
+    expect(diff.tasks.some((t) => t.op === 'create' && t.identity.title === 'Fresh task')).toBe(
+      true,
+    )
+    await c.projects.applyImport({
+      projectId: project.id,
+      file: JSON.stringify(edited),
+      expectedHash: diff.meta.currentHash,
+    })
+    const { tasks } = await c.projects.listTasks({ projectId: project.id })
+    expect(tasks.some((t) => t.title === 'Fresh task')).toBe(true)
+  })
+
+  it('refuses a dependency on a task from another project', async () => {
+    const { project, a, c, file } = await setup()
+    const other = await createProject()
+    const foreign = await createTask(other.id, { title: 'Theirs' })
+    const edited = {
+      ...file,
+      tasks: file.tasks.map((t) => (t.id === a.id ? { ...t, dependsOn: [{ on: foreign.id }] } : t)),
+    }
+    const diff = await c.projects.previewImport({
+      projectId: project.id,
+      file: JSON.stringify(edited),
+    })
+    expect(diff.errors.length).toBeGreaterThan(0)
+  })
+
+  it('cannot change the project status, however the file is edited', async () => {
+    const { project, c, file } = await setup()
+    const edited = { ...file, project: { ...file.project, status: 'archived' } }
+    const diff = await c.projects.previewImport({
+      projectId: project.id,
+      file: JSON.stringify(edited),
+    })
+    expect(diff.errors.some((e) => e.message.includes('Status cannot be changed by import'))).toBe(
+      true,
+    )
+    await expect(
+      c.projects.applyImport({
+        projectId: project.id,
+        file: JSON.stringify(edited),
+        expectedHash: file._meta.baseHash,
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    const after = await c.projects.exportPlan({ projectId: project.id })
+    expect(after.project.status).toBe('ready')
+  })
+
+  it('refuses a file with an unreasonable number of tasks', async () => {
+    const { project, c, file } = await setup()
+    const edited = {
+      ...file,
+      tasks: Array.from({ length: 1001 }, (_, i) => ({
+        title: `Bulk ${i}`,
+        description: null,
+        status: 'open',
+        assigneeEmail: null,
+        deadline: null,
+        startDate: null,
+        durationDays: 1,
+        featuredAsQuickTask: false,
+        dependsOn: [],
+      })),
+    }
+    const diff = await c.projects.previewImport({
+      projectId: project.id,
+      file: JSON.stringify(edited),
+    })
+    // Refused by the schema, so no diff is computed and nothing is written.
+    expect(diff.errors.length).toBeGreaterThan(0)
+  })
+})

@@ -1,4 +1,4 @@
-import { test, expect, getAlert, readAdminToken, createApprovedVolunteer } from '../fixtures'
+import { test, expect, getAlert, readAdminToken } from '../fixtures'
 import { createApiClient } from '../client'
 import { fake } from '../fake'
 
@@ -103,24 +103,6 @@ test.describe('Project templates', () => {
     await expect(templateCard.getByText('Previously: UK')).toBeVisible()
   })
 
-  test('A non-admin cannot save a project as a template or build one from scratch', async ({
-    volunteer,
-    baseUrl,
-  }) => {
-    const source = await adminCreateCountryProjectViaApi(baseUrl, fake.projectTitle())
-    const volunteerApi = createApiClient(baseUrl, await tokenFor(baseUrl, volunteer.email))
-
-    const saveResult = await volunteerApi.templates.saveAsTemplate({
-      body: { projectId: source.id, title: fake.projectTitle(), description: null },
-    })
-    expect(saveResult.status).not.toBe(200)
-
-    const scratchResult = await volunteerApi.templates.createFromScratch({
-      body: { title: fake.projectTitle(), template: { title: fake.projectTitle() } },
-    })
-    expect(scratchResult.status).not.toBe(200)
-  })
-
   test('Admin uses a template from the library; the new draft lands straight on its edit page with location, team, collaboration link and start date all blank', async ({
     adminPage,
     baseUrl,
@@ -202,59 +184,6 @@ test.describe('Project templates', () => {
       timeout: 10_000,
     })
   })
-
-  test('A plain approved volunteer cannot copy a template; a team leader can', async ({
-    volunteer,
-    baseUrl,
-  }) => {
-    const source = await adminCreateCountryProjectViaApi(baseUrl, fake.projectTitle())
-    const templateId = await adminSaveAsTemplateViaApi(baseUrl, source.id, fake.projectTitle())
-
-    const volunteerToken = await tokenFor(baseUrl, volunteer.email)
-    const blocked = await instantiateViaApi(baseUrl, volunteerToken, templateId)
-    expect(blocked.status).not.toBe(200)
-
-    // Make the same volunteer a team leader, then retry.
-    const leader = await createApprovedVolunteer(baseUrl)
-    const adminApi = createApiClient(baseUrl, readAdminToken(baseUrl))
-    const team = await adminApi.admin.teams.create({
-      body: { name: fake.teamName(), description: null, lumaUrl: null, docUrl: null },
-    })
-    if (team.status !== 200) throw new Error(`team creation failed: ${JSON.stringify(team.body)}`)
-    const { id: teamId } = team.body as { id: number }
-    const assign = await adminApi.teams.assignMember({
-      body: { teamId, volunteerId: leader.id, role: 'leader' },
-    })
-    if (assign.status !== 200)
-      throw new Error(`assignMember failed: ${JSON.stringify(assign.body)}`)
-
-    const allowed = await instantiateViaApi(baseUrl, leader.token, templateId)
-    if (allowed.status !== 200) throw new Error(`instantiate failed: ${JSON.stringify(allowed)}`)
-    const { id: newProjectId } = allowed.body as { id: number }
-    await adminDeleteDraftViaApi(baseUrl, newProjectId)
-  })
-
-  test('Admins can instantiate a template repeatedly with no draft cap', async ({ baseUrl }) => {
-    const source = await adminCreateCountryProjectViaApi(baseUrl, fake.projectTitle())
-    const templateId = await adminSaveAsTemplateViaApi(baseUrl, source.id, fake.projectTitle())
-
-    // MAX_VOLUNTEER_DRAFTS is 2 for non-admins — this is well past what would ever be capped.
-    const createdIds: number[] = []
-    for (let i = 0; i < 4; i++) {
-      const result = await instantiateViaApi(baseUrl, readAdminToken(baseUrl), templateId)
-      if (result.status !== 200)
-        throw new Error(`instantiate ${i} failed: ${JSON.stringify(result)}`)
-      createdIds.push((result.body as { id: number }).id)
-    }
-
-    for (const id of createdIds) await adminDeleteDraftViaApi(baseUrl, id)
-  })
 })
 
 // The `volunteer` fixture doesn't expose an auth token directly — log in to get one.
-async function tokenFor(baseUrl: string, email: string): Promise<string> {
-  const api = createApiClient(baseUrl)
-  const result = await api.auth.login({ body: { email, password: 'testpassword1' } })
-  if (result.status !== 200) throw new Error(`login failed: ${JSON.stringify(result.body)}`)
-  return (result.body as { token: string }).token
-}

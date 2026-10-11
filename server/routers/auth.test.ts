@@ -140,13 +140,13 @@ describe('auth.signup', () => {
     const confirm = emails.lastTo('new@example.com')
     expect(confirm.subject).toBe(subjects.confirm)
     expect(linkParam(confirm, 'token')).toBe(res.emailVerificationToken)
-    await vi.waitFor(async () =>
-      expect(
-        await prisma.notification.count({
-          where: { volunteerId: admin.id, type: 'new_volunteer_signup', entityId: res.id },
-        }),
-      ).toBe(1),
-    )
+    // Written before signup returns, so an approval that follows at once has
+    // a row to clear rather than racing the insert.
+    expect(
+      await prisma.notification.count({
+        where: { volunteerId: admin.id, type: 'new_volunteer_signup', entityId: res.id },
+      }),
+    ).toBe(1)
     expect(await prisma.session.count({ where: { tokenHash: hashToken(res.token) } })).toBe(1)
   })
 
@@ -626,6 +626,31 @@ describe('verifyEmail / resendVerification', () => {
     await expect(anon().auth.resendVerification({})).rejects.toMatchObject({
       code: 'TOO_MANY_REQUESTS',
     })
+  })
+
+  it('a resend retires the old token and the new one confirms', async () => {
+    const signup = await anon().auth.signup(signupInput('resend@example.com'))
+    const oldToken = signup.emailVerificationToken!
+    const me = await prisma.volunteer.findUniqueOrThrow({ where: { id: signup.id } })
+    const resent = await clientAs(me).auth.resendVerification({})
+    expect(resent.emailVerificationToken).toBeTruthy()
+    await expect(anon().auth.verifyEmail({ token: oldToken })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    })
+    await expect(
+      anon().auth.verifyEmail({ token: resent.emailVerificationToken! }),
+    ).resolves.toBeTruthy()
+  })
+
+  it('confirms an email whose account an admin approved first', async () => {
+    const signup = await anon().auth.signup(signupInput('early@example.com'))
+    await prisma.volunteer.update({
+      where: { id: signup.id },
+      data: { approvalStatus: 'approved' },
+    })
+    await expect(
+      anon().auth.verifyEmail({ token: signup.emailVerificationToken! }),
+    ).resolves.toBeTruthy()
   })
 })
 

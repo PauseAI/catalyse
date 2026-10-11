@@ -50,7 +50,16 @@ export async function notifyUser(
   email?: NotifyEmailPayload,
   entityId?: number | null,
 ): Promise<void> {
-  const created = createNotification(volunteerId, type, title, body, link, entityId).catch((e) => {
+  // The row is awaited so a caller can rely on it being there when this
+  // resolves; only the email is left to run on its own.
+  const notification = await createNotification(
+    volunteerId,
+    type,
+    title,
+    body,
+    link,
+    entityId,
+  ).catch((e) => {
     console.error('[NOTIFY ERROR]', e)
     return null
   })
@@ -85,7 +94,6 @@ export async function notifyUser(
 
   send
     .then(async () => {
-      const notification = await created
       if (notification) {
         await prisma.notification.update({
           where: { id: notification.id },

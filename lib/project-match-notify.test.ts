@@ -54,6 +54,37 @@ describe('notifyMatchingVolunteers', () => {
     expect(emails.last.html).toContain(`/projects/${p.id}`)
   })
 
+  it('alerts an out-of-country volunteer to a global project only if they opted in', async () => {
+    const [a, b] = await skills(2)
+    const mk = (over: Parameters<typeof createVolunteer>[0]) =>
+      createVolunteer({
+        emailDigest: 'match',
+        country: 'UK',
+        skills: { create: [a, b].map((s) => ({ skillId: s.id })) },
+        ...over,
+      })
+    const optedIn = await mk({ notifyRemoteProjects: true })
+    await mk({ notifyRemoteProjects: false })
+
+    const global = await createProject({
+      country: 'US',
+      remoteEligibility: 'GLOBAL',
+      skills: { create: [a, b].map((s) => ({ skillId: s.id, isRequired: true })) },
+    })
+    await notifyMatchingVolunteers(global.id)
+    expect(emails.sent.map((e) => e.to)).toEqual([optedIn.email])
+
+    // A project open to nobody outside its country alerts neither, opted in or not.
+    emails.reset()
+    const local = await createProject({
+      country: 'US',
+      remoteEligibility: 'NONE',
+      skills: { create: [a, b].map((s) => ({ skillId: s.id, isRequired: true })) },
+    })
+    await notifyMatchingVolunteers(local.id)
+    expect(emails.sent).toEqual([])
+  })
+
   it('is a no-op with no candidate volunteers, and logs a failed send', async () => {
     const [a] = await skills(1)
     const p = await createProject({ skills: { create: [{ skillId: a.id, isRequired: true }] } })
