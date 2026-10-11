@@ -4,8 +4,7 @@
  * A task has a start and a deadline, and its bar runs from one to the other: the deadline is
  * the one date it should be done by, and the one reminders count towards. `timing` says how to
  * read the window — `flexible` work happens any time within it, `fixed` work happens on exactly
- * those dates (a shift, a stall, the event itself). A fixed task can instead be a milestone: a
- * single moment with no length.
+ * those dates (a shift, a stall, the event itself). A fixed task on a single day is a milestone.
  */
 
 import { diffInDays } from './schedule'
@@ -21,8 +20,6 @@ export type DatesValue = {
   startDate: string
   /** `yyyy-mm-dd`: the last day, when it should be done by. Empty for none. */
   deadline: string
-  /** Fixed timing only: a moment on the start date, with no deadline. */
-  milestone: boolean
   estimatedHours: string
 }
 
@@ -33,11 +30,12 @@ export function datesValueFrom(task: {
   estimatedHours: number | null
   deadline: Date | string | null
 }): DatesValue {
+  // A stored zero-length milestone reads as the form shows one: fixed, starting and ending one day.
+  const milestone = task.durationDays === 0
   return {
-    timing: task.timing ?? 'flexible',
+    timing: milestone ? 'fixed' : (task.timing ?? 'flexible'),
     startDate: toDateInputValue(task.startDate),
-    deadline: toDateInputValue(task.deadline),
-    milestone: task.durationDays === 0,
+    deadline: toDateInputValue(task.deadline ?? (milestone ? task.startDate : null)),
     estimatedHours: task.estimatedHours !== null ? String(task.estimatedHours) : '',
   }
 }
@@ -46,21 +44,19 @@ export const EMPTY_DATES: DatesValue = {
   timing: 'flexible',
   startDate: '',
   deadline: '',
-  milestone: false,
   estimatedHours: '',
 }
 
 export type DatesPayload = ReturnType<typeof datesPayload>
 
-/** The fields to send to the API. A milestone has a length of zero and no deadline. */
+/** The fields to send to the API. A task's length follows from its dates, so none is stored. */
 export function datesPayload(v: DatesValue) {
-  const milestone = v.timing === 'fixed' && v.milestone
   return {
     timing: v.timing,
     startDate: fromDateInputValue(v.startDate),
-    durationDays: milestone ? (0 as const) : null,
+    durationDays: null,
     estimatedHours: v.estimatedHours ? parseFloat(v.estimatedHours) : null,
-    deadline: milestone ? null : fromDateInputValue(v.deadline),
+    deadline: fromDateInputValue(v.deadline),
   }
 }
 
@@ -87,7 +83,7 @@ export function deadlineBeforeStart(start: Date | null, deadline: Date | null): 
 }
 
 /**
- * The line under a task that follows another and cannot start in time: "“Book venue” finishes
+ * The line under a task that waits on another and cannot start in time: "“Book venue” finishes
  * too late: this can't start until 3 Oct, 2 days after its deadline."
  */
 export function lateStartSentence(followsTitle: string, start: Date, days: number): string {

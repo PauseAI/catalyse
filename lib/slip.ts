@@ -62,7 +62,7 @@ export function pinConflictSlip(
         : `${prep} finishes ${plural(over, 'day')} after the key date.`,
     )
   }
-  return `Starts ${plural(days, 'day')} too early for ${prep}. Move it, or clear its start date to follow it.`
+  return `Starts ${plural(days, 'day')} too early for ${prep}. Move it, or let it start when ${prep} is done.`
 }
 
 /**

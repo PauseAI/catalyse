@@ -15,7 +15,7 @@ import {
 const today = new Date('2026-06-01T00:00:00Z')
 
 describe('toScheduleInput / spanDays', () => {
-  it('defaults isAnchor and measures an inclusive span', () => {
+  it('defaults isAnchor, reads fixed timing and measures an inclusive span', () => {
     const input = toScheduleInput({
       id: 1,
       startDate: null,
@@ -25,8 +25,11 @@ describe('toScheduleInput / spanDays', () => {
       baselineDurationDays: null,
       startedAt: null,
       completedAt: null,
+      timing: 'flexible',
     })
     expect(input.isAnchor).toBe(false)
+    expect(input.fixed).toBe(false)
+    expect(toScheduleInput({ ...input, timing: 'fixed' }).fixed).toBe(true)
     expect(spanDays(computeSchedule([], [], today))).toBe(1)
     expect(spanDays(computeSchedule([input], [], today))).toBe(2)
   })

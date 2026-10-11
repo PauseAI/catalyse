@@ -17,6 +17,7 @@ function task(id: number, over: Partial<ClientSchedulable> = {}): ClientSchedula
     baselineDurationDays: null,
     startedAt: null,
     completedAt: null,
+    timing: 'flexible',
     ...over,
   }
 }

@@ -24,7 +24,6 @@ describe('task dates', () => {
       timing: 'flexible',
       startDate: '2026-09-14',
       deadline: '2026-09-17',
-      milestone: false,
       estimatedHours: '6',
     })
     expect(datesPayload(value)).toEqual({
@@ -54,22 +53,37 @@ describe('task dates', () => {
     ).toEqual({ ...EMPTY_DATES, timing: 'fixed' })
   })
 
-  it('sends a milestone as zero days with no deadline, and only when the timing is fixed', () => {
+  it('reads a stored zero-day milestone as fixed on one day, and saves it with no length', () => {
     const milestone = datesValueFrom({
-      timing: 'fixed',
+      timing: 'flexible',
       startDate: day('2026-10-03'),
       durationDays: 0,
       estimatedHours: null,
       deadline: null,
     })
-    expect(milestone.milestone).toBe(true)
-    const withStaleDeadline = { ...milestone, deadline: '2026-10-05' }
-    expect(datesPayload(withStaleDeadline)).toMatchObject({ durationDays: 0, deadline: null })
-    // Switching to a window leaves the tick behind, so it is not sent.
-    expect(datesPayload({ ...withStaleDeadline, timing: 'flexible' })).toMatchObject({
-      durationDays: null,
-      deadline: day('2026-10-05'),
+    expect(milestone).toEqual({
+      ...EMPTY_DATES,
+      timing: 'fixed',
+      startDate: '2026-10-03',
+      deadline: '2026-10-03',
     })
+    expect(datesPayload(milestone)).toEqual({
+      timing: 'fixed',
+      startDate: day('2026-10-03'),
+      durationDays: null,
+      estimatedHours: null,
+      deadline: day('2026-10-03'),
+    })
+    // A deadline it already carries is kept.
+    expect(
+      datesValueFrom({
+        timing: 'fixed',
+        startDate: day('2026-10-03'),
+        durationDays: 0,
+        estimatedHours: null,
+        deadline: day('2026-10-04'),
+      }).deadline,
+    ).toBe('2026-10-04')
   })
 
   it('knows which tasks are on the timeline', () => {

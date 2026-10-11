@@ -54,6 +54,26 @@ describe('computeSchedule', () => {
     expect(ymd(milestone.end)).toBe('2026-03-10')
   })
 
+  it('draws a fixed task that starts and ends on one day as a milestone, keeping its deadline', () => {
+    const oneDay = { startDate: day('2026-03-10'), deadline: day('2026-03-10') }
+    const { byId } = computeSchedule(
+      [
+        item(1, { ...oneDay, endsOnDeadline: true, fixed: true }),
+        item(2, { ...oneDay, endsOnDeadline: true }),
+        item(3, { startDate: day('2026-03-10'), deadline: day('2026-03-11'), fixed: true }),
+        item(4, { deadline: day('2026-03-02'), endsOnDeadline: true, fixed: true }),
+      ],
+      [],
+      origin,
+    )
+    expect(byId.get(1)).toMatchObject({ isMilestone: true, endsOnDeadline: true })
+    expect(ymd(byId.get(1)!.deadline!)).toBe('2026-03-10')
+    // Flexible work on one day, a fixed stretch, and a fixed task with no start of its own are bars.
+    expect(byId.get(2)!.isMilestone).toBe(false)
+    expect(byId.get(3)!.isMilestone).toBe(false)
+    expect(byId.get(4)!.isMilestone).toBe(false)
+  })
+
   it('starts a successor of a milestone the following day', () => {
     const { byId } = computeSchedule(
       [item(1, { startDate: day('2026-03-10'), durationDays: 0 }), item(2, { durationDays: 3 })],

@@ -373,7 +373,7 @@ describe('project page — owner', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add Task' }))
     await userEvent.type(screen.getByLabelText('Task title'), 'Third task')
     await userEvent.type(screen.getByLabelText('Description'), 'details')
-    await userEvent.type(screen.getByLabelText('Effort (hours of work)'), '2')
+    await userEvent.type(screen.getByLabelText('Effort: about'), '2')
     fireEvent.change(screen.getByLabelText('Deadline'), { target: { value: '2030-01-01' } })
     fireEvent.change(screen.getByLabelText('Start (optional)'), {
       target: { value: '2029-12-01' },
@@ -1051,7 +1051,7 @@ describe('project page — timeline tab', () => {
     )
     await screen.findByText('Dependency added')
 
-    // Select a bar to open the panel; edit dates, anchor, lag, dependencies, assignment.
+    // Select a bar to open the panel; edit dates, anchor, dependencies, assignment.
     await userEvent.click(screen.getByRole('button', { name: /^Beta:/ }))
     const panel = () => screen.getByRole('complementary')
     await within(panel()).findByText('Beta')
@@ -1064,8 +1064,8 @@ describe('project page — timeline tab', () => {
       expect((await row(b.id)).deadline).toEqual(new Date('2027-06-30T00:00:00Z')),
     )
     // Timing and effort are not schedule, so they go by the task update rather than the drag path.
-    await userEvent.click(within(panel()).getByRole('radio', { name: /On set dates/ }))
-    await userEvent.type(within(panel()).getByLabelText('Effort (hours of work)'), '3')
+    await userEvent.click(within(panel()).getByRole('checkbox', { name: /exact dates/ }))
+    await userEvent.type(within(panel()).getByLabelText('Effort: about'), '3')
     fireEvent.submit(datesForm)
     await waitFor(async () =>
       expect(await row(b.id)).toMatchObject({ timing: 'fixed', estimatedHours: 3 }),
@@ -1073,15 +1073,8 @@ describe('project page — timeline tab', () => {
     await userEvent.click(within(panel()).getByRole('checkbox', { name: /Key date/ }))
     await waitFor(async () => expect((await row(b.id)).isAnchor).toBe(true))
     await screen.findByText('This is now the key date.')
-    const lag = within(panel()).getByLabelText(/Lag/, { selector: 'input[id^="panel-lag-"]' })
-    fireEvent.change(lag, { target: { value: '2' } })
-    fireEvent.blur(lag)
-    await waitFor(async () =>
-      expect(
-        (await prisma.workItemDependency.findFirstOrThrow({ where: { successorId: b.id } }))
-          .lagDays,
-      ).toBe(2),
-    )
+    // A link's lag still counts in the schedule but is not edited from the panel.
+    expect(within(panel()).queryByText(/lag/i)).toBeNull()
     await userEvent.click(within(panel()).getByRole('button', { name: /Remove dependency on/ }))
     await waitFor(async () =>
       expect(await prisma.workItemDependency.count({ where: { successorId: b.id } })).toBe(0),
@@ -1096,7 +1089,12 @@ describe('project page — timeline tab', () => {
     await userEvent.selectOptions(within(panel()).getByLabelText('Add a dependency'), String(a.id))
     await userEvent.click(within(panel()).getByRole('button', { name: 'Add' }))
     await waitFor(async () =>
-      expect(await prisma.workItemDependency.count({ where: { successorId: b.id } })).toBe(1),
+      expect(
+        await prisma.workItemDependency.findMany({
+          where: { successorId: b.id },
+          select: { lagDays: true },
+        }),
+      ).toEqual([{ lagDays: 0 }]),
     )
     await userEvent.click(within(panel()).getByRole('button', { name: 'Assign to me' }))
     await screen.findByText(/Task claimed\. Post an update/)
@@ -1182,7 +1180,7 @@ describe('project page — timeline tab', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Loose one:/ }))
     await prisma.workItem.delete({ where: { id: t1.id } })
     const panel = screen.getByRole('complementary')
-    await userEvent.click(within(panel).getByRole('checkbox'))
+    await userEvent.click(within(panel).getByRole('checkbox', { name: /Key date/ }))
     await screen.findByText('Project or task not found')
     await userEvent.selectOptions(within(panel).getByLabelText('Add a dependency'), String(t2.id))
     await userEvent.click(within(panel).getByRole('button', { name: 'Add' }))

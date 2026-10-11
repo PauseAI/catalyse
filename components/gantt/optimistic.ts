@@ -29,6 +29,7 @@ export type ClientSchedulable = {
   startedAt: Date | string | null
   completedAt: Date | string | null
   isAnchor?: boolean
+  timing: 'flexible' | 'fixed'
 }
 
 /** One item's pending schedule change, in the shape the reschedule mutation sends. */
@@ -56,6 +57,7 @@ export function toClientScheduleInput(t: ClientSchedulable): ScheduleInput {
     startedAt: asDate(t.startedAt),
     completedAt: asDate(t.completedAt),
     isAnchor: t.isAnchor ?? false,
+    fixed: t.timing === 'fixed',
     endsOnDeadline: true,
   }
 }

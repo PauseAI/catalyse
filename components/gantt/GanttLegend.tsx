@@ -68,7 +68,7 @@ export default function GanttLegend({
             aria-hidden="true"
           />
         </Swatch>
-        <Swatch label="On set dates">
+        <Swatch label="On exact dates">
           <span
             className="block h-3 w-6 rounded-sm"
             style={{
@@ -78,7 +78,7 @@ export default function GanttLegend({
             aria-hidden="true"
           />
         </Swatch>
-        <Swatch label="Milestone (no duration)">
+        <Swatch label="Milestone (exact dates, one day)">
           <span
             className="block h-2.5 w-2.5"
             style={{

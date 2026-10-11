@@ -32,6 +32,7 @@ export type SchedulableWorkItem = {
   startedAt: Date | null
   completedAt: Date | null
   isAnchor?: boolean
+  timing: 'flexible' | 'fixed'
 }
 
 export function toScheduleInput(w: SchedulableWorkItem): ScheduleInput {
@@ -45,6 +46,7 @@ export function toScheduleInput(w: SchedulableWorkItem): ScheduleInput {
     startedAt: w.startedAt,
     completedAt: w.completedAt,
     isAnchor: w.isAnchor ?? false,
+    fixed: w.timing === 'fixed',
   }
 }
 
@@ -63,6 +65,7 @@ const SCHEDULABLE_SELECT = {
   startedAt: true,
   completedAt: true,
   isAnchor: true,
+  timing: true,
 } as const
 
 /** Inclusive day-count a placed schedule occupies, minimum 1. */

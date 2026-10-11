@@ -51,31 +51,24 @@ describe('DatesBlock', () => {
     expect(screen.queryByRole('alert')).toBeNull()
     expect(deadline.validationMessage).toBe('')
 
-    await userEvent.type(screen.getByLabelText('Effort (hours of work)'), '6')
+    await userEvent.type(screen.getByLabelText('Effort: about'), '6')
     expect(value().estimatedHours).toBe('6')
   })
 
-  it('offers set dates and a milestone', async () => {
+  it('shows only a start, a deadline, the effort and one tick for exact dates', async () => {
     render(<Harness initial={{ startDate: '2026-09-26', deadline: '2026-09-30' }} />)
-    await userEvent.click(screen.getByRole('radio', { name: /On set dates/ }))
-    expect(screen.getByLabelText('Runs from')).toBeTruthy()
-    expect(screen.getByLabelText('To')).toHaveValue('2026-09-30')
-    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-09-25' } })
-    expect(screen.getByRole('alert')).toHaveTextContent('Ends before it starts')
-    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-09-30' } })
+    expect(screen.queryByRole('radio')).toBeNull()
+    expect(screen.getAllByRole('checkbox')).toHaveLength(1)
+    expect(screen.queryByText(/milestone|lag/i)).toBeNull()
 
-    const moment = screen.getByRole('checkbox', { name: /a moment, not a stretch of work/ })
-    await userEvent.click(moment)
-    expect(value().milestone).toBe(true)
-    expect(screen.getByLabelText('On')).toBeTruthy()
-    expect(screen.queryByLabelText('To')).toBeNull()
-    await userEvent.click(moment)
-    expect(value().milestone).toBe(false)
-
-    // Back to a window, a milestone makes no sense, so it is cleared.
-    await userEvent.click(moment)
-    await userEvent.click(screen.getByRole('radio', { name: /Any time in a window/ }))
-    expect(value()).toMatchObject({ timing: 'flexible', milestone: false })
+    const exact = screen.getByRole('checkbox', {
+      name: 'Happens on these exact dates (a shift or event)',
+    })
+    await userEvent.click(exact)
+    expect(value()).toMatchObject({ timing: 'fixed', deadline: '2026-09-30' })
+    expect(screen.getByLabelText('Start (optional)')).toHaveValue('2026-09-26')
+    await userEvent.click(exact)
+    expect(value().timing).toBe('flexible')
   })
 
   it('explains a task that follows another, warns when it cannot make its deadline, and shows the note', () => {
@@ -88,7 +81,7 @@ describe('DatesBlock', () => {
       />,
     )
     expect(
-      screen.getByText('Starts when “Book the venue” finishes (currently 15 Sept 2026).'),
+      screen.getByText('Starts when “Book the venue” is done (currently 15 Sept 2026).'),
     ).toBeTruthy()
     expect(
       screen.getByText(
@@ -99,22 +92,31 @@ describe('DatesBlock', () => {
     fireEvent.change(screen.getByLabelText('Start (optional)'), {
       target: { value: '2026-09-10' },
     })
-    expect(screen.getByText(/Starts on this date even if “Book the venue” runs late/)).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Starts on this date even if “Book the venue” runs late. Clear it to start when “Book the venue” is done.',
+      ),
+    ).toBeTruthy()
+    expect(screen.queryByText(/follow/i)).toBeNull()
     expect(screen.queryByText(/finishes too late/)).toBeNull()
     unmount()
     render(<Harness followsTitle="Book the venue" />)
-    expect(screen.getByText('Starts when “Book the venue” finishes.')).toBeTruthy()
+    expect(screen.getByText('Starts when “Book the venue” is done.')).toBeTruthy()
   })
 })
 
 describe('TaskDatesSummary', () => {
   const base = {
     timing: 'flexible' as const,
-    durationDays: null,
     estimatedHours: 6,
     deadline: day('2099-09-20'),
     openStart: false,
-    placement: { start: day('2099-09-14'), end: day('2099-09-20'), daysLate: null },
+    placement: {
+      start: day('2099-09-14'),
+      end: day('2099-09-20'),
+      daysLate: null,
+      isMilestone: false,
+    },
     assigneeName: 'Chelsie',
     claimedAt: day('2099-09-14'),
     startedAt: null,
@@ -133,7 +135,7 @@ describe('TaskDatesSummary', () => {
 
   it('reads only the deadline when nothing sets a start', () => {
     const { rerender } = render(<TaskDatesSummary {...base} openStart />)
-    expect(dd('When')).toHaveTextContent(/^By 20 Sept 2099About 6 hours of work$/)
+    expect(dd('When')).toHaveTextContent(/^By 20 Sept 2099Effort: about 6 hours$/)
     rerender(<TaskDatesSummary {...base} openStart estimatedHours={null} />)
     expect(dd('When')).toHaveTextContent(/^By 20 Sept 2099$/)
   })
@@ -143,14 +145,24 @@ describe('TaskDatesSummary', () => {
       <TaskDatesSummary
         {...base}
         deadline={day('2020-01-02')}
-        placement={{ start: day('2020-01-01'), end: day('2020-01-02'), daysLate: null }}
+        placement={{
+          start: day('2020-01-01'),
+          end: day('2020-01-02'),
+          daysLate: null,
+          isMilestone: false,
+        }}
       />,
     )
     expect(dd('When')).toHaveTextContent(/\d+ days overdue$/)
     rerender(
       <TaskDatesSummary
         {...base}
-        placement={{ start: day('2099-09-23'), end: day('2099-09-23'), daysLate: 3 }}
+        placement={{
+          start: day('2099-09-23'),
+          end: day('2099-09-23'),
+          daysLate: 3,
+          isMilestone: false,
+        }}
       />,
     )
     expect(dd('When')).toHaveTextContent(/3 days late$/)
@@ -161,8 +173,12 @@ describe('TaskDatesSummary', () => {
       <TaskDatesSummary
         {...base}
         timing="fixed"
-        durationDays={0}
-        deadline={null}
+        placement={{
+          start: day('2099-09-15'),
+          end: day('2099-09-15'),
+          daysLate: null,
+          isMilestone: true,
+        }}
         startedAt={day('2099-09-15')}
       />,
     )
@@ -178,7 +194,7 @@ describe('TaskDatesSummary', () => {
         claimedAt={null}
       />,
     )
-    expect(dd('When')).toHaveTextContent('Not on the timeline yetAbout 6 hours of work')
+    expect(dd('When')).toHaveTextContent('Not on the timeline yetEffort: about 6 hours')
     expect(dd('Who')).toHaveTextContent(/^Chelsie$/)
 
     rerender(<TaskDatesSummary {...base} assigneeName={null} claimedAt={null} />)

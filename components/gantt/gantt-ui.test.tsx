@@ -559,7 +559,6 @@ describe('GanttItemPanel', () => {
       timing: 'flexible' as const,
       startDate: '2026-06-04',
       deadline: '2026-06-05',
-      milestone: false,
       estimatedHours: '1',
     },
     description: 'Print them',
@@ -569,14 +568,11 @@ describe('GanttItemPanel', () => {
       { id: 2, title: 'Print flyers' },
       { id: 3, title: 'Launch' },
     ],
-    predecessors: [
-      { dependencyId: 10, predecessorId: 1, predecessorTitle: 'Book venue', lagDays: 0 },
-    ],
+    predecessors: [{ dependencyId: 10, predecessorId: 1, predecessorTitle: 'Book venue' }],
     onClose: vi.fn(),
     onSaveDates: vi.fn(),
     onAddDependency: vi.fn(),
     onRemoveDependency: vi.fn(),
-    onUpdateLag: vi.fn(),
     onSetAnchor: vi.fn(),
   }
 
@@ -584,60 +580,57 @@ describe('GanttItemPanel', () => {
     render(<GanttItemPanel {...baseProps} canManage={false} />)
     expect(screen.getByText('In progress')).toBeInTheDocument()
     // Planning aids are for those who can change the plan.
+    expect(screen.queryByText('Planning tools')).toBeNull()
     expect(screen.queryByText('Critical path')).toBeNull()
+    expect(screen.queryByText('Moved')).toBeNull()
+    expect(screen.queryByText('Actual')).toBeNull()
     expect(screen.getByText('1 day late')).toBeInTheDocument()
     expect(screen.getByText('Print them')).toBeInTheDocument()
     expect(screen.getByText('Deadline').nextSibling).toHaveTextContent('5 Jun 2026 · 1 day late')
-    expect(screen.getByText('Effort').nextSibling).toHaveTextContent('1 hour of work')
-    expect(screen.getByText('Moved').nextSibling).toHaveTextContent(
-      '1 day earlier (7 Jun 2026 → 6 Jun 2026)',
-    )
-    expect(screen.getByText('Actual').nextSibling).toHaveTextContent('in progress')
+    expect(screen.getByText('Effort').nextSibling).toHaveTextContent('about 1 hour')
     expect(screen.queryByText('Dates')).toBeNull()
-    expect(screen.getByLabelText(/Lag/)).toBeDisabled()
+    expect(screen.queryByText(/lag|follow/i)).toBeNull()
     expect(screen.getByText('Nobody yet')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull()
     fireEvent.click(screen.getByLabelText('Close panel'))
     expect(baseProps.onClose).toHaveBeenCalled()
   })
 
-  it('shows milestone, anchor, no-baseline and pin-conflict states with a link', () => {
-    render(
-      <GanttItemPanel
-        {...baseProps}
-        row={{ ...rows[2], href: '/t/3' }}
-        dates={{
-          timing: 'fixed',
-          startDate: '',
-          deadline: '',
-          milestone: true,
-          estimatedHours: '2',
-        }}
-        description={null}
-        assigneeName="Ann"
-        predecessors={[]}
-        canManage={false}
-        assignment={{
-          canAssign: false,
-          canClaim: false,
-          options: [],
-          onAssign: vi.fn(),
-          onClaim: vi.fn(),
-          onUnassign: vi.fn(),
-        }}
-      />,
-    )
+  it('shows milestone and anchor states with a link, and leaves a conflict to the planner', () => {
+    const props = {
+      ...baseProps,
+      row: { ...rows[2], href: '/t/3' },
+      dates: { timing: 'fixed' as const, startDate: '', deadline: '', estimatedHours: '2' },
+      description: null,
+      assigneeName: 'Ann',
+      predecessors: [],
+      assignment: {
+        canAssign: false,
+        canClaim: false,
+        options: [],
+        onAssign: vi.fn(),
+        onClaim: vi.fn(),
+        onUnassign: vi.fn(),
+      },
+    }
+    const { rerender } = render(<GanttItemPanel {...props} canManage={false} />)
     expect(screen.getByText('Milestone')).toBeInTheDocument()
     // Everyone sees the key date; only the critical path is a manager's aid.
     expect(screen.getByText('★ Key date')).toBeInTheDocument()
-    expect(screen.getByText('2 hours of work')).toBeInTheDocument()
+    expect(screen.getByText('about 2 hours')).toBeInTheDocument()
     expect(screen.queryByText(/No original plan saved/)).toBeNull()
-    expect(
-      screen.getByText('The work before it finishes 2 days after the key date.'),
-    ).toBeInTheDocument()
+    expect(screen.queryByText(/after the key date/)).toBeNull()
     expect(screen.getByText('Nothing — can start whenever.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open task →' })).toHaveAttribute('href', '/t/3')
     expect(screen.getByText('Ann')).toBeInTheDocument()
+
+    rerender(<GanttItemPanel {...props} canManage />)
+    expect(
+      screen.getByText('No original plan saved yet, so nothing to compare.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('The work before it finishes 2 days after the key date.'),
+    ).toBeInTheDocument()
   })
 
   it('lets a manager edit dates, anchor, dependencies and assignment', async () => {
@@ -666,10 +659,17 @@ describe('GanttItemPanel', () => {
     const { rerender } = render(
       <GanttItemPanel {...baseProps} row={late} canManage assignment={assignment} />,
     )
+    // Original plan, actual, critical path and the conflict sit in the folded Planning tools,
+    // whose summary still says when the bar starts too early.
+    expect(screen.getByText('Planning tools').closest('details')).not.toHaveAttribute('open')
+    expect(screen.getByText('· starts too early')).toBeInTheDocument()
+    expect(screen.getByText('Critical path')).toBeInTheDocument()
     expect(screen.getByText('Moved').nextSibling).toHaveTextContent('1 day later')
+    expect(screen.getByText('Original plan')).toBeInTheDocument()
+    expect(screen.getByText('Actual').nextSibling).toHaveTextContent('1 Jun 2026 – 4 Jun 2026')
     expect(
       screen.getByText(
-        'Starts 2 days too early for “Book venue”. Move it, or clear its start date to follow it.',
+        'Starts 2 days too early for “Book venue”. Move it, or let it start when “Book venue” is done.',
       ),
     ).toBeInTheDocument()
     expect(
@@ -687,27 +687,20 @@ describe('GanttItemPanel', () => {
       estimatedHours: 1,
       deadline: day('2026-06-09'),
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Follow “Book venue” instead' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start when “Book venue” is done' }))
     expect(baseProps.onSaveDates).toHaveBeenLastCalledWith(
       expect.objectContaining({ startDate: null, deadline: day('2026-06-09') }),
     )
-    expect(screen.getByText(/Starts when “Book venue” finishes/)).toBeInTheDocument()
+    expect(screen.getByText(/Starts when “Book venue” is done/)).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Deadline'), { target: { value: '' } })
     fireEvent.submit(screen.getByLabelText('Deadline').closest('form')!)
     expect(baseProps.onSaveDates).toHaveBeenLastCalledWith(
       expect.objectContaining({ startDate: null, deadline: null }),
     )
-    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('checkbox', { name: /Key date/ }))
     expect(baseProps.onSetAnchor).toHaveBeenCalledWith(true)
-
-    const lag = screen.getByLabelText(/Lag/, { selector: '#panel-lag-10' })
-    fireEvent.change(lag, { target: { value: '2' } })
-    fireEvent.blur(lag)
-    expect(baseProps.onUpdateLag).toHaveBeenCalledWith(10, 2)
-    // Blank reads as 0, which equals the stored lag — no write.
-    fireEvent.change(lag, { target: { value: '' } })
-    fireEvent.blur(lag)
-    expect(baseProps.onUpdateLag).toHaveBeenCalledTimes(1)
+    // A link's lag is not edited here; neither the links nor the add form mention one.
+    expect(screen.queryByText(/lag/i)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Remove dependency on Book venue' }))
     expect(baseProps.onRemoveDependency).toHaveBeenCalledWith(10)
 
@@ -715,14 +708,8 @@ describe('GanttItemPanel', () => {
     fireEvent.submit(select.closest('form')!)
     expect(baseProps.onAddDependency).not.toHaveBeenCalled()
     await user.selectOptions(select, '3')
-    fireEvent.change(screen.getByLabelText(/Lag/, { selector: '#panel-add-lag' }), {
-      target: { value: '4' },
-    })
     fireEvent.submit(select.closest('form')!)
-    expect(baseProps.onAddDependency).toHaveBeenCalledWith(3, 4)
-    await user.selectOptions(screen.getByLabelText('Add a dependency'), '3')
-    fireEvent.submit(select.closest('form')!)
-    expect(baseProps.onAddDependency).toHaveBeenLastCalledWith(3, 0)
+    expect(baseProps.onAddDependency).toHaveBeenCalledWith(3)
 
     await user.click(screen.getByRole('button', { name: 'Assign to me' }))
     expect(assignment.onClaim).toHaveBeenCalled()

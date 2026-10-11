@@ -25,6 +25,8 @@ export type ScheduleInput = {
    * deadline is only a target its plan is measured against.
    */
   endsOnDeadline?: boolean
+  /** Happens on exactly its dates (a shift, an event): on one day, it is drawn as a milestone. */
+  fixed?: boolean
   baselineStartDate: Date | null
   baselineDurationDays: number | null
   startedAt: Date | null
@@ -71,9 +73,9 @@ export type ScheduledItem = {
   /** This item is itself a fixed point the plan is built around. */
   isAnchor: boolean
   /**
-   * Zero duration — a moment rather than a stretch of work. It still occupies its start day for
-   * scheduling (a successor follows the day after), but the chart draws it as a diamond so it
-   * does not read as a day of work.
+   * A moment rather than a stretch of work: zero duration, or fixed with its start and deadline
+   * on the same day. It still occupies its start day for scheduling (a successor follows the day
+   * after), but the chart draws it as a diamond so it does not read as a day of work.
    */
   isMilestone: boolean
   baseline: DateSpan | null
@@ -289,7 +291,12 @@ export function computeSchedule(
       endsOnDeadline,
       isCritical: false,
       isAnchor: item.isAnchor === true,
-      isMilestone: item.durationDays === 0,
+      isMilestone:
+        item.durationDays === 0 ||
+        (item.fixed === true &&
+          pinned !== null &&
+          deadline !== null &&
+          pinned.getTime() === deadline.getTime()),
       baseline,
       actual,
       startVarianceDays: baseline ? diffInDays(baseline.start, start) : null,

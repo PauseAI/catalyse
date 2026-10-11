@@ -9,6 +9,7 @@ type Placement = {
   start: Date | string
   end: Date | string
   daysLate: number | null
+  isMilestone: boolean
 }
 
 /**
@@ -18,7 +19,6 @@ type Placement = {
  */
 export default function TaskDatesSummary({
   timing,
-  durationDays,
   estimatedHours,
   deadline,
   openStart,
@@ -29,7 +29,6 @@ export default function TaskDatesSummary({
   completedAt,
 }: {
   timing: TaskTimingValue
-  durationDays: number | null
   estimatedHours: number | null
   deadline: Date | string | null
   /** No start date and nothing before it, so only the deadline says when. */
@@ -42,7 +41,7 @@ export default function TaskDatesSummary({
   completedAt: Date | string | null
 }) {
   const span = placement
-    ? durationDays === 0
+    ? placement.isMilestone
       ? 0
       : diffInDays(new Date(placement.start), new Date(placement.end)) + 1
     : null
@@ -52,7 +51,7 @@ export default function TaskDatesSummary({
         completedAt !== null,
       )
     : null
-  const effort = estimatedHours !== null ? `About ${plural(estimatedHours, 'hour')} of work` : null
+  const effort = estimatedHours !== null ? `Effort: about ${plural(estimatedHours, 'hour')}` : null
 
   return (
     <dl className="mb-4 grid grid-cols-[5.5rem_1fr] gap-x-3 gap-y-2 text-sm">

@@ -34,7 +34,6 @@ export type PanelPredecessor = {
   dependencyId: number
   predecessorId: number
   predecessorTitle: string
-  lagDays: number
 }
 
 /** One label/value line in the summary. Values wrap under themselves rather than into the label. */
@@ -74,7 +73,6 @@ export default function GanttItemPanel({
   onSaveDates,
   onAddDependency,
   onRemoveDependency,
-  onUpdateLag,
   onSetAnchor,
   onReplan,
   assignment,
@@ -90,9 +88,8 @@ export default function GanttItemPanel({
   busy?: boolean
   onClose: () => void
   onSaveDates: (patch: DatesPayload) => void
-  onAddDependency: (predecessorId: number, lagDays: number) => void
+  onAddDependency: (predecessorId: number) => void
   onRemoveDependency: (dependencyId: number) => void
-  onUpdateLag: (dependencyId: number, lagDays: number) => void
   onSetAnchor?: (isAnchor: boolean) => void
   /** Opens the replan dialog for a task that has run past its plan; omit where it cannot. */
   onReplan?: () => void
@@ -101,7 +98,6 @@ export default function GanttItemPanel({
 }) {
   const [draft, setDraft] = useState(dates)
   const [newPred, setNewPred] = useState('')
-  const [newLag, setNewLag] = useState('')
   const [pickedAssignee, setPickedAssignee] = useState('')
 
   useEffect(() => {
@@ -110,7 +106,7 @@ export default function GanttItemPanel({
     setDraft(dates)
     // Keyed on the values, not the object, which callers rebuild on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [row.id, dates.timing, dates.startDate, dates.milestone, dates.estimatedHours, dates.deadline])
+  }, [row.id, dates.timing, dates.startDate, dates.estimatedHours, dates.deadline])
 
   const p = row.placement
   const estimatedHours = dates.estimatedHours ? parseFloat(dates.estimatedHours) : null
@@ -161,16 +157,6 @@ export default function GanttItemPanel({
             </span>
           </Tooltip>
         )}
-        {canManage && p.isCritical && (
-          <Tooltip content={CRITICAL_HINT}>
-            <span
-              className="rounded-full px-2 py-0.5"
-              style={{ background: 'var(--gantt-critical)', color: 'var(--gantt-bar-text)' }}
-            >
-              Critical path
-            </span>
-          </Tooltip>
-        )}
         {pastPlan !== null && (
           <span className="border-warning-text text-warning-text rounded-full border px-2 py-0.5">
             {plural(pastPlan, 'day')} past plan
@@ -210,42 +196,62 @@ export default function GanttItemPanel({
           </Fact>
         )}
         {estimatedHours !== null && (
-          <Fact label="Effort">
-            {estimatedHours} hour{estimatedHours === 1 ? '' : 's'} of work
-          </Fact>
-        )}
-        {p.baseline && (
-          <Fact label="Original plan">
-            {formatDateShort(p.baseline.start)} – {formatDateShort(p.baseline.end)}
-          </Fact>
-        )}
-        {/* Days moved only mean something against a saved original plan. With none there is
-            nothing to compare to, so the row is absent rather than reading a misleading
-            "On plan". */}
-        {p.baseline && (
-          <Fact label="Moved">
-            <span className={p.finishVarianceDays ? 'text-warning-text' : undefined}>
-              {p.finishVarianceDays
-                ? `${movedText(p.finishVarianceDays)} (${formatDateShort(p.baseline.end)} → ${formatDateShort(p.end)})`
-                : 'On plan'}
-            </span>
-          </Fact>
-        )}
-        {p.actual && (
-          <Fact label="Actual">
-            {formatDateShort(p.actual.start)}
-            {p.actual.end ? ` – ${formatDateShort(p.actual.end)}` : ' – in progress'}
-          </Fact>
+          <Fact label="Effort">about {plural(estimatedHours, 'hour')}</Fact>
         )}
       </dl>
 
-      {canManage && !p.baseline && (
-        <p className="text-text-light mt-2 mb-0 text-xs">
-          No original plan saved yet, so nothing to compare.
-        </p>
+      {/* The planner's view of this bar, folded away like the timeline's own Planning tools. */}
+      {canManage && (
+        <details className="border-brand-border mt-3 rounded-md border px-3 py-2 text-sm">
+          <summary className="cursor-pointer font-medium">
+            Planning tools
+            {conflict && <span className="text-error"> · starts too early</span>}
+          </summary>
+          <div className="mt-2 flex flex-col gap-2">
+            {p.isCritical && (
+              <Tooltip content={CRITICAL_HINT}>
+                <span
+                  className="self-start rounded-full px-2 py-0.5 text-xs"
+                  style={{ background: 'var(--gantt-critical)', color: 'var(--gantt-bar-text)' }}
+                >
+                  Critical path
+                </span>
+              </Tooltip>
+            )}
+            <dl className="m-0 grid grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1.5">
+              {p.baseline && (
+                <Fact label="Original plan">
+                  {formatDateShort(p.baseline.start)} – {formatDateShort(p.baseline.end)}
+                </Fact>
+              )}
+              {/* Days moved only mean something against a saved original plan. With none there
+                  is nothing to compare to, so the row is absent rather than reading a misleading
+                  "On plan". */}
+              {p.baseline && (
+                <Fact label="Moved">
+                  <span className={p.finishVarianceDays ? 'text-warning-text' : undefined}>
+                    {p.finishVarianceDays
+                      ? `${movedText(p.finishVarianceDays)} (${formatDateShort(p.baseline.end)} → ${formatDateShort(p.end)})`
+                      : 'On plan'}
+                  </span>
+                </Fact>
+              )}
+              {p.actual && (
+                <Fact label="Actual">
+                  {formatDateShort(p.actual.start)}
+                  {p.actual.end ? ` – ${formatDateShort(p.actual.end)}` : ' – in progress'}
+                </Fact>
+              )}
+            </dl>
+            {!p.baseline && (
+              <p className="text-text-light m-0 text-xs">
+                No original plan saved yet, so nothing to compare.
+              </p>
+            )}
+            {conflict && <p className="text-error m-0">{conflict}</p>}
+          </div>
+        </details>
       )}
-
-      {conflict && <p className="text-error mt-2 mb-0 text-sm">{conflict}</p>}
 
       {canManage && (
         <Section title="Dates">
@@ -299,7 +305,7 @@ export default function GanttItemPanel({
                     onSaveDates(datesPayload(next))
                   }}
                 >
-                  Follow “{predecessors[0].predecessorTitle}” instead
+                  Start when “{predecessors[0].predecessorTitle}” is done
                 </Button>
               )}
             </div>
@@ -313,41 +319,22 @@ export default function GanttItemPanel({
         ) : (
           <ul className="m-0 list-none space-y-2 p-0 text-sm">
             {predecessors.map((d) => (
-              <li key={d.dependencyId} className="border-brand-border rounded-md border px-3 py-2">
+              <li
+                key={d.dependencyId}
+                className="border-brand-border flex items-center justify-between gap-2 rounded-md border px-3 py-2"
+              >
                 <p className="m-0 leading-snug">{d.predecessorTitle}</p>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  {/* Lag is nearly always 0, so it gets a two-character box on one line. */}
-                  <label
-                    htmlFor={`panel-lag-${d.dependencyId}`}
-                    className="text-text-light m-0 flex items-center gap-1.5 text-xs font-normal"
+                {canManage && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => onRemoveDependency(d.dependencyId)}
+                    aria-label={`Remove dependency on ${d.predecessorTitle}`}
                   >
-                    Lag
-                    <input
-                      id={`panel-lag-${d.dependencyId}`}
-                      type="number"
-                      step="1"
-                      defaultValue={d.lagDays}
-                      disabled={!canManage || busy}
-                      className="w-14 !px-2 !py-1"
-                      onBlur={(e) => {
-                        const next = e.target.value ? parseInt(e.target.value, 10) : 0
-                        if (next !== d.lagDays) onUpdateLag(d.dependencyId, next)
-                      }}
-                    />
-                    days
-                  </label>
-                  {canManage && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => onRemoveDependency(d.dependencyId)}
-                      aria-label={`Remove dependency on ${d.predecessorTitle}`}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
+                    Remove
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -359,9 +346,8 @@ export default function GanttItemPanel({
             onSubmit={(e) => {
               e.preventDefault()
               if (!newPred) return
-              onAddDependency(parseInt(newPred, 10), newLag ? parseInt(newLag, 10) : 0)
+              onAddDependency(parseInt(newPred, 10))
               setNewPred('')
-              setNewLag('')
             }}
           >
             <label htmlFor="panel-add-pred">Add a dependency</label>
@@ -377,23 +363,7 @@ export default function GanttItemPanel({
                 </option>
               ))}
             </select>
-            <div className="mt-2 flex items-center gap-2">
-              <label
-                htmlFor="panel-add-lag"
-                className="text-text-light m-0 flex items-center gap-1.5 text-xs font-normal"
-              >
-                Lag
-                <input
-                  id="panel-add-lag"
-                  type="number"
-                  step="1"
-                  value={newLag}
-                  onChange={(e) => setNewLag(e.target.value)}
-                  placeholder="0"
-                  className="w-14 !px-2 !py-1"
-                />
-                days
-              </label>
+            <div className="mt-2">
               <Button type="submit" size="sm" disabled={!newPred || busy}>
                 Add
               </Button>

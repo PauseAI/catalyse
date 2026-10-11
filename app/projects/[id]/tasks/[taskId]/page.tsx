@@ -78,11 +78,7 @@ export default function TaskDetailPage({
           ? TASK_REQUESTED_MESSAGE
           : variables.data.assigneeId !== undefined
             ? PROJECT_TASK_CLAIMED_MESSAGE
-            : variables.data.isAnchor === true
-              ? 'This is now the key date.'
-              : variables.data.isAnchor === false
-                ? 'No longer the key date.'
-                : 'Task updated!',
+            : 'Task updated!',
         'success',
       )
       setIsEditing(false)
@@ -122,7 +118,6 @@ export default function TaskDetailPage({
     onSuccess: () => {
       showToast('Dependency added', 'success')
       setNewPredecessorId('')
-      setNewLagDays('')
       void invalidateTask()
     },
     onError: (err: unknown) =>
@@ -139,15 +134,7 @@ export default function TaskDetailPage({
       showToast(err instanceof Error ? err.message : 'Failed to remove dependency', 'error'),
   })
 
-  const updateLagMutation = useMutation({
-    ...orpc.dependencies.updateLag.mutationOptions(),
-    onSuccess: () => void invalidateTask(),
-    onError: (err: unknown) =>
-      showToast(err instanceof Error ? err.message : 'Failed to update lag', 'error'),
-  })
-
   const [newPredecessorId, setNewPredecessorId] = useState('')
-  const [newLagDays, setNewLagDays] = useState('')
 
   function handleAddDependency(e: React.FormEvent) {
     e.preventDefault()
@@ -155,7 +142,7 @@ export default function TaskDetailPage({
     addDependencyMutation.mutate({
       predecessorId: parseInt(newPredecessorId, 10),
       successorId: taskId,
-      lagDays: newLagDays ? parseInt(newLagDays, 10) : 0,
+      lagDays: 0,
     })
   }
 
@@ -239,7 +226,6 @@ export default function TaskDetailPage({
         {!isEditing && (
           <TaskDatesSummary
             timing={task.timing}
-            durationDays={task.durationDays}
             estimatedHours={task.estimatedHours}
             deadline={task.deadline}
             openStart={task.startDate === null && task.predecessors.length === 0}
@@ -332,35 +318,11 @@ export default function TaskDetailPage({
             onClose={() => setReplanning(false)}
           />
         )}
-        {(task.isAnchor || task.canSetKeyDate) && (
-          <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
-            {task.isAnchor ? (
-              <span style={{ color: 'var(--gantt-anchor)' }}>
-                ★ Key date: the date this project is planned around
-              </span>
-            ) : (
-              <span className="text-text-light">
-                The event itself? Make it the key date and the plan is read as work before it and
-                work after it.
-              </span>
-            )}
-            {task.canSetKeyDate && (
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={updateMutation.isPending}
-                onClick={() =>
-                  updateMutation.mutate({
-                    projectId,
-                    taskId,
-                    data: { isAnchor: !task.isAnchor },
-                  })
-                }
-              >
-                {task.isAnchor ? 'Stop using this as the key date' : 'Make this the key date'}
-              </Button>
-            )}
-          </div>
+        {/* The key date is set on the project timeline; here it is only stated. */}
+        {task.isAnchor && (
+          <p className="mb-4 text-sm" style={{ color: 'var(--gantt-anchor)' }}>
+            ★ Key date: the date this project is planned around
+          </p>
         )}
         {task.assignedToId !== null &&
           task.assignedToId !== user.id &&
@@ -520,8 +482,7 @@ export default function TaskDetailPage({
       <div className="bg-surface mb-5 rounded-xl p-6 shadow">
         <h2 className="mb-1 text-lg">Depends on</h2>
         <p className="text-text-light mb-4 text-sm">
-          This task can only start once the tasks below have finished. A lag adds days between them;
-          a negative lag lets them overlap.
+          This task can only start once the tasks below have finished.
         </p>
 
         {task.predecessors.length === 0 ? (
@@ -536,22 +497,6 @@ export default function TaskDetailPage({
                 >
                   {dep.predecessorTitle}
                 </Link>
-                <label className="text-text-light flex items-center gap-1 text-sm">
-                  Lag
-                  <input
-                    type="number"
-                    step="1"
-                    defaultValue={dep.lagDays}
-                    disabled={!task.canManage || updateLagMutation.isPending}
-                    className="w-20"
-                    onBlur={(e) => {
-                      const next = e.target.value ? parseInt(e.target.value, 10) : 0
-                      if (next === dep.lagDays) return
-                      updateLagMutation.mutate({ dependencyId: dep.dependencyId, lagDays: next })
-                    }}
-                  />
-                  days
-                </label>
                 {task.canManage && (
                   <Button
                     variant="ghost"
@@ -590,18 +535,6 @@ export default function TaskDetailPage({
                       </option>
                     ))}
                 </select>
-              </div>
-              <div>
-                <label htmlFor="new-dependency-lag">Lag (days)</label>
-                <input
-                  id="new-dependency-lag"
-                  type="number"
-                  step="1"
-                  value={newLagDays}
-                  onChange={(e) => setNewLagDays(e.target.value)}
-                  placeholder="0"
-                  className="w-20"
-                />
               </div>
               <Button type="submit" disabled={!newPredecessorId || addDependencyMutation.isPending}>
                 {addDependencyMutation.isPending ? 'Adding…' : 'Add'}

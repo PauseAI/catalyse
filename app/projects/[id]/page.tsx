@@ -372,11 +372,6 @@ function TaskTimeline({
     onSuccess: () => void invalidate(),
     onError: onErr('remove dependency'),
   })
-  const updateLag = useMutation({
-    ...orpc.dependencies.updateLag.mutationOptions(),
-    onSuccess: () => void invalidate(),
-    onError: onErr('update lag'),
-  })
   const updateTask = useMutation({
     ...orpc.projects.updateTask.mutationOptions(),
     onSuccess: () => void invalidate(),
@@ -434,11 +429,7 @@ function TaskTimeline({
   }
 
   const busy =
-    reschedule.isPending ||
-    addDep.isPending ||
-    removeDep.isPending ||
-    updateLag.isPending ||
-    updateTask.isPending
+    reschedule.isPending || addDep.isPending || removeDep.isPending || updateTask.isPending
 
   return (
     <div>
@@ -502,7 +493,6 @@ function TaskTimeline({
                     dependencyId: d.id,
                     predecessorId: d.predecessorId,
                     predecessorTitle: titleById.get(d.predecessorId) ?? `#${d.predecessorId}`,
-                    lagDays: d.lagDays,
                   }))}
                 onClose={() => setSelectedId(null)}
                 onSaveDates={(p) => {
@@ -518,8 +508,10 @@ function TaskTimeline({
                   })
                   // The rest is not schedule, so it goes by the ordinary task update, and only
                   // when something there changed.
-                  const was = datesPayload(datesValueFrom(selectedTask))
-                  if (p.timing !== was.timing || p.estimatedHours !== was.estimatedHours) {
+                  if (
+                    p.timing !== selectedTask.timing ||
+                    p.estimatedHours !== selectedTask.estimatedHours
+                  ) {
                     updateTask.mutate({
                       projectId,
                       taskId: selectedRow.id,
@@ -527,11 +519,10 @@ function TaskTimeline({
                     })
                   }
                 }}
-                onAddDependency={(predecessorId, lagDays) =>
-                  addDep.mutate({ predecessorId, successorId: selectedRow.id, lagDays })
+                onAddDependency={(predecessorId) =>
+                  addDep.mutate({ predecessorId, successorId: selectedRow.id, lagDays: 0 })
                 }
                 onRemoveDependency={(dependencyId) => removeDep.mutate({ dependencyId })}
-                onUpdateLag={(dependencyId, lagDays) => updateLag.mutate({ dependencyId, lagDays })}
                 onSetAnchor={
                   timeline.canSetKeyDate
                     ? (isAnchor) =>

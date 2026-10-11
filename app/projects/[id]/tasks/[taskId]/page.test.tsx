@@ -251,8 +251,9 @@ describe('task detail page', () => {
       "Blocked by 'Predecessor'",
     )
     expect(screen.getByRole('link', { name: 'Predecessor' })).toBeInTheDocument()
-    const depRow = (name: string) => screen.getByRole('link', { name }).closest('li') as HTMLElement
-    expect(within(depRow('Predecessor')).getByRole('spinbutton')).toBeDisabled()
+    // A link's lag still counts in the schedule, but the task page never shows or edits it.
+    expect(screen.queryByText(/lag/i)).toBeNull()
+    expect(screen.queryByRole('spinbutton')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
     const rule =
       "Post an update within 14 days. With no update we'll remind you at 14 days, warn you at 21, and release the task at 28."
@@ -282,13 +283,12 @@ describe('task detail page', () => {
     fireEvent.submit(title.closest('form')!)
     await userEvent.type(title, 'Renamed task')
     await userEvent.clear(screen.getByLabelText('Description'))
-    await userEvent.clear(screen.getByLabelText('Effort (hours of work)'))
+    await userEvent.clear(screen.getByLabelText('Effort: about'))
     fireEvent.change(screen.getByLabelText('Deadline'), { target: { value: '' } })
     fireEvent.change(screen.getByLabelText('Start (optional)'), { target: { value: '' } })
-    expect(screen.getByText(/Starts when “Predecessor” finishes/)).toBeInTheDocument()
-    // On set dates the deadline reads as the last day.
-    await userEvent.click(screen.getByRole('radio', { name: /On set dates/ }))
-    expect(screen.getByLabelText('To')).toHaveValue('')
+    expect(screen.getByText(/Starts when “Predecessor” is done/)).toBeInTheDocument()
+    expect(screen.queryByText(/follow|lag|milestone/i)).toBeNull()
+    await userEvent.click(screen.getByRole('checkbox', { name: /exact dates/ }))
     await userEvent.click(screen.getByRole('checkbox', { name: /quick task/i }))
     fireEvent.submit(title.closest('form')!)
     await screen.findByText('Task updated!')
@@ -304,41 +304,30 @@ describe('task detail page', () => {
     })
     await screen.findByRole('heading', { name: 'Renamed task' })
 
-    // The owner can make a task the key date, and everyone then sees it marked.
-    await userEvent.click(screen.getByRole('button', { name: 'Make this the key date' }))
+    // The key date is set on the timeline; even its owner only sees it stated here.
+    expect(screen.queryByRole('button', { name: /key date/ })).toBeNull()
+    expect(screen.queryByText(/key date/i)).toBeNull()
+    await prisma.workItem.update({ where: { id: task.id }, data: { isAnchor: true } })
+    cleanup()
+    await mount(project.id, task.id, owner)
     await screen.findByText('★ Key date: the date this project is planned around')
-    expect((await row(task.id)).isAnchor).toBe(true)
-    await userEvent.click(screen.getByRole('button', { name: 'Stop using this as the key date' }))
-    await screen.findByRole('button', { name: 'Make this the key date' })
-    expect((await row(task.id)).isAnchor).toBe(false)
+    expect(screen.queryByRole('button', { name: /key date/ })).toBeNull()
 
-    // Lag edits write only on change; dependencies can be removed and added.
-    const lag = within(depRow('Predecessor')).getByRole('spinbutton')
-    fireEvent.change(lag, { target: { value: '1' } })
-    fireEvent.blur(lag)
-    fireEvent.change(lag, { target: { value: '' } })
-    fireEvent.blur(lag)
-    await waitFor(async () =>
-      expect(
-        (await prisma.workItemDependency.findFirstOrThrow({ where: { successorId: task.id } }))
-          .lagDays,
-      ).toBe(0),
-    )
+    // Dependencies can be removed and added; a new link has no lag.
     await userEvent.click(await screen.findByRole('button', { name: 'Remove' }))
     await screen.findByText('Dependency removed')
-    fireEvent.submit(screen.getByLabelText('Lag (days)').closest('form')!)
+    fireEvent.submit(screen.getByLabelText('Add a dependency').closest('form')!)
     await userEvent.selectOptions(
       await screen.findByLabelText('Add a dependency'),
       String(other.id),
     )
-    await userEvent.type(screen.getByLabelText('Lag (days)'), '2')
     await userEvent.click(screen.getByRole('button', { name: 'Add' }))
     await screen.findByText('Dependency added')
     expect(
       await prisma.workItemDependency.findFirst({
         where: { predecessorId: other.id, successorId: task.id },
       }),
-    ).toMatchObject({ lagDays: 2 })
+    ).toMatchObject({ lagDays: 0 })
   })
 
   it('handles missing tasks, the no-sibling case, and failures', async () => {
@@ -394,14 +383,8 @@ describe('task detail page', () => {
     await mount(project.id, b.id, admin)
     await screen.findByRole('heading', { name: 'B' })
     await prisma.workItemDependency.delete({ where: { id: dep.id } })
-    const lag = within(
-      screen.getByRole('link', { name: 'A' }).closest('li') as HTMLElement,
-    ).getByRole('spinbutton')
-    fireEvent.change(lag, { target: { value: '3' } })
-    fireEvent.blur(lag)
-    await screen.findByText('Dependency not found')
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
-    await waitFor(() => expect(screen.getAllByText('Dependency not found')).toHaveLength(2))
+    await screen.findByText('Dependency not found')
     // The task still lists A as a predecessor (stale), so add a fresh sibling and loop through it.
     const c = await createTask(project.id, { title: 'C' })
     await prisma.workItemDependency.create({ data: { predecessorId: b.id, successorId: c.id } })
