@@ -250,7 +250,10 @@ describe('task detail page', () => {
     expect(screen.getByText('Blocked by').parentElement).toHaveTextContent(
       "Blocked by 'Predecessor'",
     )
-    expect(screen.getByRole('link', { name: 'Predecessor' })).toBeInTheDocument()
+    // What it depends on is a work item card: its own status, who has it, when it is due.
+    expect(screen.getByRole('link', { name: 'Predecessor' }).parentElement).toHaveTextContent(
+      /^PredecessorReadyUnclaimedNo deadline$/,
+    )
     // A link's lag still counts in the schedule, but the task page never shows or edits it.
     expect(screen.queryByText(/lag/i)).toBeNull()
     expect(screen.queryByRole('spinbutton')).toBeNull()

@@ -12,6 +12,7 @@ import ReplanDialog from '@/components/ReplanDialog'
 import VolunteerSelect from '@/components/VolunteerSelect'
 import { plural } from '@/lib/plural'
 import TaskDatesSummary from '@/components/TaskDatesSummary'
+import WorkItemCard from '@/components/WorkItemCard'
 import { EMPTY_DATES, datesPayload, datesValueFrom, type DatesValue } from '@/lib/task-dates'
 import { Badge } from '@/components/Badge'
 import CommentThread from '@/components/CommentThread'
@@ -491,25 +492,24 @@ export default function TaskDetailPage({
         ) : (
           <ul className="mb-4 list-none space-y-2 p-0">
             {task.predecessors.map((dep) => (
-              <li key={dep.dependencyId} className="flex flex-wrap items-center gap-3">
-                <Link
-                  href={`/projects/${projectId}/tasks/${dep.predecessorId}`}
-                  className="text-primary-text underline"
-                >
-                  {dep.predecessorTitle}
-                </Link>
-                {task.canManage && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={removeDependencyMutation.isPending}
-                    onClick={() =>
-                      removeDependencyMutation.mutate({ dependencyId: dep.dependencyId })
-                    }
-                  >
-                    Remove
-                  </Button>
-                )}
+              <li key={dep.dependencyId}>
+                <WorkItemCard
+                  item={dep.item}
+                  extra={
+                    task.canManage && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={removeDependencyMutation.isPending}
+                        onClick={() =>
+                          removeDependencyMutation.mutate({ dependencyId: dep.dependencyId })
+                        }
+                      >
+                        Remove
+                      </Button>
+                    )
+                  }
+                />
               </li>
             ))}
           </ul>

@@ -127,7 +127,15 @@ describe('projects.listTasks / getTask', () => {
       waitingOn: [{ id: a.id, title: a.title }],
     })
     expect(view.predecessors).toEqual([
-      expect.objectContaining({ predecessorId: a.id, predecessorTitle: a.title, lagDays: 0 }),
+      expect.objectContaining({
+        predecessorId: a.id,
+        predecessorTitle: a.title,
+        lagDays: 0,
+        item: expect.objectContaining({
+          id: a.id,
+          href: `/projects/${project.id}/tasks/${a.id}`,
+        }),
+      }),
     ])
     expect(view.siblingTasks).toEqual([{ id: a.id, title: a.title }])
     expect(

@@ -27,6 +27,7 @@ import {
   startWorkData,
 } from '@/lib/work-item'
 import { taskDisplayStatus, taskStatusViews } from '@/lib/task-status'
+import { loadWorkItemSummaries } from '@/lib/work-item-summary'
 import { notifyUser, notifyAdmins, notifyTeamOfProject, clearNotifications } from '@/lib/notify'
 import { keyDateSides } from '@/lib/key-date'
 import { daysPastPlan, previewReplan, replanWrite } from '@/lib/replan'
@@ -1973,6 +1974,10 @@ export const projectsRouter = {
         volunteer,
         await isProjectDeputy(project.id, volunteer.id),
       )
+      const waitsOn = await loadWorkItemSummaries(
+        predecessorRows.map((r) => r.predecessorId),
+        volunteer,
+      )
       // A reviewer's request for changes is between them and the assignee.
       const changesRequested =
         task.changesRequestedNote !== null && (canManage || task.assigneeId === volunteer.id)
@@ -2008,12 +2013,20 @@ export const projectsRouter = {
         createdByName: task.creator?.name ?? null,
         requestedByName: task.requestedBy?.name ?? null,
         featuredAsQuickTask: task.featuredAsQuickTask ?? false,
-        predecessors: predecessorRows.map((r) => ({
-          dependencyId: r.id,
-          predecessorId: r.predecessorId,
-          predecessorTitle: r.predecessor.title,
-          lagDays: r.lagDays,
-        })),
+        predecessors: predecessorRows.flatMap((r) => {
+          const item = waitsOn.get(r.predecessorId)
+          return item
+            ? [
+                {
+                  dependencyId: r.id,
+                  predecessorId: r.predecessorId,
+                  predecessorTitle: r.predecessor.title,
+                  lagDays: r.lagDays,
+                  item,
+                },
+              ]
+            : []
+        }),
         siblingTasks,
         placement,
         pastPlanDays: placement
