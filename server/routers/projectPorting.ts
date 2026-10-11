@@ -3,6 +3,7 @@ import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { env } from '@/lib/env'
 import { applyScheduleWrite, canManageProject } from '@/lib/work-item'
+import { assertProjectEditable } from '@/lib/work-item-lock'
 import { findDependencyCycle } from '@/lib/schedule'
 import { loadTaskEdges } from '@/lib/project-schedule'
 import {
@@ -138,6 +139,7 @@ export const projectPortingRouter = {
       const loaded = await loadState(input.projectId)
       if (!loaded) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
       assertCanManage(loaded.project, volunteer)
+      assertProjectEditable(loaded.project)
 
       if (hashState(loaded.state) !== input.expectedHash) {
         throw new ORPCError('CONFLICT', {

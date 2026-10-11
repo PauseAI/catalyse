@@ -33,6 +33,8 @@ import SubmitWorkButton from '@/components/SubmitWorkButton'
 import SubmittedWork from '@/components/SubmittedWork'
 import RequestChangesButton from '@/components/RequestChangesButton'
 import ReopenTaskDialog from '@/components/ReopenTaskDialog'
+import LockedProjectBanner from '@/components/LockedProjectBanner'
+import { TERMINAL_STATUSES } from '@/lib/project-status'
 
 export default function TaskDetailPage({
   params,
@@ -171,6 +173,9 @@ export default function TaskDetailPage({
     )
   }
 
+  // Nothing on a completed project changes until it is reopened (lib/work-item-lock.ts).
+  const projectLocked = TERMINAL_STATUSES.includes(task.projectStatus)
+
   return (
     <main className="container py-5 pb-15">
       <Link
@@ -179,6 +184,18 @@ export default function TaskDetailPage({
       >
         ← Back to {task.projectTitle}
       </Link>
+
+      {projectLocked && (
+        <LockedProjectBanner
+          status={task.projectStatus}
+          completedAt={task.projectCompletedAt}
+          reopen={
+            user.isAdmin || task.projectOwnerId === user.id
+              ? { projectId, title: task.projectTitle }
+              : undefined
+          }
+        />
+      )}
 
       <div className="bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word mb-5">
         <div className="flex justify-between items-start mb-3 gap-4">
@@ -360,7 +377,7 @@ export default function TaskDetailPage({
           </div>
         )}
 
-        {!handedIn(task.status) && task.assignedToId === user.id && (
+        {!projectLocked && !handedIn(task.status) && task.assignedToId === user.id && (
           <div className="mt-4 flex flex-wrap items-start gap-2">
             {task.status === TaskStatus.not_started && (
               <Button

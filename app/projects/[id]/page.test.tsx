@@ -1576,3 +1576,123 @@ describe('project page — reopening a done task', () => {
     await within(panel()).findByLabelText('Deadline')
   })
 })
+
+describe('project page — a completed project', () => {
+  /** A completed project with a helper holding a task, a deputy, and someone waiting. */
+  async function completedProject() {
+    const owner = await createVolunteer({ name: 'Olive Owner' })
+    const helper = await createVolunteer({ name: 'Hal Helper' })
+    const deputy = await createVolunteer({ name: 'Dee Deputy' })
+    const applicant = await createVolunteer({ name: 'Ann Applicant' })
+    const project = await createProject({
+      title: 'Finished campaign',
+      assigneeId: owner.id,
+      status: 'completed',
+      completedAt: new Date('2026-09-30T12:00:00Z'),
+    })
+    for (const [volunteer, status] of [
+      [helper, 'accepted'],
+      [deputy, 'accepted'],
+      [applicant, 'pending'],
+    ] as const) {
+      await prisma.workItemInterest.create({
+        data: {
+          workItemId: project.id,
+          volunteerId: volunteer.id,
+          interestType: 'want_to_contribute',
+          status,
+        },
+      })
+    }
+    await prisma.projectDeputy.create({ data: { projectId: project.id, volunteerId: deputy.id } })
+    await createTask(project.id, { title: 'Open bit' })
+    await createTask(project.id, {
+      title: 'Hal’s bit',
+      assigneeId: helper.id,
+      status: 'in_progress',
+    })
+    return { owner, helper, deputy, project }
+  }
+  const banner = () => screen.findByText('Completed on 30 September 2026. Read-only.')
+
+  it('is read-only for the owner until they reopen it', async () => {
+    const { owner, project } = await completedProject()
+    await mount(project.id, owner, '#tasks')
+    await banner()
+    await screen.findByText('Open bit')
+    expect(screen.queryByRole('link', { name: 'Edit project' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Add Task' })).toBeNull()
+    expect(screen.queryByLabelText('Task actions for Open bit')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Claim task' })).toBeNull()
+    await openTab(/People/)
+    await screen.findByText('Ann Applicant')
+    expect(screen.queryByRole('button', { name: 'Accept' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Invite' })).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reopen project' }))
+    const ask = () => screen.findByRole('dialog', { name: "Reopen 'Finished campaign'?" })
+    expect(
+      within(await ask()).getByText(
+        'It goes back to In progress, and everyone on it can change it again.',
+      ),
+    ).toBeInTheDocument()
+    await userEvent.click(within(await ask()).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    await userEvent.click(screen.getByRole('button', { name: 'Reopen project' }))
+    await userEvent.click(within(await ask()).getByRole('button', { name: 'Reopen' }))
+    await screen.findByText('Reopened. The project can be changed again.')
+    expect(await row(project.id)).toMatchObject({ status: 'in_progress', completedAt: null })
+    await screen.findByRole('link', { name: 'Edit project' })
+    expect(screen.queryByText(/Read-only/)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Reopen project' })).toBeNull()
+    await screen.findByRole('button', { name: 'Accept' })
+  })
+
+  it('a helper cannot leave, claim or submit, and sees no Reopen', async () => {
+    const { helper, project } = await completedProject()
+    await mount(project.id, helper, '#tasks')
+    await banner()
+    await screen.findByText('Open bit')
+    expect(screen.queryByRole('button', { name: 'Leave project' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Claim task' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Submit/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Reopen project' })).toBeNull()
+  })
+
+  it('a deputy cannot reopen it or run its tasks', async () => {
+    const { deputy, project } = await completedProject()
+    await mount(project.id, deputy, '#people')
+    await banner()
+    await screen.findByText('Hal Helper')
+    expect(screen.queryByRole('button', { name: 'Step down' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Reopen project' })).toBeNull()
+    expect(screen.queryByLabelText('Task actions for Open bit')).toBeNull()
+  })
+
+  it('an admin reopens it, and sees why a reopen failed', async () => {
+    const { project } = await completedProject()
+    const admin = await createAdmin()
+    await mount(project.id, admin)
+    await banner()
+    expect(screen.queryByLabelText('Ownership actions')).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Reopen project' }))
+    const ask = await screen.findByRole('dialog', { name: "Reopen 'Finished campaign'?" })
+    // Taken off the admin list in the meantime.
+    await prisma.volunteer.update({ where: { id: admin.id }, data: { isAdmin: false } })
+    await userEvent.click(within(ask).getByRole('button', { name: 'Reopen' }))
+    await screen.findByText('Not authorized to edit this project')
+    expect(await row(project.id)).toMatchObject({ status: 'completed' })
+  })
+
+  it('says when an archived or undated project was finished', async () => {
+    const owner = await createVolunteer()
+    const archived = await createProject({ assigneeId: owner.id, status: 'archived' })
+    await mount(archived.id, owner)
+    await screen.findByText('Archived. Read-only.')
+    cleanup()
+    const undated = await createProject({ assigneeId: owner.id, status: 'completed' })
+    await mount(undated.id, owner)
+    await screen.findByText('Completed. Read-only.')
+  })
+})

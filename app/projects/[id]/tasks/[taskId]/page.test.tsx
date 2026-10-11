@@ -597,3 +597,65 @@ describe('task detail page — a done task', () => {
     await screen.findByText('This task is not done')
   })
 })
+
+describe('task detail page — a completed project', () => {
+  it('is read-only for its assignee, and the owner reopens the project from here', async () => {
+    const owner = await createVolunteer({ name: 'Olive' })
+    const sam = await createVolunteer({ name: 'Sam' })
+    const project = await createProject({
+      title: 'Finished campaign',
+      assigneeId: owner.id,
+      status: 'completed',
+      completedAt: new Date('2026-09-30T12:00:00Z'),
+    })
+    const task = await createTask(project.id, {
+      title: 'Print flyers',
+      status: 'not_started',
+      assigneeId: sam.id,
+    })
+
+    await mount(project.id, task.id, sam)
+    await screen.findByText('Completed on 30 September 2026. Read-only.')
+    expect(screen.queryByRole('button', { name: 'Start' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Submit/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Reopen project' })).toBeNull()
+
+    cleanup()
+    await mount(project.id, task.id, owner)
+    await screen.findByText('Completed on 30 September 2026. Read-only.')
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Reopen project' }))
+    const ask = await screen.findByRole('dialog', { name: "Reopen 'Finished campaign'?" })
+    await userEvent.click(within(ask).getByRole('button', { name: 'Reopen' }))
+    await screen.findByText('Reopened. The project can be changed again.')
+    expect(await row(project.id)).toMatchObject({ status: 'in_progress' })
+    await screen.findByRole('button', { name: 'Edit' })
+    expect(screen.queryByText(/Read-only/)).toBeNull()
+  })
+
+  it('offers an admin Reopen, but not a deputy', async () => {
+    const owner = await createVolunteer()
+    const deputy = await createVolunteer()
+    const project = await createProject({ assigneeId: owner.id, status: 'archived' })
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: project.id,
+        volunteerId: deputy.id,
+        interestType: 'want_to_contribute',
+        status: 'accepted',
+      },
+    })
+    await prisma.projectDeputy.create({ data: { projectId: project.id, volunteerId: deputy.id } })
+    const task = await createTask(project.id, { title: 'Sweep up' })
+
+    await mount(project.id, task.id, deputy)
+    await screen.findByText('Archived. Read-only.')
+    expect(screen.queryByRole('button', { name: 'Reopen project' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Claim task' })).toBeNull()
+
+    cleanup()
+    await mount(project.id, task.id, await createAdmin())
+    await screen.findByText('Archived. Read-only.')
+    await screen.findByRole('button', { name: 'Reopen project' })
+  })
+})

@@ -7,7 +7,7 @@ import {
   canManageProjectTasks,
   isProjectDeputy,
 } from '@/lib/work-item'
-import { assertTaskEditable } from '@/lib/work-item-lock'
+import { assertProjectEditable, assertTaskEditable } from '@/lib/work-item-lock'
 import { approvedProcedure } from '../procedures'
 import { WorkItemType } from '@/generated/prisma/enums'
 
@@ -87,6 +87,7 @@ export const scheduleRouter = {
             message: 'You cannot reschedule work on this project',
           })
         }
+        assertProjectEditable(project)
       }
       for (const w of items) if (w.type === WorkItemType.TASK) assertTaskEditable(w)
 

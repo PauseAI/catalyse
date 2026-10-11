@@ -9,7 +9,7 @@ import {
   isProjectDeputy,
   resolveProjectPrivy,
 } from '@/lib/work-item'
-import { assertTaskEditable } from '@/lib/work-item-lock'
+import { assertProjectEditable, assertTaskEditable } from '@/lib/work-item-lock'
 import { loadProjectEdges, loadTaskEdges } from '@/lib/project-schedule'
 import { findDependencyCycle, type ScheduleEdge } from '@/lib/schedule'
 import { approvedProcedure } from '../procedures'
@@ -114,6 +114,7 @@ async function resolveLink(
         message: 'Only the project owner, a deputy or an admin can link its tasks',
       })
     }
+    assertProjectEditable(project)
     assertTaskEditable(successor)
   } else {
     if (!canManageProject(successor, volunteer)) {
@@ -121,6 +122,8 @@ async function resolveLink(
         message: 'Only the owner or an admin of the dependent project can add this link',
       })
     }
+    // Like a done task, a locked project keeps what it waited on; what waits on it is not its own.
+    assertProjectEditable(successor)
     const privy = await resolveProjectPrivy(predecessor, viewer)
     if (!canViewWorkItem(predecessor, viewer, undefined, privy)) {
       throw new ORPCError('NOT_FOUND', { message: 'One or both items were not found' })

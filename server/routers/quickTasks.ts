@@ -17,6 +17,7 @@ import {
   submissionData,
 } from '@/lib/work-item'
 import { adminProcedure, approvedProcedure, authedProcedure } from '../procedures'
+import { TERMINAL_STATUSES } from '@/lib/project-status'
 import { ApprovalStatus, QuickTaskStatus, TaskStatus, WorkItemType } from '@/generated/prisma/enums'
 
 export const quickTasksRouter = {
@@ -120,6 +121,7 @@ export const quickTasksRouter = {
           requestedById: null,
           featuredAsQuickTask: true,
           parentId: { not: null, notIn: blockedProjectIds },
+          parent: { status: { notIn: TERMINAL_STATUSES } },
         },
         include: {
           parent: { select: { id: true, title: true, teamId: true, assigneeId: true } },

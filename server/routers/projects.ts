@@ -27,7 +27,12 @@ import {
   CLEARED_SUBMISSION,
   startWorkData,
 } from '@/lib/work-item'
-import { assertTaskEditable } from '@/lib/work-item-lock'
+import {
+  assertProjectEditable,
+  assertTaskEditable,
+  isProjectLocked,
+  projectEditable,
+} from '@/lib/work-item-lock'
 import { taskDisplayStatus, taskStatusViews } from '@/lib/task-status'
 import { loadWorkItemSummaries } from '@/lib/work-item-summary'
 import { notifyUser, notifyAdmins, notifyTeamOfProject, clearNotifications } from '@/lib/notify'
@@ -957,15 +962,18 @@ export const projectsRouter = {
           }
         : null
 
+      // Nothing on a locked project can be claimed, created or managed until it is reopened.
+      const locked = isProjectLocked(project)
       const canClaimTasks =
-        isAssignee ||
-        Boolean(volunteer.isAdmin) ||
-        !(await isBlockedFromClaiming(input.id, volunteer.id))
+        !locked &&
+        (isAssignee ||
+          Boolean(volunteer.isAdmin) ||
+          !(await isBlockedFromClaiming(input.id, volunteer.id)))
 
       const isMember =
         (project.teamId !== null && viewerTeamIds.has(project.teamId)) ||
         myInterest?.status === InterestStatus.accepted
-      const canCreateTasks = canCreateProjectTask(project, volunteer, isMember)
+      const canCreateTasks = !locked && canCreateProjectTask(project, volunteer, isMember)
 
       // A lightweight, non-sensitive roster (name + role only, no application message/bio)
       // any member can see — unlike `interests`, which carries pending applicants' private
@@ -986,7 +994,7 @@ export const projectsRouter = {
           isDeputy: deputyIds.has(h.volunteerId),
         }))
       const isDeputy = deputyIds.has(volunteer.id)
-      const canManageTasks = canManageProjectTasks(project, volunteer, isDeputy)
+      const canManageTasks = !locked && canManageProjectTasks(project, volunteer, isDeputy)
 
       // Change requests are between the admins and whoever proposed or runs the project.
       const canSeeReview =
@@ -1088,8 +1096,20 @@ export const projectsRouter = {
         throw new ORPCError('FORBIDDEN', { message: 'Not authorized to edit this project' })
       }
 
-      const body = input
+      // A locked project takes one change, a new status from its owner or an admin, and nothing
+      // else that was sent with it. A status out of completed or archived reopens it.
+      const locked = isProjectLocked(project)
+      if (locked) {
+        const canMove =
+          input.status !== undefined &&
+          input.status !== project.status &&
+          (Boolean(volunteer.isAdmin) ||
+            (isAssignee && OWNER_ALLOWED_STATUSES.includes(input.status as ProjectStatus)))
+        if (!canMove) assertProjectEditable(project)
+      }
+      const body: typeof input = locked ? { id: input.id, status: input.status } : input
       const newStatus = body.status
+      const reopening = locked && !isProjectLocked({ status: newStatus as string })
 
       // Until an admin has triaged it, a proposal's status is the admins' to change; the
       // proposer's one move, submitting a draft, goes through publishDraft.
@@ -1104,10 +1124,12 @@ export const projectsRouter = {
         })
       }
 
+      // Reopening a finished project brings back its work as it was, done tasks and all.
       if (
         newStatus &&
         newStatus === ProjectStatus.in_progress &&
-        project.status !== ProjectStatus.in_progress
+        project.status !== ProjectStatus.in_progress &&
+        !reopening
       ) {
         const openTaskCount = await prisma.workItem.count({
           where: {
@@ -1236,6 +1258,11 @@ export const projectsRouter = {
       if (TERMINAL_STATUSES.includes(data.status as string)) {
         if (data.isSeekingHelp === undefined) data.isSeekingHelp = false
       }
+      if (data.status === ProjectStatus.completed && project.status !== ProjectStatus.completed) {
+        data.completedAt = new Date()
+      } else if (reopening) {
+        data.completedAt = null
+      }
 
       data.updatedAt = new Date()
       await prisma.workItem.update({ where: { id: input.id }, data })
@@ -1264,6 +1291,16 @@ export const projectsRouter = {
             })),
           })
         }
+      }
+
+      if (reopening) {
+        await prisma.workItemComment.create({
+          data: {
+            workItemId: project.id,
+            authorId: volunteer.id,
+            content: `Reopened by ${volunteer.name}`,
+          },
+        })
       }
 
       // Covers the implicit ready ⇄ in_progress moves above, not just an explicit pick.
@@ -1319,6 +1356,7 @@ export const projectsRouter = {
 
   expressInterest: confirmedProcedure
     .input(z.object({ projectId: z.number().int() }).merge(ProjectInterestBodySchema))
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
@@ -1393,6 +1431,7 @@ export const projectsRouter = {
 
   withdrawInterest: authedProcedure
     .input(z.object({ projectId: z.number().int() }))
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const result = await prisma.workItemInterest.updateMany({
         where: {
@@ -1423,6 +1462,7 @@ export const projectsRouter = {
         responseMessage: z.string().optional().nullable(),
       }),
     )
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
@@ -1539,6 +1579,7 @@ export const projectsRouter = {
         message: z.string().trim().max(1000).optional().nullable(),
       }),
     )
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const inviter = context.volunteer
       const project = await prisma.workItem.findFirst({
@@ -1636,6 +1677,7 @@ export const projectsRouter = {
   /** The invited volunteer says yes or no; whoever invited them is told. */
   respondToInvite: authedProcedure
     .input(z.object({ projectId: z.number().int(), accept: z.boolean() }))
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const me = context.volunteer
       const interest = await prisma.workItemInterest.findFirst({
@@ -1676,6 +1718,7 @@ export const projectsRouter = {
   /** The owner or an admin takes back an invite nobody has answered yet. */
   cancelInvite: authedProcedure
     .input(z.object({ projectId: z.number().int(), interestId: z.number().int() }))
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
@@ -1707,6 +1750,7 @@ export const projectsRouter = {
         interestType: z.string().optional().default('want_to_contribute'),
       }),
     )
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
@@ -1783,9 +1827,7 @@ export const projectsRouter = {
           where: { id: input.projectId },
           data: {
             assigneeId: input.volunteerId,
-            status: TERMINAL_STATUSES.includes(project.status)
-              ? project.status
-              : ProjectStatus.in_progress,
+            status: ProjectStatus.in_progress,
             updatedAt: new Date(),
           },
         })
@@ -1835,6 +1877,7 @@ export const projectsRouter = {
       ) {
         throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
       }
+      const locked = isProjectLocked(project)
 
       const tasks = await prisma.workItem.findMany({
         where: { parentId: input.projectId, type: WorkItemType.TASK },
@@ -1887,17 +1930,21 @@ export const projectsRouter = {
         // Sent so the client can recompute this exact schedule while a drag is in flight.
         scopeOrigin: origin,
         projectDeadline: project.deadline,
-        canSetKeyDate: canManageProject(project, volunteer),
-        canManageTasks: canManageProjectTasks(
-          project,
-          volunteer,
-          await isProjectDeputy(project.id, volunteer.id),
-        ),
-        canCreateTasks: canCreateProjectTask(
-          project,
-          volunteer,
-          await resolveProjectMembership(project.teamId, project.id, volunteer.id),
-        ),
+        canSetKeyDate: !locked && canManageProject(project, volunteer),
+        canManageTasks:
+          !locked &&
+          canManageProjectTasks(
+            project,
+            volunteer,
+            await isProjectDeputy(project.id, volunteer.id),
+          ),
+        canCreateTasks:
+          !locked &&
+          canCreateProjectTask(
+            project,
+            volunteer,
+            await resolveProjectMembership(project.teamId, project.id, volunteer.id),
+          ),
       }
     }),
 
@@ -1938,10 +1985,12 @@ export const projectsRouter = {
         throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
       }
 
+      const locked = isProjectLocked(project)
       const canClaim =
-        project.assigneeId === volunteer.id ||
-        Boolean(volunteer.isAdmin) ||
-        !(await isBlockedFromClaiming(input.projectId, volunteer.id))
+        !locked &&
+        (project.assigneeId === volunteer.id ||
+          Boolean(volunteer.isAdmin) ||
+          !(await isBlockedFromClaiming(input.projectId, volunteer.id)))
 
       const predecessorRows = await prisma.workItemDependency.findMany({
         where: { successorId: input.taskId },
@@ -1960,7 +2009,7 @@ export const projectsRouter = {
           ).schedule.byId.get(task.id) ?? null)
         : null
 
-      const canManage = canManageProjectTasks(
+      const manages = canManageProjectTasks(
         project,
         volunteer,
         await isProjectDeputy(project.id, volunteer.id),
@@ -1971,7 +2020,7 @@ export const projectsRouter = {
       )
       // A reviewer's request for changes is between them and the assignee.
       const changesRequested =
-        task.changesRequestedNote !== null && (canManage || task.assigneeId === volunteer.id)
+        task.changesRequestedNote !== null && (manages || task.assigneeId === volunteer.id)
           ? {
               message: task.changesRequestedNote,
               byName: task.reviewedBy
@@ -1995,9 +2044,11 @@ export const projectsRouter = {
         autoAcceptTasks: project.autoAcceptTasks,
         projectTitle: project.title,
         projectOwnerId: project.assigneeId,
+        projectStatus: project.status,
+        projectCompletedAt: project.completedAt,
         canClaim,
         claimViewer: await resolveClaimViewer(project, volunteer),
-        canManage,
+        canManage: !locked && manages,
         assignedToName: task.assignee?.name ?? null,
         assigneeContactable:
           task.assigneeId !== null && (await canReach(volunteer, task.assigneeId)),
@@ -2026,12 +2077,13 @@ export const projectsRouter = {
             })
           : null,
         // The key date is the owner's, not a deputy's (the update enforces the same).
-        canSetKeyDate: canManageProject(project, volunteer),
+        canSetKeyDate: !locked && canManageProject(project, volunteer),
       }
     }),
 
   createTask: approvedProcedure
     .input(z.object({ projectId: z.number().int() }).merge(CreateProjectTaskSchema))
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
@@ -2087,6 +2139,7 @@ export const projectsRouter = {
         items: z.array(z.object({ id: z.number().int(), sortOrder: z.number().int() })),
       }),
     )
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
@@ -2123,6 +2176,7 @@ export const projectsRouter = {
     .input(
       z.object({ projectId: z.number().int(), includeTasks: z.boolean().optional().default(true) }),
     )
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
@@ -2232,6 +2286,7 @@ export const projectsRouter = {
         data: UpdateProjectTaskSchema,
       }),
     )
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
 
@@ -2420,6 +2475,7 @@ export const projectsRouter = {
   /** The assignee says they have begun. Allowed while Blocked too: prep can start early. */
   startTask: approvedProcedure
     .input(z.object({ projectId: z.number().int(), taskId: z.number().int() }))
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const { task } = await findProjectTask(input.projectId, input.taskId)
       if (task.assigneeId !== context.volunteer.id) {
@@ -2445,6 +2501,7 @@ export const projectsRouter = {
     .input(
       z.object({ projectId: z.number().int(), taskId: z.number().int() }).merge(SubmitWorkSchema),
     )
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const { project, task } = await findProjectTask(input.projectId, input.taskId)
@@ -2524,6 +2581,7 @@ export const projectsRouter = {
 
   acceptTask: approvedProcedure
     .input(z.object({ projectId: z.number().int(), taskId: z.number().int() }))
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const { task, isDeputy } = await findTaskToReview(input.projectId, input.taskId, volunteer)
@@ -2558,6 +2616,7 @@ export const projectsRouter = {
         .object({ projectId: z.number().int(), taskId: z.number().int() })
         .merge(RequestChangesSchema),
     )
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const { task, isDeputy } = await findTaskToReview(input.projectId, input.taskId, volunteer)
@@ -2595,6 +2654,7 @@ export const projectsRouter = {
    */
   reopenTask: approvedProcedure
     .input(z.object({ projectId: z.number().int(), taskId: z.number().int() }))
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const { project, task } = await findProjectTask(input.projectId, input.taskId)
@@ -2656,6 +2716,7 @@ export const projectsRouter = {
         assigneeId: z.number().int(),
       }),
     )
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const [project, task] = await Promise.all([
@@ -2736,6 +2797,7 @@ export const projectsRouter = {
         reason: z.string().trim().min(1, { message: 'Say why the plan is changing' }).max(500),
       }),
     )
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
@@ -2809,6 +2871,7 @@ export const projectsRouter = {
 
   deleteTask: approvedProcedure
     .input(z.object({ projectId: z.number().int(), taskId: z.number().int() }))
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
@@ -2840,6 +2903,7 @@ export const projectsRouter = {
   /** The owner (or an admin) hands an accepted helper the management of the project's tasks. */
   appointDeputy: approvedProcedure
     .input(z.object({ projectId: z.number().int(), volunteerId: z.number().int() }))
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
@@ -2882,6 +2946,7 @@ export const projectsRouter = {
 
   removeDeputy: approvedProcedure
     .input(z.object({ projectId: z.number().int(), volunteerId: z.number().int() }))
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
@@ -2906,6 +2971,7 @@ export const projectsRouter = {
 
   stepDownAsDeputy: approvedProcedure
     .input(z.object({ projectId: z.number().int() }))
+    .use(projectEditable, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({

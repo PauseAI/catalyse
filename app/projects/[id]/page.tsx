@@ -66,6 +66,7 @@ import BaselineDialog from '@/components/gantt/BaselineDialog'
 import ReplanDialog from '@/components/ReplanDialog'
 import { PlanningTools } from '@/components/gantt/GanttLegend'
 import ProjectPorting from '@/components/ProjectPorting'
+import LockedProjectBanner, { ReopenProjectButton } from '@/components/LockedProjectBanner'
 import SaveAsTemplateButton from '@/components/SaveAsTemplateButton'
 import { scheduleWithPatches } from '@/components/gantt/optimistic'
 import { startOfUtcDay } from '@/lib/schedule'
@@ -1081,8 +1082,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const proposer = proposerDisplay(project)
   const isOwnerOrAdmin = isOwner || isAdmin
   const isDeputy = project.isDeputy
+  // A completed or archived project is read-only until its owner or an admin reopens it.
+  const locked = TERMINAL_STATUSES.includes(project.status)
   // A deputy runs the project's tasks and nothing else about it.
-  const canRunTasks = isOwnerOrAdmin || isDeputy
+  const canRunTasks = !locked && (isOwnerOrAdmin || isDeputy)
   // A draft has no owner yet, so its creator manages its own tasks until they publish it.
   const isDraftCreator = project.status === 'draft' && project.proposedById === user.id
   const canManageProject = isOwnerOrAdmin || isDraftCreator
@@ -1106,7 +1109,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     !TERMINAL_STATUSES.includes(project.status)
 
   // Until an admin approves it, a proposal's status is the admins' to change.
-  const canPickStatus = isAdmin || (isOwner && !UNAPPROVED_STATUSES.includes(project.status))
+  // An owner takes a locked project back with Reopen; an admin keeps the picker, to archive it.
+  const canPickStatus =
+    isAdmin || (isOwner && !locked && !UNAPPROVED_STATUSES.includes(project.status))
   const pickableStatuses = isAdmin ? [...OWNER_STATUSES, ...ADMIN_EXTRA_STATUSES] : OWNER_STATUSES
   // Every status is pickable by someone now, but an owner viewing a project an admin put
   // into an admin-only status still needs the control to show its real current value.
@@ -1172,7 +1177,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 : interestHistoryLabel(interest.origin, interest.status)}
         </div>
       </div>
-      {interest.status === InterestStatus.pending ? (
+      {locked ? null : interest.status === InterestStatus.pending ? (
         <div className="flex gap-2 shrink-0">
           <Button size="sm" onClick={() => handleAcceptInterest(interest.id)}>
             Accept
@@ -1432,7 +1437,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                           : 'Helper'}
                     </div>
                   </div>
-                  {helper.volunteerId === user.id && helper.isDeputy && (
+                  {!locked && helper.volunteerId === user.id && helper.isDeputy && (
                     <Button
                       variant="secondary"
                       size="sm"
@@ -1480,7 +1485,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </details>
           )}
 
-          {volunteers.length > 0 && (
+          {!locked && volunteers.length > 0 && (
             <form
               onSubmit={handleInvite}
               className="flex flex-col gap-2 mt-3 pt-3 border-t border-brand-border"
@@ -1537,7 +1542,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       {canSeeInterest && (!project.myInterest || canApplyAgain) && (
         <Button onClick={() => setShowJoin(true)}>Join this project</Button>
       )}
-      {myStatus === InterestStatus.pending && (
+      {!locked && myStatus === InterestStatus.pending && (
         <>
           <span className="text-sm" aria-label="interest status">
             Request sent: waiting for the owner
@@ -1547,7 +1552,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </Button>
         </>
       )}
-      {myStatus === InterestStatus.accepted && (
+      {!locked && myStatus === InterestStatus.accepted && (
         <>
           <span className="text-sm" aria-label="interest status">
             You&apos;re on this project
@@ -1752,7 +1757,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       }
       actions={
         <>
-          {isAdmin && volunteers.length > 0 && (
+          {isAdmin && !locked && volunteers.length > 0 && (
             <ActionMenu ariaLabel="Ownership actions">
               {(close) => (
                 <>
@@ -1849,6 +1854,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           {projectStatusLabel(project.status)}
         </Badge>
       )}
+      {locked && isOwnerOrAdmin && (
+        <ReopenProjectButton projectId={project.id} title={project.title} />
+      )}
       {project.isSeekingOwner && <Badge variant="caution">Seeking Owner</Badge>}
       {project.isSeekingHelp && <Badge variant="caution">Seeking Help</Badge>}
       {project.needsTasks && <Badge variant="warning">Needs Tasks</Badge>}
@@ -1857,9 +1865,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   const actionsBlock = canManageProject && (
     <>
-      <Button href={`/projects/${idParam}/edit`} variant="secondary" size="sm">
-        Edit project
-      </Button>
+      {!locked && (
+        <Button href={`/projects/${idParam}/edit`} variant="secondary" size="sm">
+          Edit project
+        </Button>
+      )}
       <details className="relative">
         <summary className="list-none cursor-pointer text-sm font-medium px-3 py-1.5 rounded-md border border-brand-border hover:bg-accent">
           More <span aria-hidden="true">▾</span>
@@ -1915,6 +1925,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         <div className="min-w-0">
           {/* Notices and admin forms keep a reading measure while the tab below runs wide. */}
           <div className="max-w-3xl">
+            {locked && (
+              <LockedProjectBanner status={project.status} completedAt={project.completedAt} />
+            )}
             {adminCards}
             <ChangesRequestedBanner
               projectId={project.id}
@@ -1922,7 +1935,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               canResubmit={isOwner || project.proposedById === user.id}
               editHref={`/projects/${idParam}/edit`}
             />
-            {project.myInterest?.status === InterestStatus.invited && (
+            {!locked && project.myInterest?.status === InterestStatus.invited && (
               <ProjectInviteBanner
                 projectId={project.id}
                 invitedByName={project.myInterest.invitedByName}
@@ -2284,22 +2297,24 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                         {claimLabel(project.claimViewer)}
                                       </Button>
                                     )}
-                                  {!handedIn(task.status) && task.assignedToId === user.id && (
-                                    <SubmitWorkButton
-                                      target={{
-                                        kind: 'project',
-                                        projectId: project.id,
-                                        taskId: task.id,
-                                      }}
-                                      reviewer={
-                                        awaitsOwnerReview(project, canRunTasks)
-                                          ? 'The project owner'
-                                          : null
-                                      }
-                                      size="sm"
-                                      variant="secondary"
-                                    />
-                                  )}
+                                  {!locked &&
+                                    !handedIn(task.status) &&
+                                    task.assignedToId === user.id && (
+                                      <SubmitWorkButton
+                                        target={{
+                                          kind: 'project',
+                                          projectId: project.id,
+                                          taskId: task.id,
+                                        }}
+                                        reviewer={
+                                          awaitsOwnerReview(project, canRunTasks)
+                                            ? 'The project owner'
+                                            : null
+                                        }
+                                        size="sm"
+                                        variant="secondary"
+                                      />
+                                    )}
                                   {task.status === TaskStatus.under_review && canRunTasks && (
                                     <Button
                                       variant="secondary"
@@ -2312,6 +2327,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                 </>
                               }
                               menu={
+                                !locked &&
                                 (canAssign || canManageTasks || task.createdById === user.id) && (
                                   <ActionMenu ariaLabel={`Task actions for ${task.title}`}>
                                     {(close) => (
