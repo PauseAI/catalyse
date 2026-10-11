@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import Button from '@/components/Button'
 import Linkify from '@/components/Linkify'
 import Tooltip from '@/components/Tooltip'
 import { formatDateShort } from '@/lib/format-date'
 import DatesBlock from '@/components/DatesBlock'
+import WorkItemCard from '@/components/WorkItemCard'
+import type { WorkItemSummary } from '@/lib/work-item-summary'
 import { daysPastPlan } from '@/lib/replan'
 import { plural } from '@/lib/plural'
 import { ASSIGN_PICKED, UNASSIGN, claimLabel, type ClaimViewer } from '@/lib/action-labels'
@@ -36,6 +38,7 @@ export type PanelPredecessor = {
   dependencyId: number
   predecessorId: number
   predecessorTitle: string
+  item: WorkItemSummary
 }
 
 /** One label/value line in the summary. Values wrap under themselves rather than into the label. */
@@ -60,7 +63,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 /**
  * The click-a-bar side panel — and the keyboard/screen-reader-complete way to do everything the
- * drag gestures do: set or clear the pinned start, change the duration, and manage links.
+ * drag gestures do: set or clear the pinned start and change the duration here, and links and
+ * the key date through `planMenu`.
  */
 export default function GanttItemPanel({
   row,
@@ -68,14 +72,11 @@ export default function GanttItemPanel({
   description,
   assigneeName,
   canManage,
-  siblings,
   predecessors,
   busy,
   onClose,
   onSaveDates,
-  onAddDependency,
-  onRemoveDependency,
-  onSetAnchor,
+  planMenu,
   onReplan,
   onReopen,
   assignment,
@@ -86,14 +87,12 @@ export default function GanttItemPanel({
   description?: string | null
   assigneeName?: string | null
   canManage: boolean
-  siblings: { id: number; title: string }[]
   predecessors: PanelPredecessor[]
   busy?: boolean
   onClose: () => void
   onSaveDates: (patch: DatesPayload) => void
-  onAddDependency: (predecessorId: number) => void
-  onRemoveDependency: (dependencyId: number) => void
-  onSetAnchor?: (isAnchor: boolean) => void
+  /** The Plan menu (GanttPlanMenu); omit for a viewer who cannot change the plan. */
+  planMenu?: ReactNode
   /** Opens the replan dialog for a task that has run past its plan; omit where it cannot. */
   onReplan?: () => void
   /** Asks to reopen a done task; omit for a viewer who cannot. */
@@ -102,7 +101,6 @@ export default function GanttItemPanel({
   assignment?: PanelAssignment
 }) {
   const [draft, setDraft] = useState(dates)
-  const [newPred, setNewPred] = useState('')
   const [pickedAssignee, setPickedAssignee] = useState('')
 
   useEffect(() => {
@@ -127,16 +125,16 @@ export default function GanttItemPanel({
 
   const span = windowText(p.start, p.end)
 
-  const taken = new Set(predecessors.map((d) => d.predecessorId))
-  const addable = siblings.filter((s) => !taken.has(s.id) && s.id !== row.id)
-
   return (
     <aside className="border-brand-border bg-surface rounded-lg border p-4">
       <div className="mb-3 flex items-start justify-between gap-2">
         <h3 className="m-0 text-base leading-snug">{row.label}</h3>
-        <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close panel">
-          ×
-        </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          {planMenu}
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close panel">
+            ×
+          </Button>
+        </div>
       </div>
 
       {/* Chips carry the facts that are true of the whole item, so the table below stays dates. */}
@@ -280,24 +278,6 @@ export default function GanttItemPanel({
               disabled={busy}
             />
 
-            {/* The key date belongs with the dates it governs, not in a section of its own. */}
-            {onSetAnchor && (
-              <label className="mb-3 flex items-center gap-2 font-normal">
-                <input
-                  type="checkbox"
-                  className="w-auto"
-                  checked={p.isAnchor}
-                  disabled={busy}
-                  onChange={(e) => onSetAnchor(e.target.checked)}
-                />
-                <Tooltip content={ANCHOR_HINT}>
-                  <span className="text-sm decoration-dotted underline-offset-2 [text-decoration-line:underline]">
-                    Key date — a fixed point the plan is built around
-                  </span>
-                </Tooltip>
-              </label>
-            )}
-
             <div className="flex flex-wrap items-center gap-2">
               <Button type="submit" size="sm" disabled={busy}>
                 Save
@@ -327,58 +307,13 @@ export default function GanttItemPanel({
         {predecessors.length === 0 ? (
           <p className="text-text-light m-0 text-sm">Nothing — can start whenever.</p>
         ) : (
-          <ul className="m-0 list-none space-y-2 p-0 text-sm">
+          <ul className="m-0 list-none space-y-2 p-0">
             {predecessors.map((d) => (
-              <li
-                key={d.dependencyId}
-                className="border-brand-border flex items-center justify-between gap-2 rounded-md border px-3 py-2"
-              >
-                <p className="m-0 leading-snug">{d.predecessorTitle}</p>
-                {canEdit && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => onRemoveDependency(d.dependencyId)}
-                    aria-label={`Remove dependency on ${d.predecessorTitle}`}
-                  >
-                    Remove
-                  </Button>
-                )}
+              <li key={d.dependencyId}>
+                <WorkItemCard item={d.item} variant="compact" />
               </li>
             ))}
           </ul>
-        )}
-
-        {canEdit && addable.length > 0 && (
-          <form
-            className="mt-3"
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (!newPred) return
-              onAddDependency(parseInt(newPred, 10))
-              setNewPred('')
-            }}
-          >
-            <label htmlFor="panel-add-pred">Add a dependency</label>
-            <select
-              id="panel-add-pred"
-              value={newPred}
-              onChange={(e) => setNewPred(e.target.value)}
-            >
-              <option value="">Select…</option>
-              {addable.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.title}
-                </option>
-              ))}
-            </select>
-            <div className="mt-2">
-              <Button type="submit" size="sm" disabled={!newPred || busy}>
-                Add
-              </Button>
-            </div>
-          </form>
         )}
       </Section>
 

@@ -61,6 +61,16 @@ confusing than it needed to be, and that will do so again.
       per-run database prefix and reports directory in `test/pg.ts` and `scripts/test-unit.ts`
       (from an env var or the pid) would let runs overlap.
 
+- [ ] **Component tests that remount a page as a different user read the previous user's
+      cached query first, so a `getBy…` right after the remount sees stale data.** It cost
+      a debugging round in R-06 and two more in R-08 (the owner's buttons, then the
+      "waiting" count). P4-07's task page test found no Reopen button straight after
+      remounting as the owner, and after reopening saw the old Done state come back. P4-11's
+      timeline test, remounting after marking a task done in the database, still drew the
+      not-done task's Plan menu until it called `queryClient.clear()`.
+      `renderApp` could start each mount with an empty query cache, or `test/render.tsx`
+      could say to use `findBy…` after a remount.
+
 ## 2x
 
 - [ ] **A `null`-target guard written for a dialog's confirm or dismiss handler
@@ -86,14 +96,6 @@ confusing than it needed to be, and that will do so again.
       hand-run `psql` from the owner, because editing an applied migration is blocked. P4-05's
       enum rename diff carried it again. `scripts/new-migration.ts` should strip that
       statement from the diff it writes.
-
-- [ ] **Component tests that remount a page as a different user read the previous user's
-      cached query first, so a `getBy…` right after the remount sees stale data.** It cost
-      a debugging round in R-06 and two more in R-08 (the owner's buttons, then the
-      "waiting" count). P4-07's task page test found no Reopen button straight after
-      remounting as the owner, and after reopening saw the old Done state come back.
-      `renderApp` could start each mount with an empty query cache, or `test/render.tsx`
-      could say to use `findBy…` after a remount.
 
 ## 1x
 

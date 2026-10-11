@@ -6,6 +6,7 @@ import type { ScheduledItem } from '@/lib/schedule'
 import GanttChart, { inStartOrder, lockYForBarDrags } from './GanttChart'
 import GanttLegend, { PlanningTools } from './GanttLegend'
 import GanttItemPanel from './GanttItemPanel'
+import GanttPlanMenu, { type GanttPlan } from './GanttPlanMenu'
 import BaselineDialog from './BaselineDialog'
 import GanttDependencyLayer from './GanttDependencyLayer'
 import { barTone, barFill } from './palette'
@@ -649,17 +650,26 @@ describe('GanttItemPanel', () => {
     },
     description: 'Print them',
     assigneeName: null,
-    siblings: [
-      { id: 1, title: 'Book venue' },
-      { id: 2, title: 'Print flyers' },
-      { id: 3, title: 'Launch' },
+    predecessors: [
+      {
+        dependencyId: 10,
+        predecessorId: 1,
+        predecessorTitle: 'Book venue',
+        item: {
+          id: 1,
+          projectId: 1,
+          title: 'Book venue',
+          type: 'TASK' as const,
+          displayStatus: 'completed',
+          assigneeName: 'Ann',
+          deadline: day('2026-06-03'),
+          completedAt: day('2026-06-03'),
+          href: '/projects/1/tasks/1',
+        },
+      },
     ],
-    predecessors: [{ dependencyId: 10, predecessorId: 1, predecessorTitle: 'Book venue' }],
     onClose: vi.fn(),
     onSaveDates: vi.fn(),
-    onAddDependency: vi.fn(),
-    onRemoveDependency: vi.fn(),
-    onSetAnchor: vi.fn(),
   }
 
   it('shows the facts and chips read-only for a viewer', () => {
@@ -720,7 +730,7 @@ describe('GanttItemPanel', () => {
     ).toBeInTheDocument()
   })
 
-  it('lets a manager edit dates, anchor, dependencies and assignment', async () => {
+  it('lets a manager edit dates and assignment, with links read-only beside the Plan menu', async () => {
     const user = userEvent.setup({ advanceTimers: () => {} })
     const assignment = {
       canAssign: true,
@@ -746,8 +756,15 @@ describe('GanttItemPanel', () => {
       },
     }
     const { rerender } = render(
-      <GanttItemPanel {...baseProps} row={late} canManage assignment={assignment} />,
+      <GanttItemPanel
+        {...baseProps}
+        row={late}
+        canManage
+        assignment={assignment}
+        planMenu={<button type="button">Plan stub</button>}
+      />,
     )
+    expect(screen.getByRole('button', { name: 'Plan stub' })).toBeInTheDocument()
     // Original plan, actual, critical path and the conflict sit in the folded Planning tools,
     // whose summary still says when the bar starts too early.
     expect(screen.getByText('Planning tools').closest('details')).not.toHaveAttribute('open')
@@ -786,19 +803,15 @@ describe('GanttItemPanel', () => {
     expect(baseProps.onSaveDates).toHaveBeenLastCalledWith(
       expect.objectContaining({ startDate: null, deadline: null }),
     )
-    await user.click(screen.getByRole('checkbox', { name: /Key date/ }))
-    expect(baseProps.onSetAnchor).toHaveBeenCalledWith(true)
-    // A link's lag is not edited here; neither the links nor the add form mention one.
-    expect(screen.queryByText(/lag/i)).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Remove dependency on Book venue' }))
-    expect(baseProps.onRemoveDependency).toHaveBeenCalledWith(10)
-
-    const select = screen.getByLabelText('Add a dependency')
-    fireEvent.submit(select.closest('form')!)
-    expect(baseProps.onAddDependency).not.toHaveBeenCalled()
-    await user.selectOptions(select, '3')
-    fireEvent.submit(select.closest('form')!)
-    expect(baseProps.onAddDependency).toHaveBeenCalledWith(3)
+    // Links and the key date are the Plan menu's; the panel only shows what it waits on.
+    expect(screen.queryByRole('checkbox', { name: /Key date/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull()
+    expect(screen.queryByLabelText('Add a dependency')).toBeNull()
+    expect(screen.queryByText(/lag|gap/i)).toBeNull()
+    expect(screen.getByRole('link', { name: 'Book venue' })).toHaveAttribute(
+      'href',
+      '/projects/1/tasks/1',
+    )
 
     await user.click(screen.getByRole('button', { name: 'Claim task' }))
     expect(assignment.onClaim).toHaveBeenCalled()
@@ -857,15 +870,137 @@ describe('GanttItemPanel', () => {
       />,
     )
     expect(screen.queryByText('Dates')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull()
-    expect(screen.queryByLabelText('Add a dependency')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Unassign' })).toBeNull()
     // What it waited on stays listed.
-    expect(screen.getByText('Book venue')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Book venue' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Reopen' }))
     expect(onReopen).toHaveBeenCalled()
 
     rerender(<GanttItemPanel {...baseProps} row={done} canManage={false} />)
     expect(screen.queryByRole('button', { name: 'Reopen' })).toBeNull()
+  })
+})
+
+describe('GanttPlanMenu', () => {
+  const plan = (over: Partial<GanttPlan> = {}): GanttPlan => ({
+    taskId: 2,
+    taskTitle: 'Print flyers',
+    tasks: [
+      { id: 1, title: 'Book venue' },
+      { id: 2, title: 'Print flyers' },
+      { id: 3, title: 'Launch' },
+    ],
+    links: [{ dependencyId: 10, predecessorId: 1, predecessorTitle: 'Book venue', lagDays: 0 }],
+    isAnchor: false,
+    onAddDependency: vi.fn(),
+    onRemoveDependency: vi.fn(),
+    onSetLag: vi.fn(),
+    onSetAnchor: vi.fn(),
+    ...over,
+  })
+  const trigger = () => screen.getByRole('button', { name: 'Plan “Print flyers”' })
+  const dialog = () => screen.getByRole('dialog', { name: 'Plan “Print flyers”' })
+
+  it('adds and removes links, and sets the gap after one', async () => {
+    const user = userEvent.setup({ advanceTimers: () => {} })
+    const p = plan()
+    render(<GanttPlanMenu plan={p} />)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await user.click(trigger())
+    expect(trigger()).toHaveAttribute('aria-expanded', 'true')
+
+    // Neither the task itself nor what it already waits on is offered.
+    const picker = within(dialog()).getByLabelText('Waits on…')
+    expect(within(picker).queryByRole('option', { name: 'Print flyers' })).toBeNull()
+    expect(within(picker).queryByRole('option', { name: 'Book venue' })).toBeNull()
+    fireEvent.submit(picker.closest('form')!)
+    expect(p.onAddDependency).not.toHaveBeenCalled()
+    await user.selectOptions(picker, '3')
+    await user.click(within(dialog()).getByRole('button', { name: 'Add' }))
+    expect(p.onAddDependency).toHaveBeenCalledWith(3)
+    expect(picker).toHaveValue('')
+
+    await user.click(within(dialog()).getByRole('button', { name: 'Stop waiting on Book venue' }))
+    expect(p.onRemoveDependency).toHaveBeenCalledWith(10)
+
+    const gap = within(dialog()).getByLabelText('Gap after “Book venue” finishes (days)')
+    expect(within(dialog()).getByText('Gap after it finishes (days)')).toBeInTheDocument()
+    // Blank, fractional and out-of-range days are put back; the same value is not resent.
+    for (const bad of ['', '1.5', '400', '0']) {
+      fireEvent.change(gap, { target: { value: bad } })
+      fireEvent.blur(gap)
+      expect(gap).toHaveValue(0)
+    }
+    expect(p.onSetLag).not.toHaveBeenCalled()
+    fireEvent.change(gap, { target: { value: '3' } })
+    fireEvent.submit(gap.closest('form')!)
+    expect(p.onSetLag).toHaveBeenCalledWith(10, 3)
+  })
+
+  it('sets and clears the key date, and only for whoever may', async () => {
+    const user = userEvent.setup({ advanceTimers: () => {} })
+    const p = plan()
+    const { rerender } = render(<GanttPlanMenu plan={p} />)
+    await user.click(trigger())
+    await user.click(within(dialog()).getByRole('button', { name: 'Make this the key date' }))
+    expect(p.onSetAnchor).toHaveBeenCalledWith(true)
+    await user.hover(within(dialog()).getByText('A fixed point the plan is built around'))
+    expect(screen.getByRole('tooltip')).toHaveTextContent('measured towards the key dates')
+
+    rerender(<GanttPlanMenu plan={{ ...p, isAnchor: true }} />)
+    await user.click(within(dialog()).getByRole('button', { name: 'Stop using as key date' }))
+    expect(p.onSetAnchor).toHaveBeenLastCalledWith(false)
+
+    // A deputy plans links but not the key date.
+    rerender(<GanttPlanMenu plan={{ ...p, onSetAnchor: undefined }} />)
+    expect(within(dialog()).queryByRole('button', { name: /key date/ })).toBeNull()
+
+    // With nothing linked and nothing left to link, it says so and offers no picker.
+    rerender(
+      <GanttPlanMenu plan={{ ...p, links: [], tasks: [{ id: 2, title: 'Print flyers' }] }} />,
+    )
+    expect(within(dialog()).getByText('Nothing — can start whenever.')).toBeInTheDocument()
+    expect(within(dialog()).queryByLabelText('Waits on…')).toBeNull()
+  })
+
+  it('closes on its button, Escape, or a click elsewhere, but not a click inside', async () => {
+    const user = userEvent.setup({ advanceTimers: () => {} })
+    render(
+      <>
+        <GanttPlanMenu plan={plan()} />
+        <p>Elsewhere</p>
+      </>,
+    )
+    await user.click(trigger())
+    await user.click(trigger())
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    await user.click(trigger())
+    await user.click(within(dialog()).getByText('Waits on'))
+    expect(dialog()).toBeInTheDocument()
+    await user.keyboard('{Shift}')
+    expect(dialog()).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(trigger()).toHaveFocus()
+
+    await user.click(trigger())
+    await user.click(screen.getByText('Elsewhere'))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('sits beside the selected bar only', () => {
+    render(
+      <GanttChart
+        rows={rows}
+        edges={edges}
+        rangeStart={day('2026-06-01')}
+        rangeEnd={day('2026-06-08')}
+        editable
+        selectedId={2}
+        selectedMenu={<button type="button">Plan stub</button>}
+      />,
+    )
+    expect(screen.getAllByRole('button', { name: 'Plan stub' })).toHaveLength(1)
   })
 })

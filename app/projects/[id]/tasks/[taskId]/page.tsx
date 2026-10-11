@@ -119,39 +119,6 @@ export default function TaskDetailPage({
       showToast(err instanceof Error ? err.message : 'Failed to accept', 'error'),
   })
 
-  const addDependencyMutation = useMutation({
-    ...orpc.dependencies.add.mutationOptions(),
-    onSuccess: () => {
-      showToast('Dependency added', 'success')
-      setNewPredecessorId('')
-      void invalidateTask()
-    },
-    onError: (err: unknown) =>
-      showToast(err instanceof Error ? err.message : 'Failed to add dependency', 'error'),
-  })
-
-  const removeDependencyMutation = useMutation({
-    ...orpc.dependencies.remove.mutationOptions(),
-    onSuccess: () => {
-      showToast('Dependency removed', 'success')
-      void invalidateTask()
-    },
-    onError: (err: unknown) =>
-      showToast(err instanceof Error ? err.message : 'Failed to remove dependency', 'error'),
-  })
-
-  const [newPredecessorId, setNewPredecessorId] = useState('')
-
-  function handleAddDependency(e: React.FormEvent) {
-    e.preventDefault()
-    if (!newPredecessorId) return
-    addDependencyMutation.mutate({
-      predecessorId: parseInt(newPredecessorId, 10),
-      successorId: taskId,
-      lagDays: 0,
-    })
-  }
-
   function handleSaveEdit(e: React.FormEvent) {
     e.preventDefault()
     if (!editTitle.trim()) return
@@ -497,60 +464,24 @@ export default function TaskDetailPage({
         </p>
 
         {task.predecessors.length === 0 ? (
-          <p className="text-text-light mb-4">Nothing yet — this task can start whenever.</p>
+          <p className="text-text-light mb-0">Nothing yet — this task can start whenever.</p>
         ) : (
-          <ul className="mb-4 list-none space-y-2 p-0">
+          <ul className="m-0 list-none space-y-2 p-0">
             {task.predecessors.map((dep) => (
               <li key={dep.dependencyId}>
-                <WorkItemCard
-                  item={dep.item}
-                  extra={
-                    canEdit && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={removeDependencyMutation.isPending}
-                        onClick={() =>
-                          removeDependencyMutation.mutate({ dependencyId: dep.dependencyId })
-                        }
-                      >
-                        Remove
-                      </Button>
-                    )
-                  }
-                />
+                <WorkItemCard item={dep.item} />
               </li>
             ))}
           </ul>
         )}
 
-        {canEdit &&
-          (task.siblingTasks.length === 0 ? (
-            <p className="text-text-light text-sm">No other tasks in this project to depend on.</p>
-          ) : (
-            <form onSubmit={handleAddDependency} className="flex flex-wrap items-end gap-3">
-              <div>
-                <label htmlFor="new-dependency">Add a dependency</label>
-                <select
-                  id="new-dependency"
-                  value={newPredecessorId}
-                  onChange={(e) => setNewPredecessorId(e.target.value)}
-                >
-                  <option value="">Select a task…</option>
-                  {task.siblingTasks
-                    .filter((s) => !task.predecessors.some((p) => p.predecessorId === s.id))
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.title}
-                      </option>
-                    ))}
-                </select>
-              </div>
-              <Button type="submit" disabled={!newPredecessorId || addDependencyMutation.isPending}>
-                {addDependencyMutation.isPending ? 'Adding…' : 'Add'}
-              </Button>
-            </form>
-          ))}
+        {/* Links are planning, so they are drawn and changed on the timeline, not here. */}
+        {canEdit && (
+          <p className="text-text-light mt-4 mb-0 text-sm">
+            Change what it waits on from the{' '}
+            <Link href={`/projects/${projectId}#timeline`}>project timeline</Link>.
+          </p>
+        )}
       </div>
 
       <div className="bg-surface rounded-xl shadow p-6">

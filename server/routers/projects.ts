@@ -1943,21 +1943,10 @@ export const projectsRouter = {
         Boolean(volunteer.isAdmin) ||
         !(await isBlockedFromClaiming(input.projectId, volunteer.id))
 
-      const [predecessorRows, siblingTasks] = await Promise.all([
-        prisma.workItemDependency.findMany({
-          where: { successorId: input.taskId },
-          include: { predecessor: { select: { id: true, title: true, status: true } } },
-        }),
-        prisma.workItem.findMany({
-          where: {
-            parentId: input.projectId,
-            type: WorkItemType.TASK,
-            id: { not: input.taskId },
-          },
-          select: { id: true, title: true },
-          orderBy: { sortOrder: 'asc' },
-        }),
-      ])
+      const predecessorRows = await prisma.workItemDependency.findMany({
+        where: { successorId: input.taskId },
+        include: { predecessor: { select: { id: true, title: true, status: true } } },
+      })
 
       // Where the plan puts this task. One that is not on the timeline has no placement.
       const placement = taskIsDated(task, predecessorRows.length > 0)
@@ -2029,7 +2018,6 @@ export const projectsRouter = {
               ]
             : []
         }),
-        siblingTasks,
         placement,
         pastPlanDays: placement
           ? daysPastPlan(placement.end, {

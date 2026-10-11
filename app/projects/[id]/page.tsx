@@ -58,6 +58,7 @@ import WorkItemHeader, {
 import GanttChart, { inStartOrder } from '@/components/gantt/GanttChart'
 import type { GanttRow as GanttRowData, GanttUndatedRow } from '@/components/gantt/types'
 import GanttItemPanel from '@/components/gantt/GanttItemPanel'
+import GanttPlanMenu from '@/components/gantt/GanttPlanMenu'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate, formatDateShort } from '@/lib/format-date'
@@ -77,7 +78,7 @@ import {
   projectStatusLabel,
   proposerDisplay,
 } from '@/lib/project-status'
-import { InterestStatus, ProjectStatus, TaskStatus } from '@/generated/prisma/enums'
+import { InterestStatus, ProjectStatus, TaskStatus, WorkItemType } from '@/generated/prisma/enums'
 import type { InferRouterOutputs } from '@orpc/server'
 import type { AppRouter } from '@/server/router'
 import {
@@ -377,6 +378,11 @@ function TaskTimeline({
     onSuccess: () => void invalidate(),
     onError: onErr('remove dependency'),
   })
+  const setLag = useMutation({
+    ...orpc.dependencies.updateLag.mutationOptions(),
+    onSuccess: () => void invalidate(),
+    onError: onErr('change the gap'),
+  })
   const updateTask = useMutation({
     ...orpc.projects.updateTask.mutationOptions(),
     onSuccess: () => void invalidate(),
@@ -393,7 +399,7 @@ function TaskTimeline({
   const canManage = timeline.canManageTasks
   const placementById = new Map(timeline.scheduled.map((p) => [p.id, p]))
   const hasPredecessor = new Set(timeline.dependencies.map((d) => d.successorId))
-  const titleById = new Map(timeline.tasks.map((t) => [t.id, t.title]))
+  const taskById = new Map(timeline.tasks.map((t) => [t.id, t]))
 
   const scheduledRows: GanttRowData[] = []
   const unscheduled: GanttUndatedRow[] = []
@@ -434,7 +440,51 @@ function TaskTimeline({
   }
 
   const busy =
-    reschedule.isPending || addDep.isPending || removeDep.isPending || updateTask.isPending
+    reschedule.isPending ||
+    addDep.isPending ||
+    removeDep.isPending ||
+    setLag.isPending ||
+    updateTask.isPending
+
+  const selectedLinks = selectedRow
+    ? timeline.dependencies.filter((d) => d.successorId === selectedRow.id)
+    : []
+  // A done task's links and key date are locked until it is reopened (lib/work-item-lock.ts).
+  const planMenu =
+    canManage && selectedTask && selectedTask.status !== TaskStatus.completed ? (
+      <GanttPlanMenu
+        busy={busy}
+        plan={{
+          taskId: selectedTask.id,
+          taskTitle: selectedTask.title,
+          tasks: timeline.tasks.map((t) => ({ id: t.id, title: t.title })),
+          links: selectedLinks.map((d) => ({
+            dependencyId: d.id,
+            predecessorId: d.predecessorId,
+            predecessorTitle: taskById.get(d.predecessorId)?.title ?? `#${d.predecessorId}`,
+            lagDays: d.lagDays,
+          })),
+          isAnchor: selectedTask.isAnchor,
+          onAddDependency: (predecessorId) =>
+            addDep.mutate({ predecessorId, successorId: selectedTask.id, lagDays: 0 }),
+          onRemoveDependency: (dependencyId) => removeDep.mutate({ dependencyId }),
+          onSetLag: (dependencyId, lagDays) => setLag.mutate({ dependencyId, lagDays }),
+          onSetAnchor: timeline.canSetKeyDate
+            ? (isAnchor) =>
+                updateTask.mutate(
+                  { projectId, taskId: selectedTask.id, data: { isAnchor } },
+                  {
+                    onSuccess: () =>
+                      showToast(
+                        isAnchor ? 'This is now the key date.' : 'No longer the key date.',
+                        'success',
+                      ),
+                  },
+                )
+            : undefined,
+        }}
+      />
+    ) : undefined
 
   return (
     <div>
@@ -477,6 +527,7 @@ function TaskTimeline({
               addDep.mutate({ predecessorId, successorId, lagDays: 0 })
             }
             onUnlink={(dependencyId) => removeDep.mutate({ dependencyId })}
+            selectedMenu={planMenu}
             busy={busy}
           />
         </div>
@@ -494,14 +545,29 @@ function TaskTimeline({
               assigneeName={selectedTask.assignedToName}
               canManage={canManage}
               busy={busy}
-              siblings={timeline.tasks.map((t) => ({ id: t.id, title: t.title }))}
-              predecessors={timeline.dependencies
-                .filter((d) => d.successorId === selectedRow.id)
-                .map((d) => ({
-                  dependencyId: d.id,
-                  predecessorId: d.predecessorId,
-                  predecessorTitle: titleById.get(d.predecessorId) ?? `#${d.predecessorId}`,
-                }))}
+              predecessors={selectedLinks.flatMap((d) => {
+                const t = taskById.get(d.predecessorId)
+                return t
+                  ? [
+                      {
+                        dependencyId: d.id,
+                        predecessorId: d.predecessorId,
+                        predecessorTitle: t.title,
+                        item: {
+                          id: t.id,
+                          projectId,
+                          title: t.title,
+                          type: WorkItemType.TASK,
+                          displayStatus: t.displayStatus,
+                          assigneeName: t.assignedToName,
+                          deadline: t.deadline,
+                          completedAt: t.completedAt,
+                          href: `/projects/${projectId}/tasks/${t.id}`,
+                        },
+                      },
+                    ]
+                  : []
+              })}
               onClose={() => setSelectedId(null)}
               onSaveDates={(p) => {
                 reschedule.mutate({
@@ -527,25 +593,7 @@ function TaskTimeline({
                   })
                 }
               }}
-              onAddDependency={(predecessorId) =>
-                addDep.mutate({ predecessorId, successorId: selectedRow.id, lagDays: 0 })
-              }
-              onRemoveDependency={(dependencyId) => removeDep.mutate({ dependencyId })}
-              onSetAnchor={
-                timeline.canSetKeyDate
-                  ? (isAnchor) =>
-                      updateTask.mutate(
-                        { projectId, taskId: selectedRow.id, data: { isAnchor } },
-                        {
-                          onSuccess: () =>
-                            showToast(
-                              isAnchor ? 'This is now the key date.' : 'No longer the key date.',
-                              'success',
-                            ),
-                        },
-                      )
-                  : undefined
-              }
+              planMenu={planMenu}
               onReplan={canManage ? () => setReplanId(selectedRow.id) : undefined}
               onReopen={
                 canManage

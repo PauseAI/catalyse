@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { formatDate } from '@/lib/format-date'
 import { deadlineSlip, deadlineStanding, movedSlip, movedText, pinConflictSlip } from '@/lib/slip'
@@ -34,6 +35,7 @@ export default function GanttRow({
   onHover,
   pinConflictLabel,
   highlightCritical = true,
+  menu,
 }: {
   row: GanttRowData
   origin: Date
@@ -52,6 +54,8 @@ export default function GanttRow({
   pinConflictLabel?: string
   /** Ring the critical path; a planning aid, so only for those who can change the plan. */
   highlightCritical?: boolean
+  /** Drawn just past the bar's end (and its link handle), for the selected row's Plan menu. */
+  menu?: ReactNode
 }) {
   const { placement } = row
   const milestone = placement.isMilestone
@@ -368,6 +372,15 @@ export default function GanttRow({
             }}
           />
         </>
+      )}
+
+      {menu && (
+        <div
+          className="absolute flex items-center"
+          style={{ left: barLeft + barWidth + (draggable ? 22 : 5), top: 0, height: ROW_HEIGHT }}
+        >
+          {menu}
+        </div>
       )}
 
       {/* Actual — a thin rule below the bar; runs to today while still open. */}

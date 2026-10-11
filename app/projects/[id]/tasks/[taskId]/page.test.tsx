@@ -316,30 +316,22 @@ describe('task detail page', () => {
     await screen.findByText('★ Key date: the date this project is planned around')
     expect(screen.queryByRole('button', { name: /key date/ })).toBeNull()
 
-    // Dependencies can be removed and added; a new link has no lag.
-    await userEvent.click(await screen.findByRole('button', { name: 'Remove' }))
-    await screen.findByText('Dependency removed')
-    fireEvent.submit(screen.getByLabelText('Add a dependency').closest('form')!)
-    await userEvent.selectOptions(
-      await screen.findByLabelText('Add a dependency'),
-      String(other.id),
+    // What it waits on is shown, not edited: links are changed on the timeline.
+    expect(screen.getByRole('link', { name: 'Predecessor' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull()
+    expect(screen.queryByLabelText('Add a dependency')).toBeNull()
+    expect(screen.getByRole('link', { name: 'project timeline' })).toHaveAttribute(
+      'href',
+      `/projects/${project.id}#timeline`,
     )
-    await userEvent.click(screen.getByRole('button', { name: 'Add' }))
-    await screen.findByText('Dependency added')
-    expect(
-      await prisma.workItemDependency.findFirst({
-        where: { predecessorId: other.id, successorId: task.id },
-      }),
-    ).toMatchObject({ lagDays: 0 })
   })
 
-  it('handles missing tasks, the no-sibling case, and failures', async () => {
+  it('handles missing tasks and failures', async () => {
     const admin = await createAdmin()
     const project = await createProject({ title: 'Solo' })
     const only = await createTask(project.id, { title: 'Only task' })
     await mount(project.id, only.id, admin)
     await screen.findByRole('heading', { name: 'Only task' })
-    expect(screen.getByText(/no other tasks/i)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
     await prisma.workItem.delete({ where: { id: only.id } })
     fireEvent.submit(screen.getByLabelText('Task title').closest('form')!)
@@ -373,34 +365,6 @@ describe('task detail page', () => {
       'href',
       `/projects/${project.id}`,
     )
-  })
-
-  it('reports dependency failures', async () => {
-    const admin = await createAdmin()
-    const project = await createProject({ title: 'Deps' })
-    const a = await createTask(project.id, { title: 'A' })
-    const b = await createTask(project.id, { title: 'B' })
-    const dep = await prisma.workItemDependency.create({
-      data: { predecessorId: a.id, successorId: b.id },
-    })
-    await mount(project.id, b.id, admin)
-    await screen.findByRole('heading', { name: 'B' })
-    await prisma.workItemDependency.delete({ where: { id: dep.id } })
-    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
-    await screen.findByText('Dependency not found')
-    // The task still lists A as a predecessor (stale), so add a fresh sibling and loop through it.
-    const c = await createTask(project.id, { title: 'C' })
-    await prisma.workItemDependency.create({ data: { predecessorId: b.id, successorId: c.id } })
-    cleanup()
-    await mount(project.id, b.id, admin)
-    await waitFor(() =>
-      expect(
-        within(screen.getByLabelText('Add a dependency')).getByRole('option', { name: 'C' }),
-      ).toBeInTheDocument(),
-    )
-    await userEvent.selectOptions(screen.getByLabelText('Add a dependency'), String(c.id))
-    await userEvent.click(screen.getByRole('button', { name: 'Add' }))
-    await screen.findByText(/would create a loop/)
   })
 })
 
@@ -597,8 +561,7 @@ describe('task detail page — a done task', () => {
     const reopen = await screen.findByRole('button', { name: 'Reopen' })
     expect(screen.getByRole('link', { name: /Book hall/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull()
-    expect(screen.queryByLabelText('Add a dependency')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'project timeline' })).toBeNull()
 
     await userEvent.click(reopen)
     const dialog = await screen.findByRole('dialog', { name: "Reopen 'Print flyers'?" })
@@ -611,7 +574,7 @@ describe('task detail page — a done task', () => {
     await userEvent.click(within(confirm).getByRole('button', { name: 'Reopen' }))
     await screen.findByText('Reopened. It can be edited again.')
     expect(await row(task.id)).toMatchObject({ status: 'in_progress', completedAt: null })
-    await screen.findByRole('button', { name: 'Remove' })
+    await screen.findByRole('link', { name: 'project timeline' })
     const header = screen.getByRole('heading', { name: 'Print flyers' }).parentElement!
     expect(within(header).getByRole('button', { name: 'Edit' })).toBeInTheDocument()
     expect(within(header).queryByRole('button', { name: 'Reopen' })).toBeNull()

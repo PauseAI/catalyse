@@ -347,10 +347,7 @@ test.describe('Work item scheduling and dependencies', () => {
     await expect(undated.getByRole('link', { name: 'Floating task' })).toBeVisible()
   })
 
-  test('the Depends on picker adds a dependency, which then shifts the successor on the timeline', async ({
-    baseUrl,
-    adminPage,
-  }) => {
+  test('the Plan menu adds a link, sets its gap and removes it', async ({ baseUrl, adminPage }) => {
     const api = createApiClient(baseUrl, readAdminToken(baseUrl))
     const projectId = await makeProject(api, { startDate: day('2026-12-01') })
     const a = await addTask(api, projectId, {
@@ -358,17 +355,40 @@ test.describe('Work item scheduling and dependencies', () => {
       startDate: day('2026-12-01'),
       deadline: day('2026-12-03'),
     })
-    const b = await addTask(api, projectId, { title: 'Second' })
+    const b = await addTask(api, projectId, {
+      title: 'Second',
+      startDate: day('2026-12-10'),
+      deadline: day('2026-12-11'),
+    })
 
+    // The task page only shows what a task waits on; editing it is the timeline's.
     await adminPage.goto(`${baseUrl}/projects/${projectId}/tasks/${b}`)
-    await adminPage.getByLabel('Add a dependency').selectOption({ label: 'First' })
-    await adminPage.getByRole('button', { name: 'Add', exact: true }).click()
-    await expect(adminPage.getByText('Dependency added')).toBeVisible()
+    await expect(adminPage.getByRole('heading', { name: 'Second' })).toBeVisible()
+    await expect(adminPage.getByLabel('Add a dependency')).toHaveCount(0)
 
-    const s = await schedule(api, projectId)
-    // First ends 12-03, so Second now starts 12-04.
-    expect(ymd(placed(s, b).start)).toBe('2026-12-04')
-    expect(s.dependencies).toMatchObject([{ predecessorId: a, successorId: b, lagDays: 0 }])
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#timeline`)
+    await adminPage.getByRole('button', { name: /^Second:/ }).click()
+    const panel = adminPage.getByRole('complementary')
+    await panel.getByRole('button', { name: 'Plan “Second”' }).click()
+    const plan = adminPage.getByRole('dialog', { name: 'Plan “Second”' })
+    await plan.getByLabel('Waits on…').selectOption({ label: 'First' })
+    await plan.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(adminPage.getByText('Dependency added')).toBeVisible()
+    await expect(panel.getByRole('link', { name: 'First' })).toBeVisible()
+    await expect
+      .poll(async () => (await schedule(api, projectId)).dependencies)
+      .toMatchObject([{ predecessorId: a, successorId: b, lagDays: 0 }])
+
+    const gap = plan.getByLabel('Gap after “First” finishes (days)')
+    await gap.fill('2')
+    await gap.press('Enter')
+    await expect
+      .poll(async () => (await schedule(api, projectId)).dependencies)
+      .toMatchObject([{ predecessorId: a, successorId: b, lagDays: 2 }])
+
+    await plan.getByRole('button', { name: 'Stop waiting on First' }).click()
+    await expect(panel.getByText('Nothing — can start whenever.')).toBeVisible()
+    await expect.poll(async () => (await schedule(api, projectId)).dependencies).toHaveLength(0)
   })
 
   test('rescheduleItems pins a following task, and a null start unpins it back onto its predecessor', async ({
@@ -535,7 +555,7 @@ test.describe('Work item scheduling and dependencies', () => {
     // Every editing affordance the panel owns is reachable for a manager.
     await expect(panel.getByLabel('Start (optional)', { exact: true })).toBeVisible()
     await expect(panel.getByLabel('Deadline', { exact: true })).toBeVisible()
-    await expect(panel.getByRole('checkbox', { name: /Key date/ })).toBeVisible()
+    await expect(panel.getByRole('button', { name: 'Plan “Visible task”' })).toBeVisible()
     await expect(panel.getByRole('button', { name: 'Save' })).toBeVisible()
     await expect(panel.getByRole('link', { name: 'Open task' })).toBeVisible()
 
@@ -562,11 +582,14 @@ test.describe('Work item scheduling and dependencies', () => {
     await adminPage.getByRole('button', { name: /Anchor me:/ }).click()
 
     const panel = adminPage.getByRole('complementary')
-    // `click`, not `check`: the box is driven by server state, so it only ticks once the write
-    // lands and the schedule comes back. The chip is the honest proof that it did.
-    await panel.getByRole('checkbox', { name: /Key date/ }).click()
+    // The Plan menu beside the selected bar is the same as the one in the panel header.
+    await adminPage.getByRole('button', { name: 'Plan “Anchor me”' }).first().click()
+    const plan = adminPage.getByRole('dialog', { name: 'Plan “Anchor me”' })
+    await plan.getByRole('button', { name: 'Make this the key date' }).click()
+    // The chip is the proof the write landed and the schedule came back.
     await expect(panel.getByText('★ Key date')).toBeVisible()
-    await expect(panel.getByRole('checkbox', { name: /Key date/ })).toBeChecked()
+    await expect(plan.getByRole('button', { name: 'Stop using as key date' })).toBeVisible()
+    await adminPage.keyboard.press('Escape')
 
     await expect(panel.getByRole('button', { name: /Assign/ }).first()).toBeVisible()
   })
@@ -624,8 +647,14 @@ test.describe('Work item scheduling and dependencies', () => {
     await adminPage.goto(`${baseUrl}/projects/${projectId}#timeline`)
     await adminPage.getByRole('button', { name: /Hover me:/ }).click()
 
-    const panel = adminPage.getByRole('complementary')
-    await panel.getByText('A fixed point the plan is built around').hover()
+    await adminPage
+      .getByRole('complementary')
+      .getByRole('button', { name: 'Plan “Hover me”' })
+      .click()
+    await adminPage
+      .getByRole('dialog', { name: 'Plan “Hover me”' })
+      .getByText('A fixed point the plan is built around')
+      .hover()
     await expect(adminPage.getByRole('tooltip')).toContainText('measured towards the key dates')
   })
 })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import {
   DndContext,
@@ -93,6 +93,7 @@ export default function GanttChart({
   busy,
   deadline,
   highlightCritical = true,
+  selectedMenu,
 }: {
   rows: GanttRowData[]
   undated?: GanttUndatedRow[]
@@ -112,6 +113,8 @@ export default function GanttChart({
   /** The scope's own deadline (a project's), measured against where the plan ends. */
   deadline?: Date | null
   highlightCritical?: boolean
+  /** The selected bar's Plan menu (GanttPlanMenu), drawn beside it. */
+  selectedMenu?: ReactNode
 }) {
   const [zoom, setZoom] = useState<ZoomLevel>('fit')
   const [range, setRange] = useState<RangeKey>('all')
@@ -411,6 +414,7 @@ export default function GanttChart({
                     onSelect={onSelect}
                     onHover={setHoveredId}
                     highlightCritical={highlightCritical}
+                    menu={selectedId === r.id ? selectedMenu : undefined}
                     pinConflictLabel={
                       r.placement.pinConflictWith === null
                         ? undefined

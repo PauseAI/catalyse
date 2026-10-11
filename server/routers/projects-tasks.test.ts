@@ -137,7 +137,6 @@ describe('projects.listTasks / getTask', () => {
         }),
       }),
     ])
-    expect(view.siblingTasks).toEqual([{ id: a.id, title: a.title }])
     expect(
       (await clientAs(owner).projects.getTask({ projectId: project.id, taskId: b.id })).canManage,
     ).toBe(true)

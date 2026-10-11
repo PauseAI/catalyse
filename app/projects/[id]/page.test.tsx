@@ -1102,33 +1102,47 @@ describe('project page — timeline tab', () => {
     await waitFor(async () =>
       expect(await row(b.id)).toMatchObject({ timing: 'fixed', estimatedHours: 3 }),
     )
-    await settled(/Key date/)
-    await userEvent.click(within(panel()).getByRole('checkbox', { name: /Key date/ }))
+    // Links, their gaps and the key date are edited from the Plan menu only.
+    expect(within(panel()).queryByRole('checkbox', { name: /Key date/ })).toBeNull()
+    expect(within(panel()).queryByLabelText('Add a dependency')).toBeNull()
+    expect(within(panel()).getByRole('link', { name: 'Alpha' })).toBeInTheDocument()
+    await userEvent.click(within(panel()).getByRole('button', { name: 'Plan “Beta”' }))
+    const plan = await screen.findByRole('dialog', { name: 'Plan “Beta”' })
+    const makeKey = within(plan).getByRole('button', { name: 'Make this the key date' })
+    await waitFor(() => expect(makeKey).toBeEnabled())
+    await userEvent.click(makeKey)
     await waitFor(async () => expect((await row(b.id)).isAnchor).toBe(true))
     await screen.findByText('This is now the key date.')
-    // A link's lag still counts in the schedule but is not edited from the panel.
-    expect(within(panel()).queryByText(/lag/i)).toBeNull()
-    await userEvent.click(within(panel()).getByRole('button', { name: /Remove dependency on/ }))
+    await within(plan).findByRole('button', { name: 'Stop using as key date' })
+
+    const link = () =>
+      prisma.workItemDependency.findFirstOrThrow({
+        where: { predecessorId: a.id, successorId: b.id },
+      })
+    const gap = within(plan).getByLabelText('Gap after “Alpha” finishes (days)')
+    await waitFor(() => expect(gap).toBeEnabled())
+    await userEvent.clear(gap)
+    await userEvent.type(gap, '2')
+    await userEvent.tab()
+    await waitFor(async () => expect((await link()).lagDays).toBe(2))
+    await waitFor(() =>
+      expect(within(plan).getByLabelText('Gap after “Alpha” finishes (days)')).toHaveValue(2),
+    )
+
+    await userEvent.click(within(plan).getByRole('button', { name: 'Stop waiting on Alpha' }))
     await waitFor(async () =>
       expect(await prisma.workItemDependency.count({ where: { successorId: b.id } })).toBe(0),
     )
     await waitFor(() =>
       expect(
-        within(within(panel()).getByLabelText('Add a dependency')).getByRole('option', {
-          name: 'Alpha',
-        }),
+        within(within(plan).getByLabelText('Waits on…')).getByRole('option', { name: 'Alpha' }),
       ).toBeInTheDocument(),
     )
-    await userEvent.selectOptions(within(panel()).getByLabelText('Add a dependency'), String(a.id))
-    await userEvent.click(within(panel()).getByRole('button', { name: 'Add' }))
-    await waitFor(async () =>
-      expect(
-        await prisma.workItemDependency.findMany({
-          where: { successorId: b.id },
-          select: { lagDays: true },
-        }),
-      ).toEqual([{ lagDays: 0 }]),
-    )
+    await userEvent.selectOptions(within(plan).getByLabelText('Waits on…'), String(a.id))
+    await userEvent.click(within(plan).getByRole('button', { name: 'Add' }))
+    await waitFor(async () => expect((await link()).lagDays).toBe(0))
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Plan “Beta”' })).toBeNull()
     await userEvent.click(within(panel()).getByRole('button', { name: 'Claim task' }))
     await screen.findByText(/Task claimed\. Post an update/)
     await waitFor(async () => expect((await row(b.id)).assigneeId).toBe(owner.id))
@@ -1213,11 +1227,14 @@ describe('project page — timeline tab', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Loose one:/ }))
     await prisma.workItem.delete({ where: { id: t1.id } })
     const panel = screen.getByRole('complementary')
-    await userEvent.click(within(panel).getByRole('checkbox', { name: /Key date/ }))
+    await userEvent.click(within(panel).getByRole('button', { name: 'Plan “Loose one”' }))
+    const plan = await screen.findByRole('dialog', { name: 'Plan “Loose one”' })
+    await userEvent.click(within(plan).getByRole('button', { name: 'Make this the key date' }))
     await screen.findByText('Project or task not found')
-    await userEvent.selectOptions(within(panel).getByLabelText('Add a dependency'), String(t2.id))
-    await userEvent.click(within(panel).getByRole('button', { name: 'Add' }))
+    await userEvent.selectOptions(within(plan).getByLabelText('Waits on…'), String(t2.id))
+    await userEvent.click(within(plan).getByRole('button', { name: 'Add' }))
     await screen.findByText('One or both items were not found')
+    await userEvent.keyboard('{Escape}')
     // A failed reschedule is rolled back and the timeline refetched (which drops the panel).
     fireEvent.submit(within(panel).getByLabelText('Deadline').closest('form')!)
     await screen.findByText('One or more items were not found')
@@ -1235,6 +1252,42 @@ describe('project page — timeline tab', () => {
     expect(screen.queryByRole('button', { name: 'Add all to timeline' })).toBeNull()
     expect(screen.getByText('No dates yet')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /baseline/i })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: /^Alpha:/ }))
+    await screen.findByRole('complementary')
+    expect(screen.queryByRole('button', { name: /^Plan “/ })).toBeNull()
+  })
+
+  it('lets a deputy edit links but not the key date, and locks a done task', async () => {
+    const { helper, project, a, b } = await setupTimeline()
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: project.id,
+        volunteerId: helper.id,
+        interestType: 'want_to_contribute',
+        status: 'accepted',
+      },
+    })
+    await prisma.projectDeputy.create({ data: { projectId: project.id, volunteerId: helper.id } })
+    await mount(project.id, helper, '#timeline')
+    await userEvent.click(await screen.findByRole('button', { name: /^Beta:/ }))
+    // One menu beside the selected bar, one in the panel header.
+    expect(screen.getAllByRole('button', { name: 'Plan “Beta”' })).toHaveLength(2)
+    await userEvent.click(screen.getAllByRole('button', { name: 'Plan “Beta”' })[0])
+    const plan = await screen.findByRole('dialog', { name: 'Plan “Beta”' })
+    expect(within(plan).getByLabelText('Gap after “Alpha” finishes (days)')).toBeInTheDocument()
+    expect(within(plan).queryByRole('button', { name: /key date/ })).toBeNull()
+
+    cleanup()
+    await prisma.workItem.update({ where: { id: a.id }, data: { status: 'completed' } })
+    await prisma.workItem.update({
+      where: { id: b.id },
+      data: { status: 'completed', startDate: new Date('2026-06-03T00:00:00Z') },
+    })
+    queryClient.clear()
+    await mount(project.id, helper, '#timeline')
+    await userEvent.click(await screen.findByRole('button', { name: /^Beta:/ }))
+    await screen.findByRole('complementary')
+    expect(screen.queryByRole('button', { name: /^Plan “/ })).toBeNull()
   })
 
   it('orders rows by start, whatever the task list order, with undated tasks last', async () => {
