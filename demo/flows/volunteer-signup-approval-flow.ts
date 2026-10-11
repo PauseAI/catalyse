@@ -6,8 +6,8 @@ import { showEmailClient } from '../helpers'
 import {
   APPLICANT,
   REJECT_APPLICANT,
-  ADMIN_EMAIL,
-  ADMIN_PASSWORD,
+  SUPERADMIN_EMAIL,
+  SUPERADMIN_PASSWORD,
   NOREPLY_EMAIL,
   BASE_URL,
 } from '../data'
@@ -41,7 +41,7 @@ async function recordApplicantSignup(engine: DemoEngine, browser: Browser): Prom
 
   await engine.narrate('Catalyse connects AI safety projects with volunteers')
 
-  await engine.narrate('New applicants start by creating an account', async () => {
+  await engine.narrate('New applicants start with their account details', async () => {
     await engine.navigateTo(`${BASE_URL}/signup`)
     await engine.pause(800)
     await engine.type(page.getByLabel('Your Name'), APPLICANT.name)
@@ -51,6 +51,8 @@ async function recordApplicantSignup(engine: DemoEngine, browser: Browser): Prom
     await engine.type(page.getByLabel('Password', { exact: true }), APPLICANT.password)
     await engine.pause(200)
     await engine.type(page.getByLabel('Confirm Password'), APPLICANT.password)
+    await engine.pause(300)
+    await engine.click(page.getByRole('button', { name: 'Next: About you' }))
   })
 
   const appField = page.getByLabel('Your Application')
@@ -58,7 +60,7 @@ async function recordApplicantSignup(engine: DemoEngine, browser: Browser): Prom
     'Applicants explain why they want to join. This is only visible to admins',
     async () => {
       await engine.smoothScrollTo(appField)
-      await engine.readText(page.locator('label[for="application_message"] + aside'), 240)
+      await engine.readText(page.locator('label[for="applicationMessage"] + p'), 240)
       await engine.pause(300)
       await engine.type(appField, APPLICANT.applicationMessage, 18)
     },
@@ -73,9 +75,10 @@ async function recordApplicantSignup(engine: DemoEngine, browser: Browser): Prom
   await engine.narrate('Contact details help project owners reach out', async () => {
     await engine.type(page.getByLabel('Discord Handle'), APPLICANT.discord, 45)
     await engine.pause(300)
-    await engine.click(page.getByLabel('Preferred Contact Method'))
-    await engine.pause(300)
-    await engine.click(page.getByRole('option', { name: APPLICANT.preferredContact }))
+    // Preferred contact is now a radio next to each contact field rather than a single
+    // dropdown — scope to the field's own wrapper since every radio shares the same label.
+    const discordFieldWrapper = page.locator('div.mb-5:has(#discord)')
+    await engine.click(discordFieldWrapper.getByText('Preferred contact method'))
     await engine.pause(300)
     await engine.type(page.getByLabel('Contact Notes'), APPLICANT.contactNotes, 40)
   })
@@ -83,17 +86,28 @@ async function recordApplicantSignup(engine: DemoEngine, browser: Browser): Prom
   await engine.narrate(
     'Availability and location help match volunteers to local projects',
     async () => {
-      await engine.type(page.getByLabel('Hours per Week'), APPLICANT.availability, 80)
+      await engine.type(page.getByLabel(/Hours per week/), APPLICANT.availability, 80)
       await engine.pause(200)
-      await engine.type(page.getByLabel('Location'), APPLICANT.location, 45)
-      await engine.pause(200)
-      await engine.type(page.getByLabel('Country'), APPLICANT.country, 45)
-      await engine.pause(200)
-      await engine.type(page.getByLabel('Local Group'), APPLICANT.localGroup, 45)
+      // FilterDropdown's accessible name comes from its aria-label, not the visible label text.
+      await engine.click(page.getByLabel('Select country'))
+      await engine.pause(300)
+      await engine.click(page.getByRole('option', { name: APPLICANT.country, exact: true }))
+      await engine.pause(300)
+      // A Local Group dropdown only appears when the chosen country has any — otherwise a
+      // plain City / Area text field takes its place.
+      const localGroupDropdown = page.getByLabel('Select local group')
+      if (await localGroupDropdown.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await engine.click(localGroupDropdown)
+        await engine.pause(300)
+        await engine.click(page.getByRole('option', { name: APPLICANT.localGroup, exact: true }))
+      } else {
+        await engine.type(page.getByLabel('City / Area'), APPLICANT.location, 45)
+      }
     },
   )
 
   await engine.narrate('Skills help match volunteers with the right projects', async () => {
+    await engine.click(page.getByRole('button', { name: 'Next: Skills and privacy' }))
     await page
       .locator('.skill-option')
       .first()
@@ -117,36 +131,45 @@ async function recordApplicantSignup(engine: DemoEngine, browser: Browser): Prom
     }
   })
 
-  const submitBtn = page.getByRole('button', { name: 'Create Account' })
+  const submitBtn = page.getByRole('button', { name: 'Submit Application' })
   await engine.smoothScrollTo(submitBtn)
-  await engine.narrate('Privacy and notification preferences round out the profile', async () => {
+  await engine.narrate('Privacy preferences round out the profile', async () => {
     const checkboxLabels = page
       .locator('label')
-      .filter({ hasText: /Make my profile|Allow project|Share my contact/i })
+      .filter({ hasText: /Show me in the volunteer directory|Allow Google Analytics/i })
     for (const label of await checkboxLabels.all()) {
       await engine.readText(label, 220)
       await engine.pause(150)
     }
   })
 
-  // Capture the signup response to extract auth token + email verification token for use in next segment
-  const [signupResp] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes('/api/auth/signup') && r.status() === 200, {
-      timeout: 15_000,
-    }),
-    engine.click(submitBtn),
-  ])
-  const { auth_token: authToken, email_verification_token: verifyToken } =
-    (await signupResp.json()) as {
-      id: number
-      auth_token: string
-      email_verification_token?: string
+  // Capture the signup response to extract auth token + email verification token for use in
+  // next segment. Detect mode's page is a stub (see DemoEngine.makeStub) that can't answer a
+  // real waitForResponse, and only needs the narration text anyway, so this is real-mode only.
+  let authToken = ''
+  let verifyToken = ''
+  if (!engine.isDetecting) {
+    const [signupResp] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith('/auth/signup') && r.status() === 200, {
+        timeout: 15_000,
+      }),
+      engine.click(submitBtn),
+    ])
+    // oRPC's fetch link wraps the payload as `{ json: ... }` (see e2e/actions/projects.ts's
+    // waitForAutosavedDraft for the same convention).
+    const {
+      json: { token, emailVerificationToken },
+    } = (await signupResp.json()) as {
+      json: { id: number; token: string; emailVerificationToken?: string }
     }
 
-  if (!verifyToken) {
-    throw new Error(
-      'No email_verification_token returned. Ensure STUB_EMAIL=true is set in .env.local',
-    )
+    if (!emailVerificationToken) {
+      throw new Error(
+        'No emailVerificationToken returned. Ensure STUB_EMAIL=true is set in .env.local',
+      )
+    }
+    authToken = token
+    verifyToken = emailVerificationToken
   }
 
   await engine.pause(1500)
@@ -209,17 +232,9 @@ async function recordApplicantPending(engine: DemoEngine, browser: Browser): Pro
   await engine.navigateTo(`${BASE_URL}/dashboard`)
 
   await engine.narrate(
-    'Pending applicants can browse the platform with restricted access',
+    "They'll be able to browse and join projects once an admin reviews the application",
     async () => {
       await engine.readText(page.locator('text=Your account is pending approval').first(), 320)
-    },
-  )
-
-  await engine.narrate(
-    'They can browse available projects while waiting for approval',
-    async () => {
-      await engine.navigateTo(`${BASE_URL}/`)
-      await engine.scrollPage()
     },
   )
 
@@ -243,9 +258,7 @@ async function recordAdminReview(engine: DemoEngine, browser: Browser): Promise<
       discordHandle: REJECT_APPLICANT.discordHandle,
       contactPreference: REJECT_APPLICANT.contactPreference,
       contactNotes: REJECT_APPLICANT.contactNotes,
-      availabilityHoursPerWeek: REJECT_APPLICANT.availabilityHoursPerWeek
-        ? Number(REJECT_APPLICANT.availabilityHoursPerWeek)
-        : undefined,
+      availabilityHoursPerWeek: Number(REJECT_APPLICANT.availabilityHoursPerWeek),
       location: REJECT_APPLICANT.location,
       country: REJECT_APPLICANT.country,
     })
@@ -261,9 +274,9 @@ async function recordAdminReview(engine: DemoEngine, browser: Browser): Promise<
   await engine.fadeIn(600)
 
   await engine.narrate('An admin logs in to review new applications', async () => {
-    await engine.type(page.getByLabel('Email', { exact: true }), ADMIN_EMAIL)
+    await engine.type(page.getByLabel('Email', { exact: true }), SUPERADMIN_EMAIL)
     await engine.pause(200)
-    await engine.type(page.getByLabel('Password'), ADMIN_PASSWORD)
+    await engine.type(page.getByLabel('Password'), SUPERADMIN_PASSWORD)
     await engine.pause(300)
     await engine.click(page.getByRole('button', { name: 'Login' }), {
       navigatesTo: `${BASE_URL}/dashboard`,
@@ -274,6 +287,8 @@ async function recordAdminReview(engine: DemoEngine, browser: Browser): Promise<
     const userMenuBtn = page.locator('.xl\\:flex button').first()
     await engine.click(userMenuBtn)
     await engine.pause(400)
+    await engine.click(page.getByRole('link', { name: 'Superadmin panel' }))
+    await engine.pause(300)
     await engine.click(page.getByRole('link', { name: 'Manage Applications' }))
   })
 
@@ -380,12 +395,11 @@ async function recordAdminReview(engine: DemoEngine, browser: Browser): Promise<
   )
 
   await engine.narrate('Rejected applications are anonymised after seven days', async () => {
-    await engine.click(page.getByLabel('Filter applications', { exact: true }))
-    await engine.pause(400)
-    await engine.click(page.getByRole('option', { name: 'Rejected', exact: true }))
-    await engine.readText(
-      page.getByText('Personally Identifiable Information will be anonymised on'),
+    const anonymisedNotice = page.getByText(
+      'Personally Identifiable Information will be anonymised on',
     )
+    await engine.smoothScrollTo(anonymisedNotice)
+    await engine.readText(anonymisedNotice)
   })
 
   await engine.pause(1200)
