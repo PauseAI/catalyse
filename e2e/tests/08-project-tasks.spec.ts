@@ -338,6 +338,8 @@ test.describe('Project Tasks', () => {
     await expect(volunteer.page.getByRole('button', { name: 'Submit work' })).not.toBeVisible({
       timeout: 10_000,
     })
+    // A finished task is folded under Done.
+    await volunteer.page.getByText(/^Done \(\d+\)$/).click()
     await expect(volunteer.page.getByText('done', { exact: true })).toBeVisible({ timeout: 10_000 })
   })
 

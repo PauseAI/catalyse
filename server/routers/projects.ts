@@ -34,7 +34,7 @@ import {
   projectEditable,
 } from '@/lib/work-item-lock'
 import { taskDisplayStatus, taskStatusViews } from '@/lib/task-status'
-import { loadWorkItemSummaries } from '@/lib/work-item-summary'
+import { loadWorkItemSummaries, toWorkItemSummary } from '@/lib/work-item-summary'
 import { notifyUser, notifyAdmins, notifyTeamOfProject, clearNotifications } from '@/lib/notify'
 import { keyDateSides } from '@/lib/key-date'
 import { daysPastPlan, previewReplan, replanWrite } from '@/lib/replan'
@@ -855,10 +855,17 @@ export const projectsRouter = {
       const hasPredecessor = new Set(edges.map((e) => e.successorId))
       const sides = keyDateSides(sortedTasks, edges)
       const views = taskStatusViews(sortedTasks, edges)
+      // The list names a Blocked task's first open predecessor, in the manual order, as a card.
+      const firstBlocker = (i: number) => {
+        const open = new Set(views[i].blockedBy.map((b) => b.id))
+        const n = sortedTasks.findIndex((t) => open.has(t.id))
+        return n < 0 ? null : toWorkItemSummary(sortedTasks[n], views[n].displayStatus)
+      }
 
       const mappedTasks = sortedTasks.map((t, i) => ({
         ...serializeTask(t),
         ...views[i],
+        firstBlocker: firstBlocker(i),
         keyDateSide: sides.get(t.id) ?? null,
         pastPlanDays: taskIsDated(t, hasPredecessor.has(t.id))
           ? daysPastPlan(schedule.scheduled[i].end, {

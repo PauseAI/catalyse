@@ -98,6 +98,8 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import PageLoading from '@/components/PageLoading'
+import WorkItemCard from '@/components/WorkItemCard'
+import { tasksByStatus } from '@/lib/task-list-order'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -211,47 +213,42 @@ function ActionMenu({
   )
 }
 
-function SortableTaskItem({
-  task,
-  draggable,
-  title,
-  chips,
-  assigneeName,
-  primaryAction,
-  menu,
-}: {
-  task: ProjectTask
-  draggable: boolean
+type TaskRowParts = {
   title: React.ReactNode
+  /** Under the title: what a Blocked task waits for. */
+  below: React.ReactNode
   chips: React.ReactNode
   assigneeName: string | null
   primaryAction: React.ReactNode
   menu: React.ReactNode
+}
+
+function TaskRow({
+  handle,
+  rowRef,
+  style,
+  title,
+  below,
+  chips,
+  assigneeName,
+  primaryAction,
+  menu,
+}: TaskRowParts & {
+  handle?: React.ReactNode
+  rowRef?: (node: HTMLElement | null) => void
+  style?: React.CSSProperties
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: task.id,
-  })
   return (
     <li
-      ref={setNodeRef}
+      ref={rowRef}
       className="group flex items-start gap-2 py-2 border-b border-brand-border last:border-0"
-      style={{
-        // dynamic: drag transform/transition/opacity
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-      }}
+      style={style}
     >
-      <span
-        {...(draggable ? attributes : {})}
-        {...(draggable ? listeners : {})}
-        className={`w-4 shrink-0 leading-none text-text-light text-center text-base mt-1 ${draggable ? 'cursor-grab' : ''}`}
-        title={draggable ? 'Drag to reorder' : undefined}
-        aria-label={draggable ? `Drag to reorder ${task.title}` : undefined}
-      >
-        {draggable ? '⠿' : ''}
-      </span>
-      <span className="flex-1 min-w-0 break-words">{title}</span>
+      {handle}
+      <div className="flex-1 min-w-0 break-words">
+        {title}
+        {below}
+      </div>
       <div className="flex items-center gap-2 shrink-0 mt-1">
         {chips}
         {primaryAction}
@@ -263,6 +260,92 @@ function SortableTaskItem({
         )}
       </div>
     </li>
+  )
+}
+
+/** A task row in "Your order", with a handle to drag it to a new place. */
+function SortableTaskItem({ task, ...parts }: TaskRowParts & { task: ProjectTask }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+  })
+  return (
+    <TaskRow
+      {...parts}
+      rowRef={setNodeRef}
+      style={{
+        // dynamic: drag transform/transition/opacity
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+      }}
+      handle={
+        <span
+          {...attributes}
+          {...listeners}
+          className="w-4 shrink-0 leading-none text-text-light text-center text-base mt-1 cursor-grab"
+          title="Drag to reorder"
+          aria-label={`Drag to reorder ${task.title}`}
+        >
+          ⠿
+        </span>
+      }
+    />
+  )
+}
+
+/**
+ * The Tasks tab's list. By default it is grouped by what can happen next (`tasksByStatus`), with
+ * done tasks folded under "Done (N)"; in `yourOrder` it is the manual order, which a manager
+ * drags to change.
+ */
+function TaskList({
+  tasks,
+  yourOrder,
+  sensors,
+  onDragEnd,
+  rowParts,
+}: {
+  tasks: ProjectTask[]
+  yourOrder: boolean
+  sensors: ReturnType<typeof useSensors>
+  onDragEnd: (event: DragEndEvent) => void
+  rowParts: (task: ProjectTask) => TaskRowParts
+}) {
+  const list = 'list-none p-0 m-0'
+  if (yourOrder) {
+    return (
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+          <ul className={list}>
+            {tasks.map((task) => (
+              <SortableTaskItem key={task.id} task={task} {...rowParts(task)} />
+            ))}
+          </ul>
+        </SortableContext>
+      </DndContext>
+    )
+  }
+  const { open, done } = tasksByStatus(tasks)
+  return (
+    <>
+      <ul className={list}>
+        {open.map((task) => (
+          <TaskRow key={task.id} {...rowParts(task)} />
+        ))}
+      </ul>
+      {done.length > 0 && (
+        <details className="mt-2">
+          <summary className="cursor-pointer py-2 text-sm font-medium text-text-light">
+            Done ({done.length})
+          </summary>
+          <ul className={list}>
+            {done.map((task) => (
+              <TaskRow key={task.id} {...rowParts(task)} />
+            ))}
+          </ul>
+        </details>
+      )}
+    </>
   )
 }
 
@@ -670,6 +753,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [highlightCritical, setHighlightCritical] = useState(false)
   const [newTaskFeatured, setNewTaskFeatured] = useState(false)
   const [orderedTasks, setOrderedTasks] = useState<ProjectTask[]>([])
+  const [yourOrder, setYourOrder] = useState(false)
   const [tab, setTab] = useState<ProjectTab>('overview')
 
   /**
@@ -2024,6 +2108,22 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <div className="flex justify-between items-center mb-3">
                 <h2 className="m-0">{tab === 'timeline' ? 'Timeline' : 'Tasks'}</h2>
                 <div className="flex items-center gap-2">
+                  {tab === 'tasks' && canManageTasks && orderedTasks.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      active={yourOrder}
+                      aria-pressed={yourOrder}
+                      title={
+                        yourOrder
+                          ? 'Show the list grouped by status'
+                          : 'Show the list in your order, to drag tasks into place'
+                      }
+                      onClick={() => setYourOrder((v) => !v)}
+                    >
+                      Your order
+                    </Button>
+                  )}
                   {canCreateTasks && (
                     <Button variant="secondary" onClick={() => setShowTaskForm((v) => !v)}>
                       Add Task
@@ -2169,253 +2269,250 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 (orderedTasks.length === 0 ? (
                   <p className="text-text-light">No tasks yet.</p>
                 ) : (
-                  <DndContext
+                  <TaskList
+                    tasks={orderedTasks}
+                    yourOrder={yourOrder && canManageTasks}
                     sensors={taskDragSensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={canManageTasks ? handleTaskDragEnd : undefined}
-                  >
-                    <SortableContext
-                      items={orderedTasks.map((t) => t.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <ul className="list-none p-0 m-0">
-                        {orderedTasks.map((task) => {
-                          const isOverdue = deadlinePassed(task.deadline, handedIn(task.status))
-                          const canAssign =
-                            canRunTasks &&
-                            task.status !== TaskStatus.completed &&
-                            volunteers.length > 0
-                          const canUnassign =
-                            canRunTasks && task.assignedToId !== null && !handedIn(task.status)
+                    onDragEnd={handleTaskDragEnd}
+                    rowParts={(task) => {
+                      const isOverdue = deadlinePassed(task.deadline, handedIn(task.status))
+                      const canAssign =
+                        canRunTasks && task.status !== TaskStatus.completed && volunteers.length > 0
+                      const canUnassign =
+                        canRunTasks && task.assignedToId !== null && !handedIn(task.status)
 
-                          return (
-                            <SortableTaskItem
-                              key={task.id}
-                              task={task}
-                              draggable={canManageTasks}
-                              title={
-                                <Link
-                                  href={`/projects/${idParam}/tasks/${task.id}`}
-                                  className="hover:underline"
-                                >
-                                  {task.title}
-                                </Link>
-                              }
-                              assigneeName={
-                                task.status !== TaskStatus.completed ? task.assignedToName : null
-                              }
-                              chips={
-                                <>
-                                  {task.status === TaskStatus.completed && (
-                                    <span className="text-success text-sm font-semibold">
-                                      <span aria-hidden="true">✓</span> <span>done</span>
-                                    </span>
-                                  )}
-                                  {task.requestedById !== null && (
-                                    <span className="text-text-light text-xs whitespace-nowrap">
-                                      {task.requestedById === user.id
-                                        ? 'Held for you: waiting for the owner'
-                                        : `Requested by ${task.requestedByName}`}
-                                    </span>
-                                  )}
-                                  {task.status !== TaskStatus.completed && (
-                                    <Badge variant={TASK_STATUS_VARIANTS[task.displayStatus]}>
-                                      {TASK_STATUS_LABELS[task.displayStatus]}
-                                    </Badge>
-                                  )}
-                                  {task.featuredAsQuickTask && (
-                                    <span
-                                      className="text-xs whitespace-nowrap"
-                                      title="Also shown on the Quick Tasks page"
-                                    >
-                                      ⚡ Quick Task
-                                    </span>
-                                  )}
-                                  {isOverdue && <Badge variant="danger">Overdue</Badge>}
-                                  {task.pastPlanDays ? (
-                                    <Badge variant="warning">
-                                      {plural(task.pastPlanDays, 'day')} past plan
-                                    </Badge>
-                                  ) : null}
-                                  {task.keyDateSide && task.keyDateSide !== 'other' && (
-                                    <span
-                                      className="text-xs whitespace-nowrap"
-                                      style={
-                                        task.keyDateSide === 'key'
-                                          ? { color: 'var(--gantt-anchor)' }
-                                          : undefined
-                                      }
-                                    >
-                                      {KEY_DATE_SIDE_LABELS[task.keyDateSide]}
-                                    </span>
-                                  )}
-                                  {task.estimatedHours !== null && (
-                                    <span className="text-text-light text-xs whitespace-nowrap">
-                                      ~{task.estimatedHours}h
-                                    </span>
-                                  )}
-                                  {task.deadline && (
-                                    <span className="text-text-light text-xs whitespace-nowrap">
-                                      Deadline {formatDate(task.deadline)}
-                                    </span>
-                                  )}
-                                  {task.commentCount > 0 && (
-                                    <Link
-                                      href={`/projects/${idParam}/tasks/${task.id}`}
-                                      className="flex items-center gap-1 text-text-light text-xs whitespace-nowrap hover:underline"
-                                      aria-label={`${task.commentCount} comment${task.commentCount !== 1 ? 's' : ''}`}
-                                    >
-                                      <svg
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        aria-hidden="true"
-                                      >
-                                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                                      </svg>
-                                      {task.commentCount}
-                                    </Link>
-                                  )}
-                                </>
-                              }
-                              primaryAction={
-                                <>
-                                  {task.status === TaskStatus.not_started &&
-                                    task.assignedToId === null &&
-                                    task.requestedById === null &&
-                                    canClaimTasks && (
-                                      <Button
-                                        variant="secondary"
-                                        size="sm"
-                                        onClick={() => handleClaimTask(task.id)}
-                                      >
-                                        {claimLabel(project.claimViewer)}
-                                      </Button>
-                                    )}
-                                  {!locked &&
-                                    !handedIn(task.status) &&
-                                    task.assignedToId === user.id && (
-                                      <SubmitWorkButton
-                                        target={{
-                                          kind: 'project',
-                                          projectId: project.id,
-                                          taskId: task.id,
-                                        }}
-                                        reviewer={
-                                          awaitsOwnerReview(project, canRunTasks)
-                                            ? 'The project owner'
-                                            : null
-                                        }
-                                        size="sm"
-                                        variant="secondary"
-                                      />
-                                    )}
-                                  {task.status === TaskStatus.under_review && canRunTasks && (
-                                    <Button
-                                      variant="secondary"
-                                      size="sm"
-                                      href={`/projects/${idParam}/tasks/${task.id}`}
-                                    >
-                                      Review
-                                    </Button>
-                                  )}
-                                </>
-                              }
-                              menu={
-                                !locked &&
-                                (canAssign || canManageTasks || task.createdById === user.id) && (
-                                  <ActionMenu ariaLabel={`Task actions for ${task.title}`}>
-                                    {(close) => (
-                                      <>
-                                        {canAssign && (
-                                          <div className="px-3 py-2 flex flex-col gap-2">
-                                            <FilterDropdown
-                                              id={`assign-task-${task.id}`}
-                                              label="Assign to"
-                                              ariaLabel={`Assign volunteer to ${task.title}`}
-                                              value={taskAssignSelections[task.id] ?? ''}
-                                              options={assignVolunteerOptions}
-                                              onChange={(v) =>
-                                                setTaskAssignSelections((s) => ({
-                                                  ...s,
-                                                  [task.id]: v,
-                                                }))
-                                              }
-                                              searchable
-                                            />
-                                            <Button
-                                              variant="secondary"
-                                              size="sm"
-                                              disabled={
-                                                !taskAssignSelections[task.id] ||
-                                                assignTaskMutation.isPending
-                                              }
-                                              onClick={() => {
-                                                handleAssignTask(task.id)
-                                                close()
-                                              }}
-                                            >
-                                              {ASSIGN_PICKED}
-                                            </Button>
-                                          </div>
-                                        )}
-                                        {canUnassign && (
-                                          <button
-                                            role="menuitem"
-                                            className={`w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors cursor-pointer ${canAssign ? 'border-t border-brand-border mt-1' : ''}`}
-                                            onClick={() => {
-                                              handleUnassignTask(task.id)
-                                              close()
-                                            }}
-                                          >
-                                            {UNASSIGN}
-                                          </button>
-                                        )}
-                                        {canManageTasks && task.status === TaskStatus.completed && (
-                                          <button
-                                            role="menuitem"
-                                            className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors cursor-pointer"
-                                            onClick={() => {
-                                              setReopenTarget({
-                                                projectId: project.id,
-                                                taskId: task.id,
-                                                title: task.title,
-                                                assigneeName: task.assignedToName,
-                                              })
-                                              close()
-                                            }}
-                                          >
-                                            Reopen task
-                                          </button>
-                                        )}
-                                        {(canManageTasks || task.createdById === user.id) && (
-                                          <button
-                                            role="menuitem"
-                                            className={`w-full text-left px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-accent transition-colors cursor-pointer ${canAssign || canUnassign ? 'border-t border-brand-border mt-1' : ''}`}
-                                            onClick={() => {
-                                              setDeleteTaskId(task.id)
-                                              close()
-                                            }}
-                                          >
-                                            Delete task
-                                          </button>
-                                        )}
-                                      </>
-                                    )}
-                                  </ActionMenu>
+                      return {
+                        title: (
+                          <Link
+                            href={`/projects/${idParam}/tasks/${task.id}`}
+                            className="hover:underline"
+                          >
+                            {task.title}
+                          </Link>
+                        ),
+                        below: task.firstBlocker && (
+                          <div className="mt-1 flex flex-wrap items-center gap-x-2">
+                            <span className="text-text-light text-sm">Blocked by</span>
+                            <WorkItemCard
+                              item={task.firstBlocker}
+                              variant="compact"
+                              extra={
+                                task.blockedBy.length > 1 && (
+                                  <span className="text-text-light">
+                                    + {task.blockedBy.length - 1} more
+                                  </span>
                                 )
                               }
                             />
-                          )
-                        })}
-                      </ul>
-                    </SortableContext>
-                  </DndContext>
+                          </div>
+                        ),
+                        assigneeName:
+                          task.status !== TaskStatus.completed ? task.assignedToName : null,
+                        chips: (
+                          <>
+                            {task.status === TaskStatus.completed && (
+                              <span className="text-success text-sm font-semibold">
+                                <span aria-hidden="true">✓</span> <span>done</span>
+                              </span>
+                            )}
+                            {task.requestedById !== null && (
+                              <span className="text-text-light text-xs whitespace-nowrap">
+                                {task.requestedById === user.id
+                                  ? 'Held for you: waiting for the owner'
+                                  : `Requested by ${task.requestedByName}`}
+                              </span>
+                            )}
+                            {task.status !== TaskStatus.completed && (
+                              <Badge variant={TASK_STATUS_VARIANTS[task.displayStatus]}>
+                                {TASK_STATUS_LABELS[task.displayStatus]}
+                              </Badge>
+                            )}
+                            {task.featuredAsQuickTask && (
+                              <span
+                                className="text-xs whitespace-nowrap"
+                                title="Also shown on the Quick Tasks page"
+                              >
+                                ⚡ Quick Task
+                              </span>
+                            )}
+                            {isOverdue && <Badge variant="danger">Overdue</Badge>}
+                            {task.pastPlanDays ? (
+                              <Badge variant="warning">
+                                {plural(task.pastPlanDays, 'day')} past plan
+                              </Badge>
+                            ) : null}
+                            {task.keyDateSide && task.keyDateSide !== 'other' && (
+                              <span
+                                className="text-xs whitespace-nowrap"
+                                style={
+                                  task.keyDateSide === 'key'
+                                    ? { color: 'var(--gantt-anchor)' }
+                                    : undefined
+                                }
+                              >
+                                {KEY_DATE_SIDE_LABELS[task.keyDateSide]}
+                              </span>
+                            )}
+                            {task.estimatedHours !== null && (
+                              <span className="text-text-light text-xs whitespace-nowrap">
+                                ~{task.estimatedHours}h
+                              </span>
+                            )}
+                            {task.deadline && (
+                              <span className="text-text-light text-xs whitespace-nowrap">
+                                Deadline {formatDate(task.deadline)}
+                              </span>
+                            )}
+                            {task.commentCount > 0 && (
+                              <Link
+                                href={`/projects/${idParam}/tasks/${task.id}`}
+                                className="flex items-center gap-1 text-text-light text-xs whitespace-nowrap hover:underline"
+                                aria-label={`${task.commentCount} comment${task.commentCount !== 1 ? 's' : ''}`}
+                              >
+                                <svg
+                                  width="14"
+                                  height="14"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                                </svg>
+                                {task.commentCount}
+                              </Link>
+                            )}
+                          </>
+                        ),
+                        primaryAction: (
+                          <>
+                            {task.status === TaskStatus.not_started &&
+                              task.assignedToId === null &&
+                              task.requestedById === null &&
+                              canClaimTasks && (
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => handleClaimTask(task.id)}
+                                >
+                                  {claimLabel(project.claimViewer)}
+                                </Button>
+                              )}
+                            {!locked && !handedIn(task.status) && task.assignedToId === user.id && (
+                              <SubmitWorkButton
+                                target={{
+                                  kind: 'project',
+                                  projectId: project.id,
+                                  taskId: task.id,
+                                }}
+                                reviewer={
+                                  awaitsOwnerReview(project, canRunTasks)
+                                    ? 'The project owner'
+                                    : null
+                                }
+                                size="sm"
+                                variant="secondary"
+                              />
+                            )}
+                            {task.status === TaskStatus.under_review && canRunTasks && (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                href={`/projects/${idParam}/tasks/${task.id}`}
+                              >
+                                Review
+                              </Button>
+                            )}
+                          </>
+                        ),
+                        menu: !locked &&
+                          (canAssign || canManageTasks || task.createdById === user.id) && (
+                            <ActionMenu ariaLabel={`Task actions for ${task.title}`}>
+                              {(close) => (
+                                <>
+                                  {canAssign && (
+                                    <div className="px-3 py-2 flex flex-col gap-2">
+                                      <FilterDropdown
+                                        id={`assign-task-${task.id}`}
+                                        label="Assign to"
+                                        ariaLabel={`Assign volunteer to ${task.title}`}
+                                        value={taskAssignSelections[task.id] ?? ''}
+                                        options={assignVolunteerOptions}
+                                        onChange={(v) =>
+                                          setTaskAssignSelections((s) => ({
+                                            ...s,
+                                            [task.id]: v,
+                                          }))
+                                        }
+                                        searchable
+                                      />
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        disabled={
+                                          !taskAssignSelections[task.id] ||
+                                          assignTaskMutation.isPending
+                                        }
+                                        onClick={() => {
+                                          handleAssignTask(task.id)
+                                          close()
+                                        }}
+                                      >
+                                        {ASSIGN_PICKED}
+                                      </Button>
+                                    </div>
+                                  )}
+                                  {canUnassign && (
+                                    <button
+                                      role="menuitem"
+                                      className={`w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors cursor-pointer ${canAssign ? 'border-t border-brand-border mt-1' : ''}`}
+                                      onClick={() => {
+                                        handleUnassignTask(task.id)
+                                        close()
+                                      }}
+                                    >
+                                      {UNASSIGN}
+                                    </button>
+                                  )}
+                                  {canManageTasks && task.status === TaskStatus.completed && (
+                                    <button
+                                      role="menuitem"
+                                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors cursor-pointer"
+                                      onClick={() => {
+                                        setReopenTarget({
+                                          projectId: project.id,
+                                          taskId: task.id,
+                                          title: task.title,
+                                          assigneeName: task.assignedToName,
+                                        })
+                                        close()
+                                      }}
+                                    >
+                                      Reopen task
+                                    </button>
+                                  )}
+                                  {(canManageTasks || task.createdById === user.id) && (
+                                    <button
+                                      role="menuitem"
+                                      className={`w-full text-left px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-accent transition-colors cursor-pointer ${canAssign || canUnassign ? 'border-t border-brand-border mt-1' : ''}`}
+                                      onClick={() => {
+                                        setDeleteTaskId(task.id)
+                                        close()
+                                      }}
+                                    >
+                                      Delete task
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </ActionMenu>
+                          ),
+                      }
+                    }}
+                  />
                 ))}
             </div>
           )}

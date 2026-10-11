@@ -120,9 +120,10 @@ describe('project page — visitor', () => {
     await userEvent.type(within(dialog).getByLabelText('What did you do?'), 'Did it')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Submit work' }))
     await screen.findByText('Task done. What you did is saved on the task.')
-    // The finished task stays where it was; the server's order applies on the next load.
+    // The finished task moves under Done, after the one still under way.
     await waitFor(() => expect(screen.getAllByText('done')).toHaveLength(2))
-    expect(taskOrder()).toEqual(['Open task', 'Ongoing task', 'Done task'])
+    expect(taskOrder()).toEqual(['Ongoing task', 'Open task', 'Done task'])
+    expect(screen.getByText('Done (2)')).toBeInTheDocument()
     await openTab(/^Discussion/)
     expect(await screen.findByLabelText('Add a comment')).toBeInTheDocument()
 
@@ -424,8 +425,14 @@ describe('project page — owner', () => {
       ).toBe('Not now'),
     )
 
-    // The drag handle and the task menu say what they are.
+    // Dragging is only in Your order. The drag handle and the task menu say what they are.
     await openTab(/^Tasks/)
+    expect(screen.queryByLabelText('Drag to reorder First task')).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Your order' }))
+    expect(screen.getByRole('button', { name: 'Your order' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
     expect(screen.getByLabelText('Drag to reorder First task')).toBeInTheDocument()
     expect(screen.getByLabelText('Task actions for First task')).toHaveAttribute(
       'title',
@@ -586,7 +593,113 @@ describe('project page — owner', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
     await waitFor(() => expect(screen.getAllByText('Project not found').length).toBeGreaterThan(2))
     await openTab(/^Tasks/)
+    await userEvent.click(screen.getByRole('button', { name: 'Your order' }))
     act(() => listDrag()({ active: { id: t1.id }, over: { id: t1.id + 1 } } as DragEndEvent))
+  })
+})
+
+describe('project page — task list order', () => {
+  /** Each task row's own title, top to bottom, leaving out the cards inside the rows. */
+  const rowTitles = () =>
+    [...document.querySelectorAll('li > div.flex-1 > a')].map((a) => a.textContent)
+  const rowOf = (title: string) =>
+    screen.getByRole('link', { name: title }).closest('li') as HTMLElement
+
+  async function flyering() {
+    const owner = await createVolunteer()
+    const worker = await createVolunteer()
+    const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: project.id,
+        volunteerId: worker.id,
+        interestType: 'want_to_contribute',
+        status: 'accepted',
+      },
+    })
+    const task = (title: string, sortOrder: number, rest: object = {}) =>
+      createTask(project.id, { title, sortOrder, ...rest })
+    const handOut = await task('Hand out flyers', 1)
+    const print = await task('Print flyers', 2, {
+      status: 'in_progress',
+      assigneeId: worker.id,
+      deadline: new Date('2030-01-10'),
+    })
+    const book = await task('Book the pitch', 3, { deadline: new Date('2030-01-20') })
+    await task('Design the flyer', 4, { status: 'under_review', assigneeId: worker.id })
+    await task('Pick a spot', 5, { assigneeId: worker.id })
+    const count = await task('Count volunteers', 6, { deadline: new Date('2030-01-05') })
+    await task('Thank-you post', 7)
+    await task('Pack the stall kit', 8, { status: 'completed', completedAt: new Date() })
+    await prisma.workItemDependency.createMany({
+      data: [
+        { predecessorId: book.id, successorId: handOut.id },
+        { predecessorId: print.id, successorId: handOut.id },
+      ],
+    })
+    return { owner, worker, project, handOut, count }
+  }
+
+  it('puts ready work first and names what a blocked task waits for', async () => {
+    const { owner, project } = await flyering()
+    await mount(project.id, owner, '#tasks')
+    await screen.findByText('Hand out flyers')
+    expect(rowTitles()).toEqual([
+      'Count volunteers',
+      'Book the pitch',
+      'Thank-you post',
+      'Pick a spot',
+      'Print flyers',
+      'Design the flyer',
+      'Hand out flyers',
+      'Pack the stall kit',
+    ])
+    // The blocked row names its first blocker in the manual order, as a card, and counts the rest.
+    const blocked = rowOf('Hand out flyers')
+    expect(within(blocked).getByText('Blocked')).toBeInTheDocument()
+    expect(within(blocked).getByText('Blocked by')).toBeInTheDocument()
+    expect(within(blocked).getByRole('link', { name: 'Print flyers' })).toBeInTheDocument()
+    expect(within(blocked).getByText('+ 1 more')).toBeInTheDocument()
+    expect(within(rowOf('Count volunteers')).queryByText('Blocked by')).toBeNull()
+    // Done work is folded away.
+    expect(screen.getByText('Done (1)').closest('details')).not.toHaveAttribute('open')
+    expect(screen.queryByTitle('Drag to reorder')).toBeNull()
+  })
+
+  it('switches to Your order for dragging, and back', async () => {
+    const { owner, project, handOut, count } = await flyering()
+    await mount(project.id, owner, '#tasks')
+    await screen.findByText('Hand out flyers')
+    await userEvent.click(screen.getByRole('button', { name: 'Your order' }))
+    expect(rowTitles()).toEqual([
+      'Hand out flyers',
+      'Print flyers',
+      'Book the pitch',
+      'Design the flyer',
+      'Pick a spot',
+      'Count volunteers',
+      'Thank-you post',
+      'Pack the stall kit',
+    ])
+    expect(screen.queryByText(/^Done \(/)).toBeNull()
+    act(() => listDrag()({ active: { id: count.id }, over: { id: handOut.id } } as DragEndEvent))
+    expect(rowTitles().slice(0, 2)).toEqual(['Count volunteers', 'Hand out flyers'])
+    await waitFor(async () => expect((await row(count.id)).sortOrder).toBe(1))
+    await userEvent.click(screen.getByRole('button', { name: 'Your order' }))
+    expect(screen.getByRole('button', { name: 'Your order' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    expect(rowTitles()[0]).toBe('Count volunteers')
+    expect(screen.getByText('Done (1)')).toBeInTheDocument()
+  })
+
+  it('gives a helper the grouped list and no Your order', async () => {
+    const { worker, project } = await flyering()
+    await mount(project.id, worker, '#tasks')
+    await screen.findByText('Hand out flyers')
+    expect(rowTitles()[0]).toBe('Count volunteers')
+    expect(screen.queryByRole('button', { name: 'Your order' })).toBeNull()
   })
 })
 
@@ -766,6 +879,7 @@ describe('project page — deputies', () => {
       assigneeId: worker.id,
     })
     await mount(project.id, helper, '#tasks')
+    await userEvent.click(await screen.findByRole('button', { name: 'Your order' }))
     expect(await screen.findByLabelText('Drag to reorder Open one')).toBeInTheDocument()
     expect(screen.getByLabelText('Task actions for Open one')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Review' })).toHaveAttribute(
@@ -1624,6 +1738,8 @@ describe('project page — a completed project', () => {
     expect(screen.queryByRole('button', { name: 'Add Task' })).toBeNull()
     expect(screen.queryByLabelText('Task actions for Open bit')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Claim task' })).toBeNull()
+    // Nothing can be dragged, so there is no Your order to drag in.
+    expect(screen.queryByRole('button', { name: 'Your order' })).toBeNull()
     await openTab(/People/)
     await screen.findByText('Ann Applicant')
     expect(screen.queryByRole('button', { name: 'Accept' })).toBeNull()

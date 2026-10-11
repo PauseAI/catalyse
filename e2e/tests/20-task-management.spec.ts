@@ -5,6 +5,9 @@ import { goToInbox } from '../actions/dashboard'
 import type { RouterClient } from '@orpc/server'
 import type { appRouter } from '@/server/router'
 
+/** Each task row's own title on the Tasks tab, top to bottom. */
+const taskTitles = 'ul > li > div.flex-1 > a'
+
 async function createAdminProject(
   adminApi: RouterClient<typeof appRouter>,
   description: string,
@@ -80,10 +83,14 @@ test.describe('Task Reordering', () => {
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(adminPage.getByText('Task A')).toBeVisible({ timeout: 10_000 })
+    // The list starts grouped by status; dragging is in Your order.
+    await expect(adminPage.getByTitle('Drag to reorder')).toHaveCount(0)
+    await adminPage.getByRole('button', { name: 'Your order' }).click()
     await expect(adminPage.getByTitle('Drag to reorder').first()).toBeVisible({ timeout: 10_000 })
 
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(volunteer.page.getByText('Task A')).toBeVisible({ timeout: 10_000 })
+    await expect(volunteer.page.getByRole('button', { name: 'Your order' })).toHaveCount(0)
     await expect(volunteer.page.getByTitle('Drag to reorder')).toHaveCount(0)
   })
 
@@ -116,11 +123,22 @@ test.describe('Task Reordering', () => {
     await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(adminPage.getByText('Third')).toBeVisible({ timeout: 10_000 })
 
-    const taskTitles = await adminPage.locator('ul > li > span.flex-1').allTextContents()
-    expect(taskTitles).toEqual(['Third', 'First', 'Second'])
+    // All three are ready and undated, so the grouped list keeps the saved order too.
+    expect(await adminPage.locator(taskTitles).allTextContents()).toEqual([
+      'Third',
+      'First',
+      'Second',
+    ])
+    await adminPage.getByRole('button', { name: 'Your order' }).click()
+    await expect(adminPage.getByTitle('Drag to reorder')).toHaveCount(3)
+    expect(await adminPage.locator(taskTitles).allTextContents()).toEqual([
+      'Third',
+      'First',
+      'Second',
+    ])
   })
 
-  test('Assigning a task keeps its priority position instead of sinking below open tasks', async ({
+  test('Assigning a task puts it after the unclaimed ones, but not in Your order', async ({
     adminPage,
     baseUrl,
   }) => {
@@ -141,8 +159,19 @@ test.describe('Task Reordering', () => {
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(adminPage.getByText('Third')).toBeVisible({ timeout: 10_000 })
-    const taskTitles = await adminPage.locator('ul > li > span.flex-1').allTextContents()
-    expect(taskTitles).toEqual(['First', 'Second', 'Third'])
+    // Ready and unclaimed comes first: that is what someone can pick up now.
+    expect(await adminPage.locator(taskTitles).allTextContents()).toEqual([
+      'First',
+      'Third',
+      'Second',
+    ])
+    await adminPage.getByRole('button', { name: 'Your order' }).click()
+    await expect(adminPage.getByTitle('Drag to reorder')).toHaveCount(3)
+    expect(await adminPage.locator(taskTitles).allTextContents()).toEqual([
+      'First',
+      'Second',
+      'Third',
+    ])
   })
 
   test('A volunteer cannot reorder tasks via the API', async ({ baseUrl }) => {
@@ -352,7 +381,9 @@ test.describe('Task Deadlines', () => {
       timeout: 10_000,
     })
 
+    await adminPage.getByText('Done (1)').click()
     const doneItem = adminPage.locator('li').filter({ hasText: 'Overdue but done task' })
+    await expect(doneItem).toBeVisible()
     await expect(doneItem.getByText('Overdue', { exact: true })).toHaveCount(0)
   })
 })
