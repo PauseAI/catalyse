@@ -42,7 +42,7 @@ async function updateReportStatus(
   if (resolutionNotes) {
     await adminPage.getByLabel('Resolution Notes').fill(resolutionNotes)
   }
-  await adminPage.getByRole('button', { name: 'Update' }).click()
+  await adminPage.getByRole('button', { name: 'Update', exact: true }).click()
   await expect(getAlert(adminPage)).toContainText('Report updated!', { timeout: 10_000 })
 
   // The /bugs/[id] detail page (introduced alongside the comment threads) doesn't redirect
