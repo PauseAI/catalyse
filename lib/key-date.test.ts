@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bySide, keyDateSides } from './key-date'
+import { keyDateSides } from './key-date'
 
 const t = (id: number, isAnchor = false) => ({ id, isAnchor })
 const link = (predecessorId: number, successorId: number) => ({ predecessorId, successorId })
@@ -28,16 +28,5 @@ describe('keyDateSides', () => {
   it('treats work between two key dates as prep for the later one', () => {
     const sides = keyDateSides([t(1, true), t(2), t(3, true)], [link(1, 2), link(2, 3)])
     expect(sides.get(2)).toBe('before')
-  })
-
-  it('orders before, key date, after, other, keeping the order within each side', () => {
-    const sides = keyDateSides(
-      [t(1), t(2, true), t(3), t(4), t(5)],
-      [link(4, 2), link(2, 3), link(1, 2)],
-    )
-    const items = [1, 2, 3, 4, 5].map((id) => ({ id }))
-    expect(bySide(items, sides).map((i) => i.id)).toEqual([1, 4, 2, 3, 5])
-    // Without a key date nothing moves.
-    expect(bySide(items, new Map())).toBe(items)
   })
 })

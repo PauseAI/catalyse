@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { DragEndEvent } from '@dnd-kit/core'
 import type { ScheduledItem } from '@/lib/schedule'
-import GanttChart, { lockYForBarDrags } from './GanttChart'
+import GanttChart, { inStartOrder, lockYForBarDrags } from './GanttChart'
 import GanttLegend, { PlanningTools } from './GanttLegend'
 import GanttItemPanel from './GanttItemPanel'
 import BaselineDialog from './BaselineDialog'
@@ -389,6 +389,92 @@ describe('GanttChart', () => {
     expect(onUnlink).toHaveBeenCalledWith(10)
     // The how-to lives in Planning tools, not under the chart.
     expect(screen.queryByText(/Drag a bar to move it/)).toBeNull()
+  })
+
+  it('orders rows by planned start, then planned end, then the order given', () => {
+    const row = (id: number, label: string, start: string, end: string): GanttRow => ({
+      id,
+      label,
+      status: 'ready',
+      placement: placed(id, start, end),
+    })
+    const ordered = inStartOrder([
+      row(1, 'Pack flyering stall kit', '2026-06-04', '2026-06-04'),
+      row(2, 'Get table from Reuben', '2026-06-02', '2026-06-03'),
+      row(3, 'Print flyers', '2026-06-02', '2026-06-02'),
+      row(4, 'Book stall', '2026-06-02', '2026-06-02'),
+    ])
+    expect(ordered.map((r) => r.label)).toEqual([
+      'Print flyers',
+      'Book stall',
+      'Get table from Reuben',
+      'Pack flyering stall kit',
+    ])
+  })
+
+  it('lists undated items as rows under the bars, with the add action only for a manager', async () => {
+    const user = userEvent.setup({ advanceTimers: () => {} })
+    const onAddToTimeline = vi.fn()
+    const undated = [
+      { id: 20, label: 'Write press release', href: '/projects/1/tasks/20' },
+      { id: 21, label: 'Thank volunteers' },
+    ]
+    const { rerender } = render(
+      <GanttChart
+        rows={rows}
+        undated={undated}
+        onAddToTimeline={onAddToTimeline}
+        edges={[]}
+        rangeStart={day('2026-06-01')}
+        rangeEnd={day('2026-06-08')}
+        editable
+      />,
+    )
+    const group = screen.getByRole('group', { name: 'Tasks with no dates' })
+    expect(within(group).getByText('No dates (2)')).toBeInTheDocument()
+    expect(within(group).getByRole('link', { name: 'Write press release' })).toHaveAttribute(
+      'href',
+      '/projects/1/tasks/20',
+    )
+    expect(within(group).getByTitle('Thank volunteers')).toHaveTextContent(/^Thank volunteers$/)
+    expect(within(group).getAllByText(/No dates ·/)).toHaveLength(2)
+    await user.click(
+      within(group).getByRole('button', { name: 'Add Thank volunteers to the timeline' }),
+    )
+    expect(onAddToTimeline).toHaveBeenLastCalledWith([21])
+    await user.click(within(group).getByRole('button', { name: 'Add all to timeline' }))
+    expect(onAddToTimeline).toHaveBeenLastCalledWith([20, 21])
+
+    // Busy while a write is in flight.
+    rerender(
+      <GanttChart
+        rows={rows}
+        undated={undated}
+        onAddToTimeline={onAddToTimeline}
+        edges={[]}
+        rangeStart={day('2026-06-01')}
+        rangeEnd={day('2026-06-08')}
+        editable
+        busy
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Add all to timeline' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Add Write press release to the timeline' }),
+    ).toBeDisabled()
+
+    // A viewer sees the rows but no way to place them.
+    rerender(
+      <GanttChart
+        rows={rows}
+        undated={undated}
+        edges={[]}
+        rangeStart={day('2026-06-01')}
+        rangeEnd={day('2026-06-08')}
+      />,
+    )
+    expect(screen.getAllByText('No dates yet')).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: /to the timeline/ })).toBeNull()
   })
 
   it('measures its container with ResizeObserver', () => {

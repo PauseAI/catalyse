@@ -49,18 +49,3 @@ export function keyDateSides(
   }
   return sides
 }
-
-const SIDE_ORDER: Record<KeyDateSide, number> = { before: 0, key: 1, after: 2, other: 3 }
-
-/** Sorts before, key date, after, other; keeps the existing order within each side. */
-export function bySide<T extends { id: number }>(items: T[], sides: Map<number, KeyDateSide>): T[] {
-  if (sides.size === 0) return items
-  return items
-    .map((item, i) => ({ item, i }))
-    .sort(
-      (a, b) =>
-        SIDE_ORDER[sides.get(a.item.id) ?? 'other'] - SIDE_ORDER[sides.get(b.item.id) ?? 'other'] ||
-        a.i - b.i,
-    )
-    .map(({ item }) => item)
-}

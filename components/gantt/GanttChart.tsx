@@ -38,7 +38,7 @@ import { formatDateShort } from '@/lib/format-date'
 import { plural } from '@/lib/plural'
 import { lateText } from '@/lib/slip'
 import { patchFromDrag, type DragData, type ReschedulePatch } from './useGanttDrag'
-import type { GanttEdge, GanttRow as GanttRowData } from './types'
+import type { GanttEdge, GanttRow as GanttRowData, GanttUndatedRow } from './types'
 
 const ZOOMS: { key: ZoomLevel; label: string }[] = [
   { key: 'fit', label: 'Fit' },
@@ -65,8 +65,22 @@ export const lockYForBarDrags: Modifier = ({ transform, active }) => {
   return transform
 }
 
+/**
+ * Planned start, then planned end, then the order given, so a chain of work cascades down and
+ * to the right.
+ */
+export function inStartOrder(rows: GanttRowData[]): GanttRowData[] {
+  return [...rows].sort(
+    (a, b) =>
+      a.placement.start.getTime() - b.placement.start.getTime() ||
+      a.placement.end.getTime() - b.placement.end.getTime(),
+  )
+}
+
 export default function GanttChart({
   rows,
+  undated = [],
+  onAddToTimeline,
   edges,
   rangeStart,
   rangeEnd,
@@ -81,6 +95,9 @@ export default function GanttChart({
   highlightCritical = true,
 }: {
   rows: GanttRowData[]
+  undated?: GanttUndatedRow[]
+  /** Gives undated rows a way onto the chart; omit for a viewer who cannot place them. */
+  onAddToTimeline?: (ids: number[]) => void
   edges: GanttEdge[]
   rangeStart: Date
   rangeEnd: Date
@@ -431,6 +448,81 @@ export default function GanttChart({
             </div>
           </div>
         </div>
+
+        {undated.length > 0 && (
+          <div
+            role="group"
+            aria-label="Tasks with no dates"
+            className="border-brand-border border-t-2"
+            style={{ width: NAME_COL_WIDTH + width }}
+          >
+            <div
+              className="bg-surface sticky left-0 flex w-fit items-center gap-3 px-3 py-1"
+              style={{ borderBottom: '1px solid var(--gantt-grid)' }}
+            >
+              <span className="text-text-light text-xs font-semibold tracking-wide uppercase">
+                No dates ({undated.length})
+              </span>
+              {onAddToTimeline && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={() => onAddToTimeline(undated.map((r) => r.id))}
+                  title="Adds a one-day bar for each task, all starting on the first day of the plan. Spread them out or link them afterwards."
+                >
+                  Add all to timeline
+                </Button>
+              )}
+            </div>
+            {undated.map((r) => (
+              <div
+                key={r.id}
+                className="flex items-center text-sm"
+                style={{ height: ROW_HEIGHT, borderBottom: '1px solid var(--gantt-grid)' }}
+              >
+                <div
+                  className="border-brand-border bg-surface sticky left-0 z-40 flex h-full shrink-0 items-center border-r px-3"
+                  style={{ width: NAME_COL_WIDTH }}
+                  title={r.label}
+                >
+                  <span className="line-clamp-2 leading-tight">
+                    {r.href ? (
+                      <Link href={r.href} className="text-primary-text hover:underline">
+                        {r.label}
+                      </Link>
+                    ) : (
+                      r.label
+                    )}
+                  </span>
+                </div>
+                {/* Pinned beside the names so it stays in view while the chart scrolls sideways. */}
+                <span
+                  className="text-text-light sticky px-3 whitespace-nowrap"
+                  style={{ left: NAME_COL_WIDTH }}
+                >
+                  {onAddToTimeline ? (
+                    <>
+                      No dates ·{' '}
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => onAddToTimeline([r.id])}
+                        aria-label={`Add ${r.label} to the timeline`}
+                        title="Adds a one-day bar starting on the first day of the plan; drag it or edit its dates to change that."
+                        className="text-primary-text cursor-pointer hover:underline disabled:cursor-default disabled:opacity-60"
+                      >
+                        Add to timeline
+                      </button>
+                    </>
+                  ) : (
+                    'No dates yet'
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

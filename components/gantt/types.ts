@@ -15,6 +15,9 @@ export type GanttRow = {
   effortHours?: number | null
 }
 
+/** An item with no dates yet: a row with an empty track, under the dated rows. */
+export type GanttUndatedRow = Pick<GanttRow, 'id' | 'label' | 'href'>
+
 /** A finish-to-start edge, already filtered to rows present on the chart. */
 export type GanttEdge = {
   /** Dependency row id, when the caller has it (lets the panel edit the link). */

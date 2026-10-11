@@ -1025,7 +1025,7 @@ describe('project page — timeline tab', () => {
     await screen.findByRole('heading', { name: 'Timed project' })
     expect(screen.getByRole('tab', { name: 'Timeline' })).toHaveAttribute('aria-selected', 'true')
     await screen.findByRole('button', { name: /^Alpha:/ })
-    expect(screen.getByText('Unscheduled (1)')).toBeInTheDocument()
+    expect(screen.getByText('No dates (1)')).toBeInTheDocument()
     expect(screen.getByText(/Original plan set/)).toBeInTheDocument()
 
     // Tab switching pushes history; the popstate/hashchange listeners read it back.
@@ -1054,7 +1054,9 @@ describe('project page — timeline tab', () => {
     await userEvent.click(screen.getByLabelText('Add Gamma to the timeline'))
     await waitFor(async () => expect((await row(c.id)).startDate).not.toBeNull())
     expect((await row(c.id)).deadline).toBeNull()
-    await waitFor(() => expect(screen.queryByText(/Unscheduled/)).toBeNull())
+    await waitFor(() =>
+      expect(screen.queryByRole('group', { name: 'Tasks with no dates' })).toBeNull(),
+    )
 
     // Drag a bar (via the captured DndContext), then link two bars.
     act(() =>
@@ -1194,7 +1196,7 @@ describe('project page — timeline tab', () => {
     const t1 = await createTask(project.id, { title: 'Loose one' })
     const t2 = await createTask(project.id, { title: 'Loose two' })
     await mount(project.id, owner, '#timeline')
-    await screen.findByText('Unscheduled (2)')
+    await screen.findByText('No dates (2)')
     expect(screen.getByText(/No tasks have dates yet/)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Add all to timeline' }))
     await waitFor(async () => expect((await row(t2.id)).startDate).not.toBeNull())
@@ -1227,8 +1229,45 @@ describe('project page — timeline tab', () => {
     await mount(project.id, visitor, '#timeline')
     await screen.findByRole('button', { name: /^Alpha:/ })
     expect(screen.queryByRole('button', { name: 'Add all to timeline' })).toBeNull()
-    expect(screen.getByText(/These tasks have no dates/)).toBeInTheDocument()
+    expect(screen.getByText('No dates yet')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /baseline/i })).toBeNull()
+  })
+
+  it('orders rows by start, whatever the task list order, with undated tasks last', async () => {
+    const owner = await createVolunteer()
+    const project = await createProject({
+      title: 'Flyering',
+      assigneeId: owner.id,
+      status: 'in_progress',
+      startDate: new Date('2026-06-01T00:00:00Z'),
+    })
+    await createTask(project.id, { title: 'Hand out leaflets' })
+    await createTask(project.id, {
+      title: 'Pack flyering stall kit',
+      startDate: new Date('2026-06-05T00:00:00Z'),
+      deadline: new Date('2026-06-05T00:00:00Z'),
+    })
+    await createTask(project.id, {
+      title: 'Get table from Reuben',
+      startDate: new Date('2026-06-02T00:00:00Z'),
+      deadline: new Date('2026-06-03T00:00:00Z'),
+    })
+    await mount(project.id, owner, '#timeline')
+    await screen.findByRole('button', { name: /^Get table from Reuben:/ })
+    expect(
+      screen
+        .getAllByTitle(/^(Hand out leaflets|Pack flyering stall kit|Get table from Reuben)$/)
+        .map((el) => el.title),
+    ).toEqual(['Get table from Reuben', 'Pack flyering stall kit', 'Hand out leaflets'])
+
+    // With nothing dated, a visitor still sees the undated rows, and no instructions to place them.
+    cleanup()
+    const bare = await createProject({ title: 'Bare', status: 'in_progress' })
+    await createTask(bare.id, { title: 'Undated only' })
+    await mount(bare.id, await createVolunteer(), '#timeline')
+    await screen.findByText('No dates (1)')
+    expect(screen.getByText('No tasks have dates yet.')).toBeInTheDocument()
+    expect(screen.getByText('No dates yet')).toBeInTheDocument()
   })
 
   it('widens the page for the Timeline tab only', async () => {

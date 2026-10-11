@@ -11,7 +11,7 @@ import Checkbox from '@/components/Checkbox'
 import DatesBlock from '@/components/DatesBlock'
 import { plural } from '@/lib/plural'
 import { handedIn, isOverdue as deadlinePassed } from '@/lib/overdue'
-import { KEY_DATE_SIDE_LABELS, bySide, keyDateSides } from '@/lib/key-date'
+import { KEY_DATE_SIDE_LABELS } from '@/lib/key-date'
 import {
   EMPTY_DATES,
   datesPayload,
@@ -49,8 +49,8 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import VolunteerSelect from '@/components/VolunteerSelect'
 import Tabs from '@/components/Tabs'
-import GanttChart from '@/components/gantt/GanttChart'
-import type { GanttRow as GanttRowData } from '@/components/gantt/types'
+import GanttChart, { inStartOrder } from '@/components/gantt/GanttChart'
+import type { GanttRow as GanttRowData, GanttUndatedRow } from '@/components/gantt/types'
 import GanttItemPanel from '@/components/gantt/GanttItemPanel'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
@@ -266,9 +266,9 @@ function SortableTaskItem({
 type TimelineData = InferRouterOutputs<AppRouter>['projects']['listTasks']
 
 /**
- * The Timeline tab. Splits the project's tasks into those placed on the calendar and those
- * still unscheduled (no dates, no predecessor): the first render as a draggable Gantt chart,
- * the rest as a tray. Clicking a bar opens a panel with the same edits, for keyboard users.
+ * The Timeline tab. Tasks placed on the calendar are draggable bars in start order; those still
+ * unscheduled (no dates, no predecessor) are rows under them with an empty track. Clicking a bar
+ * opens a panel with the same edits, for keyboard users.
  */
 function TaskTimeline({
   timeline,
@@ -394,11 +394,15 @@ function TaskTimeline({
   const titleById = new Map(timeline.tasks.map((t) => [t.id, t.title]))
 
   const scheduledRows: GanttRowData[] = []
-  const unscheduled: { id: number; title: string }[] = []
+  const unscheduled: GanttUndatedRow[] = []
   for (const task of timeline.tasks) {
     const placement = placementById.get(task.id)
     if (!taskIsDated(task, hasPredecessor.has(task.id)) || !placement) {
-      unscheduled.push({ id: task.id, title: task.title })
+      unscheduled.push({
+        id: task.id,
+        label: task.title,
+        href: `/projects/${projectId}/tasks/${task.id}`,
+      })
     } else {
       scheduledRows.push({
         id: task.id,
@@ -427,136 +431,134 @@ function TaskTimeline({
     reschedule.mutate({ items: ids.map((id) => ({ id, startDate: start })) })
   }
 
-  function addAllToTimeline() {
-    addToTimeline(unscheduled.map((t) => t.id))
-  }
-
   const busy =
     reschedule.isPending || addDep.isPending || removeDep.isPending || updateTask.isPending
 
   return (
     <div>
-      {scheduledRows.length === 0 ? (
+      {scheduledRows.length === 0 && (
         <p className="text-text-light mb-4">
-          No tasks have dates yet. Add them to the timeline below, then drag each bar to when it
-          happens — or set a start date on an individual task from its own page.
+          {canManage
+            ? 'No tasks have dates yet. Add them to the timeline below, then drag each bar to when it happens — or set a start date on an individual task from its own page.'
+            : 'No tasks have dates yet.'}
         </p>
-      ) : (
-        <div className="flex flex-col gap-4 xl:flex-row">
-          <div className="min-w-0 flex-1">
-            <GanttChart
-              rows={bySide(scheduledRows, keyDateSides(timeline.tasks, timeline.dependencies))}
-              edges={timeline.dependencies}
-              rangeStart={new Date(timeline.scopeStart)}
-              rangeEnd={new Date(timeline.scopeEnd)}
-              deadline={timeline.projectDeadline ? new Date(timeline.projectDeadline) : null}
-              highlightCritical={highlightCritical}
-              editable={canManage}
-              selectedId={selectedId}
-              onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))}
-              onReschedule={(patch) =>
+      )}
+      <div className="flex flex-col gap-4 xl:flex-row">
+        <div className="min-w-0 flex-1">
+          <GanttChart
+            rows={inStartOrder(scheduledRows)}
+            undated={unscheduled}
+            onAddToTimeline={canManage ? addToTimeline : undefined}
+            edges={timeline.dependencies}
+            rangeStart={new Date(timeline.scopeStart)}
+            rangeEnd={new Date(timeline.scopeEnd)}
+            deadline={timeline.projectDeadline ? new Date(timeline.projectDeadline) : null}
+            highlightCritical={highlightCritical}
+            editable={canManage}
+            selectedId={selectedId}
+            onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))}
+            onReschedule={(patch) =>
+              reschedule.mutate({
+                items: [
+                  {
+                    id: patch.id,
+                    startDate: patch.startDate,
+                    ...(patch.durationDays !== undefined
+                      ? { durationDays: patch.durationDays }
+                      : {}),
+                    ...(patch.deadline !== undefined ? { deadline: patch.deadline } : {}),
+                  },
+                ],
+              })
+            }
+            onLink={(predecessorId, successorId) =>
+              addDep.mutate({ predecessorId, successorId, lagDays: 0 })
+            }
+            onUnlink={(dependencyId) => removeDep.mutate({ dependencyId })}
+            busy={busy}
+          />
+        </div>
+
+        {/* Beside the bars only where the middle column can spare its width; narrower than
+            that the chart keeps the column and the panel sits under it. Sticky so the panel
+            stays beside a long chart rather than scrolling off the top, with its own scrollbar
+            if the contents outgrow the viewport. */}
+        {selectedRow && selectedTask && (
+          <div className="xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:w-96 xl:shrink-0 xl:self-start xl:overflow-y-auto">
+            <GanttItemPanel
+              row={selectedRow}
+              dates={datesValueFrom(selectedTask)}
+              description={selectedTask.description}
+              assigneeName={selectedTask.assignedToName}
+              canManage={canManage}
+              busy={busy}
+              siblings={timeline.tasks.map((t) => ({ id: t.id, title: t.title }))}
+              predecessors={timeline.dependencies
+                .filter((d) => d.successorId === selectedRow.id)
+                .map((d) => ({
+                  dependencyId: d.id,
+                  predecessorId: d.predecessorId,
+                  predecessorTitle: titleById.get(d.predecessorId) ?? `#${d.predecessorId}`,
+                }))}
+              onClose={() => setSelectedId(null)}
+              onSaveDates={(p) => {
                 reschedule.mutate({
                   items: [
                     {
-                      id: patch.id,
-                      startDate: patch.startDate,
-                      ...(patch.durationDays !== undefined
-                        ? { durationDays: patch.durationDays }
-                        : {}),
-                      ...(patch.deadline !== undefined ? { deadline: patch.deadline } : {}),
+                      id: selectedRow.id,
+                      startDate: p.startDate,
+                      durationDays: p.durationDays,
+                      deadline: p.deadline,
                     },
                   ],
                 })
+                // The rest is not schedule, so it goes by the ordinary task update, and only
+                // when something there changed.
+                if (
+                  p.timing !== selectedTask.timing ||
+                  p.estimatedHours !== selectedTask.estimatedHours
+                ) {
+                  updateTask.mutate({
+                    projectId,
+                    taskId: selectedRow.id,
+                    data: { timing: p.timing, estimatedHours: p.estimatedHours },
+                  })
+                }
+              }}
+              onAddDependency={(predecessorId) =>
+                addDep.mutate({ predecessorId, successorId: selectedRow.id, lagDays: 0 })
               }
-              onLink={(predecessorId, successorId) =>
-                addDep.mutate({ predecessorId, successorId, lagDays: 0 })
+              onRemoveDependency={(dependencyId) => removeDep.mutate({ dependencyId })}
+              onSetAnchor={
+                timeline.canSetKeyDate
+                  ? (isAnchor) =>
+                      updateTask.mutate(
+                        { projectId, taskId: selectedRow.id, data: { isAnchor } },
+                        {
+                          onSuccess: () =>
+                            showToast(
+                              isAnchor ? 'This is now the key date.' : 'No longer the key date.',
+                              'success',
+                            ),
+                        },
+                      )
+                  : undefined
               }
-              onUnlink={(dependencyId) => removeDep.mutate({ dependencyId })}
-              busy={busy}
+              onReplan={canManage ? () => setReplanId(selectedRow.id) : undefined}
+              assignment={{
+                canAssign: canAssignTasks,
+                // Claiming is only offered while the task is genuinely free.
+                canClaim: canClaimTasks && selectedTask.assignedToId === null,
+                claimViewer,
+                options: assignOptions,
+                onAssign: (volunteerId) => onAssignTask(selectedRow.id, volunteerId),
+                onClaim: () => onClaimTask(selectedRow.id),
+                onUnassign: () => onUnassignTask(selectedRow.id),
+              }}
             />
           </div>
-
-          {/* Beside the bars only where the middle column can spare its width; narrower than
-              that the chart keeps the column and the panel sits under it. Sticky so the panel
-              stays beside a long chart rather than scrolling off the top, with its own scrollbar
-              if the contents outgrow the viewport. */}
-          {selectedRow && selectedTask && (
-            <div className="xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:w-96 xl:shrink-0 xl:self-start xl:overflow-y-auto">
-              <GanttItemPanel
-                row={selectedRow}
-                dates={datesValueFrom(selectedTask)}
-                description={selectedTask.description}
-                assigneeName={selectedTask.assignedToName}
-                canManage={canManage}
-                busy={busy}
-                siblings={timeline.tasks.map((t) => ({ id: t.id, title: t.title }))}
-                predecessors={timeline.dependencies
-                  .filter((d) => d.successorId === selectedRow.id)
-                  .map((d) => ({
-                    dependencyId: d.id,
-                    predecessorId: d.predecessorId,
-                    predecessorTitle: titleById.get(d.predecessorId) ?? `#${d.predecessorId}`,
-                  }))}
-                onClose={() => setSelectedId(null)}
-                onSaveDates={(p) => {
-                  reschedule.mutate({
-                    items: [
-                      {
-                        id: selectedRow.id,
-                        startDate: p.startDate,
-                        durationDays: p.durationDays,
-                        deadline: p.deadline,
-                      },
-                    ],
-                  })
-                  // The rest is not schedule, so it goes by the ordinary task update, and only
-                  // when something there changed.
-                  if (
-                    p.timing !== selectedTask.timing ||
-                    p.estimatedHours !== selectedTask.estimatedHours
-                  ) {
-                    updateTask.mutate({
-                      projectId,
-                      taskId: selectedRow.id,
-                      data: { timing: p.timing, estimatedHours: p.estimatedHours },
-                    })
-                  }
-                }}
-                onAddDependency={(predecessorId) =>
-                  addDep.mutate({ predecessorId, successorId: selectedRow.id, lagDays: 0 })
-                }
-                onRemoveDependency={(dependencyId) => removeDep.mutate({ dependencyId })}
-                onSetAnchor={
-                  timeline.canSetKeyDate
-                    ? (isAnchor) =>
-                        updateTask.mutate(
-                          { projectId, taskId: selectedRow.id, data: { isAnchor } },
-                          {
-                            onSuccess: () =>
-                              showToast(
-                                isAnchor ? 'This is now the key date.' : 'No longer the key date.',
-                                'success',
-                              ),
-                          },
-                        )
-                    : undefined
-                }
-                onReplan={canManage ? () => setReplanId(selectedRow.id) : undefined}
-                assignment={{
-                  canAssign: canAssignTasks,
-                  // Claiming is only offered while the task is genuinely free.
-                  canClaim: canClaimTasks && selectedTask.assignedToId === null,
-                  claimViewer,
-                  options: assignOptions,
-                  onAssign: (volunteerId) => onAssignTask(selectedRow.id, volunteerId),
-                  onClaim: () => onClaimTask(selectedRow.id),
-                  onUnassign: () => onUnassignTask(selectedRow.id),
-                }}
-              />
-            </div>
-          )}
-        </div>
-      )}
+        )}
+      </div>
       {replanId !== null &&
         (() => {
           const task = timeline.tasks.find((t) => t.id === replanId)
@@ -571,59 +573,6 @@ function TaskTimeline({
             />
           ) : null
         })()}
-
-      {unscheduled.length > 0 && (
-        <section
-          aria-labelledby="unscheduled-tasks"
-          className="border-brand-border mt-4 rounded-lg border border-dashed p-3"
-        >
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h3 id="unscheduled-tasks" className="m-0 text-sm font-medium">
-              Unscheduled ({unscheduled.length})
-            </h3>
-            {canManage && (
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={busy}
-                onClick={addAllToTimeline}
-                title="Adds a one-day bar for each task, all starting on the first day of the plan. Spread them out or link them afterwards."
-              >
-                Add all to timeline
-              </Button>
-            )}
-          </div>
-          <p className="text-text-light mt-0 mb-2 text-xs">
-            {canManage
-              ? 'Adding a task puts a one-day bar on the first day of the plan and sets that as its start date. Drag it to when it happens, drag its end to set its deadline, and drag the circle at its end onto whatever follows it.'
-              : 'These tasks have no dates, so they are not on the timeline.'}
-          </p>
-          <ul className="m-0 flex flex-wrap gap-2 p-0">
-            {unscheduled.map((t) => (
-              <li
-                key={t.id}
-                className="border-brand-border bg-brand-bg flex items-center gap-1 rounded border px-2 py-1 text-sm"
-              >
-                <Link href={`/projects/${projectId}/tasks/${t.id}`} className="hover:underline">
-                  {t.title}
-                </Link>
-                {canManage && (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => addToTimeline([t.id])}
-                    aria-label={`Add ${t.title} to the timeline`}
-                    title="Adds a one-day bar starting on the first day of the plan; drag it or edit its dates to change that."
-                    className="text-primary-text ml-1 rounded px-1 leading-none hover:underline"
-                  >
-                    + Add
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </div>
   )
 }

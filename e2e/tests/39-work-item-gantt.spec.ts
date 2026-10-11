@@ -325,7 +325,7 @@ test.describe('Work item scheduling and dependencies', () => {
     expect((view.body as { canManageTasks: boolean }).canManageTasks).toBe(false)
   })
 
-  test('the Timeline tab draws bars for dated tasks and lists a bare task as unscheduled', async ({
+  test('the Timeline tab draws bars for dated tasks and lists a bare task as a row with no dates', async ({
     baseUrl,
     adminPage,
   }) => {
@@ -341,10 +341,10 @@ test.describe('Work item scheduling and dependencies', () => {
     await adminPage.goto(`${baseUrl}/projects/${projectId}`)
     await adminPage.getByRole('tab', { name: 'Timeline' }).click()
 
-    // The name column lists the dated task; the tray holds the bare one.
+    // The dated task has a bar; the bare one is a row under the bars, with no track.
     await expect(adminPage.getByRole('button', { name: /Dated task:/ })).toBeVisible()
-    const tray = adminPage.getByRole('region', { name: /Unscheduled/ })
-    await expect(tray.getByRole('link', { name: 'Floating task' })).toBeVisible()
+    const undated = adminPage.getByRole('group', { name: 'Tasks with no dates' })
+    await expect(undated.getByRole('link', { name: 'Floating task' })).toBeVisible()
   })
 
   test('the Depends on picker adds a dependency, which then shifts the successor on the timeline', async ({
@@ -582,14 +582,14 @@ test.describe('Work item scheduling and dependencies', () => {
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}#timeline`)
 
-    // Both start in the tray, with no bar to drag.
-    const tray = adminPage.getByRole('region', { name: /Unscheduled/ })
+    // Both start as rows with no dates, with no bar to drag.
+    const undated = adminPage.getByRole('group', { name: 'Tasks with no dates' })
     await expect(
-      tray.getByRole('button', { name: 'Add Needs dates to the timeline' }),
+      undated.getByRole('button', { name: 'Add Needs dates to the timeline' }),
     ).toBeVisible()
     await expect(adminPage.getByRole('button', { name: /Needs dates:/ })).toHaveCount(0)
 
-    await tray.getByRole('button', { name: 'Add Needs dates to the timeline' }).click()
+    await undated.getByRole('button', { name: 'Add Needs dates to the timeline' }).click()
 
     // It now has a bar, and the panel opens on it so the dates can be set straight away.
     await expect(adminPage.getByRole('button', { name: /^Needs dates:/ })).toBeVisible()
@@ -597,7 +597,7 @@ test.describe('Work item scheduling and dependencies', () => {
     // The rest of the backlog can go on in one go.
     await adminPage.getByRole('button', { name: 'Add all to timeline' }).click()
     await expect(adminPage.getByRole('button', { name: /Also needs dates:/ })).toBeVisible()
-    await expect(adminPage.getByRole('region', { name: /Unscheduled/ })).toHaveCount(0)
+    await expect(undated).toHaveCount(0)
 
     // The dates really were written, not just drawn: both are now pinned on the server. The bar
     // can appear before the write lands, so wait for the server rather than read it once.
