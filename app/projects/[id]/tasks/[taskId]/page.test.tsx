@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { screen, waitFor, fireEvent, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
+import { queryClient } from '@/lib/query-client'
 import { createVolunteer, createAdmin, createProject, createTask } from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { addDays, startOfUtcDay } from '@/lib/schedule'
@@ -783,10 +784,11 @@ describe('task detail page — a completed project', () => {
   })
 
   it('lets members join as helpers beside the lead, leave, and be removed', async () => {
+    const owner = await createVolunteer({ name: 'Olive Owner' })
     const lead = await createVolunteer({ name: 'Lee Lead' })
     const ann = await createVolunteer({ name: 'Ann Helper' })
     const bob = await createVolunteer({ name: 'Bob Late' })
-    const project = await createProject({ status: 'in_progress' })
+    const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
     for (const m of [lead, ann, bob]) {
       await prisma.workItemInterest.create({
         data: {
@@ -851,6 +853,20 @@ describe('task detail page — a completed project', () => {
     )
     await screen.findByText('Helper removed')
     await within(helpers()).findByText('1 helper wanted')
+
+    // The owner adds Bob directly, with no apply-and-accept step.
+    cleanup()
+    queryClient.clear()
+    await mount(project.id, task.id, owner)
+    await screen.findByRole('heading', { name: 'Flyering' })
+    await userEvent.selectOptions(
+      within(helpers()).getByLabelText('Add a member as a helper'),
+      'Bob Late',
+    )
+    await userEvent.click(within(helpers()).getByRole('button', { name: 'Add helper' }))
+    await within(helpers()).findByText('1 helper')
+    expect(within(helpers()).getByText('Bob Late')).toBeInTheDocument()
+    expect(within(helpers()).queryByLabelText('Add a member as a helper')).toBeNull()
   })
 })
 

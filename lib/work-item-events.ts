@@ -31,6 +31,7 @@ export type EventKind =
   | 'helper_joined'
   | 'helper_left'
   | 'helper_removed'
+  | 'helper_added'
 
 export type EventValues = Prisma.InputJsonObject
 
@@ -368,6 +369,8 @@ export function describeEvent(
       return `${actor} stopped helping`
     case 'helper_removed':
       return `${actor} took ${nameOf(after.helperId as number)} off the helpers`
+    case 'helper_added':
+      return `${actor} added ${nameOf(after.helperId as number)} as a helper`
     default: {
       const phrases = changePhrases(itemType, before, after, nameOf)
       return phrases.length > 0 ? `${actor} ${listOf(phrases)}` : `${actor} changed this`

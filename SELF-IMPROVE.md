@@ -49,6 +49,21 @@ confusing than it needed to be, and that will do so again.
 
 ## 4x
 
+- [ ] **Component tests that remount a page as a different user read the previous user's
+      cached query first, so a `getBy…` right after the remount sees stale data.** It cost
+      a debugging round in R-06 and two more in R-08 (the owner's buttons, then the
+      "waiting" count). P4-07's task page test found no Reopen button straight after
+      remounting as the owner, and after reopening saw the old Done state come back. P4-11's
+      timeline test, remounting after marking a task done in the database, still drew the
+      not-done task's Plan menu until it called `queryClient.clear()`. A fourth hit: a
+      task-helpers test mounting a third, then a fourth, viewer in the same test (no
+      mutation between the third mount and the fourth, so nothing had invalidated the
+      cache) rendered the third viewer's `canAddHelpers`/`eligibleHelpers` for the fourth —
+      `findByRole` for a heading unchanged between the two views resolved instantly against
+      the stale tree, so the race hid behind a passing assertion right up to the real one.
+      `renderApp` could start each mount with an empty query cache, or `test/render.tsx`
+      could say to use `findBy…` after a remount.
+
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
       and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
       failed in three different ways across four runs (a 5 s database poll, a title
@@ -64,18 +79,6 @@ confusing than it needed to be, and that will do so again.
       file under the same parallel load (for example all unit files at once with
       only the suspect repeated) would find them in one pass instead of one per
       full run.
-
-## 3x
-
-- [ ] **Component tests that remount a page as a different user read the previous user's
-      cached query first, so a `getBy…` right after the remount sees stale data.** It cost
-      a debugging round in R-06 and two more in R-08 (the owner's buttons, then the
-      "waiting" count). P4-07's task page test found no Reopen button straight after
-      remounting as the owner, and after reopening saw the old Done state come back. P4-11's
-      timeline test, remounting after marking a task done in the database, still drew the
-      not-done task's Plan menu until it called `queryClient.clear()`.
-      `renderApp` could start each mount with an empty query cache, or `test/render.tsx`
-      could say to use `findBy…` after a remount.
 
 ## 2x
 

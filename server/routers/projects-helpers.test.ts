@@ -175,6 +175,135 @@ describe('task helpers: joining', () => {
   })
 })
 
+describe('task helpers: adding directly', () => {
+  const add = (who: { id: number }, projectId: number, taskId: number, volunteerId: number) =>
+    clientAs(who as never).projects.addTaskHelper({ projectId, taskId, volunteerId })
+
+  it('lets the owner put a member on the task as a helper, who is told and sees it on getTask', async () => {
+    const lead = await createVolunteer({ name: 'Lee' })
+    const ann = await createVolunteer({ name: 'Ann' })
+    const { owner, project } = await projectWith([lead, ann])
+    const task = await createTask(project.id, {
+      title: 'Leaflets',
+      assigneeId: lead.id,
+      helpersWanted: 1,
+    })
+
+    expect(
+      await clientAs(owner).projects.getTask({ projectId: project.id, taskId: task.id }),
+    ).toMatchObject({ canAddHelpers: true, eligibleHelpers: [{ id: ann.id, name: 'Ann' }] })
+
+    expect(await add(owner, project.id, task.id, ann.id)).toEqual({
+      message: 'Ann is now helping on this task',
+    })
+    expect(await row(ann.id, task.id)).toMatchObject({
+      status: 'accepted',
+      interestType: HELP,
+      origin: 'added',
+      invitedById: owner.id,
+    })
+    expect((await noted(ann.id, 'helper_added'))[0]).toMatchObject({
+      title: "Added: you're helping on 'Leaflets'",
+      body: 'Olive Owner added you as a helper',
+    })
+    const feed = await clientAs(lead).workItemComments.list({ workItemId: task.id })
+    expect(feed.feed.map((f) => ('text' in f ? f.text : null))).toContain(
+      'Olive Owner added Ann as a helper',
+    )
+
+    // Full now, and Ann no longer shows as eligible.
+    expect(
+      await clientAs(owner).projects.getTask({ projectId: project.id, taskId: task.id }),
+    ).toMatchObject({ canAddHelpers: false, eligibleHelpers: [] })
+  })
+
+  it('refuses whoever cannot manage the task, and invalid targets', async () => {
+    const lead = await createVolunteer({ name: 'Lee' })
+    const ann = await createVolunteer({ name: 'Ann' })
+    const stranger = await createVolunteer()
+    const { owner, project } = await projectWith([lead, ann])
+    const task = await createTask(project.id, { assigneeId: lead.id, helpersWanted: 1 })
+
+    await expect(add(lead, project.id, task.id, ann.id)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Only the project owner or a deputy can add a helper',
+    })
+    const outsider = await projectWith([])
+    await expect(add(outsider.owner, project.id, task.id, ann.id)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    })
+
+    await expect(add(owner, project.id, task.id, lead.id)).rejects.toMatchObject({
+      message: 'They already lead this task',
+    })
+    await expect(add(owner, project.id, task.id, stranger.id)).rejects.toMatchObject({
+      message: 'They need to join the project first',
+    })
+
+    const solo = await createTask(project.id, { helpersWanted: null })
+    await expect(add(owner, project.id, solo.id, ann.id)).rejects.toMatchObject({
+      message: 'This task is not looking for helpers',
+    })
+  })
+
+  it('refuses adding a member whose account was deleted after they joined', async () => {
+    const ann = await createVolunteer({ name: 'Ann' })
+    const { owner, project } = await projectWith([ann])
+    const task = await createTask(project.id, { helpersWanted: 1 })
+    await prisma.volunteer.update({ where: { id: ann.id }, data: { deletedAt: new Date() } })
+
+    await expect(add(owner, project.id, task.id, ann.id)).rejects.toMatchObject({
+      message: 'Volunteer not found',
+    })
+  })
+
+  it('refuses adding someone already helping, and once the task is full', async () => {
+    const ann = await createVolunteer({ name: 'Ann' })
+    const bob = await createVolunteer({ name: 'Bob' })
+    const { owner, project } = await projectWith([ann, bob])
+    const task = await createTask(project.id, { helpersWanted: 1 })
+
+    await add(owner, project.id, task.id, ann.id)
+    await expect(add(owner, project.id, task.id, ann.id)).rejects.toMatchObject({
+      message: 'They are already helping on this task',
+    })
+    await expect(add(owner, project.id, task.id, bob.id)).rejects.toMatchObject({
+      message: 'This task has all the helpers it wants',
+    })
+  })
+
+  it('lets someone taken off be added back', async () => {
+    const ann = await createVolunteer({ name: 'Ann' })
+    const { owner, project } = await projectWith([ann])
+    const task = await createTask(project.id, { helpersWanted: 1 })
+    await add(owner, project.id, task.id, ann.id)
+    const annRow = (await row(ann.id, task.id))!
+    await clientAs(owner).projects.respondToInterest({
+      projectId: project.id,
+      taskId: task.id,
+      interestId: annRow.id,
+      status: 'declined',
+    })
+    expect((await row(ann.id, task.id))?.status).toBe('removed')
+
+    expect(await add(owner, project.id, task.id, ann.id)).toEqual({
+      message: 'Ann is now helping on this task',
+    })
+    expect((await row(ann.id, task.id))?.status).toBe('accepted')
+  })
+
+  it('refuses adding a helper on a completed project', async () => {
+    const ann = await createVolunteer({ name: 'Ann' })
+    const { owner, project } = await projectWith([ann])
+    const task = await createTask(project.id, { helpersWanted: 1 })
+    await prisma.workItem.update({ where: { id: project.id }, data: { status: 'completed' } })
+
+    await expect(add(owner, project.id, task.id, ann.id)).rejects.toMatchObject({
+      message: REOPEN_PROJECT_TO_CHANGE,
+    })
+  })
+})
+
 describe('task helpers: leaving and removing', () => {
   it('lets a helper leave and come back, telling the lead', async () => {
     const lead = await createVolunteer()

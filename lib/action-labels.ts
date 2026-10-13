@@ -33,6 +33,9 @@ export const LEAVE_HELPING = 'Stop helping'
 /** The lead or whoever runs the project taking a helper off the task. */
 export const REMOVE_HELPER = 'Remove'
 
+/** The project owner or a deputy putting a member on the task as a helper directly. */
+export const ADD_HELPER = 'Add helper'
+
 /**
  * Where the viewer stands on a task's project, which is all that decides whether claiming
  * takes the task or asks first. `onProject` covers the owner, an admin, a deputy, an accepted

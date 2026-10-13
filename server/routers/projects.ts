@@ -468,6 +468,86 @@ async function removeTaskHelper(
   return { message: 'Helper removed' }
 }
 
+/** The project owner, a deputy, or an admin puts a member on a task as a helper directly. */
+async function addTaskHelper(
+  projectId: number,
+  taskId: number,
+  volunteerId: number,
+  actor: { id: number; name: string; isAdmin: boolean | null },
+): Promise<{ message: string }> {
+  const { project, task } = await findProjectTask(projectId, taskId)
+  const manages = canManageProjectTasks(project, actor, await isProjectDeputy(project.id, actor.id))
+  if (!manages) {
+    throw new ORPCError('FORBIDDEN', {
+      message: 'Only the project owner or a deputy can add a helper',
+    })
+  }
+  assertTaskTakesHelpers(task)
+  if (task.helpersWanted === null) {
+    throw new ORPCError('BAD_REQUEST', { message: 'This task is not looking for helpers' })
+  }
+  if (volunteerId === task.assigneeId) {
+    throw new ORPCError('BAD_REQUEST', { message: 'They already lead this task' })
+  }
+  if (!(await resolveProjectMembership(project.teamId, project.id, volunteerId))) {
+    throw new ORPCError('BAD_REQUEST', { message: 'They need to join the project first' })
+  }
+  const target = await prisma.volunteer.findFirst({
+    where: { id: volunteerId, deletedAt: null },
+    select: { name: true },
+  })
+  if (!target) throw new ORPCError('BAD_REQUEST', { message: 'Volunteer not found' })
+  const wanted = task.helpersWanted
+
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM work_items WHERE id = ${taskId} FOR UPDATE`
+    const existing = await tx.workItemInterest.findFirst({
+      where: { workItemId: taskId, volunteerId },
+    })
+    if (existing?.status === InterestStatus.accepted) {
+      throw new ORPCError('BAD_REQUEST', { message: 'They are already helping on this task' })
+    }
+    const helping = await tx.workItemInterest.count({
+      where: { workItemId: taskId, status: InterestStatus.accepted },
+    })
+    if (helping >= wanted) {
+      throw new ORPCError('BAD_REQUEST', { message: 'This task has all the helpers it wants' })
+    }
+    const data = {
+      interestType: TASK_HELPER,
+      message: null,
+      status: InterestStatus.accepted,
+      origin: InterestOrigin.added,
+      respondedAt: new Date(),
+      responseMessage: null,
+      invitedById: actor.id,
+    }
+    if (existing) {
+      await tx.workItemInterest.update({ where: { id: existing.id }, data })
+    } else {
+      await tx.workItemInterest.create({ data: { ...data, volunteerId, workItemId: taskId } })
+    }
+    await recordEvent(tx, {
+      workItemId: taskId,
+      actorId: actor.id,
+      kind: 'helper_added',
+      before: {},
+      after: { helperId: volunteerId },
+    })
+  })
+
+  await notifyUser(
+    volunteerId,
+    'helper_added',
+    `Added: you're helping on '${task.title}'`,
+    `${actor.name} added you as a helper`,
+    `/projects/${projectId}/tasks/${taskId}`,
+    undefined,
+    taskId,
+  )
+  return { message: `${target.name} is now helping on this task` }
+}
+
 /** A submitted task the volunteer may accept or send back: the project's owner, a deputy or an admin. */
 async function findTaskToReview(
   projectId: number,
@@ -1803,7 +1883,8 @@ export const projectsRouter = {
 
   /**
    * The owner accepts, declines or removes someone on a project. Given a `taskId`, the task's
-   * lead or a manager removes a helper (`declined`); helpers join themselves, so none is accepted.
+   * lead or a manager removes a helper (`declined`); a manager adds one directly through
+   * `addTaskHelper` instead, so accepting here is never valid for a task.
    */
   respondToInterest: authedProcedure
     .input(
@@ -1935,6 +2016,23 @@ export const projectsRouter = {
 
       return { message: `Interest ${status}` }
     }),
+
+  /**
+   * The project owner, a deputy or an admin puts a project member on a task as a helper
+   * directly, with no apply-and-accept step. Helpers otherwise join themselves (`expressInterest`).
+   */
+  addTaskHelper: authedProcedure
+    .input(
+      z.object({
+        projectId: z.number().int(),
+        taskId: z.number().int(),
+        volunteerId: z.number().int(),
+      }),
+    )
+    .use(projectEditable, (input) => input.projectId)
+    .handler(async ({ input, context }) =>
+      addTaskHelper(input.projectId, input.taskId, input.volunteerId, context.volunteer),
+    ),
 
   /**
    * The owner or an admin asks a volunteer to help. They are not on the project until they
@@ -2434,6 +2532,23 @@ export const projectsRouter = {
         claimViewer.onProject &&
         myHelperRow?.status !== InterestStatus.accepted &&
         myHelperRow?.status !== InterestStatus.removed
+      const canAddHelpers =
+        takesHelpers &&
+        manages &&
+        task.helpersWanted !== null &&
+        helpers.length < task.helpersWanted
+      const helperIds = new Set(helpers.map((h) => h.volunteerId))
+      const eligibleHelpers = canAddHelpers
+        ? (
+            await prisma.workItemInterest.findMany({
+              where: { workItemId: input.projectId, status: InterestStatus.accepted },
+              include: { volunteer: { select: { id: true, name: true } } },
+              orderBy: { volunteer: { name: 'asc' } },
+            })
+          )
+            .map((r) => r.volunteer)
+            .filter((v) => v.id !== task.assigneeId && !helperIds.has(v.id))
+        : []
 
       return {
         ...serializeTask(task),
@@ -2446,6 +2561,8 @@ export const projectsRouter = {
         canJoinAsHelper,
         canLeaveAsHelper: takesHelpers && isHelper,
         canRemoveHelpers: takesHelpers && (task.assigneeId === volunteer.id || manages),
+        canAddHelpers,
+        eligibleHelpers,
         changesRequested,
         autoAcceptTasks: project.autoAcceptTasks,
         projectTitle: project.title,

@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { PersonInitials } from '@/components/WorkItemHeader'
-import { JOIN_AS_HELPER, LEAVE_HELPING, REMOVE_HELPER } from '@/lib/action-labels'
+import { ADD_HELPER, JOIN_AS_HELPER, LEAVE_HELPING, REMOVE_HELPER } from '@/lib/action-labels'
 import { helperSummary } from '@/lib/helper-summary'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
@@ -16,6 +16,8 @@ export type TaskHelpersState = {
   canJoinAsHelper: boolean
   canLeaveAsHelper: boolean
   canRemoveHelpers: boolean
+  canAddHelpers: boolean
+  eligibleHelpers: { id: number; name: string }[]
 }
 
 /**
@@ -34,6 +36,7 @@ export default function TaskHelpers({
   const showToast = useToast()
   const queryClient = useQueryClient()
   const [removing, setRemoving] = useState<TaskHelpersState['helpers'][number] | null>(null)
+  const [adding, setAdding] = useState('')
 
   const refresh = () => {
     for (const key of [
@@ -63,6 +66,10 @@ export default function TaskHelpers({
   const remove = useMutation({
     ...orpc.projects.respondToInterest.mutationOptions(),
     ...options('Failed to remove the helper', () => setRemoving(null)),
+  })
+  const add = useMutation({
+    ...orpc.projects.addTaskHelper.mutationOptions(),
+    ...options('Failed to add the helper', () => setAdding('')),
   })
 
   const summary = helperSummary(state.helpers.length, state.helpersWanted)
@@ -115,6 +122,34 @@ export default function TaskHelpers({
         >
           {LEAVE_HELPING}
         </Button>
+      )}
+      {state.canAddHelpers && state.eligibleHelpers.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <label htmlFor="task-add-helper" className="sr-only">
+            Add a member as a helper
+          </label>
+          <select
+            id="task-add-helper"
+            className="max-w-56"
+            value={adding}
+            onChange={(e) => setAdding(e.target.value)}
+          >
+            <option value="">— Select a member —</option>
+            {state.eligibleHelpers.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+              </option>
+            ))}
+          </select>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!adding || add.isPending}
+            onClick={() => add.mutate({ projectId, taskId, volunteerId: Number(adding) })}
+          >
+            {ADD_HELPER}
+          </Button>
+        </div>
       )}
       {removing && (
         <ConfirmDialog
