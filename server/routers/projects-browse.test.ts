@@ -238,9 +238,12 @@ describe('projects.create / drafts', () => {
     const admin = await createAdmin()
     const me = await createVolunteer()
     const c = clientAs(me)
-    await expect(c.projects.create({ ...base })).rejects.toMatchObject({
-      message: 'At least one task is required to submit a project proposal',
-    })
+    const withoutTasks = await c.projects.create({ ...base })
+    expect(withoutTasks.message).toBe('Project submitted for review')
+    expect(
+      (await prisma.workItem.findUniqueOrThrow({ where: { id: withoutTasks.id } })).status,
+    ).toBe('pending_review')
+
     const skill = await createSkill()
     const res = await c.projects.create({
       ...base,
@@ -295,10 +298,7 @@ describe('projects.create / drafts', () => {
     await expect(clientAs(other).projects.publishDraft({ id: draft.id })).rejects.toMatchObject({
       code: 'FORBIDDEN',
     })
-    await expect(c.projects.publishDraft({ id: draft.id })).rejects.toMatchObject({
-      message: expect.stringContaining('at least one task'),
-    })
-    await createTask(draft.id)
+    // A volunteer's own draft publishes straight to review with no task required.
     expect(await c.projects.publishDraft({ id: draft.id })).toEqual({
       message: 'Project submitted for review',
     })
@@ -316,13 +316,17 @@ describe('projects.create / drafts', () => {
       code: 'FORBIDDEN',
     })
 
-    // An org draft goes live directly (ready or in_progress), notifying matches and the team.
+    // An org draft goes live directly (ready or in_progress), notifying matches and the team —
+    // with no review to catch a missing task list, it still needs at least one.
     const team = await createTeam()
     const orgDraft = await createProject({
       status: 'draft',
       isOrgProposed: true,
       creatorId: admin.id,
       teamId: team.id,
+    })
+    await expect(clientAs(admin).projects.publishDraft({ id: orgDraft.id })).rejects.toMatchObject({
+      message: expect.stringContaining('at least one task'),
     })
     await createTask(orgDraft.id)
     expect(await clientAs(admin).projects.publishDraft({ id: orgDraft.id })).toEqual({

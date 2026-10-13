@@ -388,9 +388,11 @@ export default function ProjectEditor(props: ProjectEditorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [readyToAutosave, creatingDraft, autosaveError, autosavePayloadKey])
 
-  // Checked before any draft is created, since the server refuses to publish a project with
-  // no tasks. The count is read fresh: just after a first task is added, the cached project
-  // can still be the copy loaded before it existed.
+  // An org-proposed (or template-originated) draft still needs at least one task before it
+  // publishes straight live — see the self-publish gate in server/routers/projects.ts. A
+  // volunteer's own proposal has no such gate: tasks come later, once it's approved. The count
+  // is read fresh: just after a first task is added, the cached project can still be the copy
+  // loaded before it existed.
   async function handleOpenPublishModal() {
     if (projectId === undefined && !title.trim()) {
       toast('A title is required, even for a draft.', 'error')
@@ -409,9 +411,13 @@ export default function ProjectEditor(props: ProjectEditorProps) {
         return
       }
     }
-    if (tasks === 0) {
+    if (tasks === 0 && isOrgDraft) {
       setSubmitWithoutTasks(true)
       return
+    }
+    if (projectId === undefined) {
+      const id = await ensureProjectExists()
+      if (id === null) return
     }
     setShowPublishModal(true)
   }
@@ -914,12 +920,12 @@ export default function ProjectEditor(props: ProjectEditorProps) {
 
         {isDraft && canEdit && (
           <div className="mb-5">
-            <label>
-              Tasks <span className="text-error">*</span>
-            </label>
+            <label>Tasks {isOrgDraft && <span className="text-error">*</span>}</label>
             <p className="text-sm text-text-light mt-0 mb-2">
               Break the project into concrete tasks. This helps contributors understand the scope
-              and gives them something to pick up.
+              and gives them something to pick up.{' '}
+              {!isOrgDraft &&
+                'Optional at this stage — add some now or once the project is approved.'}
             </p>
             {submitWithoutTasks && taskCount === 0 && (
               <p role="alert" className="text-sm text-error mt-0 mb-2">
@@ -1088,7 +1094,8 @@ export default function ProjectEditor(props: ProjectEditorProps) {
         </div>
       </div>
 
-      {/* Opens only once a task exists, so the draft does too. */}
+      {/* An org/template draft only opens this once it has a task, so the draft does too; a
+          volunteer's own proposal has a draft by the time this can open regardless. */}
       {projectId !== undefined && (
         <Modal
           id="confirm-publish-draft"

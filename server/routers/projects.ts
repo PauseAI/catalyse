@@ -962,11 +962,6 @@ export const projectsRouter = {
   create: approvedProcedure.input(CreateProjectSchema).handler(async ({ input, context }) => {
     const volunteer = context.volunteer
     const { tasks, wantToOwn, skillIds, skillRequiredMap, saveAsDraft } = input
-    if (!saveAsDraft && tasks.length === 0) {
-      throw new ORPCError('BAD_REQUEST', {
-        message: 'At least one task is required to submit a project proposal',
-      })
-    }
 
     // Admins are trusted staff, not volunteers proposing speculative projects — the cap exists
     // to bound unreviewed volunteer proposals, not to limit admin work.
@@ -1093,16 +1088,21 @@ export const projectsRouter = {
         throw new ORPCError('FORBIDDEN', { message: 'Not authorized to publish this draft' })
       }
 
-      const taskCount = await prisma.workItem.count({
-        where: { parentId: input.id, type: WorkItemType.TASK },
-      })
-      if (taskCount === 0) {
-        throw new ORPCError('BAD_REQUEST', {
-          message: 'Add at least one task before submitting this draft for review',
+      const isOrgOrTemplate = project.isOrgProposed || project.templateOriginId !== null
+      if (isOrgOrTemplate) {
+        // Org projects, and projects instantiated from a template, go straight live on publish
+        // with no review to catch a missing task list, so they need one up front.
+        const taskCount = await prisma.workItem.count({
+          where: { parentId: input.id, type: WorkItemType.TASK },
         })
+        if (taskCount === 0) {
+          throw new ORPCError('BAD_REQUEST', {
+            message: 'Add at least one task before submitting this draft for review',
+          })
+        }
       }
 
-      if (project.isOrgProposed || project.templateOriginId !== null) {
+      if (isOrgOrTemplate) {
         // Org projects, and projects instantiated from a template, skip review entirely —
         // publishing a draft goes straight live. Template-originated projects already came
         // from a vetted structure, so re-review would be redundant (see

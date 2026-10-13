@@ -201,35 +201,45 @@ describe('ProjectEditor — new volunteer proposal', () => {
     expect(await prisma.workItem.count({ where: { title: 'Orphan' } })).toBe(0)
   })
 
-  it('asks for a task before submitting', async () => {
+  it('submits a proposal with no tasks at all', async () => {
     const me = await createVolunteer()
     await mount({ variant: 'volunteer' }, me)
     await waitFor(() => expect(localStorage.getItem('authToken')).toBeTruthy())
     await userEvent.type(screen.getByLabelText('Project Title'), 'One click')
+    // Submit creates the draft itself, with no task required first.
     await userEvent.click(screen.getByRole('button', { name: 'Submit' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Add at least one task before submitting.',
-    )
-    expect(screen.queryByText('Submit draft for review?')).toBeNull()
+    await screen.findByText('Submit draft for review?')
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Submit' }))
+    await screen.findByText('Submit draft for review?')
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByText('Submit draft for review?')).toBeNull())
+    await userEvent.click(await screen.findByRole('button', { name: 'Submit' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Submit for Review' }))
+    await screen.findByText('Draft submitted for review!')
+    const draft = await prisma.workItem.findFirstOrThrow({
+      where: { creatorId: me.id, type: 'PROJECT' },
+      include: { children: true },
+    })
+    expect(draft.status).toBe('pending_review')
+    expect(draft.children).toHaveLength(0)
+  })
 
-    // The error stays until a task exists, and then submitting works.
+  it('lets a task be added after the proposal before submitting', async () => {
+    const me = await createVolunteer()
+    await mount({ variant: 'volunteer' }, me)
+    await waitFor(() => expect(localStorage.getItem('authToken')).toBeTruthy())
+    await userEvent.type(screen.getByLabelText('Project Title'), 'One click')
     await userEvent.type(screen.getByLabelText('Task title'), 'First step')
     // The title's autosave creates the draft, and the button reads "Adding…" until it has.
     await userEvent.click(
       await screen.findByRole('button', { name: 'Add Task' }, { timeout: 20_000 }),
     )
-    await waitFor(() =>
-      expect(screen.queryByText('Add at least one task before submitting.')).toBeNull(),
-    )
-    // Once the new draft has loaded, Submit is the draft's own button.
+    // Once the new draft has loaded, Submit is the draft's own button, enabled once the
+    // task's own save has landed (Delete Draft only renders for a saved draft).
+    await screen.findByRole('button', { name: 'Delete Draft' }, { timeout: 20_000 })
     await userEvent.click(await screen.findByRole('button', { name: 'Submit' }))
     await screen.findByText('Submit draft for review?')
-    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Submit' }))
-    await screen.findByText('Submit draft for review?')
-    await userEvent.keyboard('{Escape}')
-    await waitFor(() => expect(screen.queryByText('Submit draft for review?')).toBeNull())
-    await userEvent.click(screen.getByRole('button', { name: 'Submit' }))
     await userEvent.click(await screen.findByRole('button', { name: 'Submit for Review' }))
     await screen.findByText('Draft submitted for review!')
     const draft = await prisma.workItem.findFirstOrThrow({
@@ -263,6 +273,13 @@ describe('ProjectEditor — new volunteer proposal', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(navigation.back).toHaveBeenCalled()
     await userEvent.type(screen.getByLabelText('Project Title'), 'Org thing')
+    // An org project still needs a task before it can go live, with nothing to review it first.
+    await userEvent.click(screen.getByRole('button', { name: 'Publish' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Add at least one task before submitting.',
+    )
+    expect(screen.queryByText('Publish this project?')).toBeNull()
+
     await userEvent.type(screen.getByLabelText('Task title'), 'T1')
     await userEvent.click(screen.getByRole('button', { name: 'Add Task' }))
     const draft = await waitFor(
