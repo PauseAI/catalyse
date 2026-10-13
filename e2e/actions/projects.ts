@@ -301,16 +301,18 @@ export async function transferProjectOwnership(
   if (!adminPage.url().includes(`/projects/${projectId}`)) {
     await adminPage.goto(`${baseUrl}/projects/${projectId}`)
   }
-  await openProjectMore(adminPage)
-  await expect(
-    adminPage.getByRole('heading', { level: 3, name: 'Transfer Ownership' }),
-  ).toBeVisible({ timeout: 10_000 })
-  await selectFilterDropdown(adminPage, 'Transfer to', volunteerName)
-  await adminPage
-    .getByRole('toolbar', { name: 'Status and actions' })
-    .getByRole('button', { name: 'Transfer', exact: true })
-    .click()
-  await adminPage.getByRole('dialog').getByRole('button', { name: 'Transfer', exact: true }).click()
+  // The pencil beside the Owner chip; replacing an owner asks for confirmation, assigning doesn't.
+  const pencil = adminPage.getByRole('button', { name: /^(Assign|Change) owner$/ })
+  await expect(pencil).toBeVisible({ timeout: 10_000 })
+  const replacing = (await pencil.getAttribute('aria-label')) === 'Change owner'
+  await pencil.click()
+  await selectFilterDropdown(adminPage, 'New owner', volunteerName)
+  if (replacing) {
+    await adminPage
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Transfer', exact: true })
+      .click()
+  }
   await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 }
 

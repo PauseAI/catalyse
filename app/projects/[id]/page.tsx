@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { useRequireConfirmed } from '@/lib/hooks/auth'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import Checkbox from '@/components/Checkbox'
 import DatesBlock from '@/components/DatesBlock'
@@ -36,7 +36,6 @@ import {
 import { ASSIGN_PICKED, UNASSIGN, claimLabel, type ClaimViewer } from '@/lib/action-labels'
 import CommentThread from '@/components/CommentThread'
 import ChangesRequestedBanner from '@/components/ChangesRequestedBanner'
-import ProjectInviteBanner from '@/components/ProjectInviteBanner'
 import StatusSplitButton from '@/components/StatusSplitButton'
 import MessageDialog from '@/components/MessageDialog'
 import Linkify from '@/components/Linkify'
@@ -51,6 +50,7 @@ import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS } from '@/lib/status-labels'
 import Modal from '@/components/ui/Modal'
 import { EmptyPersonChip, PersonChip } from '@/components/ui/PersonChip'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import MemberPicker from '@/components/ui/MemberPicker'
 import ReopenTaskDialog, { type ReopenTarget } from '@/components/ReopenTaskDialog'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import VolunteerSelect from '@/components/VolunteerSelect'
@@ -844,6 +844,9 @@ const DISCUSSION = 'discussion'
  * never dragged), not this many people running late, so the list says so above the badges.
  */
 const STALE_PLAN_FROM = 5
+/** The owner picker searches the whole directory on the server, a page of matches at a time. */
+const OWNER_SEARCH_DEBOUNCE_MS = 300
+const OWNER_SEARCH_LIMIT = 20
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -932,8 +935,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [interestType, setInterestType] = useState('want_to_contribute')
   const [interestMessage, setInterestMessage] = useState('')
 
-  // Transfer ownership
+  // Assign or transfer ownership
   const [transferTo, setTransferTo] = useState('')
+  const [ownerPickerOpen, setOwnerPickerOpen] = useState(false)
+  const [ownerSearchInput, setOwnerSearchInput] = useState('')
+  const [ownerSearch, setOwnerSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setOwnerSearch(ownerSearchInput), OWNER_SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [ownerSearchInput])
 
   // Direct assign
   const [assignTo, setAssignTo] = useState('')
@@ -1071,6 +1081,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const volunteers = volunteersData?.volunteers ?? []
 
   const ownerId = project?.ownerId ?? null
+  const { data: ownerCandidatesData } = useQuery({
+    ...orpc.volunteers.list.queryOptions({
+      input: { limit: OWNER_SEARCH_LIMIT, search: ownerSearch || undefined },
+    }),
+    enabled: ownerPickerOpen,
+    placeholderData: keepPreviousData,
+  })
+  const ownerCandidates = (ownerCandidatesData?.volunteers ?? [])
+    .filter((v) => v.id !== ownerId)
+    .map((v) => ({ id: v.id, name: v.name }))
   const { data: ownerContact } = useQuery({
     ...orpc.volunteers.getById.queryOptions({ input: { id: ownerId ?? 0 } }),
     enabled: ownerId !== null && showContactModal,
@@ -2034,9 +2054,38 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     </>
   )
 
+  const canChangeOwner = isAdmin && !locked
+  const ownerPickerLabel = project.owner ? 'Change owner' : 'Assign owner'
+  // An ownerless project takes the pick straight away; replacing an owner asks first.
+  const handlePickOwner = (volunteerId: number) => {
+    setOwnerPickerOpen(false)
+    setTransferTo(String(volunteerId))
+    if (project.owner) {
+      setShowTransferConfirm(true)
+    } else {
+      updateProjectMutation.mutate({ id: project.id, assigneeId: volunteerId })
+    }
+  }
+
   const ownerBlock = (
     <WorkItemPerson
       label="Owner"
+      secondLine={
+        ownerPickerOpen && (
+          <div className="w-56">
+            <MemberPicker
+              id="owner-picker"
+              label={ownerPickerLabel}
+              ariaLabel="New owner"
+              candidates={ownerCandidates}
+              onAdd={handlePickOwner}
+              onQueryChange={setOwnerSearchInput}
+              placeholder="Search volunteers…"
+              hideLabel
+            />
+          </div>
+        )
+      }
       summary={
         <>
           <button
@@ -2078,6 +2127,21 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         <PersonChip name={project.owner.name} href={`/volunteers/${project.owner.id}`} />
       ) : (
         <EmptyPersonChip label="No owner yet" />
+      )}
+      {canChangeOwner && (
+        <button
+          type="button"
+          aria-label={ownerPickerLabel}
+          aria-expanded={ownerPickerOpen}
+          title={ownerPickerLabel}
+          className="bg-transparent border-0 p-1 rounded cursor-pointer text-text-light hover:text-primary-text hover:bg-accent leading-none"
+          onClick={() => {
+            setOwnerSearchInput('')
+            setOwnerPickerOpen((open) => !open)
+          }}
+        >
+          <span aria-hidden="true">✎</span>
+        </button>
       )}
     </WorkItemPerson>
   )
@@ -2135,30 +2199,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               {isAdmin && (
                 <SaveAsTemplateButton projectId={project.id} defaultTitle={project.title} />
               )}
-              {isAdmin && !locked && volunteers.length > 0 && (
-                <div className="w-full border-t border-brand-border pt-2 flex flex-col gap-2">
-                  <h3 className="m-0 text-sm">Transfer Ownership</h3>
-                  <VolunteerSelect
-                    id="transfer-to"
-                    label="Transfer to"
-                    ariaLabel="Transfer to"
-                    value={transferTo}
-                    onChange={(v) => setTransferTo(v)}
-                  />
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={!transferTo || updateProjectMutation.isPending}
-                    onClick={(e) => {
-                      e.currentTarget.closest('details')?.removeAttribute('open')
-                      setShowTransferConfirm(true)
-                    }}
-                  >
-                    {updateProjectMutation.isPending ? 'Transferring…' : 'Transfer'}
-                  </Button>
-                </div>
-              )}
-              {isAdmin && !locked && project.owner && (
+              {canChangeOwner && project.owner && (
                 <button
                   type="button"
                   className="w-full text-left px-0 py-1 text-sm text-red-700 dark:text-red-400 cursor-pointer border-t border-brand-border mt-1 pt-2"
@@ -2202,7 +2243,23 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               onChange={(k) => selectTab(k as ProjectTab)}
             />
           }
-        />
+        >
+          {pendingInvite && (
+            // Who invited the viewer, just above the Accept / Decline that answers it.
+            <p className="text-sm text-text-light m-0 mb-3 whitespace-pre-wrap">
+              {project.myInterest?.invitedByName ?? 'The owner'} invited you to help
+              {project.myInterest?.message ? (
+                <>
+                  : &ldquo;
+                  <Linkify text={project.myInterest.message} />
+                  &rdquo;
+                </>
+              ) : (
+                ' on this project'
+              )}
+            </p>
+          )}
+        </WorkItemHeader>
 
         <div className="min-w-0">
           {/* Notices and admin forms keep a reading measure while the tab below runs wide. */}
@@ -2226,12 +2283,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               canResubmit={isOwner || project.proposedById === user.id}
               editHref={`/projects/${idParam}/edit`}
             />
-            {!locked && project.myInterest?.status === InterestStatus.invited && (
-              <ProjectInviteBanner
-                invitedByName={project.myInterest.invitedByName}
-                note={project.myInterest.message}
-              />
-            )}
           </div>
 
           {tab === 'overview' && (

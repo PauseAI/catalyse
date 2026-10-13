@@ -178,7 +178,7 @@ test.describe('Project Lifecycle', () => {
     )
     await adminApproveProject(baseUrl, adminPage, title)
 
-    // Admin assigns volunteer as owner via the Transfer Ownership UI
+    // Admin assigns volunteer as owner from the Owner chip's picker
     await transferProjectOwnership(baseUrl, adminPage, projectId, volunteer.name)
 
     // Owner (volunteer) changes status to completed via the dropdown
@@ -208,7 +208,7 @@ test.describe('Project Lifecycle', () => {
     )
     await adminApproveProject(baseUrl, adminPage, title)
 
-    // Admin assigns volunteer as owner via the Transfer Ownership UI
+    // Admin assigns volunteer as owner from the Owner chip's picker
     await transferProjectOwnership(baseUrl, adminPage, projectId, volunteer.name)
 
     // Set project to completed
