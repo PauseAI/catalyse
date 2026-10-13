@@ -32,5 +32,11 @@ export function useVolunteerSearch(enabled: boolean) {
     name: v.name,
     description: [v.localGroup, v.country].filter(Boolean).join(', ') || v.location || undefined,
   }))
-  return { candidates, setQuery: setInput }
+  // Clearing applies at once, so a picker reopened straight after a search lists everyone,
+  // not the old matches arriving a moment late.
+  const setQuery = (q: string) => {
+    setInput(q)
+    if (q === '') setSearch('')
+  }
+  return { candidates, setQuery }
 }
