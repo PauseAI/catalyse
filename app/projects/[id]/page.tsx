@@ -1353,6 +1353,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     (project.isSeekingHelp || project.isSeekingOwner) &&
     !TERMINAL_STATUSES.includes(project.status)
 
+  // The join dialog always offers helping out; leading is only on the table while the
+  // project has no owner, so it's the one option that can drop out of the choice.
+  const canJoinToLead = project.isSeekingOwner
+  const joinHasBothOptions = canJoinToLead
+
   // Until an admin approves it, a proposal's status is the admins' to change.
   // An owner takes a locked project back with Reopen; an admin keeps the picker, to archive it.
   const canPickStatus =
@@ -1564,9 +1569,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   function handleExpressInterest(e: React.FormEvent) {
     e.preventDefault()
+    // With leading off the table, helping is the only option — regardless of what the
+    // (unrendered) radio's state happens to hold left over from an earlier visit.
+    const effectiveInterestType = joinHasBothOptions
+      ? (interestType as 'want_to_contribute' | 'want_to_own')
+      : 'want_to_contribute'
     expressInterestMutation.mutate({
       projectId: parseInt(idParam, 10),
-      interestType: interestType as 'want_to_contribute' | 'want_to_own',
+      interestType: effectiveInterestType,
       message: interestMessage.trim() || null,
     })
   }
@@ -1852,19 +1862,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         onClose={() => setShowJoin(false)}
       >
         <form onSubmit={handleExpressInterest}>
-          <fieldset className="mb-5">
-            <legend className="mb-2">How would you like to take part?</legend>
-            <label className="flex items-center gap-2 cursor-pointer mb-2 font-normal">
-              <input
-                type="radio"
-                name="interest_type"
-                value="want_to_contribute"
-                checked={interestType === 'want_to_contribute'}
-                onChange={() => setInterestType('want_to_contribute')}
-              />
-              Help out on the project
-            </label>
-            {project.isSeekingOwner && (
+          {joinHasBothOptions ? (
+            <fieldset className="mb-5">
+              <legend className="mb-2">How would you like to take part?</legend>
+              <label className="flex items-center gap-2 cursor-pointer mb-2 font-normal">
+                <input
+                  type="radio"
+                  name="interest_type"
+                  value="want_to_contribute"
+                  checked={interestType === 'want_to_contribute'}
+                  onChange={() => setInterestType('want_to_contribute')}
+                />
+                Help out on the project
+              </label>
               <label className="flex items-center gap-2 cursor-pointer font-normal">
                 <input
                   type="radio"
@@ -1875,8 +1885,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 />
                 Lead the project
               </label>
-            )}
-          </fieldset>
+            </fieldset>
+          ) : (
+            <p className="mb-5">Join &quot;{project.title}&quot; to help?</p>
+          )}
           <div className="mb-5">
             <label htmlFor="interest-message">Message (optional)</label>
             <textarea

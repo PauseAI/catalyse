@@ -1744,8 +1744,9 @@ describe('project page — remaining edges', () => {
     await mount(project.id, me)
     await screen.findByRole('heading', { name: 'Interest edges' })
     await userEvent.click(screen.getByRole('button', { name: 'Join this project' }))
-    // It has an owner, so there is no lead to ask to be.
-    expect(screen.getByLabelText('Help out on the project')).toBeChecked()
+    // It has an owner, so there is no lead to ask to be — no radio, just a single confirm.
+    expect(screen.getByText('Join "Interest edges" to help?')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Help out on the project')).toBeNull()
     expect(screen.queryByLabelText('Lead the project')).toBeNull()
     await userEvent.keyboard('{Escape}')
     // Claiming a task that no longer exists, then declining the withdraw confirmation.
