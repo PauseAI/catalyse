@@ -94,7 +94,12 @@ test.describe('Task helpers', () => {
       .getByRole('dialog', { name: /^Claim '/ })
       .getByRole('button', { name: 'Claim task' })
       .click()
-    await expect(leadPage.getByText('1 helper wanted')).toBeVisible({ timeout: 10_000 })
+    await expect(leadPage.getByRole('button', { name: 'Claim task' })).toHaveCount(0, {
+      timeout: 10_000,
+    })
+    await expect(
+      leadPage.getByRole('region', { name: 'Helpers' }).getByText('1 helper wanted'),
+    ).toBeVisible()
 
     const helperAContext = await browser.newContext()
     await helperAContext.addInitScript((t: string) => {
@@ -132,7 +137,9 @@ test.describe('Task helpers', () => {
       .getByRole('dialog', { name: `Remove ${helperA.name}?` })
       .getByRole('button', { name: 'Remove' })
       .click()
-    await expect(leadPage.getByText('1 helper wanted')).toBeVisible({ timeout: 10_000 })
+    await expect(
+      leadPage.getByRole('region', { name: 'Helpers' }).getByText('1 helper wanted'),
+    ).toBeVisible({ timeout: 10_000 })
 
     // The removed helper cannot rejoin, even though the slot is free again.
     await helperAPage.reload()

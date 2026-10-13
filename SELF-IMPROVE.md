@@ -29,7 +29,7 @@ GitHub issue. An entry here is about the work itself: something in the code
 structure, tooling, tests, docs or diagnostics that made a task slower or more
 confusing than it needed to be, and that will do so again.
 
-## 5x
+## 6x
 
 - [ ] **Two sessions running vitest at once share one test template database and one
       `coverage/` directory, so one run wipes the other's.** During P4-05 another agent's
@@ -44,7 +44,9 @@ confusing than it needed to be, and that will do so again.
       "Server has closed the connection", so its coverage was checked file by file instead.
       P4-19's two full runs, beside the same agents, failed 50-100 suites on
       `PrismaClientInitializationError` while every file passed alone (`--coverage.reportsDirectory`
-      at least got past the lock). A per-run database prefix and reports directory in
+      at least got past the lock). In Phase 6 even two agents' single-file runs of the project
+      page test, against separate regions of it, dropped each other's databases repeatedly, so
+      each waited for the other to finish before its tests counted. A per-run database prefix and reports directory in
       `test/pg.ts` and `scripts/test-unit.ts` (from an env var or the pid) would let runs overlap.
 
 ## 4x
