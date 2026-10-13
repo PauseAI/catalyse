@@ -898,6 +898,44 @@ describe('task detail page — a completed project', () => {
     expect(within(helpers()).getByText('Bob Late')).toBeInTheDocument()
     expect(within(helpers()).queryByLabelText('Add a member as a helper')).toBeNull()
   })
+
+  it('shows the server error when stopping helping fails', async () => {
+    const lead = await createVolunteer({ name: 'Lee Lead' })
+    const ann = await createVolunteer({ name: 'Ann Helper' })
+    const project = await createProject({ status: 'in_progress' })
+    for (const m of [lead, ann]) {
+      await prisma.workItemInterest.create({
+        data: {
+          workItemId: project.id,
+          volunteerId: m.id,
+          interestType: 'want_to_contribute',
+          status: 'accepted',
+        },
+      })
+    }
+    const task = await createTask(project.id, {
+      title: 'Flyering',
+      assigneeId: lead.id,
+      helpersWanted: 1,
+    })
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: task.id,
+        volunteerId: ann.id,
+        interestType: 'want_to_help_task',
+        status: 'accepted',
+      },
+    })
+
+    await mount(project.id, task.id, ann)
+    const stopButton = await screen.findByRole('button', { name: 'Stop helping' })
+    // Already gone by the time it's clicked — the server rejects it as NOT_FOUND.
+    await prisma.workItemInterest.delete({
+      where: { volunteerId_workItemId: { volunteerId: ann.id, workItemId: task.id } },
+    })
+    await userEvent.click(stopButton)
+    await screen.findByText('You are not helping on this task')
+  })
 })
 
 /** Puts someone on a task's helpers directly, as another tab would. */

@@ -144,4 +144,40 @@ describe('TaskHelpers', () => {
       await prisma.workItemInterest.findUniqueOrThrow({ where: { id: interest.id } }),
     ).toMatchObject({ status: 'removed' })
   })
+
+  it('shows the server error when removing a helper fails', async () => {
+    const { owner, project, task } = await setUp()
+    const helper = await createVolunteer({ name: 'Grace Hopper' })
+    const interest = await prisma.workItemInterest.create({
+      data: {
+        workItemId: task.id,
+        volunteerId: helper.id,
+        interestType: 'want_to_help_task',
+        status: 'accepted',
+        respondedAt: new Date(),
+      },
+    })
+
+    await renderApp(
+      <TaskHelpers
+        projectId={project.id}
+        taskId={task.id}
+        state={{
+          ...baseState,
+          helpers: [{ interestId: interest.id, volunteerId: helper.id, name: helper.name }],
+        }}
+      />,
+      { as: owner },
+    )
+
+    const chip = screen.getByText('Grace Hopper').closest('li')!
+    await userEvent.click(within(chip).getByRole('button', { name: 'Remove Grace Hopper' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Remove Grace Hopper?' })
+
+    // Already gone by the time it's confirmed — the server rejects it as NOT_FOUND.
+    await prisma.workItemInterest.delete({ where: { id: interest.id } })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove' }))
+
+    await screen.findByText('Helper not found')
+  })
 })

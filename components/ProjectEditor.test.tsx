@@ -225,6 +225,18 @@ describe('ProjectEditor — new volunteer proposal', () => {
     expect(draft.children).toHaveLength(0)
   })
 
+  it('does not open the publish modal when the no-task draft it needs cannot be created', async () => {
+    const me = await createVolunteer()
+    for (let i = 0; i < 2; i++)
+      await createProject({ status: 'draft', creatorId: me.id, isOrgProposed: false })
+    await mount({ variant: 'volunteer' }, me)
+    await waitFor(() => expect(localStorage.getItem('authToken')).toBeTruthy())
+    await userEvent.type(screen.getByLabelText('Project Title'), 'One too many, no tasks')
+    await userEvent.click(await screen.findByRole('button', { name: 'Submit' }))
+    expect(await screen.findByText(/already have 2 drafts/)).toBeInTheDocument()
+    expect(screen.queryByText('Submit draft for review?')).toBeNull()
+  })
+
   it('lets a task be added after the proposal before submitting', async () => {
     const me = await createVolunteer()
     await mount({ variant: 'volunteer' }, me)
