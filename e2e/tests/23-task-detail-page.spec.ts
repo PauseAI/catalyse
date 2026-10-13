@@ -83,6 +83,8 @@ test.describe('Task Detail Page', () => {
 
     // Not on the project yet: the claim asks the owner and holds the task meanwhile.
     await volunteer.page.getByRole('button', { name: 'Ask to take this' }).click()
+    const askDialog = volunteer.page.getByRole('dialog', { name: /^Ask to take '/ })
+    await askDialog.getByRole('button', { name: 'Ask to take this' }).click()
     await expect(getAlert(volunteer.page)).toContainText('Requested. The task is held for you', {
       timeout: 10_000,
     })

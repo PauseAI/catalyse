@@ -164,8 +164,8 @@ describe('TaskDatesSummary', () => {
 
   it('reads a task with no deadline, planned or not', () => {
     const { rerender } = render(<TaskDatesSummary {...base} deadline={null} />)
-    expect(summary()).toHaveTextContent(/^No deadline · planned 14 – 20 SeptEffort/)
+    expect(summary()).toHaveTextContent(/^No deadline set · planned 14 – 20 SeptEffort/)
     rerender(<TaskDatesSummary {...base} deadline={null} placement={null} estimatedHours={null} />)
-    expect(summary()).toHaveTextContent(/^No deadline$/)
+    expect(summary()).toHaveTextContent(/^No deadline set$/)
   })
 })

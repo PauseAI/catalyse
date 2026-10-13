@@ -324,6 +324,8 @@ describe('task detail page', () => {
     const newcomer = await createVolunteer({ name: 'Nia Newcomer' })
     await mount(project.id, other.id, newcomer)
     await userEvent.click(await screen.findByRole('button', { name: 'Ask to take this' }))
+    const askDialog = await screen.findByRole('dialog', { name: "Ask to take 'Other'?" })
+    await userEvent.click(within(askDialog).getByRole('button', { name: 'Ask to take this' }))
     await screen.findByText(/^Requested\. The task is held for you/)
     await screen.findByText('Held for you until the owner accepts you onto the project.')
     expect(screen.queryByRole('button', { name: 'Ask to take this' })).toBeNull()
@@ -369,12 +371,16 @@ describe('task detail page', () => {
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
     const rule =
       "Post an update within 14 days. With no update we'll remind you at 14 days, warn you at 21, and release the task at 28."
-    expect(screen.getByText(rule)).toBeInTheDocument()
+    // The inactivity rule isn't shown until the viewer claims; it lives in the confirm dialog.
+    expect(screen.queryByText(rule)).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Claim task' }))
+    const dialog = await screen.findByRole('dialog', { name: "Claim 'The task'?" })
+    expect(within(dialog).getByText(rule)).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Claim task' }))
     await screen.findByText(
       'Task claimed. Post an update within 14 days; after 28 days with none, the task is released.',
     )
-    // The assignee keeps the rule in view above the submit box.
+    // The assignee keeps the rule in view above the submit box, now that they can start the task.
     await submitBox()
     expect(screen.getByText(rule)).toBeInTheDocument()
     await waitFor(async () => expect((await row(task.id)).assigneeId).toBe(me.id))
@@ -443,6 +449,28 @@ describe('task detail page', () => {
       'href',
       `/projects/${project.id}#timeline`,
     )
+  })
+
+  it('leaves the task unclaimed when the claim confirm dialog is cancelled', async () => {
+    const owner = await createVolunteer()
+    const me = await createVolunteer()
+    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    const task = await createTask(project.id, { title: 'Weed the beds' })
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: project.id,
+        volunteerId: me.id,
+        interestType: 'want_to_contribute',
+        status: 'accepted',
+      },
+    })
+    await mount(project.id, task.id, me)
+    await userEvent.click(await screen.findByRole('button', { name: 'Claim task' }))
+    const dialog = await screen.findByRole('dialog', { name: "Claim 'Weed the beds'?" })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Claim task' })).toBeInTheDocument()
+    expect((await row(task.id)).assigneeId).toBeNull()
   })
 
   it('handles missing tasks and failures', async () => {

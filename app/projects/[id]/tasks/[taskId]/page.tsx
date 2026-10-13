@@ -24,7 +24,7 @@ import { TaskStatus } from '@/generated/prisma/enums'
 import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS, UNCLAIMED_LABEL } from '@/lib/status-labels'
 import { shortDay } from '@/lib/relative-date'
 import { PROJECT_TASK_CLAIMED_MESSAGE, TASK_REQUESTED_MESSAGE } from '@/lib/action-messages'
-import { JOIN_AS_HELPER, LEAVE_HELPING, UNASSIGN, claimLabel } from '@/lib/action-labels'
+import { CLAIMING, JOIN_AS_HELPER, LEAVE_HELPING, UNASSIGN, claimLabel } from '@/lib/action-labels'
 import { TASK_INACTIVITY_RULE } from '@/lib/staleness'
 import { awaitsOwnerReview } from '@/lib/task-review'
 import { handedIn } from '@/lib/overdue'
@@ -38,6 +38,7 @@ import SubmissionAskFields, {
   submissionAskPayload,
 } from '@/components/SubmissionAskFields'
 import WorkItemHeader, { PersonInitials, WorkItemPerson } from '@/components/WorkItemHeader'
+import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import SubmittedWork from '@/components/SubmittedWork'
 import RequestChangesButton from '@/components/RequestChangesButton'
 import ReopenTaskDialog from '@/components/ReopenTaskDialog'
@@ -108,7 +109,8 @@ function LinkedWork({
       {/* Links are planning, so they are drawn and changed on the timeline, not here. */}
       {timelineHref && (
         <p className="text-text-light mb-4 text-sm">
-          Change what it waits on from the <Link href={timelineHref}>project timeline</Link>.
+          To add or remove what this waits on, use the{' '}
+          <Link href={timelineHref}>project timeline</Link>.
         </p>
       )}
     </>
@@ -161,6 +163,7 @@ export default function TaskDetailPage({
   const [replanning, setReplanning] = useState(false)
   const [reassignTo, setReassignTo] = useState('')
   const [reopening, setReopening] = useState(false)
+  const [confirmingClaim, setConfirmingClaim] = useState(false)
 
   useEffect(() => {
     if (!task || initialized) return
@@ -372,7 +375,7 @@ export default function TaskDetailPage({
                   variant="secondary"
                   size="sm"
                   disabled={updateMutation.isPending}
-                  onClick={() => handleClaimTask(user.id)}
+                  onClick={() => setConfirmingClaim(true)}
                 >
                   {claimLabel(task.claimViewer)}
                 </Button>
@@ -437,9 +440,7 @@ export default function TaskDetailPage({
             handedIn={handedIn(task.status)}
           />
         )}
-        {(canClaimNow || canStartNow) && (
-          <p className="text-sm text-text-light mb-4">{TASK_INACTIVITY_RULE}</p>
-        )}
+        {canStartNow && <p className="text-sm text-text-light mb-4">{TASK_INACTIVITY_RULE}</p>}
         {task.blockedBy.length > 0 && (
           <p className="mb-4 text-sm">
             <strong>Blocked by</strong> {quotedTitles(task.blockedBy)}
@@ -664,6 +665,22 @@ export default function TaskDetailPage({
         </p>
         <CommentThread workItemId={task.id} />
       </div>
+      {confirmingClaim && (
+        <ConfirmDialog
+          id="confirm-claim-task"
+          isOpen
+          title={`${task.claimViewer.onProject || task.claimViewer.invited ? 'Claim' : 'Ask to take'} '${task.title}'?`}
+          body={TASK_INACTIVITY_RULE}
+          confirmLabel={claimLabel(task.claimViewer)}
+          busyLabel={CLAIMING}
+          busy={updateMutation.isPending}
+          onConfirm={() => {
+            handleClaimTask(user.id)
+            setConfirmingClaim(false)
+          }}
+          onClose={() => setConfirmingClaim(false)}
+        />
+      )}
       {reopening && (
         <ReopenTaskDialog
           target={{ projectId, taskId, title: task.title, assigneeName: task.assignedToName }}

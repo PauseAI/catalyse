@@ -61,7 +61,7 @@ export default function TaskDatesSummary({
         </p>
       ) : (
         <p className="m-0 font-medium">
-          No deadline
+          No deadline set
           {placement && (
             <span className="font-normal text-text-light">
               {' · planned '}
