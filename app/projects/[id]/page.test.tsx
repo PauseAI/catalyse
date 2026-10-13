@@ -1745,7 +1745,7 @@ describe('project page — remaining edges', () => {
     await screen.findByRole('heading', { name: 'Interest edges' })
     await userEvent.click(screen.getByRole('button', { name: 'Join this project' }))
     // It has an owner, so there is no lead to ask to be — no radio, just a single confirm.
-    expect(screen.getByText('Join "Interest edges" to help?')).toBeInTheDocument()
+    expect(screen.getByText('Join to help?')).toBeInTheDocument()
     expect(screen.queryByLabelText('Help out on the project')).toBeNull()
     expect(screen.queryByLabelText('Lead the project')).toBeNull()
     await userEvent.keyboard('{Escape}')

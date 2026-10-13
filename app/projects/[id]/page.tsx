@@ -1887,7 +1887,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               </label>
             </fieldset>
           ) : (
-            <p className="mb-5">Join &quot;{project.title}&quot; to help?</p>
+            <p className="mb-5">Join to help?</p>
           )}
           <div className="mb-5">
             <label htmlFor="interest-message">Message (optional)</label>

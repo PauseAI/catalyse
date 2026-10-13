@@ -263,11 +263,6 @@ textarea {
 }
 
 /* Dark mode overrides for base form elements */
-[data-theme='dark'] header {
-  background: #1f2937;
-  border-color: #374151;
-}
-
 [data-theme='dark'] input[type='text'],
 [data-theme='dark'] input[type='email'],
 [data-theme='dark'] input[type='number'],
