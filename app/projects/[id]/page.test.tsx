@@ -191,6 +191,7 @@ describe('project page — visitor', () => {
     const project = await createProject({
       title: 'Ownerless',
       status: 'ready',
+      isSeekingHelp: true,
       collaborationLink: 'javascript:alert(1)',
     })
     await mount(project.id, me)
@@ -211,21 +212,32 @@ describe('project page — visitor', () => {
       where: { workItemId: project.id, volunteerId: me.id },
     })
     expect(interest.interestType).toBe('want_to_own')
-    // A request to lead waits beside the Seeking Owner badge; Withdraw stays among the actions.
+    // The sender's request to lead takes the Seeking Owner badge's place, after the other pills;
+    // Withdraw stays among the actions.
     const status = group('Status')
-    expect(within(status).getByText('Seeking Owner')).toBeInTheDocument()
-    expect(await within(status).findByLabelText('interest status')).toHaveTextContent(
-      'Request to lead sent: waiting for an answer',
-    )
+    const waiting = await within(status).findByLabelText('interest status')
+    expect(waiting).toHaveTextContent('Request to lead sent: waiting for an answer')
+    expect(within(status).queryByText('Seeking Owner')).toBeNull()
+    expect(within(status).getByText('Seeking Help')).toBeInTheDocument()
+    expect(status.lastElementChild).toBe(waiting)
     expect(screen.getAllByLabelText('interest status')).toHaveLength(1)
     expect(
       within(group('Actions')).getByRole('button', { name: 'Withdraw request' }),
     ).toBeInTheDocument()
+    // Anyone else still sees that the project wants a lead.
+    cleanup()
+    queryClient.clear()
+    await mount(project.id, await createVolunteer())
+    const othersStatus = await screen.findByRole('group', { name: 'Status' })
+    expect(within(othersStatus).getByText('Seeking Owner')).toBeInTheDocument()
+    expect(screen.queryByLabelText('interest status')).toBeNull()
+
     await prisma.workItemInterest.update({
       where: { id: interest.id },
       data: { status: 'declined', responseMessage: 'Sorry, no' },
     })
     cleanup()
+    queryClient.clear()
     await mount(project.id, me)
     await screen.findByText(/Sorry, no/)
     expect(screen.getByText(/The owner declined your request/)).toBeInTheDocument()
@@ -1170,7 +1182,10 @@ describe('project page — people tab', () => {
     })
     await mount(byOrg.id, viewer, '#people')
     const tab = await people()
-    expect(within(tab).getByText('Proposed by').parentElement).toHaveTextContent('PauseAI')
+    // Plain text: no chip's initials circle, no link.
+    expect(within(tab).getByText('Proposed by').parentElement).toHaveTextContent(
+      /^Proposed byPauseAI$/,
+    )
     expect(within(tab).queryByRole('link')).toBeNull()
     expect(within(tab).getByText('No owner yet')).toBeInTheDocument()
 
@@ -1179,6 +1194,19 @@ describe('project page — people tab', () => {
     const unattributed = await createProject({ status: 'in_progress' })
     await mount(unattributed.id, viewer, '#people')
     expect(within(await people()).queryByText('Proposed by')).toBeNull()
+  })
+
+  it('names an owner who proposed their own project once, as its owner', async () => {
+    const owner = await createVolunteer({ name: 'Oona Owner' })
+    const project = await createProject({
+      status: 'in_progress',
+      creatorId: owner.id,
+      assigneeId: owner.id,
+    })
+    await mount(project.id, await createVolunteer(), '#people')
+    const tab = await people()
+    expect(within(tab).getByRole('link', { name: 'Oona Owner' })).toBeInTheDocument()
+    expect(within(tab).queryByText('Proposed by')).toBeNull()
   })
 })
 
@@ -1222,11 +1250,13 @@ describe('project page — invites', () => {
       message: 'See https://example.org/brief',
     })
     await mount(project.id, me)
-    // One muted line in the header, above the Accept / Decline it answers; no banner of its own.
-    const line = await screen.findByText(/invited you to help/)
+    // One muted line among the actions, on top of the Accept / Decline it answers; no banner.
+    const actions = await screen.findByRole('group', { name: 'Actions' })
+    const line = within(actions).getByText(/invited you to help/)
     expect(line).toHaveTextContent('Ola Owner invited you to help: “See https://example.org/brief”')
     expect(within(line).getByRole('link', { name: 'https://example.org/brief' })).toBeTruthy()
-    expect(line.closest('header')).toContainElement(screen.getByRole('button', { name: 'Accept' }))
+    expect(line.parentElement).toContainElement(screen.getByRole('button', { name: 'Accept' }))
+    expect(line.parentElement).toContainElement(screen.getByRole('button', { name: 'Decline' }))
     expect(screen.queryByRole('region', { name: /invited you/ })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Join this project' })).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Decline' }))
@@ -1260,7 +1290,11 @@ describe('project page — invites', () => {
       },
     })
     await mount(project.id, me)
-    await screen.findByText('The owner invited you to help on this project')
+    expect(
+      within(await screen.findByRole('group', { name: 'Actions' })).getByText(
+        'The owner invited you to help on this project',
+      ),
+    ).toBeInTheDocument()
     await prisma.workItemInterest.update({
       where: { id: invite.id },
       data: { status: 'cancelled' },

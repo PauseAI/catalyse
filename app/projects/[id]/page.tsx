@@ -1427,6 +1427,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               ? `/volunteers/${interest.volunteerId}`
               : undefined
           }
+          isViewer={interest.volunteerId === user.id}
         />
         <span className="text-text-light text-xs">
           {interest.status === InterestStatus.accepted
@@ -1684,19 +1685,30 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const peopleTab = (
     <section aria-label="People on this project" className={card}>
       <h2>People</h2>
-      {proposer && (
+      {/* An owner who proposed their own project is named once, as its owner. A proposer with no
+          profile, such as the organisation, is plain text: there is no person to chip. */}
+      {proposer && !(proposer.volunteerId && proposer.volunteerId === project.owner?.id) && (
         <p className="text-sm flex items-center gap-2 flex-wrap">
           <span className="text-text-light">Proposed by</span>
-          <PersonChip
-            name={proposer.name}
-            href={proposer.volunteerId ? `/volunteers/${proposer.volunteerId}` : undefined}
-          />
+          {proposer.volunteerId ? (
+            <PersonChip
+              name={proposer.name}
+              href={`/volunteers/${proposer.volunteerId}`}
+              isViewer={proposer.volunteerId === user.id}
+            />
+          ) : (
+            <span>{proposer.name}</span>
+          )}
         </p>
       )}
       <p className="text-sm flex items-center gap-2 flex-wrap">
         <span className="text-text-light">Owner</span>
         {project.owner ? (
-          <PersonChip name={project.owner.name} href={`/volunteers/${project.owner.id}`} />
+          <PersonChip
+            name={project.owner.name}
+            href={`/volunteers/${project.owner.id}`}
+            isViewer={project.owner.id === user.id}
+          />
         ) : (
           <EmptyPersonChip label="No owner yet" />
         )}
@@ -1714,7 +1726,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   className="interest-card flex items-center gap-2 py-2 border-b border-brand-border last:border-0 flex-wrap"
                 >
                   <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-                    <PersonChip name={helper.volunteerName} />
+                    <PersonChip
+                      name={helper.volunteerName}
+                      isViewer={helper.volunteerId === user.id}
+                    />
                     <span className="text-text-light text-xs">
                       {helper.interestType === 'want_to_own'
                         ? 'Owner'
@@ -1827,11 +1842,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   // more pressing for the viewer to do on this page than answer it.
   const pendingInvite = !locked && myStatus === InterestStatus.invited
   const requestPending = !isOwnerOrAdmin && !locked && myStatus === InterestStatus.pending
-  // A request to lead answers the Seeking Owner badge, so it sits beside it. It names no one:
-  // an ownerless project's requests are answered by an admin.
+  // A request to lead answers the Seeking Owner badge, so for its sender it stands in for the
+  // badge, as muted text after the pills. It names no one: an admin answers an ownerless project.
   const leadRequestPending = requestPending && project.myInterest?.interestType === 'want_to_own'
   const requestStatus = (
-    <span className="text-sm" aria-label="interest status">
+    <span
+      className={`text-sm ${leadRequestPending ? 'text-text-light' : ''}`}
+      aria-label="interest status"
+    >
       {leadRequestPending
         ? 'Request to lead sent: waiting for an answer'
         : 'Request sent: waiting for the owner'}
@@ -1842,23 +1860,42 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const standingAction = !isOwnerOrAdmin && (
     <>
       {pendingInvite && (
-        <>
-          <Button
-            size="sm"
-            disabled={respondToInviteMutation.isPending}
-            onClick={() => respondToInviteMutation.mutate({ projectId: project.id, accept: true })}
-          >
-            Accept
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={respondToInviteMutation.isPending}
-            onClick={() => respondToInviteMutation.mutate({ projectId: project.id, accept: false })}
-          >
-            Decline
-          </Button>
-        </>
+        // Who invited the viewer, on top of the Accept / Decline that answers it.
+        <div className="flex flex-col items-start lg:items-end gap-1">
+          <p className="text-sm text-text-light m-0 max-w-xs lg:text-right whitespace-pre-wrap">
+            {project.myInterest?.invitedByName ?? 'The owner'} invited you to help
+            {project.myInterest?.message ? (
+              <>
+                : &ldquo;
+                <Linkify text={project.myInterest.message} />
+                &rdquo;
+              </>
+            ) : (
+              ' on this project'
+            )}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              disabled={respondToInviteMutation.isPending}
+              onClick={() =>
+                respondToInviteMutation.mutate({ projectId: project.id, accept: true })
+              }
+            >
+              Accept
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={respondToInviteMutation.isPending}
+              onClick={() =>
+                respondToInviteMutation.mutate({ projectId: project.id, accept: false })
+              }
+            >
+              Decline
+            </Button>
+          </div>
+        </div>
       )}
       {requestPending && (
         <>
@@ -2124,7 +2161,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       }
     >
       {project.owner ? (
-        <PersonChip name={project.owner.name} href={`/volunteers/${project.owner.id}`} />
+        <PersonChip
+          name={project.owner.name}
+          href={`/volunteers/${project.owner.id}`}
+          isViewer={project.owner.id === user.id}
+        />
       ) : (
         <EmptyPersonChip label="No owner yet" />
       )}
@@ -2163,10 +2204,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       {locked && isOwnerOrAdmin && (
         <ReopenProjectButton projectId={project.id} title={project.title} />
       )}
-      {project.isSeekingOwner && <Badge variant="caution">Seeking Owner</Badge>}
-      {leadRequestPending && requestStatus}
+      {project.isSeekingOwner && !leadRequestPending && (
+        <Badge variant="caution">Seeking Owner</Badge>
+      )}
       {project.isSeekingHelp && <Badge variant="caution">Seeking Help</Badge>}
       {project.needsTasks && <Badge variant="warning">Needs Tasks</Badge>}
+      {leadRequestPending && requestStatus}
     </>
   )
 
@@ -2243,23 +2286,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               onChange={(k) => selectTab(k as ProjectTab)}
             />
           }
-        >
-          {pendingInvite && (
-            // Who invited the viewer, just above the Accept / Decline that answers it.
-            <p className="text-sm text-text-light m-0 mb-3 whitespace-pre-wrap">
-              {project.myInterest?.invitedByName ?? 'The owner'} invited you to help
-              {project.myInterest?.message ? (
-                <>
-                  : &ldquo;
-                  <Linkify text={project.myInterest.message} />
-                  &rdquo;
-                </>
-              ) : (
-                ' on this project'
-              )}
-            </p>
-          )}
-        </WorkItemHeader>
+        />
 
         <div className="min-w-0">
           {/* Notices and admin forms keep a reading measure while the tab below runs wide. */}
