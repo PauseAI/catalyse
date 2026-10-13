@@ -235,8 +235,8 @@ export default function HomePage() {
   // Discovery waits until someone has nothing of their own to get on with.
   const showFind = findOpen ?? current.length === 0
 
-  const urgent = work.filter((w) => w.attention)
-  const rest = work.filter((w) => !w.attention)
+  const urgent = work.filter((w) => w.needsAttention)
+  const rest = work.filter((w) => !w.needsAttention)
 
   const workList = (rows: typeof work) => (
     <ul className="list-none p-0 m-0 bg-surface rounded-xl shadow">

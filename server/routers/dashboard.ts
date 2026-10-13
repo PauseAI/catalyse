@@ -13,7 +13,7 @@ import { lateProjects, pastPlanTasks } from '@/lib/project-schedule'
 import { pastPlanDetail } from '@/lib/replan'
 import { plural } from '@/lib/plural'
 import { handedIn } from '@/lib/overdue'
-import { attentionReason } from '@/lib/work-urgency'
+import { attentionReason, needsAttentionNow } from '@/lib/work-urgency'
 import { toWorkItemSummary, type WorkItemSummary } from '@/lib/work-item-summary'
 import { HELPER_COUNT } from '@/lib/task-helpers'
 import {
@@ -78,7 +78,9 @@ export type WorkRow = {
   /** A task as `WorkItemCard` draws it. */
   item?: WorkItemSummary
   estimatedHours?: number | null
-  /** Why a task is in "Needs attention now" (`attentionReason`); null below it. */
+  /** Whether the task belongs in Home's "Needs attention now" (`needsAttentionNow`). */
+  needsAttention?: boolean
+  /** Why, beyond its own due date (`attentionReason`); null when the due date is reason enough. */
   attention?: string | null
 }
 
@@ -517,6 +519,10 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
       pastPlanDays: pastPlan.get(t.id),
       item: { ...toWorkItemSummary(t, shown), href: taskHref(t) },
       estimatedHours: t.estimatedHours,
+      needsAttention: needsAttentionNow(
+        { deadline: t.deadline, estimatedHours: t.estimatedHours, done: handedIn(shown) },
+        today,
+      ),
       attention: attentionReason(
         { deadline: t.deadline, estimatedHours: t.estimatedHours, done: handedIn(shown) },
         today,
@@ -545,8 +551,8 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
   // "Needs attention now" first, then everything else, each by deadline; finished work last.
   const current = [...taskRows, ...projectRows.filter((r) => !r.done), ...teamRows]
   return [
-    ...current.filter((r) => r.attention).sort(byDeadline),
-    ...current.filter((r) => !r.attention).sort(byDeadline),
+    ...current.filter((r) => r.needsAttention).sort(byDeadline),
+    ...current.filter((r) => !r.needsAttention).sort(byDeadline),
     ...projectRows.filter((r) => r.done),
   ]
 }

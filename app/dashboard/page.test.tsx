@@ -276,8 +276,11 @@ describe('home', () => {
     expect(within(row('Late quick')).getByText(/^2 Jan 2020 · \d+ days overdue$/)).toHaveClass(
       'text-error',
     )
-    expect(within(row('Late quick')).getByText(/^\d+ days overdue$/)).toBeInTheDocument()
-    expect(within(row('Soon')).getByText('Due in 2 days')).toBeInTheDocument()
+    // Already overdue or merely due soon reads as a plain due date on the card; no second line
+    // repeats it.
+    expect(row('Late quick').querySelector('p')).toBeNull()
+    expect(within(row('Soon')).getByText(/· in 2 days$/)).toBeInTheDocument()
+    expect(row('Soon').querySelector('p')).toBeNull()
     expect(
       within(row('Big job')).getByText('About 12 hours of work, due in 6 days: start now'),
     ).toBeInTheDocument()
