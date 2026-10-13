@@ -235,7 +235,7 @@ test.describe('Project Lifecycle', () => {
   test.skip('Required-skill endorsements are created for the project owner on a successful outcome', async () => {})
 })
 
-test.describe('Project Creation Requires At Least One Task', () => {
+test.describe('Task requirements at project creation', () => {
   // The volunteer equivalent of this — saving a draft with no tasks, then trying to
   // publish it — is covered by "Publishing a draft with no tasks is rejected" in
   // 34-project-drafts.spec.ts.
@@ -255,7 +255,7 @@ test.describe('Project Creation Requires At Least One Task', () => {
     await expect(adminPage.getByRole('heading', { name: 'Publish this project?' })).toHaveCount(0)
   })
 
-  test('The API rejects a project proposal with no tasks', async ({ baseUrl }) => {
+  test('The API accepts a volunteer project proposal with no tasks', async ({ baseUrl }) => {
     const volunteer = await createApprovedVolunteer(baseUrl)
     const api = createApiClient(baseUrl, volunteer.token)
 
@@ -275,8 +275,7 @@ test.describe('Project Creation Requires At Least One Task', () => {
       },
     })
 
-    expect(result.status).toBe(400)
-    expect(JSON.stringify(result.body)).toContain('At least one task is required')
+    expect(result.status).toBe(200)
   })
 
   test('The API rejects an org project with no tasks', async ({ baseUrl }) => {

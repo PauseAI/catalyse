@@ -1162,7 +1162,8 @@ describe('project page — invites', () => {
     })
     expect(within(banner).getByRole('link', { name: 'https://example.org/brief' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Join this project' })).toBeNull()
-    await userEvent.click(within(banner).getByRole('button', { name: 'Decline' }))
+    // Accept/Decline sit with the rest of the page's actions, top right, not in the banner.
+    await userEvent.click(screen.getByRole('button', { name: 'Decline' }))
     await screen.findByText('Invite declined.')
     // Declining leaves the way open to apply.
     await screen.findByRole('button', { name: 'Join this project' })
@@ -1171,10 +1172,10 @@ describe('project page — invites', () => {
     await clientAs(owner).projects.invite({ projectId: project.id, volunteerId: me.id })
     cleanup()
     await mount(project.id, me)
-    const again = await screen.findByRole('region', {
+    await screen.findByRole('region', {
       name: 'Ola Owner invited you to help on this project',
     })
-    await userEvent.click(within(again).getByRole('button', { name: 'Accept' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Accept' }))
     await screen.findByText("You're on the project. Welcome!")
     await waitFor(async () =>
       expect(
@@ -1195,14 +1196,14 @@ describe('project page — invites', () => {
       },
     })
     await mount(project.id, me)
-    const banner = await screen.findByRole('region', {
+    await screen.findByRole('region', {
       name: 'The owner invited you to help on this project',
     })
     await prisma.workItemInterest.update({
       where: { id: invite.id },
       data: { status: 'cancelled' },
     })
-    await userEvent.click(within(banner).getByRole('button', { name: 'Accept' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Accept' }))
     await screen.findByText('No invite found')
   })
 
@@ -1250,22 +1251,24 @@ describe('project page — admin', () => {
     fireEvent.submit(screen.getByLabelText(/approve/i).closest('form')!)
     await screen.findByText('Project approved!')
 
-    await userEvent.click(await screen.findByLabelText('Ownership actions'))
+    // Transfer/Remove ownership live in the same "More" menu as Export/Import, top right.
+    const bar = screen.getByRole('toolbar', { name: 'Status and actions' })
+    await userEvent.click(within(bar).getByText('More'))
     await userEvent.click(screen.getByRole('button', { name: 'Transfer to' }))
     await userEvent.click(await screen.findByRole('option', { name: 'Nina New' }))
     await userEvent.click(screen.getByRole('button', { name: 'Transfer' }))
     await userEvent.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }),
     )
-    await userEvent.click(screen.getByLabelText('Ownership actions'))
+    await userEvent.click(within(bar).getByText('More'))
     await userEvent.click(screen.getByRole('button', { name: 'Transfer' }))
     await userEvent.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Transfer' }),
     )
     await screen.findByText('Ownership transferred!')
     await waitFor(async () => expect((await row(pending.id)).assigneeId).toBe(newOwner.id))
-    await userEvent.click(screen.getByLabelText('Ownership actions'))
-    await userEvent.click(await screen.findByRole('menuitem', { name: /Remove/ }))
+    await userEvent.click(within(bar).getByText('More'))
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove ownership' }))
     await userEvent.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove ownership' }),
     )
@@ -1691,8 +1694,9 @@ describe('project page — remaining edges', () => {
     await userEvent.click(screen.getByRole('button', { name: 'project status' }))
     await userEvent.click(screen.getByRole('option', { name: 'Archived' }))
     await userEvent.keyboard('{Escape}')
-    await userEvent.click(await screen.findByLabelText('Ownership actions'))
-    await userEvent.click(await screen.findByRole('menuitem', { name: /Remove/ }))
+    const bar = screen.getByRole('toolbar', { name: 'Status and actions' })
+    await userEvent.click(within(bar).getByText('More'))
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove ownership' }))
     await userEvent.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }),
     )
@@ -2007,7 +2011,12 @@ describe('project page — a completed project', () => {
     const admin = await createAdmin()
     await mount(project.id, admin)
     await banner()
-    expect(screen.queryByLabelText('Ownership actions')).toBeNull()
+    // A locked project offers neither ownership action from the "More" menu.
+    await userEvent.click(
+      within(screen.getByRole('toolbar', { name: 'Status and actions' })).getByText('More'),
+    )
+    expect(screen.queryByRole('button', { name: 'Transfer' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Remove ownership' })).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Reopen project' }))
     const ask = await screen.findByRole('dialog', { name: "Reopen 'Finished campaign'?" })
     // Taken off the admin list in the meantime.

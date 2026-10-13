@@ -1246,6 +1246,21 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       showToast(err instanceof Error ? err.message : 'Failed to cancel the invite', 'error'),
   })
 
+  const respondToInviteMutation = useMutation({
+    ...orpc.projects.respondToInvite.mutationOptions(),
+    onSuccess: (_data, variables) => {
+      showToast(
+        variables.accept ? "You're on the project. Welcome!" : 'Invite declined.',
+        'success',
+      )
+      void invalidateProject()
+      void queryClient.invalidateQueries({ queryKey: orpc.notifications.key() })
+      void queryClient.invalidateQueries({ queryKey: orpc.dashboard.get.key() })
+    },
+    onError: (err: unknown) =>
+      showToast(err instanceof Error ? err.message : 'Failed to answer the invite', 'error'),
+  })
+
   const deputyResult = {
     onSuccess: (data: { message: string }) => {
       showToast(data.message, 'success')
@@ -1769,12 +1784,36 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   )
 
   const myStatus = project.myInterest?.status
-  const joinControl = !isOwnerOrAdmin && (
-    <div className="flex flex-wrap items-center gap-3 mb-4">
-      {canSeeInterest && (!project.myInterest || canApplyAgain) && (
-        <Button onClick={() => setShowJoin(true)}>Join this project</Button>
+  // A pending invite takes the primary-action slot over everything else: there is nothing
+  // more pressing for the viewer to do on this page than answer it.
+  const pendingInvite = !locked && myStatus === InterestStatus.invited
+  const standingAction = !isOwnerOrAdmin && (
+    <div className="flex flex-wrap items-center gap-2">
+      {pendingInvite && (
+        <>
+          <Button
+            size="sm"
+            disabled={respondToInviteMutation.isPending}
+            onClick={() => respondToInviteMutation.mutate({ projectId: project.id, accept: true })}
+          >
+            Accept
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={respondToInviteMutation.isPending}
+            onClick={() => respondToInviteMutation.mutate({ projectId: project.id, accept: false })}
+          >
+            Decline
+          </Button>
+        </>
       )}
-      {!locked && myStatus === InterestStatus.pending && (
+      {!pendingInvite && canSeeInterest && (!project.myInterest || canApplyAgain) && (
+        <Button size="sm" onClick={() => setShowJoin(true)}>
+          Join this project
+        </Button>
+      )}
+      {!pendingInvite && !locked && myStatus === InterestStatus.pending && (
         <>
           <span className="text-sm" aria-label="interest status">
             Request sent: waiting for the owner
@@ -1784,7 +1823,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </Button>
         </>
       )}
-      {!locked && myStatus === InterestStatus.accepted && (
+      {!pendingInvite && !locked && myStatus === InterestStatus.accepted && (
         <>
           <span className="text-sm" aria-label="interest status">
             You&apos;re on this project
@@ -1796,7 +1835,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </Button>
         </>
       )}
-      {(myStatus === InterestStatus.declined || myStatus === InterestStatus.removed) &&
+      {!pendingInvite &&
+        (myStatus === InterestStatus.declined || myStatus === InterestStatus.removed) &&
         !canApplyAgain && (
           <span className="text-sm text-text-light" aria-label="interest status">
             {myStatus === InterestStatus.removed
@@ -1989,47 +2029,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       }
       actions={
         <>
-          {isAdmin && !locked && volunteers.length > 0 && (
-            <ActionMenu ariaLabel="Ownership actions">
-              {(close) => (
-                <>
-                  <div className="px-3 py-2 flex flex-col gap-2">
-                    <h3 className="m-0 text-sm">Transfer Ownership</h3>
-                    <VolunteerSelect
-                      id="transfer-to"
-                      label="Transfer to"
-                      ariaLabel="Transfer to"
-                      value={transferTo}
-                      onChange={(v) => setTransferTo(v)}
-                    />
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={!transferTo || updateProjectMutation.isPending}
-                      onClick={() => {
-                        setShowTransferConfirm(true)
-                        close()
-                      }}
-                    >
-                      {updateProjectMutation.isPending ? 'Transferring…' : 'Transfer'}
-                    </Button>
-                  </div>
-                  {project.owner && (
-                    <button
-                      role="menuitem"
-                      className="w-full text-left px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-accent transition-colors cursor-pointer border-t border-brand-border mt-1"
-                      onClick={() => {
-                        setShowRemoveOwnerConfirm(true)
-                        close()
-                      }}
-                    >
-                      Remove ownership
-                    </button>
-                  )}
-                </>
-              )}
-            </ActionMenu>
-          )}
           {project.canMessageOwner && !isAdmin && (
             <Button
               variant="secondary"
@@ -2095,32 +2094,74 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     </>
   )
 
-  const actionsBlock = canManageProject && (
+  const actionsBlock = (
     <>
-      {!locked && (
-        <Button href={`/projects/${idParam}/edit`} variant="secondary" size="sm">
-          Edit project
-        </Button>
+      {standingAction}
+      {canManageProject && (
+        <>
+          {!locked && (
+            <Button href={`/projects/${idParam}/edit`} variant="secondary" size="sm">
+              Edit project
+            </Button>
+          )}
+          <details className="relative">
+            <summary className="list-none cursor-pointer text-sm font-medium px-3 py-1.5 rounded-md border border-brand-border hover:bg-accent">
+              More <span aria-hidden="true">▾</span>
+            </summary>
+            {/* Above the timeline's sticky labels; Save as template's dialog opens from in here. */}
+            <div className="absolute right-0 z-50 mt-1 w-56 bg-surface border border-brand-border rounded-lg shadow-lg p-2 flex flex-col items-start gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={(e) => {
+                  e.currentTarget.closest('details')?.removeAttribute('open')
+                  setShowPorting(true)
+                }}
+              >
+                Export / Import
+              </Button>
+              {isAdmin && (
+                <SaveAsTemplateButton projectId={project.id} defaultTitle={project.title} />
+              )}
+              {isAdmin && !locked && volunteers.length > 0 && (
+                <div className="w-full border-t border-brand-border pt-2 flex flex-col gap-2">
+                  <h3 className="m-0 text-sm">Transfer Ownership</h3>
+                  <VolunteerSelect
+                    id="transfer-to"
+                    label="Transfer to"
+                    ariaLabel="Transfer to"
+                    value={transferTo}
+                    onChange={(v) => setTransferTo(v)}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={!transferTo || updateProjectMutation.isPending}
+                    onClick={(e) => {
+                      e.currentTarget.closest('details')?.removeAttribute('open')
+                      setShowTransferConfirm(true)
+                    }}
+                  >
+                    {updateProjectMutation.isPending ? 'Transferring…' : 'Transfer'}
+                  </Button>
+                </div>
+              )}
+              {isAdmin && !locked && project.owner && (
+                <button
+                  type="button"
+                  className="w-full text-left px-0 py-1 text-sm text-red-700 dark:text-red-400 cursor-pointer border-t border-brand-border mt-1 pt-2"
+                  onClick={(e) => {
+                    e.currentTarget.closest('details')?.removeAttribute('open')
+                    setShowRemoveOwnerConfirm(true)
+                  }}
+                >
+                  Remove ownership
+                </button>
+              )}
+            </div>
+          </details>
+        </>
       )}
-      <details className="relative">
-        <summary className="list-none cursor-pointer text-sm font-medium px-3 py-1.5 rounded-md border border-brand-border hover:bg-accent">
-          More <span aria-hidden="true">▾</span>
-        </summary>
-        {/* Above the timeline's sticky labels; Save as template's dialog opens from in here. */}
-        <div className="absolute right-0 z-50 mt-1 w-56 bg-surface border border-brand-border rounded-lg shadow-lg p-2 flex flex-col items-start gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={(e) => {
-              e.currentTarget.closest('details')?.removeAttribute('open')
-              setShowPorting(true)
-            }}
-          >
-            Export / Import
-          </Button>
-          {isAdmin && <SaveAsTemplateButton projectId={project.id} defaultTitle={project.title} />}
-        </div>
-      </details>
     </>
   )
 
@@ -2149,9 +2190,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               onChange={(k) => selectTab(k as ProjectTab)}
             />
           }
-        >
-          {joinControl}
-        </WorkItemHeader>
+        />
 
         <div className="min-w-0">
           {/* Notices and admin forms keep a reading measure while the tab below runs wide. */}
@@ -2177,7 +2216,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             />
             {!locked && project.myInterest?.status === InterestStatus.invited && (
               <ProjectInviteBanner
-                projectId={project.id}
                 invitedByName={project.myInterest.invitedByName}
                 note={project.myInterest.message}
               />

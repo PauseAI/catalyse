@@ -24,7 +24,7 @@ import { TaskStatus } from '@/generated/prisma/enums'
 import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS, UNCLAIMED_LABEL } from '@/lib/status-labels'
 import { shortDay } from '@/lib/relative-date'
 import { PROJECT_TASK_CLAIMED_MESSAGE, TASK_REQUESTED_MESSAGE } from '@/lib/action-messages'
-import { UNASSIGN, claimLabel } from '@/lib/action-labels'
+import { JOIN_AS_HELPER, LEAVE_HELPING, UNASSIGN, claimLabel } from '@/lib/action-labels'
 import { TASK_INACTIVITY_RULE } from '@/lib/staleness'
 import { awaitsOwnerReview } from '@/lib/task-review'
 import { handedIn } from '@/lib/overdue'
@@ -244,6 +244,26 @@ export default function TaskDetailPage({
       showToast(err instanceof Error ? err.message : 'Failed to start the task', 'error'),
   })
 
+  const joinAsHelperMutation = useMutation({
+    ...orpc.projects.expressInterest.mutationOptions(),
+    onSuccess: (data) => {
+      showToast(data.message, 'success')
+      void invalidateTask()
+    },
+    onError: (err: unknown) =>
+      showToast(err instanceof Error ? err.message : 'Failed to join', 'error'),
+  })
+
+  const leaveAsHelperMutation = useMutation({
+    ...orpc.projects.withdrawInterest.mutationOptions(),
+    onSuccess: (data) => {
+      showToast(data.message, 'success')
+      void invalidateTask()
+    },
+    onError: (err: unknown) =>
+      showToast(err instanceof Error ? err.message : 'Failed to leave', 'error'),
+  })
+
   function handleClaimTask(assigneeId: number) {
     updateMutation.mutate({ projectId, taskId, data: { assigneeId } })
   }
@@ -273,6 +293,16 @@ export default function TaskDetailPage({
 
   // Nothing on a completed project changes until it is reopened (lib/work-item-lock.ts).
   const projectLocked = TERMINAL_STATUSES.includes(task.projectStatus)
+  const canClaimNow =
+    task.status === TaskStatus.not_started &&
+    task.assignedToId === null &&
+    task.requestedById === null &&
+    task.canClaim
+  const canStartNow =
+    !projectLocked &&
+    !handedIn(task.status) &&
+    task.assignedToId === user.id &&
+    task.status === TaskStatus.not_started
 
   return (
     <main className="container py-5 pb-15">
@@ -337,6 +367,52 @@ export default function TaskDetailPage({
           }
           actions={
             <>
+              {canClaimNow && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={updateMutation.isPending}
+                  onClick={() => handleClaimTask(user.id)}
+                >
+                  {claimLabel(task.claimViewer)}
+                </Button>
+              )}
+              {canStartNow && (
+                <Button
+                  size="sm"
+                  disabled={startMutation.isPending}
+                  onClick={() => startMutation.mutate({ projectId, taskId })}
+                >
+                  Start
+                </Button>
+              )}
+              {task.canJoinAsHelper && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={joinAsHelperMutation.isPending}
+                  onClick={() =>
+                    joinAsHelperMutation.mutate({
+                      projectId,
+                      taskId,
+                      interestType: 'want_to_help_task',
+                      message: null,
+                    })
+                  }
+                >
+                  {JOIN_AS_HELPER}
+                </Button>
+              )}
+              {task.canLeaveAsHelper && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={leaveAsHelperMutation.isPending}
+                  onClick={() => leaveAsHelperMutation.mutate({ projectId, taskId })}
+                >
+                  {LEAVE_HELPING}
+                </Button>
+              )}
               {canEdit && !isEditing && (
                 <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>
                   Edit
@@ -360,6 +436,9 @@ export default function TaskDetailPage({
             placement={task.placement}
             handedIn={handedIn(task.status)}
           />
+        )}
+        {(canClaimNow || canStartNow) && (
+          <p className="text-sm text-text-light mb-4">{TASK_INACTIVITY_RULE}</p>
         )}
         {task.blockedBy.length > 0 && (
           <p className="mb-4 text-sm">
@@ -471,23 +550,6 @@ export default function TaskDetailPage({
           </p>
         )}
 
-        {task.status === TaskStatus.not_started &&
-          task.assignedToId === null &&
-          task.requestedById === null &&
-          task.canClaim && (
-            <div className="mt-4">
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={updateMutation.isPending}
-                onClick={() => handleClaimTask(user.id)}
-              >
-                {claimLabel(task.claimViewer)}
-              </Button>
-              <p className="text-sm text-text-light mt-2 mb-0">{TASK_INACTIVITY_RULE}</p>
-            </div>
-          )}
-
         <SubmittedWork submission={task.submission} changesRequested={task.changesRequested} />
 
         {task.status === TaskStatus.under_review && task.canManage && (
@@ -506,32 +568,18 @@ export default function TaskDetailPage({
         )}
 
         {!projectLocked && !handedIn(task.status) && task.assignedToId === user.id && (
-          <>
-            <div className="mt-4">
-              {task.status === TaskStatus.not_started && (
-                <Button
-                  size="sm"
-                  disabled={startMutation.isPending}
-                  onClick={() => startMutation.mutate({ projectId, taskId })}
-                >
-                  Start
-                </Button>
-              )}
-              <p className="text-sm text-text-light mt-2 mb-0">{TASK_INACTIVITY_RULE}</p>
-            </div>
-            <SubmitWorkForm
-              target={{ kind: 'project', projectId, taskId }}
-              ask={task}
-              reviewer={
-                awaitsOwnerReview(
-                  { autoAcceptTasks: task.autoAcceptTasks, ownerId: task.projectOwnerId },
-                  task.canManage,
-                )
-                  ? 'The project owner'
-                  : null
-              }
-            />
-          </>
+          <SubmitWorkForm
+            target={{ kind: 'project', projectId, taskId }}
+            ask={task}
+            reviewer={
+              awaitsOwnerReview(
+                { autoAcceptTasks: task.autoAcceptTasks, ownerId: task.projectOwnerId },
+                task.canManage,
+              )
+                ? 'The project owner'
+                : null
+            }
+          />
         )}
 
         {canEdit && isEditing && (

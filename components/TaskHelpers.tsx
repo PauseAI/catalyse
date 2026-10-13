@@ -2,10 +2,9 @@
 
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import Button from '@/components/Button'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import MemberPicker from '@/components/ui/MemberPicker'
-import { ADD_HELPER, JOIN_AS_HELPER, LEAVE_HELPING, REMOVE_HELPER } from '@/lib/action-labels'
+import { ADD_HELPER, REMOVE_HELPER } from '@/lib/action-labels'
 import { helperSummary } from '@/lib/helper-summary'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
@@ -21,8 +20,9 @@ export type TaskHelpersState = {
 }
 
 /**
- * Who helps the task's lead, and the viewer's way to join, leave or take a helper off. Nothing
- * shows for a task that has no helpers and seeks none.
+ * Who helps the task's lead, and the owner's way to add one or take one off. Nothing shows for
+ * a task that has no helpers and seeks none. The viewer's own way to join or stop helping sits
+ * with the rest of the page's actions, top right — see TaskDetailPage.
  */
 export default function TaskHelpers({
   projectId,
@@ -53,14 +53,6 @@ export default function TaskHelpers({
       refresh()
     },
     onError: (err: unknown) => showToast(err instanceof Error ? err.message : fallback, 'error'),
-  })
-  const join = useMutation({
-    ...orpc.projects.expressInterest.mutationOptions(),
-    ...options('Failed to join'),
-  })
-  const leave = useMutation({
-    ...orpc.projects.withdrawInterest.mutationOptions(),
-    ...options('Failed to leave'),
   })
   const remove = useMutation({
     ...orpc.projects.respondToInterest.mutationOptions(),
@@ -101,28 +93,6 @@ export default function TaskHelpers({
             </li>
           ))}
         </ul>
-      )}
-      {state.canJoinAsHelper && (
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={join.isPending}
-          onClick={() =>
-            join.mutate({ projectId, taskId, interestType: 'want_to_help_task', message: null })
-          }
-        >
-          {JOIN_AS_HELPER}
-        </Button>
-      )}
-      {state.canLeaveAsHelper && (
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={leave.isPending}
-          onClick={() => leave.mutate({ projectId, taskId })}
-        >
-          {LEAVE_HELPING}
-        </Button>
       )}
       {state.canAddHelpers && state.eligibleHelpers.length > 0 && (
         <div className="mt-2 max-w-56">

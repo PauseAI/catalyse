@@ -811,12 +811,14 @@ describe('task detail page — a completed project', () => {
     // A task worked by several people names its lead.
     expect(screen.getByText('Lead').parentElement).toHaveTextContent('Lee Lead')
     expect(within(helpers()).getByText('2 helpers wanted')).toBeInTheDocument()
-    await userEvent.click(within(helpers()).getByRole('button', { name: 'Join as helper' }))
+    // Join/Stop helping sit with the rest of the page's actions, top right, not in the
+    // Helpers box itself.
+    await userEvent.click(screen.getByRole('button', { name: 'Join as helper' }))
     await screen.findByText("You're helping on this task")
     await within(helpers()).findByText('1 helper (1 more wanted)')
     expect(within(helpers()).getByText('Ann Helper')).toBeInTheDocument()
-    expect(within(helpers()).queryByRole('button', { name: 'Join as helper' })).toBeNull()
-    await userEvent.click(within(helpers()).getByRole('button', { name: 'Stop helping' }))
+    expect(screen.queryByRole('button', { name: 'Join as helper' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Stop helping' }))
     await screen.findByText('You are no longer helping on this task')
     await waitFor(async () =>
       expect(
@@ -827,7 +829,7 @@ describe('task detail page — a completed project', () => {
         ).status,
       ).toBe('withdrawn'),
     )
-    await within(helpers()).findByRole('button', { name: 'Join as helper' })
+    await screen.findByRole('button', { name: 'Join as helper' })
 
     // The last place goes while Bob has the page open.
     await prisma.workItem.update({ where: { id: task.id }, data: { helpersWanted: 1 } })

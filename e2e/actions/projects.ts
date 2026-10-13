@@ -301,12 +301,15 @@ export async function transferProjectOwnership(
   if (!adminPage.url().includes(`/projects/${projectId}`)) {
     await adminPage.goto(`${baseUrl}/projects/${projectId}`)
   }
-  await adminPage.getByRole('button', { name: 'Ownership actions' }).click()
+  await openProjectMore(adminPage)
   await expect(
     adminPage.getByRole('heading', { level: 3, name: 'Transfer Ownership' }),
   ).toBeVisible({ timeout: 10_000 })
   await selectFilterDropdown(adminPage, 'Transfer to', volunteerName)
-  await adminPage.getByRole('menu').getByRole('button', { name: 'Transfer', exact: true }).click()
+  await adminPage
+    .getByRole('toolbar', { name: 'Status and actions' })
+    .getByRole('button', { name: 'Transfer', exact: true })
+    .click()
   await adminPage.getByRole('dialog').getByRole('button', { name: 'Transfer', exact: true }).click()
   await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 }
@@ -319,8 +322,8 @@ export async function removeProjectOwner(
   if (!adminPage.url().includes(`/projects/${projectId}`)) {
     await adminPage.goto(`${baseUrl}/projects/${projectId}`)
   }
-  await adminPage.getByRole('button', { name: 'Ownership actions' }).click()
-  await adminPage.getByRole('menuitem', { name: 'Remove ownership' }).click()
+  await openProjectMore(adminPage)
+  await adminPage.getByRole('button', { name: 'Remove ownership' }).click()
   await adminPage.getByRole('dialog').getByRole('button', { name: 'Remove ownership' }).click()
   await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 }
