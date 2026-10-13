@@ -64,7 +64,8 @@ test.describe('Admin project drafts', () => {
       timeout: 5_000,
     })
 
-    await volunteer.page.goto(`${baseUrl}/projects`)
+    // Searched for: projects other specs create can push it off the overview's groups.
+    await volunteer.page.goto(`${baseUrl}/projects?q=${encodeURIComponent(title)}`)
     await expect(volunteer.page.getByRole('link', { name: title })).toBeVisible({
       timeout: 10_000,
     })
