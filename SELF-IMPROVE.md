@@ -49,6 +49,25 @@ confusing than it needed to be, and that will do so again.
       each waited for the other to finish before its tests counted. A per-run database prefix and reports directory in
       `test/pg.ts` and `scripts/test-unit.ts` (from an env var or the pid) would let runs overlap.
 
+## 5x
+
+- [ ] **Races that only show under full-suite load surface one per `check-all` run,
+      and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
+      failed in three different ways across four runs (a 5 s database poll, a title
+      long enough to start autosave, then a real bug where edits made during the
+      first autosave were dropped), and e2e `01` reloaded before a background
+      mark-read landed. R-06's run hit e2e `16`, which read a reply's text on screen
+      as proof it was saved while the draft was still in the box, and R-09's hit
+      `ProjectEditor.test.tsx` again (a button that follows a refetch, read with `getBy…`). Phase 3's
+      D-04 run hit it a third time (the Add Task button reads "Adding…" while the title's
+      autosave creates the draft) together with the Inbox mark-read test (opening a row
+      before it showed as read). Phase 6's second run hit e2e `36`: Save Changes still read
+      "Saving…" after 10 s with no toast, then passed 16/16 alone. Each passed 8/8
+      when run alone. A script that reruns one
+      file under the same parallel load (for example all unit files at once with
+      only the suspect repeated) would find them in one pass instead of one per
+      full run.
+
 ## 4x
 
 - [ ] **Component tests that remount a page as a different user read the previous user's
@@ -65,22 +84,6 @@ confusing than it needed to be, and that will do so again.
       the stale tree, so the race hid behind a passing assertion right up to the real one.
       `renderApp` could start each mount with an empty query cache, or `test/render.tsx`
       could say to use `findBy…` after a remount.
-
-- [ ] **Races that only show under full-suite load surface one per `check-all` run,
-      and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
-      failed in three different ways across four runs (a 5 s database poll, a title
-      long enough to start autosave, then a real bug where edits made during the
-      first autosave were dropped), and e2e `01` reloaded before a background
-      mark-read landed. R-06's run hit e2e `16`, which read a reply's text on screen
-      as proof it was saved while the draft was still in the box, and R-09's hit
-      `ProjectEditor.test.tsx` again (a button that follows a refetch, read with `getBy…`). Phase 3's
-      D-04 run hit it a third time (the Add Task button reads "Adding…" while the title's
-      autosave creates the draft) together with the Inbox mark-read test (opening a row
-      before it showed as read). Each passed 8/8
-      when run alone. A script that reruns one
-      file under the same parallel load (for example all unit files at once with
-      only the suspect repeated) would find them in one pass instead of one per
-      full run.
 
 ## 2x
 
