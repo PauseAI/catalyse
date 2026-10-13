@@ -136,20 +136,24 @@ test.describe('Volunteer project drafts', () => {
     await expect(taskDescInput).toHaveValue('Updated task details')
   })
 
-  test('Publishing a draft with no tasks is rejected', async ({ volunteer, baseUrl }) => {
+  test('Publishing a draft with no tasks is allowed for a volunteer', async ({
+    volunteer,
+    baseUrl,
+  }) => {
     const title = fake.projectTitle()
     const projectId = await volunteerSaveProjectDraft(baseUrl, volunteer.page, title)
 
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}/edit`)
     await volunteer.page.getByRole('button', { name: 'Submit', exact: true }).click()
 
-    // Refused before the confirm dialog opens.
-    await expect(volunteer.page.getByText('Add at least one task before submitting.')).toBeVisible({
+    // A volunteer's own proposal needs no task up front — tasks come later, once approved.
+    await volunteer.page
+      .getByRole('heading', { name: 'Submit draft for review?' })
+      .waitFor({ timeout: 10_000 })
+    await volunteer.page.getByRole('button', { name: 'Submit for Review' }).click()
+    await expect(getAlert(volunteer.page)).toContainText('Draft submitted for review!', {
       timeout: 10_000,
     })
-    await expect(
-      volunteer.page.getByRole('heading', { name: 'Submit draft for review?' }),
-    ).toHaveCount(0)
   })
 
   test('A volunteer is blocked from saving a third draft', async ({ volunteer, baseUrl }) => {

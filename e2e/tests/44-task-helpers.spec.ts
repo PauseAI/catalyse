@@ -90,6 +90,10 @@ test.describe('Task helpers', () => {
     const leadPage = lead.page
     await leadPage.goto(taskUrl)
     await leadPage.getByRole('button', { name: 'Claim task' }).click()
+    await leadPage
+      .getByRole('dialog', { name: /^Claim '/ })
+      .getByRole('button', { name: 'Claim task' })
+      .click()
     await expect(leadPage.getByText('1 helper wanted')).toBeVisible({ timeout: 10_000 })
 
     const helperAContext = await browser.newContext()
