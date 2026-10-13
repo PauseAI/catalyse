@@ -39,7 +39,6 @@ import SubmissionAskFields, {
 } from '@/components/SubmissionAskFields'
 import WorkItemHeader, { WorkItemPerson } from '@/components/WorkItemHeader'
 import { EmptyPersonChip, PersonChip } from '@/components/ui/PersonChip'
-import { helperSummary } from '@/lib/helper-summary'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import SubmittedWork from '@/components/SubmittedWork'
 import RequestChangesButton from '@/components/RequestChangesButton'
@@ -334,7 +333,6 @@ export default function TaskDetailPage({
                 <>
                   {canClaimNow && (
                     <Button
-                      variant="secondary"
                       size="sm"
                       disabled={updateMutation.isPending}
                       onClick={() => setConfirmingClaim(true)}
@@ -356,33 +354,32 @@ export default function TaskDetailPage({
                     )}
                 </>
               }
-              secondLine={
+              secondActions={
                 task.canJoinAsHelper && (
-                  <>
-                    <span className="text-text-light">
-                      {helperSummary(task.helpers.length, task.helpersWanted)}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={joinAsHelperMutation.isPending}
-                      onClick={() =>
-                        joinAsHelperMutation.mutate({
-                          projectId,
-                          taskId,
-                          interestType: 'want_to_help_task',
-                          message: null,
-                        })
-                      }
-                    >
-                      {JOIN_AS_HELPER}
-                    </Button>
-                  </>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={joinAsHelperMutation.isPending}
+                    onClick={() =>
+                      joinAsHelperMutation.mutate({
+                        projectId,
+                        taskId,
+                        interestType: 'want_to_help_task',
+                        message: null,
+                      })
+                    }
+                  >
+                    {JOIN_AS_HELPER}
+                  </Button>
                 )
               }
             >
               {task.assignedToId !== null && task.assignedToName !== null ? (
-                <PersonChip name={task.assignedToName} href={`/volunteers/${task.assignedToId}`} />
+                <PersonChip
+                  name={task.assignedToName}
+                  href={`/volunteers/${task.assignedToId}`}
+                  isViewer={task.assignedToId === user.id}
+                />
               ) : (
                 <EmptyPersonChip label={isDone ? 'No one' : UNCLAIMED_LABEL} />
               )}

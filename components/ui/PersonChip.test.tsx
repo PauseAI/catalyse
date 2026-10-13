@@ -18,6 +18,12 @@ describe('PersonChip', () => {
     expect(screen.getByRole('link', { name: 'Ann Bee' })).toHaveAttribute('href', '/volunteers/7')
   })
 
+  it('marks the viewer’s own chip with “(you)” after the name, inside the chip', () => {
+    const { container } = render(<PersonChip name="Ann Bee" href="/volunteers/7" isViewer />)
+    expect(screen.getByRole('link', { name: 'Ann Bee' })).toBeInTheDocument()
+    expect(container.firstElementChild).toHaveTextContent(/^ABAnn Bee\(you\)$/)
+  })
+
   it('calls onRemove from a × labelled by the caller', async () => {
     const onRemove = vi.fn()
     render(<PersonChip name="Ann Bee" onRemove={onRemove} removeLabel="Remove Ann Bee" />)

@@ -1,7 +1,7 @@
 import React from 'react'
 
 /**
- * The top of a work item's page: the title with the person who answers for it on the right,
+ * The top of a work item's page: the title, then on its own line the person who answers for it,
  * then a bar holding the tabs on the left and the status and actions on the right. The bar
  * wraps under the tabs on narrow screens.
  */
@@ -29,14 +29,12 @@ export default function WorkItemHeader({
 }) {
   return (
     <header className="mb-4">
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 mb-3">
-        <div className="min-w-0">
-          <h1 id={titleId} className="mb-0">
-            {title}
-          </h1>
-          {subtitle && <p className="text-sm text-text-light mt-1 mb-0">{subtitle}</p>}
-        </div>
-        {person && <div className="min-w-0 sm:ml-auto">{person}</div>}
+      <div className="mb-3 min-w-0">
+        <h1 id={titleId} className="mb-0">
+          {title}
+        </h1>
+        {subtitle && <p className="text-sm text-text-light mt-1 mb-0">{subtitle}</p>}
+        {person && <div className="mt-3 min-w-0">{person}</div>}
       </div>
       {children}
       <div className="flex flex-col lg:flex-row lg:items-stretch">
@@ -85,10 +83,10 @@ export function PersonInitials({ name }: { name: string }) {
 }
 
 /**
- * The person block on the right of the title row: a small role label ("Owner", "Assigned
- * to"), then whatever names them, then an optional one-line summary of who else is on it and
- * the viewer's actions on that person's place (Claim, Message). `secondLine` sits beneath, for
- * the people working alongside them and the viewer's way to join them.
+ * The person block under the title: a small role label ("Owner", "Assigned to"), then whatever
+ * names them, then an optional one-line summary of who else is on it and the viewer's actions on
+ * that person's place (Claim, Message). `secondLine` sits beneath, flush left with the block;
+ * `secondActions` sits beneath flush right, so its buttons share a right edge with `actions`.
  */
 export function WorkItemPerson({
   label,
@@ -96,15 +94,18 @@ export function WorkItemPerson({
   summary,
   actions,
   secondLine,
+  secondActions,
 }: {
   label: string
   children: React.ReactNode
   summary?: React.ReactNode
   actions?: React.ReactNode
   secondLine?: React.ReactNode
+  /** The viewer's way to join the people working alongside them, e.g. Join as helper. */
+  secondActions?: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-y-1 text-sm">
+    <div className="flex w-fit max-w-full flex-col gap-y-1 text-sm">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="text-text-light">{label}</span>
         {children}
@@ -113,6 +114,11 @@ export function WorkItemPerson({
       </div>
       {secondLine && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">{secondLine}</div>
+      )}
+      {secondActions && (
+        <div className="flex flex-wrap items-center justify-end gap-2 self-end">
+          {secondActions}
+        </div>
       )}
     </div>
   )

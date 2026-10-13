@@ -34,6 +34,8 @@ const baseState: TaskHelpersState = {
   canRemoveHelpers: true,
   canAddHelpers: true,
   eligibleHelpers: [],
+  assignedToId: null,
+  projectOwnerId: null,
 }
 
 describe('TaskHelpers', () => {
@@ -274,6 +276,50 @@ describe('TaskHelpers', () => {
     expect(
       await prisma.workItemInterest.findUniqueOrThrow({ where: { id: annRow.id } }),
     ).toMatchObject({ status: 'withdrawn' })
+  })
+
+  it('marks the viewer’s own chip, and says who hears that they withdrew', async () => {
+    const { owner, project, task } = await setUp()
+    const ann = await createVolunteer({ name: 'Ann Helper' })
+    const lead = await createVolunteer({ name: 'Lee Lead' })
+    const cases: [Partial<TaskHelpersState>, string][] = [
+      [
+        { assignedToId: lead.id, projectOwnerId: owner.id },
+        'You stop helping on this task, and its lead is told.',
+      ],
+      [
+        { projectOwnerId: owner.id },
+        "You stop helping on this task, and the project's owner is told.",
+      ],
+      [{ projectOwnerId: ann.id }, 'You stop helping on this task.'],
+      [{}, 'You stop helping on this task.'],
+    ]
+    for (const [standing, body] of cases) {
+      await renderApp(
+        <TaskHelpers
+          projectId={project.id}
+          taskId={task.id}
+          viewerId={ann.id}
+          state={{
+            ...baseState,
+            ...standing,
+            helpers: [{ interestId: 1, volunteerId: ann.id, name: ann.name }],
+            canLeaveAsHelper: true,
+            canRemoveHelpers: false,
+            canAddHelpers: false,
+          }}
+        />,
+        { as: ann },
+      )
+      expect(screen.getByText('Ann Helper').closest('li')).toHaveTextContent(
+        /^AHAnn Helper\(you\)×$/,
+      )
+      await userEvent.click(screen.getByRole('button', { name: 'Withdraw from helping' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Withdraw from this task?' })
+      expect(within(dialog).getByText(body)).toBeInTheDocument()
+      cleanup()
+      queryClient.clear()
+    }
   })
 
   it("shows no × on the viewer's own chip once the task stops taking helpers", async () => {

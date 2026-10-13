@@ -18,6 +18,18 @@ export type TaskHelpersState = {
   canRemoveHelpers: boolean
   canAddHelpers: boolean
   eligibleHelpers: { id: number; name: string }[]
+  /** The task's lead. */
+  assignedToId: number | null
+  projectOwnerId: number | null
+}
+
+/** Who hears that the viewer stopped helping: the lead, else the project's owner. */
+function withdrawBody(state: TaskHelpersState, viewerId: number): string {
+  if (state.assignedToId !== null) return 'You stop helping on this task, and its lead is told.'
+  if (state.projectOwnerId !== null && state.projectOwnerId !== viewerId) {
+    return "You stop helping on this task, and the project's owner is told."
+  }
+  return 'You stop helping on this task.'
 }
 
 /**
@@ -87,6 +99,7 @@ export default function TaskHelpers({
               {h.volunteerId === viewerId ? (
                 <PersonChip
                   name={h.name}
+                  isViewer
                   onRemove={state.canLeaveAsHelper ? () => setWithdrawing(true) : undefined}
                   removeLabel={`${LEAVE_HELPING} from helping`}
                 />
@@ -140,9 +153,10 @@ export default function TaskHelpers({
           id="confirm-withdraw-helper"
           isOpen
           title="Withdraw from this task?"
-          body="You stop helping on this task, and its lead is told."
+          body={withdrawBody(state, viewerId)}
           confirmLabel={LEAVE_HELPING}
           busyLabel="Withdrawing…"
+          danger
           busy={withdraw.isPending}
           onConfirm={() => withdraw.mutate({ projectId, taskId })}
           onClose={() => setWithdrawing(false)}

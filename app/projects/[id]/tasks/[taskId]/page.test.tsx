@@ -392,7 +392,7 @@ describe('task detail page', () => {
     await waitFor(async () => expect((await row(task.id)).assigneeId).toBe(me.id))
     await waitFor(() =>
       expect(screen.getByText('Assigned to').parentElement).toHaveTextContent(
-        `Assigned to${initials(me.name)}${me.name}· claimed on ${shortDay(new Date())}`,
+        `Assigned to${initials(me.name)}${me.name}(you)· claimed on ${shortDay(new Date())}`,
       ),
     )
     // Claiming does not start it: still Blocked, with Start offered for prep.
@@ -849,10 +849,10 @@ describe('task detail page — a completed project', () => {
       `/volunteers/${lead.id}`,
     )
     expect(within(helpers()).getByText('2 helpers wanted')).toBeInTheDocument()
-    // Join as helper sits on the line under the lead, with how many helpers it wants; not among
-    // the page's actions, nor in the Helpers box.
+    // Join as helper sits alone on the line under the lead; the count stays in the Helpers box,
+    // and the button is not among the page's actions.
     const person = screen.getByText('Lead').parentElement!.parentElement!
-    expect(within(person).getByText('2 helpers wanted')).toBeInTheDocument()
+    expect(within(person).queryByText(/wanted/)).toBeNull()
     expect(within(person).getByRole('button', { name: 'Join as helper' })).toBeInTheDocument()
     expect(
       within(screen.getByRole('group', { name: 'Actions' })).queryByRole('button', {
