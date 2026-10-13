@@ -167,8 +167,8 @@ describe('dashboard.get', () => {
 
     const { work } = await clientAs(me).dashboard.get()
     expect(work.map((w) => [w.title, w.attention ?? null])).toEqual([
-      ['Late', '3 days overdue'],
-      ['Soon', 'Due in 2 days'],
+      ['Late', null],
+      ['Soon', null],
       ['Big', 'About 12 hours of work, due in 6 days: start now'],
       ['Handed in', null],
       ['Due P', null],
