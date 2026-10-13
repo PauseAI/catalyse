@@ -66,3 +66,6 @@ bug-reports*.md
 
 # Scratch
 tmp/
+
+# Personal working docs, not meant for the repo
+/local-docs/
