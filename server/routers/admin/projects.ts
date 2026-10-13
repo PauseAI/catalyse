@@ -127,12 +127,10 @@ export const adminProjectsRouter = {
       const { status, reviewNotes = null, comment = null } = input
 
       if (status === 'approved') {
-        // A proposer who offered to lead it owns it from the moment it's approved;
-        // otherwise it goes live as `ready` for someone to pick up. Whether it also wants
-        // contributors is the proposer's call — approval no longer overrides an explicit
-        // "no thanks" by force-setting isSeekingHelp on every unowned project.
-        const newStatus =
-          project.assigneeId === null ? ProjectStatus.ready : ProjectStatus.in_progress
+        // Approval always goes live as `ready`, whether or not a proposer already owns it —
+        // an owner who isn't actively starting the work yet still reads as ready, not in
+        // progress. The owner moves it to in-progress themselves from the project page.
+        const newStatus = ProjectStatus.ready
 
         await updateWorkItem(
           project,

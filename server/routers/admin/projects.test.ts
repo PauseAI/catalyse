@@ -121,7 +121,7 @@ describe('admin.projects.create / myDrafts', () => {
 })
 
 describe('admin.projects.review', () => {
-  it('approves into ready or in_progress, with comment and notifications', async () => {
+  it('approves into ready, owned or not, with comment and notifications', async () => {
     const admin = await createAdmin()
     const creator = await createVolunteer()
     const team = await createTeam()
@@ -194,7 +194,7 @@ describe('admin.projects.review', () => {
       expect(error).toHaveBeenCalledWith('[TEAM NOTIFY]', expect.any(Error))
     })
     expect((await prisma.workItem.findUniqueOrThrow({ where: { id: owned.id } })).status).toBe(
-      'in_progress',
+      'ready',
     )
     expect(await prisma.workItemComment.count({ where: { workItemId: owned.id } })).toBe(0)
   })
