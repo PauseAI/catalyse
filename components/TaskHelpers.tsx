@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import MemberPicker from '@/components/ui/MemberPicker'
+import { PersonChip } from '@/components/ui/PersonChip'
 import { ADD_HELPER, REMOVE_HELPER } from '@/lib/action-labels'
 import { helperSummary } from '@/lib/helper-summary'
 import { orpc } from '@/lib/orpc'
@@ -75,21 +76,12 @@ export default function TaskHelpers({
       {state.helpers.length > 0 && (
         <ul className="m-0 mb-2 flex list-none flex-wrap gap-2 p-0">
           {state.helpers.map((h) => (
-            <li
-              key={h.interestId}
-              className="flex items-center gap-1 rounded-full bg-accent py-1 pl-3 pr-1 text-sm text-secondary-dark dark:bg-gray-700 dark:text-gray-300"
-            >
-              <span>{h.name}</span>
-              {state.canRemoveHelpers && (
-                <button
-                  type="button"
-                  aria-label={`${REMOVE_HELPER} ${h.name}`}
-                  onClick={() => setRemoving(h)}
-                  className="flex h-5 w-5 items-center justify-center rounded-full leading-none hover:bg-secondary/20"
-                >
-                  ×
-                </button>
-              )}
+            <li key={h.interestId} className="min-w-0 max-w-full">
+              <PersonChip
+                name={h.name}
+                onRemove={state.canRemoveHelpers ? () => setRemoving(h) : undefined}
+                removeLabel={`${REMOVE_HELPER} ${h.name}`}
+              />
             </li>
           ))}
         </ul>
