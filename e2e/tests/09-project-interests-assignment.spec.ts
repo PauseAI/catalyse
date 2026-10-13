@@ -51,9 +51,9 @@ test.describe('Project Interests and Assignment', () => {
       "You'll get a notification when they reply",
       { timeout: 10_000 },
     )
-    await expect(volunteer.page.getByLabel('interest status')).toContainText('Request sent', {
-      timeout: 10_000,
-    })
+    await expect(
+      volunteer.page.getByRole('group', { name: 'Status' }).getByLabel('interest status'),
+    ).toContainText('Request to lead sent', { timeout: 10_000 })
   })
 
   test('Accepting a want-to-own interest promotes the volunteer to Owner, not a duplicate volunteer row', async ({

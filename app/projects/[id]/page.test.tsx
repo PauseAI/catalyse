@@ -28,6 +28,7 @@ const ganttDrag = () => drags.find((p) => p.collisionDetection === undefined)
 
 const row = (id: number) => prisma.workItem.findUniqueOrThrow({ where: { id } })
 const openTab = (name: RegExp) => userEvent.click(screen.getByRole('tab', { name }))
+const group = (name: 'Status' | 'Actions') => screen.getByRole('group', { name })
 const mount = (id: number, as: Awaited<ReturnType<typeof createVolunteer>>, hash = '') =>
   renderApp(<ProjectDetailPage params={Promise.resolve({ id: String(id) })} />, {
     as,
@@ -143,7 +144,9 @@ describe('project page — visitor', () => {
     await userEvent.type(await screen.findByLabelText('Message (optional)'), 'Pick me')
     await userEvent.click(screen.getByRole('button', { name: 'Send request' }))
     await screen.findByText(/You'll get a notification when they reply/)
-    await screen.findByText('Request sent: waiting for the owner')
+    // A request to help waits among the actions, beside its Withdraw button.
+    await within(group('Actions')).findByText('Request sent: waiting for the owner')
+    expect(within(group('Status')).queryByLabelText('interest status')).toBeNull()
 
     const contact = screen.getByRole('button', { name: 'Message owner' })
     await userEvent.click(contact)
@@ -203,6 +206,16 @@ describe('project page — visitor', () => {
       where: { workItemId: project.id, volunteerId: me.id },
     })
     expect(interest.interestType).toBe('want_to_own')
+    // A request to lead waits beside the Seeking Owner badge; Withdraw stays among the actions.
+    const status = group('Status')
+    expect(within(status).getByText('Seeking Owner')).toBeInTheDocument()
+    expect(await within(status).findByLabelText('interest status')).toHaveTextContent(
+      'Request to lead sent: waiting for an answer',
+    )
+    expect(screen.getAllByLabelText('interest status')).toHaveLength(1)
+    expect(
+      within(group('Actions')).getByRole('button', { name: 'Withdraw request' }),
+    ).toBeInTheDocument()
     await prisma.workItemInterest.update({
       where: { id: interest.id },
       data: { status: 'declined', responseMessage: 'Sorry, no' },

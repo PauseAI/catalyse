@@ -44,10 +44,23 @@ export default function WorkItemHeader({
         <div
           aria-label="Status and actions"
           role="toolbar"
-          className={`flex flex-wrap items-center gap-2 ${tabs ? 'pt-3 lg:pt-0 lg:pl-4 lg:border-b lg:border-brand-border' : ''}`}
+          className={`flex flex-wrap items-center gap-x-4 gap-y-2 ${tabs ? 'pt-3 lg:pt-0 lg:pl-4 lg:border-b lg:border-brand-border' : ''}`}
         >
-          {status}
-          {actions}
+          {/* Each group drops out when it renders nothing; a divider parts them when both show. */}
+          <div
+            role="group"
+            aria-label="Status"
+            className="flex flex-wrap items-center gap-2 empty:hidden"
+          >
+            {status}
+          </div>
+          <div
+            role="group"
+            aria-label="Actions"
+            className="flex flex-wrap items-center gap-2 empty:hidden border-brand-border sm:[:not(:empty)+&]:border-l sm:[:not(:empty)+&]:pl-4"
+          >
+            {actions}
+          </div>
         </div>
       </div>
     </header>

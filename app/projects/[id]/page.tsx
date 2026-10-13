@@ -1797,8 +1797,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   // A pending invite takes the primary-action slot over everything else: there is nothing
   // more pressing for the viewer to do on this page than answer it.
   const pendingInvite = !locked && myStatus === InterestStatus.invited
+  const requestPending = !isOwnerOrAdmin && !locked && myStatus === InterestStatus.pending
+  // A request to lead answers the Seeking Owner badge, so it sits beside it. It names no one:
+  // an ownerless project's requests are answered by an admin.
+  const leadRequestPending = requestPending && project.myInterest?.interestType === 'want_to_own'
+  const requestStatus = (
+    <span className="text-sm" aria-label="interest status">
+      {leadRequestPending
+        ? 'Request to lead sent: waiting for an answer'
+        : 'Request sent: waiting for the owner'}
+    </span>
+  )
   const standingAction = !isOwnerOrAdmin && (
-    <div className="flex flex-wrap items-center gap-2">
+    <>
       {pendingInvite && (
         <>
           <Button
@@ -1823,11 +1834,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           Join this project
         </Button>
       )}
-      {!pendingInvite && !locked && myStatus === InterestStatus.pending && (
+      {requestPending && (
         <>
-          <span className="text-sm" aria-label="interest status">
-            Request sent: waiting for the owner
-          </span>
+          {!leadRequestPending && requestStatus}
           <Button variant="secondary" size="sm" onClick={() => setWithdrawAccepted(false)}>
             Withdraw request
           </Button>
@@ -1912,7 +1921,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </form>
       </Modal>
-    </div>
+    </>
   )
 
   // Admins review a proposal and record a finished project's outcome above the tab content.
@@ -2101,6 +2110,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         <ReopenProjectButton projectId={project.id} title={project.title} />
       )}
       {project.isSeekingOwner && <Badge variant="caution">Seeking Owner</Badge>}
+      {leadRequestPending && requestStatus}
       {project.isSeekingHelp && <Badge variant="caution">Seeking Help</Badge>}
       {project.needsTasks && <Badge variant="warning">Needs Tasks</Badge>}
     </>
