@@ -49,8 +49,6 @@ confusing than it needed to be, and that will do so again.
       each waited for the other to finish before its tests counted. A per-run database prefix and reports directory in
       `test/pg.ts` and `scripts/test-unit.ts` (from an env var or the pid) would let runs overlap.
 
-## 5x
-
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
       and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
       failed in three different ways across four runs (a 5 s database poll, a title
@@ -62,7 +60,11 @@ confusing than it needed to be, and that will do so again.
       D-04 run hit it a third time (the Add Task button reads "Adding…" while the title's
       autosave creates the draft) together with the Inbox mark-read test (opening a row
       before it showed as read). Phase 6's second run hit e2e `36`: Save Changes still read
-      "Saving…" after 10 s with no toast, then passed 16/16 alone. Each passed 8/8
+      "Saving…" after 10 s with no toast, then passed 16/16 alone. Its follow-up runs then hit
+      four more in turn, one per ten-minute run: e2e `34` (a project pushed off the overview by
+      other specs' projects), e2e `23` (a reload's aborted request signing the user out), the
+      owner-picker test (a debounce outliving its picker), and `ProjectEditor.test.tsx` again
+      (a click on a still-disabled Submit). Each passed 8/8
       when run alone. A script that reruns one
       file under the same parallel load (for example all unit files at once with
       only the suspect repeated) would find them in one pass instead of one per
