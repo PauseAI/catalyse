@@ -494,9 +494,10 @@ describe('project page — owner', () => {
     await openTab(/^People/)
     expect(interestCard('Otto Other')).toHaveTextContent('Applied, declined')
     expect(interestCard('Otto Other')).not.toHaveTextContent('wanted to')
-    // An accepted helper is removed, not declined, and the dialog and toast say so.
+    // An accepted helper is removed with the × on their chip, not declined, and the dialog
+    // and toast say so.
     await userEvent.click(
-      within(interestCard('Hana Helper')).getByRole('button', { name: 'Remove' }),
+      within(interestCard('Hana Helper')).getByRole('button', { name: 'Remove Hana Helper' }),
     )
     const removeDialog = await screen.findByRole('dialog', {
       name: 'Remove Hana Helper from this project?',
@@ -542,13 +543,18 @@ describe('project page — owner', () => {
     await openTab(/^People/)
     const picker = () => screen.getByRole('button', { name: 'Volunteer to invite' })
     fireEvent.submit(picker().closest('form')!)
+    // The pick stands as a chip until it is cleared or sent.
+    await userEvent.click(picker())
+    await userEvent.click(await screen.findByRole('option', { name: 'Otto Other' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Clear Otto Other' }))
     await userEvent.click(picker())
     await userEvent.click(await screen.findByRole('option', { name: 'Otto Other' }))
     await userEvent.type(screen.getByLabelText('Note with the invite (optional)'), 'Leaflets?')
     await userEvent.click(screen.getByRole('button', { name: 'Invite' }))
     await screen.findByText('Invite sent')
     // The picker empties, and the person waits under Invited until they answer.
-    await waitFor(() => expect(picker()).not.toHaveTextContent('Otto Other'))
+    await waitFor(() => expect(picker()).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Clear Otto Other' })).toBeNull()
     expect(
       screen.getByText('They get an invite and join once they accept.', { exact: false }),
     ).toBeInTheDocument()
@@ -626,7 +632,7 @@ describe('project page — owner', () => {
     await waitFor(() => expect(screen.getAllByText('Not authorized')).toHaveLength(2))
     await userEvent.click(screen.getByRole('button', { name: 'Volunteer to invite' }))
     await userEvent.click((await screen.findAllByRole('option', { name: 'Hana Helper' }))[0])
-    fireEvent.submit(screen.getByRole('button', { name: 'Volunteer to invite' }).closest('form')!)
+    await userEvent.click(screen.getByRole('button', { name: 'Invite' }))
     await waitFor(() => expect(screen.getAllByText('Project not found').length).toBeGreaterThan(1))
     await userEvent.click(screen.getByRole('button', { name: 'project status' }))
     await userEvent.click(screen.getByRole('option', { name: 'Completed' }))
@@ -1326,7 +1332,11 @@ describe('project page — admin', () => {
   it('reviews a proposal, records an outcome, and manages ownership', async () => {
     const admin = await createAdmin()
     const proposer = await createVolunteer({ name: 'Pat Proposer' })
-    const newOwner = await createVolunteer({ name: 'Nina New' })
+    const newOwner = await createVolunteer({
+      name: 'Nina New',
+      localGroup: 'Oslo',
+      country: 'Norway',
+    })
     const otherOwner = await createVolunteer({ name: 'Oli Other' })
     const pending = await createProject({
       title: 'Proposal',
@@ -1350,25 +1360,41 @@ describe('project page — admin', () => {
     fireEvent.submit(screen.getByLabelText(/approve/i).closest('form')!)
     await screen.findByText('Project approved!')
 
-    // The pencil beside the Owner chip opens a search of the directory; it starts closed.
-    expect(screen.queryByRole('button', { name: 'New owner' })).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Assign owner' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Assign owner' }))
-    expect(screen.queryByRole('button', { name: 'New owner' })).toBeNull()
-    // An ownerless project takes the pick without asking.
-    await userEvent.click(screen.getByRole('button', { name: 'Assign owner' }))
-    await userEvent.click(screen.getByRole('button', { name: 'New owner' }))
-    await userEvent.type(screen.getByRole('searchbox', { name: 'New owner' }), 'Nina')
-    await userEvent.click(await screen.findByRole('option', { name: 'Nina New' }))
+    // The pencil beside the Owner chip opens a search of the directory, ready to type into.
+    const ownerSearch = () => screen.queryByRole('searchbox', { name: 'New owner' })
+    const assign = screen.getByRole('button', { name: 'Assign owner' })
+    expect(ownerSearch()).toBeNull()
+    await userEvent.click(assign)
+    expect(ownerSearch()).toHaveFocus()
+    expect(assign).toHaveAttribute('aria-expanded', 'true')
+    // The pencil closes it again, and so do Escape, a click outside and a change of tab.
+    await userEvent.click(assign)
+    expect(ownerSearch()).toBeNull()
+    await userEvent.click(assign)
+    await userEvent.keyboard('{Escape}')
+    expect(ownerSearch()).toBeNull()
+    expect(assign).toHaveFocus()
+    await userEvent.click(assign)
+    fireEvent.mouseDown(document.body)
+    expect(ownerSearch()).toBeNull()
+    await userEvent.click(assign)
+    await openTab(/^People/)
+    expect(ownerSearch()).toBeNull()
+    await openTab(/^Overview/)
+    // An ownerless project takes the pick without asking. Each match says where they are.
+    await userEvent.click(assign)
+    await userEvent.keyboard('Nina')
+    const nina = await screen.findByRole('option', { name: 'Nina New' })
+    expect(nina).toHaveTextContent('Oslo, Norway')
+    await userEvent.click(nina)
     await screen.findByText('Ownership transferred!')
     await waitFor(async () => expect((await row(pending.id)).assigneeId).toBe(newOwner.id))
     const header = screen.getByRole('heading', { name: 'Proposal' }).closest('header')!
     await within(header).findByRole('link', { name: 'Nina New' })
-    expect(screen.queryByRole('button', { name: 'New owner' })).toBeNull()
+    expect(ownerSearch()).toBeNull()
 
     // Replacing an owner asks first, and the current owner is not offered.
     await userEvent.click(screen.getByRole('button', { name: 'Change owner' }))
-    await userEvent.click(screen.getByRole('button', { name: 'New owner' }))
     const oli = await screen.findByRole('option', { name: 'Oli Other' })
     expect(screen.queryByRole('option', { name: 'Nina New' })).toBeNull()
     await userEvent.click(oli)
@@ -1377,7 +1403,6 @@ describe('project page — admin', () => {
     )
     expect((await row(pending.id)).assigneeId).toBe(newOwner.id)
     await userEvent.click(screen.getByRole('button', { name: 'Change owner' }))
-    await userEvent.click(screen.getByRole('button', { name: 'New owner' }))
     await userEvent.click(await screen.findByRole('option', { name: 'Oli Other' }))
     await userEvent.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Transfer' }),
@@ -2104,7 +2129,7 @@ describe('project page — a completed project', () => {
     await openTab(/People/)
     await screen.findByText('Ann Applicant')
     expect(screen.queryByRole('button', { name: 'Accept' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Remove/ })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Invite' })).toBeNull()
 
     await userEvent.click(screen.getByRole('button', { name: 'Reopen project' }))

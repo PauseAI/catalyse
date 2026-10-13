@@ -85,22 +85,20 @@ export function PersonInitials({ name }: { name: string }) {
 /**
  * The person block under the title: a small role label ("Owner", "Assigned to"), then whatever
  * names them, then an optional one-line summary of who else is on it and the viewer's actions on
- * that person's place (Claim, Message). `secondLine` sits beneath, flush left with the block;
- * `secondActions` sits beneath flush right, so its buttons share a right edge with `actions`.
+ * that person's place (Claim, Message). `secondActions` sits beneath flush right, so its buttons
+ * share a right edge with `actions`.
  */
 export function WorkItemPerson({
   label,
   children,
   summary,
   actions,
-  secondLine,
   secondActions,
 }: {
   label: string
   children: React.ReactNode
   summary?: React.ReactNode
   actions?: React.ReactNode
-  secondLine?: React.ReactNode
   /** The viewer's way to join the people working alongside them, e.g. Join as helper. */
   secondActions?: React.ReactNode
 }) {
@@ -112,9 +110,6 @@ export function WorkItemPerson({
         {summary && <span className="text-text-light">· {summary}</span>}
         {actions}
       </div>
-      {secondLine && (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">{secondLine}</div>
-      )}
       {secondActions && (
         <div className="flex flex-wrap items-center justify-end gap-2 self-end">
           {secondActions}

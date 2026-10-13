@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { useRequireConfirmed } from '@/lib/hooks/auth'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import Checkbox from '@/components/Checkbox'
 import DatesBlock from '@/components/DatesBlock'
@@ -51,9 +51,9 @@ import Modal from '@/components/ui/Modal'
 import { EmptyPersonChip, PersonChip } from '@/components/ui/PersonChip'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import MemberPicker from '@/components/ui/MemberPicker'
+import { useVolunteerSearch } from '@/lib/hooks/useVolunteerSearch'
 import ReopenTaskDialog, { type ReopenTarget } from '@/components/ReopenTaskDialog'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
-import VolunteerSelect from '@/components/VolunteerSelect'
 import Tabs from '@/components/Tabs'
 import WorkItemHeader, { WorkItemPerson, initials } from '@/components/WorkItemHeader'
 import GanttChart, { inStartOrder } from '@/components/gantt/GanttChart'
@@ -844,9 +844,6 @@ const DISCUSSION = 'discussion'
  * never dragged), not this many people running late, so the list says so above the badges.
  */
 const STALE_PLAN_FROM = 5
-/** The owner picker searches the whole directory on the server, a page of matches at a time. */
-const OWNER_SEARCH_DEBOUNCE_MS = 300
-const OWNER_SEARCH_LIMIT = 20
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -872,6 +869,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [orderedTasks, setOrderedTasks] = useState<ProjectTask[]>([])
   const [yourOrder, setYourOrder] = useState(false)
   const [tab, setTab] = useState<ProjectTab>('overview')
+  const [ownerPickerOpen, setOwnerPickerOpen] = useState(false)
   const [taskFilter, setTaskFilter] = useState<TaskFilter | null>(null)
   // Set by a `#discussion` link that arrives before the Discussion is on the page.
   const scrollToDiscussion = useRef(false)
@@ -890,6 +888,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         else scrollToDiscussion.current = true
       }
       setTab(HASH_TABS.find((t) => t === name) ?? 'overview')
+      setOwnerPickerOpen(false)
       const picked = name === 'tasks' ? (TASK_FILTERS.find((f) => f === filter) ?? null) : null
       setTaskFilter(picked)
       if (picked) setYourOrder(false)
@@ -906,6 +905,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   function selectTab(next: ProjectTab) {
     if (next === tab) return
     setTab(next)
+    setOwnerPickerOpen(false)
     setTaskFilter(null)
     // pushState rather than assigning location.hash: it adds the history entry without the
     // browser trying to scroll to an element of that name.
@@ -937,16 +937,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   // Assign or transfer ownership
   const [transferTo, setTransferTo] = useState('')
-  const [ownerPickerOpen, setOwnerPickerOpen] = useState(false)
-  const [ownerSearchInput, setOwnerSearchInput] = useState('')
-  const [ownerSearch, setOwnerSearch] = useState('')
-  useEffect(() => {
-    const t = setTimeout(() => setOwnerSearch(ownerSearchInput), OWNER_SEARCH_DEBOUNCE_MS)
-    return () => clearTimeout(t)
-  }, [ownerSearchInput])
+  const ownerSearch = useVolunteerSearch(ownerPickerOpen)
+  const ownerPencil = useRef<HTMLButtonElement>(null)
 
-  // Direct assign
-  const [assignTo, setAssignTo] = useState('')
+  // Invite or add directly
+  const [invitee, setInvitee] = useState<{ id: number; name: string } | null>(null)
   const [inviteNote, setInviteNote] = useState('')
 
   // Record outcome
@@ -1079,18 +1074,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     enabled: !!project && (!!user?.isAdmin || project.ownerId === user?.id || project.isDeputy),
   })
   const volunteers = volunteersData?.volunteers ?? []
+  const inviteSearch = useVolunteerSearch(volunteers.length > 0 && tab === 'people')
 
   const ownerId = project?.ownerId ?? null
-  const { data: ownerCandidatesData } = useQuery({
-    ...orpc.volunteers.list.queryOptions({
-      input: { limit: OWNER_SEARCH_LIMIT, search: ownerSearch || undefined },
-    }),
-    enabled: ownerPickerOpen,
-    placeholderData: keepPreviousData,
-  })
-  const ownerCandidates = (ownerCandidatesData?.volunteers ?? [])
-    .filter((v) => v.id !== ownerId)
-    .map((v) => ({ id: v.id, name: v.name }))
+  const ownerCandidates = ownerSearch.candidates.filter((v) => v.id !== ownerId)
   const { data: ownerContact } = useQuery({
     ...orpc.volunteers.getById.queryOptions({ input: { id: ownerId ?? 0 } }),
     enabled: ownerId !== null && showContactModal,
@@ -1233,7 +1220,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     ...orpc.projects.assign.mutationOptions(),
     onSuccess: () => {
       showToast(VOLUNTEER_ADDED_MESSAGE, 'success')
-      setAssignTo('')
+      setInvitee(null)
       setInviteNote('')
       void invalidateProject()
     },
@@ -1245,7 +1232,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     ...orpc.projects.invite.mutationOptions(),
     onSuccess: (data) => {
       showToast(data.message, 'success')
-      setAssignTo('')
+      setInvitee(null)
       setInviteNote('')
       void invalidateProject()
     },
@@ -1428,6 +1415,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               : undefined
           }
           isViewer={interest.volunteerId === user.id}
+          onRemove={
+            !locked && interest.status === InterestStatus.accepted
+              ? () => handleDeclineInterest(interest.id, interest.volunteerName, true)
+              : undefined
+          }
+          removeLabel={`Remove ${interest.volunteerName}`}
         />
         <span className="text-text-light text-xs">
           {interest.status === InterestStatus.accepted
@@ -1475,13 +1468,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             }
           >
             {deputyIds.has(interest.volunteerId) ? 'Remove deputy' : 'Make deputy'}
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => handleDeclineInterest(interest.id, interest.volunteerName, true)}
-          >
-            Remove
           </Button>
         </div>
       ) : interest.status === InterestStatus.invited ? (
@@ -1638,19 +1624,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   function handleInvite(e: React.FormEvent) {
     e.preventDefault()
-    if (!assignTo) return
+    if (!invitee) return
     inviteMutation.mutate({
       projectId: parseInt(idParam, 10),
-      volunteerId: parseInt(assignTo, 10),
+      volunteerId: invitee.id,
       message: inviteNote.trim() || null,
     })
   }
 
-  function handleAddNow() {
-    assignMutation.mutate({
-      projectId: parseInt(idParam, 10),
-      volunteerId: parseInt(assignTo, 10),
-    })
+  function handleAddNow(volunteerId: number) {
+    assignMutation.mutate({ projectId: parseInt(idParam, 10), volunteerId })
   }
 
   function handleRecordOutcome(e: React.FormEvent) {
@@ -1793,15 +1776,26 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             >
               <div className="flex gap-2 items-center flex-wrap">
                 <span className="text-text-light text-sm shrink-0">+ Invite</span>
-                <div className="flex-1 min-w-40">
-                  <VolunteerSelect
-                    id="assign-volunteer"
-                    label=""
-                    ariaLabel="Volunteer to invite"
-                    value={assignTo}
-                    onChange={(v) => setAssignTo(v)}
+                {invitee ? (
+                  <PersonChip
+                    name={invitee.name}
+                    onRemove={() => setInvitee(null)}
+                    removeLabel={`Clear ${invitee.name}`}
                   />
-                </div>
+                ) : (
+                  <div className="flex-1 min-w-40 max-w-80">
+                    <MemberPicker
+                      id="invite-volunteer"
+                      label="Volunteer to invite"
+                      ariaLabel="Volunteer to invite"
+                      candidates={inviteSearch.candidates}
+                      onAdd={(id, { name }) => setInvitee({ id, name })}
+                      onQueryChange={inviteSearch.setQuery}
+                      placeholder="Search volunteers…"
+                      hideLabel
+                    />
+                  </div>
+                )}
               </div>
               <input
                 type="text"
@@ -1811,7 +1805,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 onChange={(e) => setInviteNote(e.target.value)}
               />
               <div className="flex gap-2 flex-wrap">
-                <Button type="submit" size="sm" disabled={!assignTo || inviteMutation.isPending}>
+                <Button type="submit" size="sm" disabled={!invitee || inviteMutation.isPending}>
                   {inviteMutation.isPending ? 'Inviting…' : 'Invite'}
                 </Button>
                 {isAdmin && (
@@ -1819,8 +1813,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     type="button"
                     size="sm"
                     variant="secondary"
-                    disabled={!assignTo || assignMutation.isPending}
-                    onClick={handleAddNow}
+                    disabled={!invitee || assignMutation.isPending}
+                    onClick={() => invitee && handleAddNow(invitee.id)}
                   >
                     {assignMutation.isPending ? 'Adding…' : 'Add now'}
                   </Button>
@@ -2107,22 +2101,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const ownerBlock = (
     <WorkItemPerson
       label="Owner"
-      secondLine={
-        ownerPickerOpen && (
-          <div className="w-56">
-            <MemberPicker
-              id="owner-picker"
-              label={ownerPickerLabel}
-              ariaLabel="New owner"
-              candidates={ownerCandidates}
-              onAdd={handlePickOwner}
-              onQueryChange={setOwnerSearchInput}
-              placeholder="Search volunteers…"
-              hideLabel
-            />
-          </div>
-        )
-      }
       summary={
         <>
           <button
@@ -2160,30 +2138,55 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         </>
       }
     >
-      {project.owner ? (
-        <PersonChip
-          name={project.owner.name}
-          href={`/volunteers/${project.owner.id}`}
-          isViewer={project.owner.id === user.id}
-        />
-      ) : (
-        <EmptyPersonChip label="No owner yet" />
-      )}
-      {canChangeOwner && (
-        <button
-          type="button"
-          aria-label={ownerPickerLabel}
-          aria-expanded={ownerPickerOpen}
-          title={ownerPickerLabel}
-          className="bg-transparent border-0 p-1 rounded cursor-pointer text-text-light hover:text-primary-text hover:bg-accent leading-none"
-          onClick={() => {
-            setOwnerSearchInput('')
-            setOwnerPickerOpen((open) => !open)
-          }}
-        >
-          <span aria-hidden="true">✎</span>
-        </button>
-      )}
+      {/* The picker opens as a popover under the chip, over the toolbar, so nothing shifts. */}
+      <span className="relative inline-flex min-w-0 max-w-full items-center gap-2">
+        {project.owner ? (
+          <PersonChip
+            name={project.owner.name}
+            href={`/volunteers/${project.owner.id}`}
+            isViewer={project.owner.id === user.id}
+          />
+        ) : (
+          <EmptyPersonChip label="No owner yet" />
+        )}
+        {canChangeOwner && (
+          <button
+            ref={ownerPencil}
+            type="button"
+            aria-label={ownerPickerLabel}
+            aria-expanded={ownerPickerOpen}
+            title={ownerPickerLabel}
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border-2 border-text-light bg-transparent text-sm font-bold text-brand-text cursor-pointer transition-all hover:bg-secondary hover:text-white"
+            // While open, a press here is the toggle closing it, not a click outside the picker.
+            onMouseDown={(e) => ownerPickerOpen && e.stopPropagation()}
+            onClick={() => {
+              ownerSearch.setQuery('')
+              setOwnerPickerOpen((open) => !open)
+            }}
+          >
+            <span aria-hidden="true">✎</span>
+          </button>
+        )}
+        {ownerPickerOpen && (
+          <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-lg shadow-lg">
+            <MemberPicker
+              id="owner-picker"
+              label={ownerPickerLabel}
+              ariaLabel="New owner"
+              candidates={ownerCandidates}
+              onAdd={handlePickOwner}
+              onQueryChange={ownerSearch.setQuery}
+              placeholder="Search volunteers…"
+              hideLabel
+              autoFocus
+              onClose={(reason) => {
+                setOwnerPickerOpen(false)
+                if (reason === 'escape') ownerPencil.current?.focus()
+              }}
+            />
+          </div>
+        )}
+      </span>
     </WorkItemPerson>
   )
 

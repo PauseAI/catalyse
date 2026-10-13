@@ -305,8 +305,10 @@ export async function transferProjectOwnership(
   const pencil = adminPage.getByRole('button', { name: /^(Assign|Change) owner$/ })
   await expect(pencil).toBeVisible({ timeout: 10_000 })
   const replacing = (await pencil.getAttribute('aria-label')) === 'Change owner'
+  // The pencil opens the picker with its search already focused.
   await pencil.click()
-  await selectFilterDropdown(adminPage, 'New owner', volunteerName)
+  await adminPage.getByRole('searchbox', { name: 'New owner' }).fill(volunteerName)
+  await adminPage.getByRole('option', { name: volunteerName, exact: true }).click()
   if (replacing) {
     await adminPage
       .getByRole('dialog')

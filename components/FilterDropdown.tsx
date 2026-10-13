@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 export interface FilterOption<T extends string = string> {
   value: T
   label: string
+  /** A muted second line under the label, left out of the option's accessible name. */
+  description?: string
   indent?: boolean
   header?: boolean
 }
@@ -55,6 +57,10 @@ interface Props<T extends string = string> {
   // as `value`, so the trigger should keep reading as an invitation to pick, not as
   // whichever option happens to be first in the list.
   placeholderLabel?: string
+  /** Renders already open, with focus in the search input when searchable. */
+  defaultOpen?: boolean
+  /** The list closed without a pick: Escape (or Backspace on an empty search), or a click outside. */
+  onClose?: (reason: 'escape' | 'outside') => void
 }
 
 export default function FilterDropdown<T extends string>({
@@ -71,8 +77,10 @@ export default function FilterDropdown<T extends string>({
   renderOption,
   hideLabel,
   placeholderLabel,
+  defaultOpen = false,
+  onClose,
 }: Props<T>) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
   const [query, setQuery] = useState('')
   const [focusedIndex, setFocusedIndex] = useState(-1)
   const ref = useRef<HTMLDivElement>(null)
@@ -93,13 +101,14 @@ export default function FilterDropdown<T extends string>({
         setOpen(false)
         setQuery('')
         setFocusedIndex(-1)
+        onClose?.('outside')
       }
     }
     document.addEventListener('mousedown', onClickOutside)
     return () => document.removeEventListener('mousedown', onClickOutside)
-  }, [])
+  }, [onClose])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return
     const trigger = triggerRef.current!
     function reposition() {
@@ -110,6 +119,7 @@ export default function FilterDropdown<T extends string>({
         width: r.width,
       })
     }
+    reposition()
     window.addEventListener('scroll', reposition, true)
     window.addEventListener('resize', reposition)
     return () => {
@@ -180,11 +190,13 @@ export default function FilterDropdown<T extends string>({
         setOpen(false)
         setQuery('')
         setFocusedIndex(-1)
+        onClose?.('escape')
         break
       case 'Backspace':
         if (searchable && query === '') {
           setOpen(false)
           setFocusedIndex(-1)
+          onClose?.('escape')
         }
         break
     }
@@ -211,15 +223,7 @@ export default function FilterDropdown<T extends string>({
           aria-expanded={open}
           aria-haspopup="listbox"
           aria-activedescendant={focusedIndex >= 0 ? `${id}-opt-${focusedIndex}` : undefined}
-          onClick={() => {
-            const rect = triggerRef.current!.getBoundingClientRect()
-            setDropdownPos({
-              top: rect.bottom + window.scrollY,
-              left: rect.left + window.scrollX,
-              width: rect.width,
-            })
-            setOpen(true)
-          }}
+          onClick={() => setOpen(true)}
           onKeyDown={handleKeyDown}
           className={triggerClass}
           tabIndex={searchable && open ? -1 : 0}
@@ -283,7 +287,18 @@ export default function FilterDropdown<T extends string>({
                     onClick={() => select(opt)}
                     className={`px-3 py-2 cursor-pointer rounded-md hover:bg-accent transition-colors text-sm ${value === opt.value || i === focusedIndex ? 'bg-accent' : ''} ${opt.indent ? 'pl-6' : ''}`}
                   >
-                    {renderOption ? renderOption(opt) : opt.label}
+                    {renderOption ? (
+                      renderOption(opt)
+                    ) : opt.description ? (
+                      <span className="flex flex-col">
+                        <span>{opt.label}</span>
+                        <span aria-hidden="true" className="text-xs text-text-light">
+                          {opt.description}
+                        </span>
+                      </span>
+                    ) : (
+                      opt.label
+                    )}
                   </div>
                 ),
               )}

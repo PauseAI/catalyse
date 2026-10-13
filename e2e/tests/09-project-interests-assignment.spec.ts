@@ -258,7 +258,7 @@ test.describe('Project Interests and Assignment', () => {
 
     await adminPage.reload()
     await expect(card).toContainText('Helper', { timeout: 10_000 })
-    await expect(card.getByRole('button', { name: 'Remove' })).toBeVisible()
+    await expect(card.getByRole('button', { name: `Remove ${volunteer.name}` })).toBeVisible()
   })
 
   test('Owner removes an already-accepted volunteer', async ({ adminPage, volunteer, baseUrl }) => {
@@ -272,7 +272,7 @@ test.describe('Project Interests and Assignment', () => {
     const volunteerCard = adminPage.locator('.interest-card').filter({ hasText: volunteer.name })
     await expect(volunteerCard).toBeVisible({ timeout: 10_000 })
 
-    await volunteerCard.getByRole('button', { name: 'Remove' }).click()
+    await volunteerCard.getByRole('button', { name: `Remove ${volunteer.name}` }).click()
     const removeDialog = adminPage.getByRole('dialog', { name: /^Remove .+ from this project\?$/ })
     await expect(removeDialog).toBeVisible({ timeout: 10_000 })
     await removeDialog.getByRole('button', { name: 'Remove' }).click()
@@ -280,7 +280,9 @@ test.describe('Project Interests and Assignment', () => {
       timeout: 10_000,
     })
     await expect(volunteerCard).toContainText('Added, removed', { timeout: 10_000 })
-    await expect(volunteerCard.getByRole('button', { name: 'Remove' })).toHaveCount(0)
+    await expect(
+      volunteerCard.getByRole('button', { name: `Remove ${volunteer.name}` }),
+    ).toHaveCount(0)
 
     // The volunteer is told they were removed, not declined.
     await goToInbox(baseUrl, volunteer.page)
