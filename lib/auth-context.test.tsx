@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { createVolunteer } from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { navigation } from '@/test/next-navigation'
+import { failNextFetch } from '@/test/rpc-fetch'
 import { AuthProvider, useAuth } from './auth-context'
 import { render } from '@testing-library/react'
 
@@ -77,6 +78,18 @@ describe('AuthProvider', () => {
     expect(
       (await prisma.volunteer.findUniqueOrThrow({ where: { id: vol.id } })).cookieConsentAnalytics,
     ).toBeNull()
+  })
+
+  it('keeps the session when loading the user fails for a reason other than the token', async () => {
+    const vol = await createVolunteer({ name: 'Cal' })
+    failNextFetch()
+    await renderApp(<Probe />, { as: vol })
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('anon|token'))
+    expect(localStorage.getItem('authToken')).not.toBeNull()
+
+    const user = userEvent.setup()
+    await user.click(screen.getByText('refresh'))
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('user:Cal|token'))
   })
 
   it('clears the session when the API reports it expired', async () => {

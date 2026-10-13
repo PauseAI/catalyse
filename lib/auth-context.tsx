@@ -60,9 +60,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(u)
       return u
     } catch {
-      localStorage.removeItem('authToken')
-      setTokenState(null)
-      setUser(null)
+      // A rejected token clears itself through `auth:expired`. Anything else (a request cut off
+      // by a reload, a server error) keeps the session for the next try.
       return null
     }
   }, [])

@@ -10,7 +10,7 @@ vi.mock('next/font/google', async () => (await import('./next-stubs')).fontGoogl
 
 // Only `.test.tsx` files get jsdom (see vitest.config.mts); everything below needs a window.
 if (typeof window !== 'undefined') {
-  const { installRpcFetch } = await import('./rpc-fetch')
+  const { installRpcFetch, resetRpcFetch } = await import('./rpc-fetch')
   // Before anything loads lib/client.ts, whose link keeps the `fetch` it finds.
   installRpcFetch()
   const { cleanup, configure } = await import('@testing-library/react')
@@ -30,5 +30,6 @@ if (typeof window !== 'undefined') {
     queryClient.clear()
     localStorage.clear()
     navigation.reset()
+    resetRpcFetch()
   })
 }

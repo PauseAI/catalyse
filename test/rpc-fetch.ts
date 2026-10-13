@@ -25,7 +25,22 @@ async function load() {
   return { rpc: new RPCHandler(appRouter) as RPCHandler<Record<never, never>>, createContext }
 }
 
+let failures = 0
+
+/** The next request fails as a dropped connection does, before reaching the router. */
+export function failNextFetch(): void {
+  failures = 1
+}
+
+export function resetRpcFetch(): void {
+  failures = 0
+}
+
 export async function rpcFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  if (failures > 0) {
+    failures--
+    throw new TypeError('Failed to fetch')
+  }
   const request = new Request(input, init)
   const { pathname } = new URL(request.url)
   if (!pathname.startsWith('/api/rpc')) {
