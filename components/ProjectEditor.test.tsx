@@ -250,7 +250,9 @@ describe('ProjectEditor — new volunteer proposal', () => {
     // Once the new draft has loaded, Submit is the draft's own button, enabled once the
     // task's own save has landed (Delete Draft only renders for a saved draft).
     await screen.findByRole('button', { name: 'Delete Draft' }, { timeout: 20_000 })
-    await userEvent.click(await screen.findByRole('button', { name: 'Submit' }))
+    const submit = await screen.findByRole('button', { name: 'Submit' })
+    await waitFor(() => expect(submit).toBeEnabled())
+    await userEvent.click(submit)
     await screen.findByText('Submit draft for review?')
     await userEvent.click(await screen.findByRole('button', { name: 'Submit for Review' }))
     await screen.findByText('Draft submitted for review!')
