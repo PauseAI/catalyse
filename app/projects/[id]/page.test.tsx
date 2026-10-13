@@ -196,6 +196,11 @@ describe('project page — visitor', () => {
     await mount(project.id, me)
     await screen.findByRole('heading', { name: 'Ownerless' })
     expect(screen.queryByRole('link', { name: 'Open Project Doc →' })).toBeNull()
+    // Nobody owns it: an empty chip, with Join beside it rather than among the page's actions.
+    const person = screen.getByText('Owner', { exact: true }).parentElement!
+    expect(person).toHaveTextContent(/^OwnerNo owner yet· No helpers yetJoin this project$/)
+    expect(within(person).getByRole('button', { name: 'Join this project' })).toBeInTheDocument()
+    expect(within(group('Actions')).queryByRole('button', { name: 'Join this project' })).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Join this project' }))
     await userEvent.click(screen.getByLabelText('Lead the project'))
     await userEvent.click(screen.getByLabelText('Help out on the project'))
@@ -1130,6 +1135,53 @@ describe('project page — deputies', () => {
   })
 })
 
+describe('project page — people tab', () => {
+  const people = () => screen.findByRole('region', { name: 'People on this project' })
+
+  it('names the proposer, linked to their profile, beside the owner', async () => {
+    const proposer = await createVolunteer({ name: 'Pia Proposer' })
+    const owner = await createVolunteer({ name: 'Oren Owner' })
+    const viewer = await createVolunteer()
+    const project = await createProject({
+      status: 'in_progress',
+      creatorId: proposer.id,
+      assigneeId: owner.id,
+    })
+    await mount(project.id, viewer, '#people')
+    const tab = await people()
+    expect(within(tab).getByText('Proposed by')).toBeInTheDocument()
+    expect(within(tab).getByRole('link', { name: 'Pia Proposer' })).toHaveAttribute(
+      'href',
+      `/volunteers/${proposer.id}`,
+    )
+    expect(within(tab).getByRole('link', { name: 'Oren Owner' })).toHaveAttribute(
+      'href',
+      `/volunteers/${owner.id}`,
+    )
+  })
+
+  it('names an org proposer without a link, and leaves the line out with no proposer', async () => {
+    const admin = await createAdmin()
+    const viewer = await createVolunteer()
+    const byOrg = await createProject({
+      status: 'in_progress',
+      isOrgProposed: true,
+      creatorId: admin.id,
+    })
+    await mount(byOrg.id, viewer, '#people')
+    const tab = await people()
+    expect(within(tab).getByText('Proposed by').parentElement).toHaveTextContent('PauseAI')
+    expect(within(tab).queryByRole('link')).toBeNull()
+    expect(within(tab).getByText('No owner yet')).toBeInTheDocument()
+
+    cleanup()
+    queryClient.clear()
+    const unattributed = await createProject({ status: 'in_progress' })
+    await mount(unattributed.id, viewer, '#people')
+    expect(within(await people()).queryByText('Proposed by')).toBeNull()
+  })
+})
+
 describe('project page — invites', () => {
   it('lets an admin add someone straight away, and reports a failed add', async () => {
     const admin = await createAdmin()
@@ -1252,7 +1304,9 @@ describe('project page — admin', () => {
     await createTask(pending.id)
     await mount(pending.id, admin)
     await screen.findByRole('heading', { name: 'Proposal' })
-    expect(screen.getByText('Pat Proposer')).toBeInTheDocument()
+    // The proposer is named on the People tab, not in the header's Owner slot.
+    expect(screen.queryByText('Pat Proposer')).toBeNull()
+    expect(screen.getByText('No owner yet')).toBeInTheDocument()
     await userEvent.click(screen.getByLabelText('Ask for changes'))
     await userEvent.type(screen.getByLabelText('Message to Proposer'), 'Tell us more')
     fireEvent.submit(screen.getByLabelText('Message to Proposer').closest('form')!)
@@ -1326,7 +1380,9 @@ describe('project page — admin', () => {
       await mount(p.id, admin)
       await screen.findByRole('heading', { name: `Outcome ${outcome}` })
       expect(screen.getByText(/Outcome:/).parentElement).toHaveTextContent(label)
-      expect(screen.getByText(/Proposer:/)).toHaveTextContent('PauseAI')
+      // Who proposed it is on the People tab; the header's Owner slot stays empty.
+      expect(screen.queryByText(/Proposer:/)).toBeNull()
+      expect(screen.getByText('No owner yet')).toBeInTheDocument()
     }
     cleanup()
     const archived = await createProject({ title: 'Archived one', status: 'archived' })

@@ -111,7 +111,9 @@ test.describe('Task helpers', () => {
     const helperBPage = await helperBContext.newPage()
 
     await helperAPage.goto(taskUrl)
-    await expect(helperAPage.getByText('1 helper wanted')).toBeVisible()
+    await expect(
+      helperAPage.getByRole('region', { name: 'Helpers' }).getByText('1 helper wanted'),
+    ).toBeVisible()
     await helperAPage.getByRole('button', { name: 'Join as helper' }).click()
     await expect(helperAPage.getByText('1 helper', { exact: true })).toBeVisible({
       timeout: 10_000,

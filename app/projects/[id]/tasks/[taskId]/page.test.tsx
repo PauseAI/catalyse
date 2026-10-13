@@ -352,9 +352,15 @@ describe('task detail page', () => {
     expect(screen.getByRole('group', { name: 'When it is due' })).toHaveTextContent(
       /^Due 1 Jan 2030 · in \d+ days \(from 1 Dec 2029\)Effort: about 2 hours$/,
     )
-    expect(screen.getByText('Assigned to').parentElement).toHaveTextContent(
-      /^Assigned toUnclaimed$/,
-    )
+    // Nobody holds it: an empty chip, with Claim beside it rather than among the page's actions.
+    const person = screen.getByText('Assigned to').parentElement!
+    expect(person).toHaveTextContent(/^Assigned toUnclaimedClaim task$/)
+    expect(within(person).getByRole('button', { name: 'Claim task' })).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('group', { name: 'Actions' })).queryByRole('button', {
+        name: 'Claim task',
+      }),
+    ).toBeNull()
     expect(screen.queryByText(/^(When|Who|Owner)$/)).toBeNull()
     // Its predecessor is not done, so it is Blocked, and says by what.
     expect(screen.getByText('Blocked')).toBeInTheDocument()
@@ -838,9 +844,22 @@ describe('task detail page — a completed project', () => {
     await screen.findByRole('heading', { name: 'Flyering' })
     // A task worked by several people names its lead.
     expect(screen.getByText('Lead').parentElement).toHaveTextContent('Lee Lead')
+    expect(screen.getByRole('link', { name: 'Lee Lead' })).toHaveAttribute(
+      'href',
+      `/volunteers/${lead.id}`,
+    )
     expect(within(helpers()).getByText('2 helpers wanted')).toBeInTheDocument()
-    // Join/Stop helping sit with the rest of the page's actions, top right, not in the
-    // Helpers box itself.
+    // Join as helper sits on the line under the lead, with how many helpers it wants; not among
+    // the page's actions, nor in the Helpers box.
+    const person = screen.getByText('Lead').parentElement!.parentElement!
+    expect(within(person).getByText('2 helpers wanted')).toBeInTheDocument()
+    expect(within(person).getByRole('button', { name: 'Join as helper' })).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('group', { name: 'Actions' })).queryByRole('button', {
+        name: 'Join as helper',
+      }),
+    ).toBeNull()
+    expect(within(helpers()).queryByRole('button', { name: 'Join as helper' })).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Join as helper' }))
     await screen.findByText("You're helping on this task")
     await within(helpers()).findByText('1 helper (1 more wanted)')

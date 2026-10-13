@@ -49,16 +49,13 @@ import { awaitsOwnerReview } from '@/lib/task-review'
 import { isHttpUrl } from '@/lib/url'
 import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS } from '@/lib/status-labels'
 import Modal from '@/components/ui/Modal'
+import { EmptyPersonChip, PersonChip } from '@/components/ui/PersonChip'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import ReopenTaskDialog, { type ReopenTarget } from '@/components/ReopenTaskDialog'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import VolunteerSelect from '@/components/VolunteerSelect'
 import Tabs from '@/components/Tabs'
-import WorkItemHeader, {
-  PersonInitials,
-  WorkItemPerson,
-  initials,
-} from '@/components/WorkItemHeader'
+import WorkItemHeader, { WorkItemPerson, initials } from '@/components/WorkItemHeader'
 import GanttChart, { inStartOrder } from '@/components/gantt/GanttChart'
 import type { GanttRow as GanttRowData, GanttUndatedRow } from '@/components/gantt/types'
 import GanttItemPanel from '@/components/gantt/GanttItemPanel'
@@ -1402,16 +1399,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       key={interest.id}
       className="interest-card flex items-center gap-2 py-2 border-b border-brand-border last:border-0 flex-wrap"
     >
-      <TaskAvatar name={interest.volunteerName} />
-      <div className="flex-1 min-w-0">
-        {isAdmin || interestedVolunteerIds.has(interest.volunteerId) ? (
-          <Link href={`/volunteers/${interest.volunteerId}`} className="underline truncate block">
-            {interest.volunteerName}
-          </Link>
-        ) : (
-          <div className="truncate">{interest.volunteerName}</div>
-        )}
-        <div className="text-text-light text-xs">
+      <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+        <PersonChip
+          name={interest.volunteerName}
+          href={
+            isAdmin || interestedVolunteerIds.has(interest.volunteerId)
+              ? `/volunteers/${interest.volunteerId}`
+              : undefined
+          }
+        />
+        <span className="text-text-light text-xs">
           {interest.status === InterestStatus.accepted
             ? interest.interestType === 'want_to_own'
               ? 'Owner'
@@ -1425,7 +1422,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               : interest.status === InterestStatus.invited
                 ? `Invited${interest.invitedByName ? ` by ${interest.invitedByName}` : ''}`
                 : interestHistoryLabel(interest.origin, interest.status)}
-        </div>
+        </span>
       </div>
       {locked ? null : interest.status === InterestStatus.pending ? (
         <div className="flex gap-2 shrink-0">
@@ -1667,9 +1664,22 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const peopleTab = (
     <section aria-label="People on this project" className={card}>
       <h2>People</h2>
-      <p className="text-sm">
-        <span className="text-text-light">Owner: </span>
-        {project.owner ? project.owner.name : 'No owner yet'}
+      {proposer && (
+        <p className="text-sm flex items-center gap-2 flex-wrap">
+          <span className="text-text-light">Proposed by</span>
+          <PersonChip
+            name={proposer.name}
+            href={proposer.volunteerId ? `/volunteers/${proposer.volunteerId}` : undefined}
+          />
+        </p>
+      )}
+      <p className="text-sm flex items-center gap-2 flex-wrap">
+        <span className="text-text-light">Owner</span>
+        {project.owner ? (
+          <PersonChip name={project.owner.name} href={`/volunteers/${project.owner.id}`} />
+        ) : (
+          <EmptyPersonChip label="No owner yet" />
+        )}
       </p>
       {!isOwnerOrAdmin && Array.isArray(project.helpers) && (
         <div>
@@ -1683,16 +1693,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   key={helper.id}
                   className="interest-card flex items-center gap-2 py-2 border-b border-brand-border last:border-0 flex-wrap"
                 >
-                  <TaskAvatar name={helper.volunteerName} />
-                  <div className="flex-1 min-w-0">
-                    <div className="truncate">{helper.volunteerName}</div>
-                    <div className="text-text-light text-xs">
+                  <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                    <PersonChip name={helper.volunteerName} />
+                    <span className="text-text-light text-xs">
                       {helper.interestType === 'want_to_own'
                         ? 'Owner'
                         : helper.isDeputy
                           ? 'Deputy'
                           : 'Helper'}
-                    </div>
+                    </span>
                   </div>
                   {!locked && helper.volunteerId === user.id && helper.isDeputy && (
                     <Button
@@ -1808,6 +1817,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         : 'Request sent: waiting for the owner'}
     </span>
   )
+  const canJoinProject =
+    !isOwnerOrAdmin && !pendingInvite && canSeeInterest && (!project.myInterest || canApplyAgain)
   const standingAction = !isOwnerOrAdmin && (
     <>
       {pendingInvite && (
@@ -1828,11 +1839,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             Decline
           </Button>
         </>
-      )}
-      {!pendingInvite && canSeeInterest && (!project.myInterest || canApplyAgain) && (
-        <Button size="sm" onClick={() => setShowJoin(true)}>
-          Join this project
-        </Button>
       )}
       {requestPending && (
         <>
@@ -2050,6 +2056,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       }
       actions={
         <>
+          {canJoinProject && (
+            <Button size="sm" onClick={() => setShowJoin(true)}>
+              Join this project
+            </Button>
+          )}
           {project.canMessageOwner && !isAdmin && (
             <Button
               variant="secondary"
@@ -2064,30 +2075,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       }
     >
       {project.owner ? (
-        <span className="flex items-center gap-2 min-w-0">
-          <PersonInitials name={project.owner.name} />
-          <Link href={`/volunteers/${project.owner.id}`} className="underline truncate">
-            {project.owner.name}
-          </Link>
-        </span>
-      ) : isAdmin && proposer ? (
-        // Ownerless projects still have a proposer. Admins triaging the queue need
-        // to know who to talk to, so show them that name in place of the empty state.
-        <span className="flex items-center gap-2 min-w-0">
-          <PersonInitials name={proposer.name} />
-          <span className="truncate">
-            Proposer:{' '}
-            {proposer.volunteerId ? (
-              <Link href={`/volunteers/${proposer.volunteerId}`} className="underline">
-                {proposer.name}
-              </Link>
-            ) : (
-              proposer.name
-            )}
-          </span>
-        </span>
+        <PersonChip name={project.owner.name} href={`/volunteers/${project.owner.id}`} />
       ) : (
-        <span className="text-text-light">No owner yet.</span>
+        <EmptyPersonChip label="No owner yet" />
       )}
     </WorkItemPerson>
   )

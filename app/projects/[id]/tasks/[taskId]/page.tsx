@@ -37,7 +37,9 @@ import SubmissionAskFields, {
   submissionAskDraft,
   submissionAskPayload,
 } from '@/components/SubmissionAskFields'
-import WorkItemHeader, { PersonInitials, WorkItemPerson } from '@/components/WorkItemHeader'
+import WorkItemHeader, { WorkItemPerson } from '@/components/WorkItemHeader'
+import { EmptyPersonChip, PersonChip } from '@/components/ui/PersonChip'
+import { helperSummary } from '@/lib/helper-summary'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import SubmittedWork from '@/components/SubmittedWork'
 import RequestChangesButton from '@/components/RequestChangesButton'
@@ -339,27 +341,60 @@ export default function TaskDetailPage({
               }
               summary={assigneeSince(task)}
               actions={
-                task.assignedToId !== null &&
-                task.assignedToId !== user.id &&
-                task.assigneeContactable && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    aria-label={`Message ${task.assignedToName}`}
-                    onClick={() => setMessaging(true)}
-                  >
-                    Message
-                  </Button>
+                <>
+                  {canClaimNow && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={updateMutation.isPending}
+                      onClick={() => setConfirmingClaim(true)}
+                    >
+                      {claimLabel(task.claimViewer)}
+                    </Button>
+                  )}
+                  {task.assignedToId !== null &&
+                    task.assignedToId !== user.id &&
+                    task.assigneeContactable && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        aria-label={`Message ${task.assignedToName}`}
+                        onClick={() => setMessaging(true)}
+                      >
+                        Message
+                      </Button>
+                    )}
+                </>
+              }
+              secondLine={
+                task.canJoinAsHelper && (
+                  <>
+                    <span className="text-text-light">
+                      {helperSummary(task.helpers.length, task.helpersWanted)}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={joinAsHelperMutation.isPending}
+                      onClick={() =>
+                        joinAsHelperMutation.mutate({
+                          projectId,
+                          taskId,
+                          interestType: 'want_to_help_task',
+                          message: null,
+                        })
+                      }
+                    >
+                      {JOIN_AS_HELPER}
+                    </Button>
+                  </>
                 )
               }
             >
-              {task.assignedToName !== null ? (
-                <span className="flex items-center gap-2 min-w-0">
-                  <PersonInitials name={task.assignedToName} />
-                  <span className="truncate">{task.assignedToName}</span>
-                </span>
+              {task.assignedToId !== null && task.assignedToName !== null ? (
+                <PersonChip name={task.assignedToName} href={`/volunteers/${task.assignedToId}`} />
               ) : (
-                <span className="text-text-light">{isDone ? 'No one' : UNCLAIMED_LABEL}</span>
+                <EmptyPersonChip label={isDone ? 'No one' : UNCLAIMED_LABEL} />
               )}
             </WorkItemPerson>
           }
@@ -370,16 +405,6 @@ export default function TaskDetailPage({
           }
           actions={
             <>
-              {canClaimNow && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={updateMutation.isPending}
-                  onClick={() => setConfirmingClaim(true)}
-                >
-                  {claimLabel(task.claimViewer)}
-                </Button>
-              )}
               {canStartNow && (
                 <Button
                   size="sm"
@@ -387,23 +412,6 @@ export default function TaskDetailPage({
                   onClick={() => startMutation.mutate({ projectId, taskId })}
                 >
                   Start
-                </Button>
-              )}
-              {task.canJoinAsHelper && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={joinAsHelperMutation.isPending}
-                  onClick={() =>
-                    joinAsHelperMutation.mutate({
-                      projectId,
-                      taskId,
-                      interestType: 'want_to_help_task',
-                      message: null,
-                    })
-                  }
-                >
-                  {JOIN_AS_HELPER}
                 </Button>
               )}
               {task.canLeaveAsHelper && (

@@ -77,9 +77,11 @@ test.describe('Project Interests and Assignment', () => {
     await expect(getAlert(adminPage)).toContainText('Accepted. They', { timeout: 10_000 })
 
     // Volunteer now appears once, as Owner — not also listed below in Volunteers
-    await expect(adminPage.getByRole('link', { name: volunteer.name })).toBeVisible({
-      timeout: 10_000,
-    })
+    await expect(
+      adminPage
+        .getByRole('region', { name: 'People on this project' })
+        .getByRole('link', { name: volunteer.name }),
+    ).toBeVisible({ timeout: 10_000 })
     await expect(
       adminPage.locator('.interest-card').filter({ hasText: volunteer.name }),
     ).toHaveCount(0)

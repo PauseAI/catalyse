@@ -86,25 +86,34 @@ export function PersonInitials({ name }: { name: string }) {
 
 /**
  * The person block on the right of the title row: a small role label ("Owner", "Assigned
- * to"), then whatever names them, then an optional one-line summary of who else is on it.
+ * to"), then whatever names them, then an optional one-line summary of who else is on it and
+ * the viewer's actions on that person's place (Claim, Message). `secondLine` sits beneath, for
+ * the people working alongside them and the viewer's way to join them.
  */
 export function WorkItemPerson({
   label,
   children,
   summary,
   actions,
+  secondLine,
 }: {
   label: string
   children: React.ReactNode
   summary?: React.ReactNode
   actions?: React.ReactNode
+  secondLine?: React.ReactNode
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-      <span className="text-text-light">{label}</span>
-      {children}
-      {summary && <span className="text-text-light">· {summary}</span>}
-      {actions}
+    <div className="flex flex-col gap-y-1 text-sm">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="text-text-light">{label}</span>
+        {children}
+        {summary && <span className="text-text-light">· {summary}</span>}
+        {actions}
+      </div>
+      {secondLine && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">{secondLine}</div>
+      )}
     </div>
   )
 }
