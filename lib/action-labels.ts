@@ -27,8 +27,8 @@ export const UNASSIGN = 'Unassign'
 /** A project member joining a task that seeks helpers, beside its lead. */
 export const JOIN_AS_HELPER = 'Join as helper'
 
-/** A helper leaving the task. */
-export const LEAVE_HELPING = 'Stop helping'
+/** A helper leaving the task, from their own chip. Matches the project-level "Withdraw". */
+export const LEAVE_HELPING = 'Withdraw'
 
 /** The lead or whoever runs the project taking a helper off the task. */
 export const REMOVE_HELPER = 'Remove'

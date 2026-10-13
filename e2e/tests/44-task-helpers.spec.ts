@@ -118,7 +118,7 @@ test.describe('Task helpers', () => {
     await expect(helperAPage.getByText('1 helper', { exact: true })).toBeVisible({
       timeout: 10_000,
     })
-    await expect(helperAPage.getByRole('button', { name: 'Stop helping' })).toBeVisible()
+    await expect(helperAPage.getByRole('button', { name: 'Withdraw from helping' })).toBeVisible()
 
     // The slot is taken: another member has no way to join.
     await helperBPage.goto(taskUrl)

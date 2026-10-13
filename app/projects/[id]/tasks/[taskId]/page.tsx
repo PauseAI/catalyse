@@ -24,7 +24,7 @@ import { TaskStatus } from '@/generated/prisma/enums'
 import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS, UNCLAIMED_LABEL } from '@/lib/status-labels'
 import { shortDay } from '@/lib/relative-date'
 import { PROJECT_TASK_CLAIMED_MESSAGE, TASK_REQUESTED_MESSAGE } from '@/lib/action-messages'
-import { CLAIMING, JOIN_AS_HELPER, LEAVE_HELPING, UNASSIGN, claimLabel } from '@/lib/action-labels'
+import { CLAIMING, JOIN_AS_HELPER, UNASSIGN, claimLabel } from '@/lib/action-labels'
 import { TASK_INACTIVITY_RULE } from '@/lib/staleness'
 import { awaitsOwnerReview } from '@/lib/task-review'
 import { handedIn } from '@/lib/overdue'
@@ -259,16 +259,6 @@ export default function TaskDetailPage({
       showToast(err instanceof Error ? err.message : 'Failed to join', 'error'),
   })
 
-  const leaveAsHelperMutation = useMutation({
-    ...orpc.projects.withdrawInterest.mutationOptions(),
-    onSuccess: (data) => {
-      showToast(data.message, 'success')
-      void invalidateTask()
-    },
-    onError: (err: unknown) =>
-      showToast(err instanceof Error ? err.message : 'Failed to leave', 'error'),
-  })
-
   function handleClaimTask(assigneeId: number) {
     updateMutation.mutate({ projectId, taskId, data: { assigneeId } })
   }
@@ -414,16 +404,6 @@ export default function TaskDetailPage({
                   Start
                 </Button>
               )}
-              {task.canLeaveAsHelper && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={leaveAsHelperMutation.isPending}
-                  onClick={() => leaveAsHelperMutation.mutate({ projectId, taskId })}
-                >
-                  {LEAVE_HELPING}
-                </Button>
-              )}
               {canEdit && !isEditing && (
                 <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>
                   Edit
@@ -549,7 +529,7 @@ export default function TaskDetailPage({
           </p>
         )}
 
-        <TaskHelpers projectId={projectId} taskId={taskId} state={task} />
+        <TaskHelpers projectId={projectId} taskId={taskId} viewerId={user.id} state={task} />
 
         {task.requestedById !== null && (
           <p className="text-sm text-text-light mt-4 mb-0">

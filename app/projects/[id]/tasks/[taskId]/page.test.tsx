@@ -865,7 +865,20 @@ describe('task detail page — a completed project', () => {
     await within(helpers()).findByText('1 helper (1 more wanted)')
     expect(within(helpers()).getByText('Ann Helper')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Join as helper' })).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Stop helping' }))
+    // Withdrawing is the `×` on the helper's own chip, not a button among the page's actions.
+    expect(
+      within(screen.getByRole('group', { name: 'Actions' })).queryByRole('button', {
+        name: /Withdraw|Stop helping/,
+      }),
+    ).toBeNull()
+    const ownChip = within(helpers()).getByText('Ann Helper').closest('li')!
+    await userEvent.click(within(ownChip).getByRole('button', { name: 'Withdraw from helping' }))
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Withdraw from this task?' })).getByRole(
+        'button',
+        { name: 'Withdraw' },
+      ),
+    )
     await screen.findByText('You are no longer helping on this task')
     await waitFor(async () =>
       expect(
@@ -918,7 +931,7 @@ describe('task detail page — a completed project', () => {
     expect(within(helpers()).queryByLabelText('Add a member as a helper')).toBeNull()
   })
 
-  it('shows the server error when stopping helping fails', async () => {
+  it('shows the server error when withdrawing from helping fails', async () => {
     const lead = await createVolunteer({ name: 'Lee Lead' })
     const ann = await createVolunteer({ name: 'Ann Helper' })
     const project = await createProject({ status: 'in_progress' })
@@ -947,12 +960,13 @@ describe('task detail page — a completed project', () => {
     })
 
     await mount(project.id, task.id, ann)
-    const stopButton = await screen.findByRole('button', { name: 'Stop helping' })
-    // Already gone by the time it's clicked — the server rejects it as NOT_FOUND.
+    await userEvent.click(await screen.findByRole('button', { name: 'Withdraw from helping' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Withdraw from this task?' })
+    // Already gone by the time it's confirmed — the server rejects it as NOT_FOUND.
     await prisma.workItemInterest.delete({
       where: { volunteerId_workItemId: { volunteerId: ann.id, workItemId: task.id } },
     })
-    await userEvent.click(stopButton)
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Withdraw' }))
     await screen.findByText('You are not helping on this task')
   })
 })

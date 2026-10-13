@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import MemberPicker from '@/components/ui/MemberPicker'
 import { PersonChip } from '@/components/ui/PersonChip'
-import { ADD_HELPER, REMOVE_HELPER } from '@/lib/action-labels'
+import { ADD_HELPER, LEAVE_HELPING, REMOVE_HELPER } from '@/lib/action-labels'
 import { helperSummary } from '@/lib/helper-summary'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
@@ -21,22 +21,25 @@ export type TaskHelpersState = {
 }
 
 /**
- * Who helps the task's lead, and the owner's way to add one or take one off. Nothing shows for
- * a task that has no helpers and seeks none. The viewer's own way to join or stop helping sits
- * with the rest of the page's actions, top right — see TaskDetailPage.
+ * Who helps the task's lead. Each chip's `×` takes that helper off: on the viewer's own chip it
+ * withdraws them, on anyone else's it is a manager removing them. Nothing shows for a task that
+ * has no helpers and seeks none.
  */
 export default function TaskHelpers({
   projectId,
   taskId,
+  viewerId,
   state,
 }: {
   projectId: number
   taskId: number
+  viewerId: number
   state: TaskHelpersState
 }) {
   const showToast = useToast()
   const queryClient = useQueryClient()
   const [removing, setRemoving] = useState<TaskHelpersState['helpers'][number] | null>(null)
+  const [withdrawing, setWithdrawing] = useState(false)
 
   const refresh = () => {
     for (const key of [
@@ -59,6 +62,10 @@ export default function TaskHelpers({
     ...orpc.projects.respondToInterest.mutationOptions(),
     ...options('Failed to remove the helper', () => setRemoving(null)),
   })
+  const withdraw = useMutation({
+    ...orpc.projects.withdrawInterest.mutationOptions(),
+    ...options('Failed to withdraw', () => setWithdrawing(false)),
+  })
   const add = useMutation({
     ...orpc.projects.addTaskHelper.mutationOptions(),
     ...options('Failed to add the helper'),
@@ -77,11 +84,19 @@ export default function TaskHelpers({
         <ul className="m-0 mb-2 flex list-none flex-wrap gap-2 p-0">
           {state.helpers.map((h) => (
             <li key={h.interestId} className="min-w-0 max-w-full">
-              <PersonChip
-                name={h.name}
-                onRemove={state.canRemoveHelpers ? () => setRemoving(h) : undefined}
-                removeLabel={`${REMOVE_HELPER} ${h.name}`}
-              />
+              {h.volunteerId === viewerId ? (
+                <PersonChip
+                  name={h.name}
+                  onRemove={state.canLeaveAsHelper ? () => setWithdrawing(true) : undefined}
+                  removeLabel={`${LEAVE_HELPING} from helping`}
+                />
+              ) : (
+                <PersonChip
+                  name={h.name}
+                  onRemove={state.canRemoveHelpers ? () => setRemoving(h) : undefined}
+                  removeLabel={`${REMOVE_HELPER} ${h.name}`}
+                />
+              )}
             </li>
           ))}
         </ul>
@@ -118,6 +133,19 @@ export default function TaskHelpers({
             })
           }
           onClose={() => setRemoving(null)}
+        />
+      )}
+      {withdrawing && (
+        <ConfirmDialog
+          id="confirm-withdraw-helper"
+          isOpen
+          title="Withdraw from this task?"
+          body="You stop helping on this task, and its lead is told."
+          confirmLabel={LEAVE_HELPING}
+          busyLabel="Withdrawing…"
+          busy={withdraw.isPending}
+          onConfirm={() => withdraw.mutate({ projectId, taskId })}
+          onClose={() => setWithdrawing(false)}
         />
       )}
     </section>
