@@ -859,11 +859,11 @@ describe('task detail page — a completed project', () => {
     queryClient.clear()
     await mount(project.id, task.id, owner)
     await screen.findByRole('heading', { name: 'Flyering' })
-    await userEvent.selectOptions(
-      within(helpers()).getByLabelText('Add a member as a helper'),
-      'Bob Late',
+    await userEvent.click(
+      within(helpers()).getByRole('button', { name: 'Add a member as a helper' }),
     )
-    await userEvent.click(within(helpers()).getByRole('button', { name: 'Add helper' }))
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Add a member as a helper' }), 'Bob')
+    await userEvent.click(screen.getByRole('option', { name: 'Bob Late' }))
     await within(helpers()).findByText('1 helper')
     expect(within(helpers()).getByText('Bob Late')).toBeInTheDocument()
     expect(within(helpers()).queryByLabelText('Add a member as a helper')).toBeNull()

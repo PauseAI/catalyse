@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
-import { PersonInitials } from '@/components/WorkItemHeader'
+import MemberPicker from '@/components/ui/MemberPicker'
 import { ADD_HELPER, JOIN_AS_HELPER, LEAVE_HELPING, REMOVE_HELPER } from '@/lib/action-labels'
 import { helperSummary } from '@/lib/helper-summary'
 import { orpc } from '@/lib/orpc'
@@ -36,7 +36,6 @@ export default function TaskHelpers({
   const showToast = useToast()
   const queryClient = useQueryClient()
   const [removing, setRemoving] = useState<TaskHelpersState['helpers'][number] | null>(null)
-  const [adding, setAdding] = useState('')
 
   const refresh = () => {
     for (const key of [
@@ -69,7 +68,7 @@ export default function TaskHelpers({
   })
   const add = useMutation({
     ...orpc.projects.addTaskHelper.mutationOptions(),
-    ...options('Failed to add the helper', () => setAdding('')),
+    ...options('Failed to add the helper'),
   })
 
   const summary = helperSummary(state.helpers.length, state.helpersWanted)
@@ -82,20 +81,22 @@ export default function TaskHelpers({
       </h2>
       <p className="text-text-light mt-0 mb-2 text-sm">{summary}</p>
       {state.helpers.length > 0 && (
-        <ul className="m-0 mb-2 list-none space-y-2 p-0">
+        <ul className="m-0 mb-2 flex list-none flex-wrap gap-2 p-0">
           {state.helpers.map((h) => (
-            <li key={h.interestId} className="flex items-center gap-2 text-sm">
-              <PersonInitials name={h.name} />
+            <li
+              key={h.interestId}
+              className="flex items-center gap-1 rounded-full bg-accent py-1 pl-3 pr-1 text-sm text-secondary-dark dark:bg-gray-700 dark:text-gray-300"
+            >
               <span>{h.name}</span>
               {state.canRemoveHelpers && (
-                <Button
-                  size="sm"
-                  variant="ghost"
+                <button
+                  type="button"
                   aria-label={`${REMOVE_HELPER} ${h.name}`}
                   onClick={() => setRemoving(h)}
+                  className="flex h-5 w-5 items-center justify-center rounded-full leading-none hover:bg-secondary/20"
                 >
-                  {REMOVE_HELPER}
-                </Button>
+                  ×
+                </button>
               )}
             </li>
           ))}
@@ -124,31 +125,16 @@ export default function TaskHelpers({
         </Button>
       )}
       {state.canAddHelpers && state.eligibleHelpers.length > 0 && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <label htmlFor="task-add-helper" className="sr-only">
-            Add a member as a helper
-          </label>
-          <select
+        <div className="mt-2 max-w-56">
+          <MemberPicker
             id="task-add-helper"
-            className="max-w-56"
-            value={adding}
-            onChange={(e) => setAdding(e.target.value)}
-          >
-            <option value="">— Select a member —</option>
-            {state.eligibleHelpers.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={!adding || add.isPending}
-            onClick={() => add.mutate({ projectId, taskId, volunteerId: Number(adding) })}
-          >
-            {ADD_HELPER}
-          </Button>
+            label="Add a member as a helper"
+            ariaLabel="Add a member as a helper"
+            candidates={state.eligibleHelpers}
+            onAdd={(volunteerId) => add.mutate({ projectId, taskId, volunteerId })}
+            placeholder={ADD_HELPER}
+            hideLabel
+          />
         </div>
       )}
       {removing && (

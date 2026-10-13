@@ -50,6 +50,11 @@ interface Props<T extends string = string> {
   // Visually hides the <label> above the trigger (still rendered for a11y) —
   // for use inside a card that already has its own heading for the field.
   hideLabel?: boolean
+  // Shown on the trigger when `value` matches no option, instead of falling back to the
+  // first option's label — for a caller like an add-typeahead whose picks never persist
+  // as `value`, so the trigger should keep reading as an invitation to pick, not as
+  // whichever option happens to be first in the list.
+  placeholderLabel?: string
 }
 
 export default function FilterDropdown<T extends string>({
@@ -65,6 +70,7 @@ export default function FilterDropdown<T extends string>({
   triggerClassName,
   renderOption,
   hideLabel,
+  placeholderLabel,
 }: Props<T>) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -123,7 +129,8 @@ export default function FilterDropdown<T extends string>({
     }
   }, [focusedIndex])
 
-  const selectedLabel = options.find((o) => o.value === value)?.label ?? options[0]?.label
+  const selectedLabel =
+    options.find((o) => o.value === value)?.label ?? placeholderLabel ?? options[0]?.label
 
   const filtered =
     searchable && query
