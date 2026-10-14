@@ -24,7 +24,7 @@ import ViewSwitch, { PROJECT_VIEWS } from '@/components/ViewSwitch'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All' },
-  { value: 'ready', label: 'Ready' },
+  { value: 'ready', label: 'To Do' },
   { value: 'in_progress', label: 'In Progress' },
   { value: 'on_hold', label: 'On Hold' },
   { value: 'completed', label: 'Completed' },
@@ -440,7 +440,7 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
             {!isFlatView && groups.length > 1 && (
               <div className="flex flex-wrap gap-2 mb-6">
                 {seeking.length > 0 && (
-                  <span className={badgeClasses('caution')}>
+                  <span className={badgeClasses('info')}>
                     Looking for People: {groups.find((g) => g.key === 'seeking')?.total ?? 0}
                   </span>
                 )}
@@ -455,7 +455,11 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
             {/* Grouped project cards */}
             {isFlatView ? (
               <>
-                <ProjectList projects={projects} userSkillIds={userSkillIds} />
+                <ProjectList
+                  projects={projects}
+                  userSkillIds={userSkillIds}
+                  viewerIsAdmin={Boolean(user.isAdmin)}
+                />
                 {flatTotalPages > 1 && (
                   <div className="flex items-center justify-center gap-4 mt-6">
                     <Button
@@ -526,7 +530,11 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
                           key={String(completedOpen)}
                           className={isCompleted ? 'animate-fade-slide-in' : undefined}
                         >
-                          <ProjectList projects={g.projects} userSkillIds={userSkillIds} />
+                          <ProjectList
+                            projects={g.projects}
+                            userSkillIds={userSkillIds}
+                            viewerIsAdmin={Boolean(user.isAdmin)}
+                          />
                           {overflow > 0 && g.viewAllHref && (
                             <div className="mt-3">
                               <Link href={g.viewAllHref} className="text-sm underline">

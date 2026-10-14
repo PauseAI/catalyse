@@ -225,7 +225,8 @@ describe('home', () => {
     await renderApp(<HomePage />, { as: me, url: '/dashboard' })
     const work = await screen.findByRole('region', { name: 'My work' })
     const row = within(work).getByRole('link', { name: 'Behind' }).closest('li')!
-    expect(within(row).getByText('3 days late')).toBeInTheDocument()
+    // The deadline has passed, so the row counts from it rather than from the plan's forecast.
+    expect(within(row).getByText(/^\d+ days late$/)).toHaveAttribute('data-emphasis', 'filled')
   })
 
   it('lists what needs attention now first, saying why, then everything else', async () => {
@@ -273,13 +274,11 @@ describe('home', () => {
     expect(titles(restList)).toEqual(['Far off', 'Leafleting', 'Undated'])
 
     const row = (name: string) => within(work).getByRole('link', { name }).closest('li')!
-    expect(within(row('Late quick')).getByText(/^2 Jan 2020 · \d+ days overdue$/)).toHaveClass(
-      'text-error',
-    )
-    // Already overdue or merely due soon reads as a plain due date on the card; no second line
-    // repeats it.
+    expect(within(row('Late quick')).getByText(/^\d+ days late$/)).toHaveClass('status-badge')
+    expect(within(row('Late quick')).getByText('Due 2 Jan 2020')).toBeInTheDocument()
+    // Already late or merely due soon reads as a badge on the card; no second line repeats it.
     expect(row('Late quick').querySelector('p')).toBeNull()
-    expect(within(row('Soon')).getByText(/· in 2 days$/)).toBeInTheDocument()
+    expect(within(row('Soon')).getByText('Due in 2 days')).toBeInTheDocument()
     expect(row('Soon').querySelector('p')).toBeNull()
     expect(
       within(row('Big job')).getByText('About 12 hours of work, due in 6 days: start now'),
@@ -325,7 +324,7 @@ describe('home', () => {
     await renderApp(<HomePage />, { as: sam, url: '/dashboard' })
     const work = await screen.findByRole('region', { name: 'My work' })
     const row = (await within(work).findByRole('link', { name: 'Slipped' })).closest('li')!
-    expect(within(row).getByText(/^\d+ days past plan$/)).toBeInTheDocument()
+    expect(within(row).getByText(/^\d+ days late$/)).toHaveAttribute('data-emphasis', 'filled')
   })
 
   it('says so when a filter leaves nothing, and when nothing matches', async () => {

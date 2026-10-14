@@ -68,6 +68,8 @@ export type WorkRow = {
   done: boolean
   /** A project whose plan runs past its deadline, by this many days. */
   daysLate?: number
+  /** A project the viewer leads or deputises on: its lateness is theirs to act on. */
+  leads?: boolean
   /** A task's or project's deadline. */
   deadline?: Date | null
   /** A task of mine whose plan ended this many days ago while it is not done. */
@@ -438,6 +440,7 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
     }),
   ])
   const deputyOf = new Set(deputyRows.map((d) => d.projectId))
+  const ownedIds = new Set(owned.map((p) => p.id))
 
   // A project appears once, under the closest tie: leading, deputising, helping, proposing,
   // applying.
@@ -456,6 +459,7 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
       context: null,
       done: TERMINAL_STATUSES.includes(p.status),
       deadline: p.deadline,
+      leads: (role === 'Lead' && ownedIds.has(p.id)) || role === 'Deputy',
       updatedAt: p.updatedAt,
     })
   }
@@ -517,7 +521,15 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
       done: false,
       deadline: t.deadline,
       pastPlanDays: pastPlan.get(t.id),
-      item: { ...toWorkItemSummary(t, shown), href: taskHref(t) },
+      item: {
+        ...toWorkItemSummary(t, shown, {
+          id: viewer.id,
+          canReview:
+            Boolean(viewer.isAdmin) ||
+            (t.parentId !== null && (ownedIds.has(t.parentId) || deputyOf.has(t.parentId))),
+        }),
+        href: taskHref(t),
+      },
       estimatedHours: t.estimatedHours,
       needsAttention: needsAttentionNow(
         { deadline: t.deadline, estimatedHours: t.estimatedHours, done: handedIn(shown) },

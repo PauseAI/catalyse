@@ -5,7 +5,7 @@ describe('bugStatusLabel', () => {
   it('maps known statuses to labels and passes unknown ones through', () => {
     expect(bugStatusLabel('wont_fix')).toBe("Won't Fix")
     expect(bugStatusLabel('mystery')).toBe('mystery')
-    expect(BUG_STATUS_VARIANT.open).toBe('caution')
+    expect(BUG_STATUS_VARIANT.open).toBe('neutral')
   })
 })
 

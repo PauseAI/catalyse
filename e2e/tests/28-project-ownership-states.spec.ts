@@ -140,8 +140,8 @@ test.describe('Project ownership states', () => {
 
     await removeProjectOwner(baseUrl, adminPage, id)
 
-    // The work is still where it was; a Seeking Owner badge says it needs a lead.
-    await expect(adminPage.getByText('Seeking Owner')).toBeVisible({ timeout: 10_000 })
+    // The work is still where it was; a Seeking owner flag says it needs a lead.
+    await expect(adminPage.getByText('• Seeking owner')).toBeVisible({ timeout: 10_000 })
     await expect(adminPage.getByLabel('project status')).toContainText('In Progress')
     const project = await getProject(baseUrl, adminToken, id)
     expect(project.ownerId).toBeNull()

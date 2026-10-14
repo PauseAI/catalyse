@@ -113,9 +113,9 @@ test.describe('Task Detail Page', () => {
     await adminApi.projects.assignTask({ body: { projectId, taskId, assigneeId: assignee.id } })
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}/tasks/${taskId}`)
-    await expect(
-      adminPage.locator('p').filter({ hasText: "Blocked by 'Do this first'" }),
-    ).toBeVisible({ timeout: 10_000 })
+    await expect(adminPage.getByText("Blocked by 'Do this first'")).toBeVisible({
+      timeout: 10_000,
+    })
     const waitsOn = adminPage.getByRole('region', { name: 'Waits on' })
     await expect(waitsOn.getByText('Waiting on 1 of 1.')).toBeVisible()
     await expect(waitsOn.getByRole('link', { name: 'Do this first' })).toBeVisible()

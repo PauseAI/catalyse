@@ -360,7 +360,7 @@ export default function AdminSkillsPage() {
     <>
       <main className="container py-5 pb-15">
         <div className="flex justify-between items-center mb-3">
-          <h1>Manage Skills</h1>
+          <h1>Manage skills</h1>
           <Button onClick={() => openModal({ type: 'add-category' })}>+ Add Category</Button>
         </div>
 
@@ -527,7 +527,7 @@ export default function AdminSkillsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Confirm Delete</h2>
+              <h2 role="heading">Confirm delete</h2>
             </div>
             <div className="p-6">
               <p className="text-text-light mb-6">

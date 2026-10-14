@@ -59,7 +59,7 @@ describe('quick tasks — volunteer view', () => {
       deadline: new Date('2099-05-06T00:00:00Z'),
     })
     await renderApp(<QuickTasksPage />, { as: me })
-    const myList = (await screen.findByRole('heading', { name: 'My Quick Tasks' })).closest(
+    const myList = (await screen.findByRole('heading', { name: 'My quick tasks' })).closest(
       'section',
     )!
     await within(myList).findByText('Mine in progress')
@@ -68,33 +68,41 @@ describe('quick tasks — volunteer view', () => {
     // The shared vocabulary, on every screen that shows one of these.
     const myCard = (title: string) =>
       within(within(myList).getByText(title).closest('[role=article]')!)
-    expect(myCard('Mine in progress').getByRole('status')).toHaveTextContent('In progress')
+    // Sent back for changes, it is mine to move.
+    expect(myCard('Mine in progress').getByRole('status')).toHaveTextContent('Changes requested')
+    expect(myCard('Mine in progress').getByRole('status')).toHaveAttribute(
+      'data-emphasis',
+      'filled',
+    )
+    // Handed in, it waits on an admin.
+    expect(myCard('Mine submitted').getByRole('status')).toHaveTextContent('In review')
+    expect(myCard('Mine submitted').getByRole('status')).toHaveAttribute('data-emphasis', 'outline')
     expect(myCard('Mine done').getByRole('status')).toHaveTextContent('Done')
-    // Overdue only while the work is not handed in: a task waiting for review is off the clock.
-    expect(myCard('Mine in progress').getByText('Overdue')).toBeInTheDocument()
+    // Late only while the work is not handed in: a task waiting for review is off the clock.
+    expect(myCard('Mine in progress').getByText(/days late$/)).toBeInTheDocument()
     expect(myCard('Mine done').getByText('Deadline 2 Jan 2020')).toBeInTheDocument()
-    expect(myCard('Mine done').queryByText('Overdue')).toBeNull()
+    expect(myCard('Mine done').queryByText(/days late$/)).toBeNull()
     expect(myCard('Mine submitted').getByText('Deadline 2 Jan 2020')).toBeInTheDocument()
-    expect(myCard('Mine submitted').queryByText('Overdue')).toBeNull()
+    expect(myCard('Mine submitted').queryByText(/days late$/)).toBeNull()
     // Opens on my own tasks; the open pool is the other tab.
     expect(screen.getByRole('tab', { name: 'Mine (3)' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.queryByText('Browse Quick Tasks')).toBeNull()
+    expect(screen.queryByText('Browse quick tasks')).toBeNull()
     await userEvent.click(await screen.findByRole('tab', { name: 'Open (2)' }))
-    const browse = screen.getByText('Browse Quick Tasks').closest('section')!
+    const browse = screen.getByText('Browse quick tasks').closest('section')!
     await within(browse).findByText('Open quick')
     expect(within(browse).getByText('Deadline 4 Mar 2099')).toBeInTheDocument()
     expect(within(browse).getByText('Deadline 6 May 2099')).toBeInTheDocument()
     expect(
       within(within(browse).getByText('Open quick').closest('[role=article]')!).getByRole('status'),
-    ).toHaveTextContent('Open')
+    ).toHaveTextContent('To do')
     expect(
       within(within(browse).getByText('Featured task').closest('[role=article]')!).getByRole(
         'status',
       ),
-    ).toHaveTextContent('Not started')
+    ).toHaveTextContent('To do')
     expect(within(browse).getByRole('link', { name: 'Host project' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('tab', { name: /^Mine/ }))
-    const mineAgain = (await screen.findByRole('heading', { name: 'My Quick Tasks' })).closest(
+    const mineAgain = (await screen.findByRole('heading', { name: 'My quick tasks' })).closest(
       'section',
     )!
     const myCard2 = (title: string) =>
@@ -125,7 +133,7 @@ describe('quick tasks — volunteer view', () => {
     const openTab = () => screen.getByRole('tab', { name: /^Open/ })
     await userEvent.click(openTab())
     const cardFor = (title: string) =>
-      within(screen.getByText('Browse Quick Tasks').closest('section')!)
+      within(screen.getByText('Browse quick tasks').closest('section')!)
         .getByText(title)
         .closest('[role=article]') as HTMLElement
     await userEvent.click(within(cardFor('Open quick')).getByRole('button', { name: 'Claim task' }))
@@ -133,7 +141,7 @@ describe('quick tasks — volunteer view', () => {
     await waitFor(async () => expect((await row(open.id)).assigneeId).toBe(me.id))
     // A claim shows the task in my list.
     expect(screen.getByRole('tab', { name: /^Mine/ })).toHaveAttribute('aria-selected', 'true')
-    await screen.findByRole('heading', { name: 'My Quick Tasks' })
+    await screen.findByRole('heading', { name: 'My quick tasks' })
     await userEvent.click(openTab())
     await userEvent.click(
       within(cardFor('Featured task')).getByRole('button', { name: 'Ask to take this' }),
@@ -171,7 +179,7 @@ describe('quick tasks — volunteer view', () => {
       where: { id: open.id },
       data: { assigneeId: rival.id, status: 'in_progress' },
     })
-    const browse = screen.getByText('Browse Quick Tasks').closest('section')!
+    const browse = screen.getByText('Browse quick tasks').closest('section')!
     const cardFor = (title: string) =>
       within(browse).getByText(title).closest('[role=article]') as HTMLElement
     await userEvent.click(within(cardFor('Taken')).getByRole('button', { name: 'Claim task' }))
@@ -249,10 +257,10 @@ describe('quick tasks — admin view', () => {
       deadline: new Date('2020-01-02T00:00:00Z'),
     })
     const freshCard = () => screen.getByText('Fresh task').closest('[role=article]') as HTMLElement
-    // A deadline that has passed on an open task flags it Overdue.
+    // A deadline that has passed on an open task flags it late.
     await screen.findByText('Fresh task')
     expect(within(freshCard()).getByText('Deadline 2 Jan 2020')).toBeInTheDocument()
-    expect(within(freshCard()).getByText('Overdue')).toBeInTheDocument()
+    expect(within(freshCard()).getByText(/days late$/)).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Status' }))
     await userEvent.click(screen.getByRole('option', { name: 'Submitted (needs review)' }))

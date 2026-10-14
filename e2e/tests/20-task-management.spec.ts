@@ -351,10 +351,10 @@ test.describe('Task Deadlines', () => {
     const taskItem = adminPage.locator('li').filter({ hasText: 'Task with deadline' })
     await expect(taskItem.getByText('~4h')).toBeVisible({ timeout: 10_000 })
     await expect(taskItem.getByText(/^Deadline /)).toBeVisible({ timeout: 10_000 })
-    await expect(taskItem.getByText('Overdue')).toHaveCount(0)
+    await expect(taskItem.getByText(/days? late$/)).toHaveCount(0)
   })
 
-  test('A task with a past deadline shows an Overdue badge; a completed one does not', async ({
+  test('A task with a past deadline shows a late badge; a completed one does not', async ({
     adminPage,
     baseUrl,
   }) => {
@@ -377,13 +377,13 @@ test.describe('Task Deadlines', () => {
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     const overdueItem = adminPage.locator('li').filter({ hasText: 'Overdue task' })
-    await expect(overdueItem.getByText('Overdue', { exact: true })).toBeVisible({
+    await expect(overdueItem.getByText('1 day late', { exact: true })).toBeVisible({
       timeout: 10_000,
     })
 
     await adminPage.getByText('Done (1)').click()
     const doneItem = adminPage.locator('li').filter({ hasText: 'Overdue but done task' })
     await expect(doneItem).toBeVisible()
-    await expect(doneItem.getByText('Overdue', { exact: true })).toHaveCount(0)
+    await expect(doneItem.getByText(/days? late$/)).toHaveCount(0)
   })
 })

@@ -678,7 +678,7 @@ test.describe('Work item scheduling and dependencies', () => {
     await bar.hover()
     const tip = adminPage.getByRole('tooltip')
     await expect(tip).toContainText('Tip me')
-    await expect(tip).toContainText('Ready')
+    await expect(tip).toContainText('To do')
     await expect(tip).toContainText('Unclaimed')
     await expect(tip).toContainText('6 – 9 Jul 2027')
     await expect(tip).toContainText('Deadline 9 Jul 2027')

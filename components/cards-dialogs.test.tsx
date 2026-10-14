@@ -57,9 +57,10 @@ describe('ProjectCard', () => {
     )
     expect(screen.getByRole('link', { name: 'Rally' })).toHaveAttribute('href', '/projects/1')
     expect(screen.getByText('In Progress')).toBeInTheDocument()
-    expect(screen.getByText('Seeking Help')).toBeInTheDocument()
-    expect(screen.getByText('Needs Tasks')).toBeInTheDocument()
-    expect(screen.getByText('2 days late')).toBeInTheDocument()
+    expect(screen.getByText('• Seeking help')).toBeInTheDocument()
+    expect(screen.getByText('• Needs tasks')).toBeInTheDocument()
+    // A list that does not say whether the viewer leads it shows the lateness filled.
+    expect(screen.getByText('2 days late')).toHaveAttribute('data-emphasis', 'filled')
     expect(screen.getByText('👤 Owen')).toBeInTheDocument()
     expect(screen.getByText('📍 Remote · Global · United Kingdom · Leeds')).toBeInTheDocument()
     expect(screen.getByText('🧑‍🤝‍🧑 Ops')).toBeInTheDocument()
@@ -92,7 +93,7 @@ describe('ProjectCard', () => {
       />,
     )
     expect(screen.getByText('weird state')).toBeInTheDocument()
-    expect(screen.getByText('Seeking Owner')).toBeInTheDocument()
+    expect(screen.getByText('• Seeking owner')).toBeInTheDocument()
     expect(screen.getByText('👤 Seeking owner')).toBeInTheDocument()
     expect(screen.getByText('📋 other')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Act' })).toBeInTheDocument()
@@ -108,6 +109,24 @@ describe('ProjectCard', () => {
     expect(screen.queryByText('A')).toBeNull()
     expect(statusBadgeClasses('completed')).toContain('bg-emerald-100')
     expect(projectStatusVariant('nope')).toBe('neutral')
+  })
+
+  it('outlines what the viewer waits on, and fills what is theirs to act on', () => {
+    const { rerender } = render(
+      <ProjectCard
+        project={{ ...base, status: 'pending_review', daysLate: 2, viewerLeads: false }}
+      />,
+    )
+    expect(screen.getByText('In Review')).toHaveAttribute('data-emphasis', 'outline')
+    expect(screen.getByText('2 days late')).toHaveAttribute('data-emphasis', 'outline')
+    rerender(
+      <ProjectCard
+        project={{ ...base, status: 'pending_review', daysLate: 2, viewerLeads: true }}
+        viewerIsAdmin
+      />,
+    )
+    expect(screen.getByText('In Review')).toHaveAttribute('data-emphasis', 'filled')
+    expect(screen.getByText('2 days late')).toHaveAttribute('data-emphasis', 'filled')
   })
 
   it('ProjectList lays cards out in a grid or a single column', () => {

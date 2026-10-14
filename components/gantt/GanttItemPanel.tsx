@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Badge } from '@/components/Badge'
+import { LatenessBadge } from '@/components/StatusBadges'
 import Button from '@/components/Button'
 import Linkify from '@/components/Linkify'
 import Tooltip from '@/components/Tooltip'
@@ -13,12 +14,14 @@ import WorkItemCard from '@/components/WorkItemCard'
 import type { WorkItemSummary } from '@/lib/work-item-summary'
 import { handedIn } from '@/lib/overdue'
 import { daysPastPlan } from '@/lib/replan'
-import { plural } from '@/lib/plural'
+import { lateness } from '@/lib/lateness'
+import { latenessOutline } from '@/lib/status-emphasis'
 import { ASSIGN_PICKED, UNASSIGN, claimLabel, type ClaimViewer } from '@/lib/action-labels'
-import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS, UNCLAIMED_LABEL } from '@/lib/status-labels'
+import { UNCLAIMED_LABEL } from '@/lib/status-labels'
 import { datesPayload, type DatesPayload, type DatesValue } from '@/lib/task-dates'
 import { movedText, pinConflictSlip } from '@/lib/slip'
 import { ANCHOR_HINT, CRITICAL_HINT } from './GanttLegend'
+import { rowStatusBadge } from './palette'
 import type { GanttRow } from './types'
 
 /**
@@ -99,6 +102,7 @@ export default function GanttItemPanel({
   onReplan,
   onReopen,
   assignment,
+  viewerIsAssignee = false,
 }: {
   row: GanttRow
   /** The stored dates, timing, effort and deadline, as the Dates block edits them. */
@@ -122,6 +126,8 @@ export default function GanttItemPanel({
   onReopen?: () => void
   /** Omit to leave the panel read-only about who is doing the work. */
   assignment?: PanelAssignment
+  /** The viewer holds this task: its lateness is theirs to act on, as it is a manager's. */
+  viewerIsAssignee?: boolean
 }) {
   const [draft, setDraft] = useState(dates)
   // Keyed on the row, so selecting another bar closes the Dates block.
@@ -143,6 +149,12 @@ export default function GanttItemPanel({
   const editing = canEdit && editingId === row.id
   const estimatedHours = dates.estimatedHours ? parseFloat(dates.estimatedHours) : null
   const pastPlan = daysPastPlan(p.end, { done, assigned: !!assigneeName })
+  const late = lateness({
+    deadline: p.deadline,
+    pastPlanDays: pastPlan,
+    done: handedIn(row.status),
+  })
+  const rowBadge = rowStatusBadge(row.status)
   const conflict = pinConflictSlip(
     p,
     predecessors.find((d) => d.predecessorId === p.pinConflictWith)?.predecessorTitle,
@@ -166,7 +178,7 @@ export default function GanttItemPanel({
 
       {/* The work item card's status and assignee, with the marks true of the whole item. */}
       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-        <Badge variant={TASK_STATUS_VARIANTS[row.status]}>{TASK_STATUS_LABELS[row.status]}</Badge>
+        <Badge variant={rowBadge.variant}>{rowBadge.label}</Badge>
         <span className="text-text-light">{assigneeName || UNCLAIMED_LABEL}</span>
         {helpers && <span className="text-text-light">· {helpers}</span>}
         {p.isMilestone && (
@@ -207,12 +219,13 @@ export default function GanttItemPanel({
           handedIn={handedIn(row.status)}
         />
 
-        {pastPlan !== null && (
+        {late && (
           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="border-warning-text text-warning-text rounded-full border px-2 py-0.5">
-              {plural(pastPlan, 'day')} past plan
-            </span>
-            {onReplan && (
+            <LatenessBadge
+              lateness={late}
+              outline={latenessOutline({ isAssignee: viewerIsAssignee, canReview: canManage })}
+            />
+            {pastPlan !== null && onReplan && (
               <Button size="sm" variant="secondary" disabled={busy} onClick={onReplan}>
                 Replan
               </Button>

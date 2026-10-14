@@ -1,5 +1,6 @@
 import { ApprovalStatus, WorkItemType } from '@/generated/prisma/enums'
 import { prisma } from './prisma'
+import type { WorkViewer } from './status-emphasis'
 import { HELPER_COUNT } from './task-helpers'
 import { canViewWorkItem, loadTaskStatusViews, resolveProjectPrivy } from './work-item'
 
@@ -22,6 +23,8 @@ export type WorkItemSummary = {
   deadline: Date | null
   completedAt: Date | null
   href: string
+  /** Where the viewer stands on it, for whether its badges are their move. */
+  viewer: WorkViewer
 }
 
 type SummaryRow = {
@@ -32,13 +35,22 @@ type SummaryRow = {
   status: string
   deadline: Date | null
   completedAt: Date | null
+  assigneeId: number | null
   assignee: { name: string } | null
   helpersWanted: number | null
   /** Loaded with HELPER_COUNT (lib/task-helpers.ts). */
   _count: { interests: number }
 }
 
-export function toWorkItemSummary(item: SummaryRow, displayStatus: string): WorkItemSummary {
+/**
+ * `canReview` is whether the viewer may accept the work and replan it: an admin, or for a task
+ * the project's owner or a deputy.
+ */
+export function toWorkItemSummary(
+  item: SummaryRow,
+  displayStatus: string,
+  viewer: { id: number; canReview: boolean },
+): WorkItemSummary {
   const isTask = item.type === WorkItemType.TASK
   return {
     id: item.id,
@@ -52,6 +64,7 @@ export function toWorkItemSummary(item: SummaryRow, displayStatus: string): Work
     deadline: item.deadline,
     completedAt: item.completedAt,
     href: isTask ? `/projects/${item.parentId}/tasks/${item.id}` : `/quick-tasks/${item.id}`,
+    viewer: { isAssignee: item.assigneeId === viewer.id, canReview: viewer.canReview },
   }
 }
 
@@ -102,5 +115,21 @@ export async function loadWorkItemSummaries(
   const tasks = visible.filter((i) => i.type === WorkItemType.TASK)
   const views = await loadTaskStatusViews(tasks)
   const shown = new Map(tasks.map((t, n) => [t.id, views[n].displayStatus]))
-  return new Map(visible.map((i) => [i.id, toWorkItemSummary(i, shown.get(i.id) ?? i.status)]))
+  const deputyOf = new Set(
+    (
+      await prisma.projectDeputy.findMany({
+        where: { volunteerId: viewer.id, projectId: { in: [...projects.keys()] } },
+        select: { projectId: true },
+      })
+    ).map((d) => d.projectId),
+  )
+  const canReview = (i: (typeof visible)[number]) =>
+    Boolean(viewer.isAdmin) ||
+    (i.parent !== null && (i.parent.assigneeId === viewer.id || deputyOf.has(i.parent.id)))
+  return new Map(
+    visible.map((i) => [
+      i.id,
+      toWorkItemSummary(i, shown.get(i.id) ?? i.status, { id: viewer.id, canReview: canReview(i) }),
+    ]),
+  )
 }

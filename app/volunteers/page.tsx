@@ -98,7 +98,7 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
   return (
     <>
       <main className="container py-5 pb-15">
-        <h1>Volunteer Directory</h1>
+        <h1>Volunteer directory</h1>
         <ViewSwitch label="People" views={PEOPLE_VIEWS} current="/volunteers" />
 
         <div className="mb-5">

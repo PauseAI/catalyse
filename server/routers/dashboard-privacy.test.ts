@@ -98,9 +98,9 @@ describe('dashboard.get', () => {
       href: `/projects/${lead.id}/tasks/${task.id}`,
     })
     expect(byTitle['T1']).toMatchObject({ status: 'In progress', displayStatus: 'in_progress' })
-    expect(byTitle['T2']).toMatchObject({ status: 'Submitted for review' })
+    expect(byTitle['T2']).toMatchObject({ status: 'In review' })
     expect(byTitle['T3']).toMatchObject({
-      status: 'Blocked',
+      status: 'To do',
       displayStatus: 'blocked',
       blockedBy: [{ id: first.id, title: 'Emergency thing' }],
     })
@@ -111,7 +111,7 @@ describe('dashboard.get', () => {
     })
     expect(byTitle['QT1']).toMatchObject({
       href: `/quick-tasks/${qt.id}`,
-      status: 'Submitted for review',
+      status: 'In review',
     })
     expect(byTitle['Comms']).toMatchObject({
       kind: 'team',

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, act, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Button from './Button'
-import { Badge, badgeClasses, badgeColorClasses } from './Badge'
+import { Badge, StatusFlag, badgeClasses, badgeColorClasses } from './Badge'
 import Toggle from './Toggle'
 import Radio from './Radio'
 import Checkbox from './Checkbox'
@@ -48,10 +48,29 @@ describe('Badge', () => {
       </Badge>,
     )
     expect(screen.getByRole('status')).toHaveClass('status-badge', 'bg-emerald-100', 'm-1')
+    expect(screen.getByRole('status')).toHaveAttribute('data-emphasis', 'filled')
     expect(badgeClasses('neutral')).toContain('bg-gray-100')
-    expect(badgeColorClasses('danger')).toBe(
-      'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+    expect(badgeColorClasses('danger')).toContain('bg-red-100')
+  })
+
+  it('outlines a badge the viewer is waiting on, at the same size', () => {
+    render(
+      <>
+        <Badge variant="info" outline>
+          In review
+        </Badge>
+        <Badge variant="info">Mine</Badge>
+      </>,
     )
+    const outline = screen.getByText('In review')
+    expect(outline).toHaveAttribute('data-emphasis', 'outline')
+    expect(outline).toHaveClass('bg-transparent', 'border-2', 'border-blue-400')
+    expect(screen.getByText('Mine')).toHaveClass('border-2', 'border-blue-100')
+  })
+
+  it('shows a flag as muted text with a dot', () => {
+    render(<StatusFlag>Seeking help</StatusFlag>)
+    expect(screen.getByText('• Seeking help')).toHaveClass('text-text-light')
   })
 })
 

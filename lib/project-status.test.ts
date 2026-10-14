@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   projectStatusLabel,
+  projectStatusOutline,
   isSeekingOwner,
   proposerDisplay,
   ADVERTISABLE_STATUSES,
@@ -13,6 +14,14 @@ describe('projectStatusLabel', () => {
   it('uses the configured label, humanising unknown statuses', () => {
     expect(projectStatusLabel('in_progress')).toBe('In Progress')
     expect(projectStatusLabel('some_new_state')).toBe('some new state')
+  })
+})
+
+describe('projectStatusOutline', () => {
+  it('fills a proposal in review for an admin and outlines it for everyone else', () => {
+    expect(projectStatusOutline('pending_review', true)).toBe(false)
+    expect(projectStatusOutline('pending_review', false)).toBe(true)
+    expect(projectStatusOutline('in_progress', false)).toBe(false)
   })
 })
 

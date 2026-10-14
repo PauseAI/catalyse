@@ -12,7 +12,7 @@ export default function EditProjectPage({ params }: { params: Promise<{ id: stri
 
   return (
     <main className="container py-5 pb-15">
-      <h1 role="heading">Edit Project</h1>
+      <h1 role="heading">Edit project</h1>
       <ProjectEditor projectId={parseInt(idParam, 10)} />
     </main>
   )

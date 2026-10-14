@@ -7,10 +7,10 @@ import { useRequireApproved } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import Button from '@/components/Button'
-import { Badge } from '@/components/Badge'
+import { WorkStatusBadge } from '@/components/StatusBadges'
 import DeadlineChip from '@/components/DeadlineChip'
 import CommentThread from '@/components/CommentThread'
-import { QUICK_TASK_STATUS_LABELS } from '@/lib/status-labels'
+import { latenessOutline, statusOutline } from '@/lib/status-emphasis'
 import Linkify from '@/components/Linkify'
 import SubmitWorkButton from '@/components/SubmitWorkButton'
 import SubmittedWork from '@/components/SubmittedWork'
@@ -28,12 +28,6 @@ const REVIEW_RATING_LABELS: Record<string, string> = {
   good: 'Good',
   needs_improvement: 'Needs Improvement',
   unsatisfactory: 'Unsatisfactory',
-}
-
-function statusVariant(status: string) {
-  if (status === QuickTaskStatus.completed) return 'success'
-  if (status === QuickTaskStatus.under_review) return 'warning'
-  return 'neutral'
 }
 
 export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -84,6 +78,8 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
   }
 
   const mine = task.assignedToId === user.id
+  const viewer = { isAssignee: mine, canReview: Boolean(user.isAdmin) }
+  const changesRequested = task.changesRequested !== null
 
   return (
     <main className="container py-5 pb-15">
@@ -97,9 +93,12 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
       <div className={`${SECTION_CARD} overflow-hidden wrap-break-word`}>
         <div className="flex justify-between items-start mb-3 gap-4">
           <h1 className="m-0">{task.title}</h1>
-          <Badge variant={statusVariant(task.status)}>
-            {QUICK_TASK_STATUS_LABELS[task.status] ?? task.status}
-          </Badge>
+          <WorkStatusBadge
+            status={task.status}
+            quick
+            changesRequested={changesRequested}
+            outline={statusOutline(task.status, changesRequested, viewer)}
+          />
         </div>
 
         <div className="flex gap-3 mb-4 flex-wrap">
@@ -115,7 +114,11 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
           )}
           {task.deadline && (
             <span className="flex items-center gap-2 self-center">
-              <DeadlineChip deadline={task.deadline} done={handedIn(task.status)} />
+              <DeadlineChip
+                deadline={task.deadline}
+                done={handedIn(task.status)}
+                outline={latenessOutline(viewer)}
+              />
             </span>
           )}
           {task.projectTitle && task.projectId && (

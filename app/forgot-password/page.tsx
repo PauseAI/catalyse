@@ -27,7 +27,7 @@ export default function ForgotPasswordPage() {
     <>
       <main className="container py-5 pb-15">
         <div className="sm:max-w-[400px] my-15 mx-auto">
-          <h1 className="text-center">Reset Password</h1>
+          <h1 className="text-center">Reset password</h1>
           <p className="text-center text-text-light mb-8">
             Enter your email and we&apos;ll send you a reset link.
           </p>
@@ -73,7 +73,7 @@ export default function ForgotPasswordPage() {
           ) : (
             <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
               <div className="text-center">
-                <h3 className="text-success">Check Your Email</h3>
+                <h3 className="text-success">Check your email</h3>
                 <p className="text-text-light my-4">
                   If an account exists with that email, you&apos;ll receive a password reset link
                   shortly.

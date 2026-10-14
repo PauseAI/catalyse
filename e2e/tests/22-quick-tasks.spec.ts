@@ -175,7 +175,7 @@ test.describe('Quick Tasks: self-serve', () => {
       'href',
       `/projects/${projectId}/tasks/${taskId}`,
     )
-    await expect(card.getByRole('status')).toContainText('Not started')
+    await expect(card.getByRole('status')).toContainText('To do')
   })
 
   test('Self-claim does not create a duplicate interest for a volunteer who already has one', async ({
@@ -253,7 +253,7 @@ test.describe('Quick Tasks: self-serve', () => {
 
     await taskCard.getByRole('button', { name: 'Unassign', exact: true }).click()
     await expect(getAlert(adminPage)).toContainText('Assignee removed', { timeout: 10_000 })
-    await expect(taskCard.getByRole('status')).toContainText('Open', { timeout: 10_000 })
+    await expect(taskCard.getByRole('status')).toContainText('To do', { timeout: 10_000 })
   })
 })
 

@@ -5,7 +5,7 @@ import { useRequireApproved } from '@/lib/hooks/auth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Badge, type BadgeVariant } from '@/components/Badge'
+import { Badge } from '@/components/Badge'
 import Button from '@/components/Button'
 import CommentThread from '@/components/CommentThread'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
@@ -27,12 +27,8 @@ import {
   TASK_REQUESTED_MESSAGE,
 } from '@/lib/action-messages'
 import { ASSIGN_PICKED, CLAIM_TASK, CLAIMING, UNASSIGN, claimLabel } from '@/lib/action-labels'
-import {
-  QUICK_TASK_STATUS_LABELS,
-  QUICK_TASK_STATUS_VARIANTS,
-  TASK_STATUS_LABELS,
-  TASK_STATUS_VARIANTS,
-} from '@/lib/status-labels'
+import { workStatusBadge } from '@/lib/status-labels'
+import { statusOutline } from '@/lib/status-emphasis'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate, fromDateInputValue, toDateInputValue } from '@/lib/format-date'
@@ -111,8 +107,9 @@ function QuickTaskCard({
   title,
   titleHref,
   status,
-  statusVariant,
-  statusLabel,
+  quick = false,
+  changesRequested = false,
+  outline = false,
   meta,
   description,
   children,
@@ -120,13 +117,16 @@ function QuickTaskCard({
   anchorId?: string
   title: string
   titleHref?: string
+  /** A Quick Task's stored status (`quick`) or a project task's, badged by `workStatusBadge`. */
   status: string
-  statusVariant: BadgeVariant
-  statusLabel?: string
+  quick?: boolean
+  changesRequested?: boolean
+  outline?: boolean
   meta?: React.ReactNode[]
   description?: string | null
   children?: React.ReactNode
 }) {
+  const badge = workStatusBadge(status, quick, changesRequested)
   return (
     <div
       id={anchorId}
@@ -135,8 +135,13 @@ function QuickTaskCard({
     >
       <div className="flex justify-between items-start gap-3 mb-2">
         <h3 className="m-0">{titleHref ? <Link href={titleHref}>{title}</Link> : title}</h3>
-        <Badge role="status" variant={statusVariant} className="whitespace-nowrap shrink-0">
-          {statusLabel ?? status}
+        <Badge
+          role="status"
+          variant={badge.variant}
+          outline={outline}
+          className="whitespace-nowrap shrink-0"
+        >
+          {badge.label}
         </Badge>
       </div>
       {meta && meta.some(Boolean) && (
@@ -163,6 +168,8 @@ export default function QuickTasksPage() {
 type ApprovedUser = NonNullable<ReturnType<typeof useRequireApproved>['user']>
 
 function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
+  // The My tasks tab lists the viewer's own, so a submission there waits on an admin.
+  const myViewer = { isAssignee: true, canReview: Boolean(user.isAdmin) }
   const showToast = useToast()
   const queryClient = useQueryClient()
   const router = useRouter()
@@ -212,7 +219,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
   return (
     <>
       <main className="container py-5 pb-15">
-        <h1>Quick Tasks</h1>
+        <h1>Quick tasks</h1>
         <p className="text-text-light mb-4">
           Small, self-contained tasks to help you get started and make an impact quickly.
         </p>
@@ -234,7 +241,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
         {tab === 'mine' && (
           <section aria-labelledby="my-quick-tasks">
             <h2 id="my-quick-tasks" className="mt-0">
-              My Quick Tasks
+              My quick tasks
             </h2>
 
             {loadingTasks ? (
@@ -257,8 +264,9 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                   title={task.title}
                   titleHref={`/quick-tasks/${task.id}`}
                   status={task.status}
-                  statusVariant={QUICK_TASK_STATUS_VARIANTS[task.status] ?? 'neutral'}
-                  statusLabel={QUICK_TASK_STATUS_LABELS[task.status] ?? task.status}
+                  quick
+                  changesRequested={task.changesRequested !== null}
+                  outline={statusOutline(task.status, task.changesRequested !== null, myViewer)}
                   description={task.description}
                   meta={[
                     task.skillName && (
@@ -308,7 +316,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
         {tab === 'open' && (
           <section aria-labelledby="browse-quick-tasks">
             <h2 id="browse-quick-tasks" className="mt-0">
-              Browse Quick Tasks
+              Browse quick tasks
             </h2>
             <p className="text-text-light mb-6">
               Open tasks to pick up right now, no need to browse projects first.
@@ -334,8 +342,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                     title={task.title}
                     titleHref={`/quick-tasks/${task.id}`}
                     status="open"
-                    statusVariant={QUICK_TASK_STATUS_VARIANTS.open}
-                    statusLabel={QUICK_TASK_STATUS_LABELS.open}
+                    quick
                     description={task.description}
                     meta={[
                       task.skillName && (
@@ -349,7 +356,12 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                         </span>
                       ),
                       task.deadline && (
-                        <DeadlineChip key="deadline" deadline={task.deadline} done={false} />
+                        <DeadlineChip
+                          key="deadline"
+                          deadline={task.deadline}
+                          done={false}
+                          outline={!user.isAdmin}
+                        />
                       ),
                     ]}
                   >
@@ -370,8 +382,6 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                     title={task.title}
                     titleHref={`/projects/${task.projectId}/tasks/${task.id}`}
                     status="not_started"
-                    statusVariant={TASK_STATUS_VARIANTS.not_started}
-                    statusLabel={TASK_STATUS_LABELS.not_started}
                     description={task.description}
                     meta={[
                       task.projectTitle && (
@@ -386,7 +396,12 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                         </span>
                       ),
                       task.deadline && (
-                        <DeadlineChip key="deadline" deadline={task.deadline} done={false} />
+                        <DeadlineChip
+                          key="deadline"
+                          deadline={task.deadline}
+                          done={false}
+                          outline={!user.isAdmin}
+                        />
                       ),
                     ]}
                   >
@@ -676,7 +691,7 @@ function AdminQuickTasksView() {
     <>
       <main className="container py-5 pb-15">
         <div className="flex justify-between items-center mb-3">
-          <h1>Quick Tasks</h1>
+          <h1>Quick tasks</h1>
           <Button onClick={() => setShowCreate(true)}>Create Task</Button>
         </div>
 
@@ -711,8 +726,8 @@ function AdminQuickTasksView() {
               anchorId={`task-${task.id}`}
               title={task.title}
               status={task.status}
-              statusVariant={QUICK_TASK_STATUS_VARIANTS[task.status] ?? 'neutral'}
-              statusLabel={QUICK_TASK_STATUS_LABELS[task.status] ?? task.status}
+              quick
+              changesRequested={task.changesRequested !== null}
               description={task.description}
               meta={[
                 task.skillName && (
@@ -849,8 +864,6 @@ function AdminQuickTasksView() {
                 title={task.title}
                 titleHref={`/projects/${task.projectId}/tasks/${task.id}`}
                 status={task.status}
-                statusVariant={TASK_STATUS_VARIANTS[task.status] ?? 'neutral'}
-                statusLabel={TASK_STATUS_LABELS[task.status] ?? task.status}
                 description={task.description}
                 meta={[
                   task.projectTitle && (
@@ -952,7 +965,7 @@ function AdminQuickTasksView() {
             className="bg-surface rounded-xl shadow-lg max-w-150 w-full max-h-[90vh] overflow-y-auto"
           >
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 id="create-dialog-title">Create Quick Task</h2>
+              <h2 id="create-dialog-title">Create quick task</h2>
             </div>
             <div className="p-6">
               <form onSubmit={createTask}>
@@ -1049,7 +1062,7 @@ function AdminQuickTasksView() {
             className="bg-surface rounded-xl shadow-lg max-w-150 w-full max-h-[90vh] overflow-y-auto"
           >
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 id="edit-dialog-title">Edit Quick Task</h2>
+              <h2 id="edit-dialog-title">Edit quick task</h2>
             </div>
             <div className="p-6">
               <form onSubmit={(e) => editTask(e, editModal)}>

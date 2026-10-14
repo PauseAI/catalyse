@@ -52,7 +52,7 @@ test.describe('Project Edit Regressions', () => {
     await expect(checkbox).toBeChecked({ checked: !wasChecked })
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
 
-    const badge = volunteer.page.getByText('Seeking Help')
+    const badge = volunteer.page.getByText('• Seeking help')
     if (wasChecked) {
       await expect(badge).toBeHidden({ timeout: 10_000 })
     } else {

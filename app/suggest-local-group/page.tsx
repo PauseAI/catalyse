@@ -9,19 +9,17 @@ import { orpc } from '@/lib/orpc'
 import { COUNTRY_OPTIONS, countryLabel } from '@/lib/filter-options'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
-import { SUGGESTION_STATUS_LABELS } from '@/lib/status-labels'
+import { Badge } from '@/components/Badge'
+import {
+  SUGGESTION_STATUS_LABELS,
+  suggestionOutline,
+  suggestionStatusVariant,
+} from '@/lib/status-labels'
 import { BLEED, SECTION_CARD } from '@/lib/ui-classes'
 
 const SUGGESTION_COUNTRIES = COUNTRY_OPTIONS.filter(
   (o) => o.value && o.value !== 'Remote' && o.value !== 'Other',
 )
-
-const STATUS_CLASSES: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-  accepted: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  on_hold: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  declined: 'bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400',
-}
 
 export default function SuggestLocalGroupPage() {
   const { user, loading } = useRequireAuth()
@@ -72,7 +70,7 @@ export default function SuggestLocalGroupPage() {
   return (
     <>
       <main className="container py-5 pb-15">
-        <h1>Suggest a Local Group</h1>
+        <h1>Suggest a local group</h1>
         <p className="text-text-light mb-6">
           Don&apos;t see your local group listed? Suggest it here and an admin will review it.
         </p>
@@ -111,7 +109,7 @@ export default function SuggestLocalGroupPage() {
 
           {!loadingSuggestions && suggestions.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold mb-4">Your Previous Suggestions</h2>
+              <h2 className="text-lg font-semibold mb-4">Your previous suggestions</h2>
               <div className="space-y-3">
                 {suggestions.map((s) => (
                   <article
@@ -135,11 +133,13 @@ export default function SuggestLocalGroupPage() {
                         <p className="text-sm text-text-light mt-2 mb-0 italic">{s.adminNotes}</p>
                       )}
                     </div>
-                    <span
-                      className={`text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap ${STATUS_CLASSES[s.status] ?? ''}`}
+                    <Badge
+                      variant={suggestionStatusVariant(s.status)}
+                      outline={suggestionOutline(s.status)}
+                      className="whitespace-nowrap"
                     >
                       {SUGGESTION_STATUS_LABELS[s.status] ?? s.status}
-                    </span>
+                    </Badge>
                   </article>
                 ))}
               </div>

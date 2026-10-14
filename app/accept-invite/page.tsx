@@ -56,7 +56,7 @@ function AcceptInviteContent() {
       typeof window !== 'undefined' ? encodeURIComponent(window.location.href) : ''
     return (
       <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word text-center`}>
-        <h2>Admin Invite</h2>
+        <h2>Admin invite</h2>
         <p className="text-text-light my-4">
           You&apos;ve been invited to become an admin on Catalyse.
         </p>
@@ -72,7 +72,7 @@ function AcceptInviteContent() {
   if (status === 'success') {
     return (
       <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word text-center`}>
-        <h2>Welcome to the Team!</h2>
+        <h2>Welcome to the team!</h2>
         <p className="text-text-light my-4">You now have admin access to Catalyse. Redirecting…</p>
         <Button href="/admin/triage">Go to Admin Dashboard</Button>
       </div>

@@ -42,8 +42,8 @@ describe('task detail page', () => {
     cleanup()
     await mount(project.id, task.id, me)
     await screen.findByRole('button', { name: 'Start' })
-    // Claimed is not started: nothing it waits on, so it reads Ready.
-    expect(screen.getByText('Ready')).toBeInTheDocument()
+    // Claimed is not started: it reads To do.
+    expect(screen.getByText('To do')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Start' }))
     await screen.findByText('Started. Post updates as you go.')
     await screen.findByText('In progress')
@@ -122,7 +122,7 @@ describe('task detail page', () => {
     await mount(project.id, task.id, me)
     await screen.findByText("Still waiting on 'Emergency thing'.")
     expect(screen.getByText('In progress')).toBeInTheDocument()
-    expect(screen.queryByText('Blocked')).toBeNull()
+    expect(screen.queryByText(/Blocked by/)).toBeNull()
   })
 
   it('shows what a task waits on and what it unblocks, as cards under the header', async () => {
@@ -159,7 +159,7 @@ describe('task detail page', () => {
     expect(
       within(waitsOn).getByRole('link', { name: 'Pack flyering stall kit' }).parentElement,
     ).toHaveTextContent(/^Pack flyering stall kitDoneDone /)
-    expect(screen.getByText('Ready')).toBeInTheDocument()
+    expect(screen.getByText('To do')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Unblocks' })).toBeNull()
 
     cleanup()
@@ -171,7 +171,7 @@ describe('task detail page', () => {
     await screen.findByText('Waiting on 1 of 2.')
     const open = screen.getByRole('region', { name: 'Waits on' })
     expect(within(open).getByText('Sam')).toBeInTheDocument()
-    expect(screen.getByText('Blocked')).toBeInTheDocument()
+    expect(screen.getByText(/^• Blocked by/)).toBeInTheDocument()
 
     // Started early, then all done: no "You can start".
     cleanup()
@@ -360,14 +360,14 @@ describe('task detail page', () => {
       }),
     ).toBeNull()
     expect(screen.queryByText(/^(When|Who|Owner)$/)).toBeNull()
-    // Its predecessor is not done, so it is Blocked, and says by what.
-    expect(screen.getByText('Blocked')).toBeInTheDocument()
-    expect(screen.getByText('Blocked by').parentElement).toHaveTextContent(
-      "Blocked by 'Predecessor'",
+    // Its predecessor is not done, so it is To do, and says what blocks it beside the badge.
+    expect(within(screen.getByRole('group', { name: 'Status' })).getByText('To do')).toHaveClass(
+      'status-badge',
     )
+    expect(screen.getByText("• Blocked by 'Predecessor'")).toHaveClass('text-text-light')
     // What it depends on is a work item card: its own status, who has it, when it is due.
     expect(screen.getByRole('link', { name: 'Predecessor' }).parentElement).toHaveTextContent(
-      /^PredecessorReadyUnclaimedNo deadline$/,
+      /^PredecessorTo doUnclaimedNo deadline$/,
     )
     // A link's lag still counts in the schedule, but the task page never shows or edits it.
     expect(screen.queryByText(/lag/i)).toBeNull()
@@ -393,9 +393,9 @@ describe('task detail page', () => {
         `Assigned to${initials(me.name)}${me.name}(you)`,
       ),
     )
-    // Claiming does not start it: still Blocked, with Start offered for prep.
+    // Claiming does not start it: still blocked, with Start offered for prep.
     expect((await row(task.id)).status).toBe('not_started')
-    expect(screen.getByText('Blocked')).toBeInTheDocument()
+    expect(screen.getByText(/^• Blocked by/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start' })).toBeInTheDocument()
 
     cleanup()
@@ -592,6 +592,8 @@ describe('task detail page — past plan', () => {
     const { owner, sam, project, late } = await lateTask('A')
     await mount(project.id, late.id, sam)
     await screen.findByText(/3 days past plan\./)
+    // The assignee is the one to act on it, so the header's badge is filled.
+    expect(screen.getByText('3 days late')).toHaveAttribute('data-emphasis', 'filled')
     expect(screen.getByText(/The owner has been told/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Replan' })).toBeNull()
     cleanup()
@@ -739,7 +741,7 @@ describe('task detail page — a done task', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Reopen' }))
     const dialog = await screen.findByRole('dialog', { name: "Reopen 'Sweep up'?" })
     expect(
-      within(dialog).getByText('It goes back to Not started and can be edited again.'),
+      within(dialog).getByText('It goes back to To do and can be edited again.'),
     ).toBeInTheDocument()
     // Someone else reopened it first.
     await prisma.workItem.update({ where: { id: task.id }, data: { status: 'not_started' } })

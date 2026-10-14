@@ -179,7 +179,7 @@ describe('triage', () => {
 
     await renderApp(<TriagePage />, { as: admin, url: '/admin/triage' })
     await screen.findByRole('link', { name: 'Needs review' })
-    expect(screen.getByRole('tab', { name: 'Pending Review1' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'In Review1' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Review' })).toHaveAttribute(
       'href',
       `/projects/${pending.id}`,
@@ -207,7 +207,7 @@ describe('triage', () => {
     await userEvent.click(within(draftCard).getByRole('button', { name: 'Submit for Review' }))
     await screen.findByText('Draft submitted for review')
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Half a draft' })).toBeNull())
-    await userEvent.click(await screen.findByRole('tab', { name: 'Pending Review2' }))
+    await userEvent.click(await screen.findByRole('tab', { name: 'In Review2' }))
     await screen.findByRole('link', { name: 'Half a draft' })
 
     await userEvent.click(await screen.findByRole('tab', { name: 'Volunteer Interests1' }))
@@ -226,7 +226,7 @@ describe('triage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Status' }))
     await userEvent.click(screen.getByRole('option', { name: 'All' }))
     await screen.findByText(/wants to contribute to/)
-    expect(screen.getByText('declined')).toBeInTheDocument()
+    expect(screen.getByText('Declined', { selector: '.status-badge' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Accept' })).toBeNull()
   })
 
@@ -256,7 +256,7 @@ describe('triage', () => {
     )
     await userEvent.click(screen.getByRole('button', { name: 'Status' }))
     await userEvent.click(screen.getByRole('option', { name: 'Accepted' }))
-    await screen.findByText('accepted')
+    await screen.findByText('Accepted', { selector: '.status-badge' })
     await prisma.workItemInterest.update({
       where: { id: interest.id },
       data: { status: 'pending' },

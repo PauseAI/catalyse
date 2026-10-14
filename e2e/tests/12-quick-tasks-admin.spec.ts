@@ -105,7 +105,7 @@ test.describe('Quick Tasks (admin)', () => {
     // Task appears in the list with status 'open'
     const taskCard = adminPage.getByRole('article').filter({ hasText: taskTitle })
     await expect(taskCard).toBeVisible({ timeout: 10_000 })
-    await expect(taskCard.getByRole('status')).toContainText('Open')
+    await expect(taskCard.getByRole('status')).toContainText('To do')
   })
 
   test('Admin assigns a quick task to a volunteer; task status becomes assigned and volunteer receives a notification', async ({
@@ -236,7 +236,7 @@ test.describe('Quick Tasks (admin)', () => {
       timeout: 10_000,
     })
     const adminTaskCard = adminPage.getByRole('article').filter({ hasText: taskTitle })
-    await expect(adminTaskCard.getByRole('status')).toContainText('Submitted for review', {
+    await expect(adminTaskCard.getByRole('status')).toContainText('In review', {
       timeout: 10_000,
     })
 

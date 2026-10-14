@@ -10,7 +10,9 @@ import Button from '@/components/Button'
 import Checkbox from '@/components/Checkbox'
 import DatesBlock from '@/components/DatesBlock'
 import { plural } from '@/lib/plural'
-import { handedIn, isOverdue as deadlinePassed } from '@/lib/overdue'
+import { handedIn } from '@/lib/overdue'
+import { lateness } from '@/lib/lateness'
+import { interestOutline, latenessOutline, statusOutline } from '@/lib/status-emphasis'
 import { KEY_DATE_SIDE_LABELS } from '@/lib/key-date'
 import {
   EMPTY_DATES,
@@ -19,10 +21,14 @@ import {
   taskIsDated,
   type DatesValue,
 } from '@/lib/task-dates'
-import { Badge } from '@/components/Badge'
+import { Badge, StatusFlag } from '@/components/Badge'
 import Tooltip from '@/components/Tooltip'
 import { projectStatusVariant } from '@/components/ProjectCard'
-import { INTEREST_STATUS_LABELS, interestHistoryLabel } from '@/lib/status-labels'
+import {
+  INTEREST_STATUS_LABELS,
+  interestHistoryLabel,
+  interestStatusVariant,
+} from '@/lib/status-labels'
 import {
   interestSentMessage,
   PROJECT_TASK_CLAIMED_MESSAGE,
@@ -47,7 +53,7 @@ import SubmissionAskFields, {
 } from '@/components/SubmissionAskFields'
 import { awaitsOwnerReview } from '@/lib/task-review'
 import { isHttpUrl } from '@/lib/url'
-import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS } from '@/lib/status-labels'
+import { LatenessBadge, WorkStatusBadge } from '@/components/StatusBadges'
 import Modal from '@/components/ui/Modal'
 import { EmptyPersonChip, PersonChip } from '@/components/ui/PersonChip'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
@@ -79,6 +85,7 @@ import {
   TERMINAL_STATUSES,
   UNAPPROVED_STATUSES,
   projectStatusLabel,
+  projectStatusOutline,
   proposerDisplay,
 } from '@/lib/project-status'
 import { InterestStatus, ProjectStatus, TaskStatus, WorkItemType } from '@/generated/prisma/enums'
@@ -395,9 +402,11 @@ function TaskTimeline({
   onClaimTask,
   onUnassignTask,
   highlightCritical,
+  viewerId,
 }: {
   timeline: TimelineData | undefined
   projectId: number
+  viewerId: number
   loading: boolean
   canAssignTasks: boolean
   canClaimTasks: boolean
@@ -574,6 +583,7 @@ function TaskTimeline({
     deadline: t.deadline,
     completedAt: t.completedAt,
     href: `/projects/${projectId}/tasks/${t.id}`,
+    viewer: { isAssignee: t.assignedToId === viewerId, canReview: canManage },
   })
   const selectedSuccessors = selectedRow
     ? timeline.dependencies.flatMap((d) => {
@@ -677,6 +687,7 @@ function TaskTimeline({
               assigneeName={selectedTask.assignedToName}
               helpers={helperSummary(selectedTask.helperCount, selectedTask.helpersWanted)}
               canManage={canManage}
+              viewerIsAssignee={selectedTask.assignedToId === viewerId}
               busy={busy}
               predecessors={selectedLinks.flatMap((d) => {
                 const t = taskById.get(d.predecessorId)
@@ -1414,6 +1425,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     },
   ]
   const pastPeople = volunteerInterests.filter((i) => !peopleGroups.some((g) => g.rows.includes(i)))
+  // Whoever sees this list answers requests; an invite waits on the person invited.
+  const interestBadge = (interest: (typeof volunteerInterests)[number]) => (
+    <Badge
+      variant={interestStatusVariant(interest.status)}
+      outline={interestOutline(
+        interest.status,
+        interest.status === InterestStatus.pending || interest.volunteerId === user.id,
+      )}
+    >
+      {INTEREST_STATUS_LABELS[interest.status] ?? interest.status}
+    </Badge>
+  )
   const renderPerson = (interest: (typeof volunteerInterests)[number]) => (
     // [test hook] interest-card class used as test selector
     <li
@@ -1453,7 +1476,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         </span>
       </div>
       {locked ? null : interest.status === InterestStatus.pending ? (
-        <div className="flex gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {interestBadge(interest)}
           <Button size="sm" onClick={() => handleAcceptInterest(interest.id)}>
             Accept
           </Button>
@@ -1467,9 +1491,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         </div>
       ) : interest.status === InterestStatus.accepted ? (
         <div className="flex items-center gap-2 shrink-0">
-          <Badge variant={projectStatusVariant(interest.status)}>
-            {INTEREST_STATUS_LABELS[interest.status] ?? interest.status}
-          </Badge>
+          {interestBadge(interest)}
           <Button
             variant="secondary"
             size="sm"
@@ -1485,16 +1507,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </Button>
         </div>
       ) : interest.status === InterestStatus.invited ? (
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={cancelInviteMutation.isPending}
-          onClick={() =>
-            cancelInviteMutation.mutate({ projectId: project.id, interestId: interest.id })
-          }
-        >
-          Cancel invite
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {interestBadge(interest)}
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={cancelInviteMutation.isPending}
+            onClick={() =>
+              cancelInviteMutation.mutate({ projectId: project.id, interestId: interest.id })
+            }
+          >
+            Cancel invite
+          </Button>
+        </div>
       ) : null}
       {interest.message && interest.status !== InterestStatus.accepted && (
         <p className="text-sm text-text-light w-full m-0">{interest.message}</p>
@@ -1850,17 +1875,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   // more pressing for the viewer to do on this page than answer it.
   const pendingInvite = !locked && myStatus === InterestStatus.invited
   const requestPending = !isOwnerOrAdmin && !locked && myStatus === InterestStatus.pending
-  // A request to lead answers the Seeking Owner badge, so for its sender it stands in for the
-  // badge, as muted text after the pills. It names no one: an admin answers an ownerless project.
+  // A request to lead answers the Seeking owner flag, so for its sender it stands in for the
+  // flag, after the status. It names no one: an admin answers an ownerless project. The sender
+  // waits on it, so its badge is outlined.
   const leadRequestPending = requestPending && project.myInterest?.interestType === 'want_to_own'
   const requestStatus = (
-    <span
-      className={`text-sm ${leadRequestPending ? 'text-text-light' : ''}`}
-      aria-label="interest status"
-    >
-      {leadRequestPending
-        ? 'Request to lead sent: waiting for an answer'
-        : 'Request sent: waiting for the owner'}
+    <span className="inline-flex flex-wrap items-center gap-2" aria-label="interest status">
+      <Badge variant={interestStatusVariant(InterestStatus.pending)} outline>
+        {leadRequestPending ? 'Request to lead sent' : 'Request sent'}
+      </Badge>
+      <span className="text-sm text-text-light">
+        {leadRequestPending ? 'Waiting for an answer' : 'Waiting for the owner'}
+      </span>
     </span>
   )
   const canJoinProject =
@@ -1868,7 +1894,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const standingAction = !isOwnerOrAdmin && (
     <>
       {pendingInvite && (
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <Badge variant={interestStatusVariant(InterestStatus.invited)}>
+            {INTEREST_STATUS_LABELS.invited}
+          </Badge>
           <Button
             size="sm"
             disabled={respondToInviteMutation.isPending}
@@ -1900,7 +1929,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             You&apos;re on this project
             {project.myInterest?.interestType === 'want_to_own' ? ' as its lead' : ''}
           </span>
-          {isDeputy && <Badge variant="success">Deputy</Badge>}
+          {isDeputy && <Badge>Deputy</Badge>}
           <Button variant="secondary" size="sm" onClick={() => setWithdrawAccepted(true)}>
             Leave project
           </Button>
@@ -1984,7 +2013,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           project.status === ProjectStatus.needs_discussion) &&
         !reviewDone && (
           <div className={card}>
-            <h2>Review Project</h2>
+            <h2>Review project</h2>
             <form onSubmit={handleSubmitReview}>
               <div className="mb-5">
                 <label className="flex items-center gap-2 cursor-pointer mb-2 font-normal">
@@ -2031,7 +2060,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       {/* Record Outcome */}
       {isAdmin && project.status === ProjectStatus.completed && !project.outcome && (
         <div className={card}>
-          <h2>Record Project Outcome</h2>
+          <h2>Record project outcome</h2>
           <form onSubmit={handleRecordOutcome}>
             <div className="mb-5">
               <FilterDropdown
@@ -2216,18 +2245,20 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           disabled={updateProjectMutation.isPending}
         />
       ) : (
-        <Badge variant={projectStatusVariant(project.status)} aria-label="project status">
+        <Badge
+          variant={projectStatusVariant(project.status)}
+          outline={projectStatusOutline(project.status, isAdmin)}
+          aria-label="project status"
+        >
           {projectStatusLabel(project.status)}
         </Badge>
       )}
       {locked && isOwnerOrAdmin && (
         <ReopenProjectButton projectId={project.id} title={project.title} />
       )}
-      {project.isSeekingOwner && !leadRequestPending && (
-        <Badge variant="caution">Seeking Owner</Badge>
-      )}
-      {project.isSeekingHelp && <Badge variant="caution">Seeking Help</Badge>}
-      {project.needsTasks && <Badge variant="warning">Needs Tasks</Badge>}
+      {project.isSeekingOwner && !leadRequestPending && <StatusFlag>Seeking owner</StatusFlag>}
+      {project.isSeekingHelp && <StatusFlag>Seeking help</StatusFlag>}
+      {project.needsTasks && <StatusFlag>Needs tasks</StatusFlag>}
       {leadRequestPending && requestStatus}
     </>
   )
@@ -2536,6 +2567,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               {tab === 'timeline' && (
                 <div className="overflow-x-auto">
                   <TaskTimeline
+                    viewerId={user.id}
                     timeline={timeline}
                     projectId={parseInt(idParam, 10)}
                     loading={!timeline}
@@ -2632,7 +2664,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     sensors={taskDragSensors}
                     onDragEnd={handleTaskDragEnd}
                     rowParts={(task) => {
-                      const isOverdue = deadlinePassed(task.deadline, handedIn(task.status))
+                      const taskViewer = {
+                        isAssignee: task.assignedToId === user.id,
+                        canReview: isOwnerOrAdmin || isDeputy,
+                      }
                       const canAssign =
                         canRunTasks && task.status !== TaskStatus.completed && volunteers.length > 0
                       const canUnassign =
@@ -2680,9 +2715,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                               </span>
                             )}
                             {task.status !== TaskStatus.completed && (
-                              <Badge variant={TASK_STATUS_VARIANTS[task.displayStatus]}>
-                                {TASK_STATUS_LABELS[task.displayStatus]}
-                              </Badge>
+                              <WorkStatusBadge
+                                status={task.displayStatus}
+                                outline={statusOutline(task.displayStatus, false, taskViewer)}
+                              />
                             )}
                             {task.featuredAsQuickTask && (
                               <span
@@ -2692,12 +2728,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                 ⚡ Quick Task
                               </span>
                             )}
-                            {isOverdue && <Badge variant="danger">Overdue</Badge>}
-                            {task.pastPlanDays ? (
-                              <Badge variant="warning">
-                                {plural(task.pastPlanDays, 'day')} past plan
-                              </Badge>
-                            ) : null}
+                            <LatenessBadge
+                              lateness={lateness({
+                                deadline: task.deadline,
+                                pastPlanDays: task.pastPlanDays,
+                                done: handedIn(task.status),
+                              })}
+                              outline={latenessOutline(taskViewer)}
+                            />
                             {task.keyDateSide && task.keyDateSide !== 'other' && (
                               <span
                                 className="text-xs whitespace-nowrap"

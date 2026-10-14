@@ -25,7 +25,7 @@ function ResetPasswordForm() {
   if (!token) {
     return (
       <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word text-center`}>
-        <h3 className="text-error">Invalid Link</h3>
+        <h3 className="text-error">Invalid link</h3>
         <p className="text-text-light my-4">
           This reset link is invalid or has expired. Please request a new one.
         </p>
@@ -120,7 +120,7 @@ export default function ResetPasswordPage() {
     <>
       <main className="container py-5 pb-15">
         <div className="sm:max-w-[400px] my-15 mx-auto">
-          <h1 className="text-center">Set New Password</h1>
+          <h1 className="text-center">Set new password</h1>
           <Suspense fallback={<div className="text-center py-10 text-text-light">Loading…</div>}>
             <ResetPasswordForm />
           </Suspense>

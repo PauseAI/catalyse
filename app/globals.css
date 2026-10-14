@@ -40,7 +40,7 @@
   --gantt-row-alt: rgba(45, 55, 72, 0.02);
   --gantt-row-hover: rgba(255, 148, 22, 0.08);
   --gantt-bar-todo: #64748b;
-  --gantt-bar-progress: #ff9416;
+  --gantt-bar-progress: #3b82f6;
   --gantt-bar-done: #38a169;
   --gantt-bar-hold: #a0aec0;
   --gantt-bar-text: #ffffff;
@@ -102,7 +102,7 @@
   --gantt-row-alt: rgba(255, 255, 255, 0.02);
   --gantt-row-hover: rgba(255, 166, 51, 0.1);
   --gantt-bar-todo: #7b8aa3;
-  --gantt-bar-progress: #ffa633;
+  --gantt-bar-progress: #60a5fa;
   --gantt-bar-done: #4ade80;
   --gantt-bar-hold: #4b5563;
   --gantt-bar-text: #111827;

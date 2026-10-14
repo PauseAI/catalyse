@@ -48,7 +48,7 @@ export default function ReopenTaskDialog({
       body={
         target.assigneeName
           ? `It goes back to In progress for ${target.assigneeName} and can be edited again.`
-          : 'It goes back to Not started and can be edited again.'
+          : 'It goes back to To do and can be edited again.'
       }
       confirmLabel="Reopen"
       busyLabel="Reopening…"

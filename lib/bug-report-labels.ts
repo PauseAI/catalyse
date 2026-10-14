@@ -14,7 +14,7 @@ export const BUG_CATEGORY_OPTIONS = [
 ] as const
 
 export const BUG_STATUS_VARIANT: Record<string, BadgeVariant> = {
-  open: 'caution',
+  open: 'neutral',
   in_progress: 'info',
   resolved: 'success',
   wont_fix: 'neutral',

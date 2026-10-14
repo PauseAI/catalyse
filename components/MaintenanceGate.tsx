@@ -51,7 +51,7 @@ export default function MaintenanceGate({ children }: { children: React.ReactNod
   return (
     <main id="main-content" className="container py-5 pb-15">
       <div className="max-w-[400px] my-15 mx-auto text-center">
-        <h1>Down for Maintenance</h1>
+        <h1>Down for maintenance</h1>
         <p className="text-text-light mb-8">{MAINTENANCE_MESSAGE}</p>
         {user ? (
           <button type="button" onClick={logout} className="text-sm underline cursor-pointer">

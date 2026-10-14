@@ -20,13 +20,16 @@ describe('toWorkItemSummary', () => {
     status: 'not_started',
     deadline: new Date('2026-10-14T00:00:00Z'),
     completedAt: null,
+    assigneeId: 5,
     assignee: { name: 'Sam' },
     helpersWanted: 3,
     _count: { interests: 1 },
   }
 
   it('links a task under its project', () => {
-    expect(toWorkItemSummary({ ...row, type: 'TASK' }, 'ready')).toEqual({
+    expect(
+      toWorkItemSummary({ ...row, type: 'TASK' }, 'ready', { id: 5, canReview: false }),
+    ).toEqual({
       id: 7,
       projectId: 3,
       title: 'Book the venue',
@@ -38,17 +41,23 @@ describe('toWorkItemSummary', () => {
       deadline: row.deadline,
       completedAt: null,
       href: '/projects/3/tasks/7',
+      viewer: { isAssignee: true, canReview: false },
     })
   })
 
   it('links a Quick Task on its own, with no project and no assignee', () => {
     expect(
-      toWorkItemSummary({ ...row, type: 'QUICK_TASK', parentId: null, assignee: null }, 'open'),
+      toWorkItemSummary(
+        { ...row, type: 'QUICK_TASK', parentId: null, assigneeId: null, assignee: null },
+        'open',
+        { id: 5, canReview: true },
+      ),
     ).toMatchObject({
       projectId: null,
       type: 'QUICK_TASK',
       assigneeName: null,
       href: '/quick-tasks/7',
+      viewer: { isAssignee: false, canReview: true },
     })
   })
 })
@@ -123,5 +132,19 @@ describe('loadWorkItemSummaries', () => {
     })
     expect((await loadWorkItemSummaries([orphan.id], admin)).has(orphan.id)).toBe(true)
     expect((await loadWorkItemSummaries([orphan.id], other)).has(orphan.id)).toBe(false)
+  })
+
+  it('says whether the viewer holds the task, and whether they may review it', async () => {
+    const owner = await createVolunteer()
+    const deputy = await createVolunteer()
+    const assignee = await createVolunteer()
+    const project = await createProject({ assigneeId: owner.id })
+    await prisma.projectDeputy.create({ data: { projectId: project.id, volunteerId: deputy.id } })
+    const task = await createTask(project.id, { assigneeId: assignee.id })
+    const viewerOf = async (v: typeof owner) =>
+      (await loadWorkItemSummaries([task.id], v)).get(task.id)?.viewer
+    expect(await viewerOf(owner)).toEqual({ isAssignee: false, canReview: true })
+    expect(await viewerOf(deputy)).toEqual({ isAssignee: false, canReview: true })
+    expect(await viewerOf(assignee)).toEqual({ isAssignee: true, canReview: false })
   })
 })

@@ -125,7 +125,7 @@ function LoginPageContent() {
       )}
       <main className="container py-5 pb-15">
         <div className="sm:max-w-[400px] my-15 mx-auto">
-          <h1 className="text-center">Welcome Back</h1>
+          <h1 className="text-center">Welcome back</h1>
           <p className="text-center text-text-light mb-8">
             Login to access your dashboard and projects.
           </p>

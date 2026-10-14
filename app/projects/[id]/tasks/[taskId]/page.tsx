@@ -15,13 +15,16 @@ import TaskDatesSummary from '@/components/TaskDatesSummary'
 import WorkItemCard from '@/components/WorkItemCard'
 import type { WorkItemSummary } from '@/lib/work-item-summary'
 import { EMPTY_DATES, datesPayload, datesValueFrom, type DatesValue } from '@/lib/task-dates'
-import { Badge } from '@/components/Badge'
+import { StatusFlag } from '@/components/Badge'
 import CommentThread from '@/components/CommentThread'
 import MessageDialog from '@/components/MessageDialog'
 import Linkify from '@/components/Linkify'
 import { useToast } from '@/lib/toast'
 import { TaskStatus } from '@/generated/prisma/enums'
-import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS, UNCLAIMED_LABEL } from '@/lib/status-labels'
+import { UNCLAIMED_LABEL } from '@/lib/status-labels'
+import { lateness } from '@/lib/lateness'
+import { latenessOutline, statusOutline } from '@/lib/status-emphasis'
+import { LatenessBadge, WorkStatusBadge } from '@/components/StatusBadges'
 import { PROJECT_TASK_CLAIMED_MESSAGE, TASK_REQUESTED_MESSAGE } from '@/lib/action-messages'
 import { CLAIMING, JOIN_AS_HELPER, UNASSIGN, claimLabel } from '@/lib/action-labels'
 import { TASK_INACTIVITY_RULE } from '@/lib/staleness'
@@ -275,6 +278,8 @@ export default function TaskDetailPage({
     !handedIn(task.status) &&
     task.assignedToId === user.id &&
     task.status === TaskStatus.not_started
+  // Whoever sees Accept on work in review is the one it waits on.
+  const viewer = { isAssignee: task.assignedToId === user.id, canReview: task.canManage }
 
   return (
     <main className="container py-5 pb-15">
@@ -376,9 +381,24 @@ export default function TaskDetailPage({
             </WorkItemPerson>
           }
           status={
-            <Badge variant={TASK_STATUS_VARIANTS[task.displayStatus]}>
-              {TASK_STATUS_LABELS[task.displayStatus]}
-            </Badge>
+            <>
+              <WorkStatusBadge
+                status={task.displayStatus}
+                changesRequested={task.changesRequested !== null}
+                outline={statusOutline(task.displayStatus, task.changesRequested !== null, viewer)}
+              />
+              <LatenessBadge
+                lateness={lateness({
+                  deadline: task.deadline,
+                  pastPlanDays: task.pastPlanDays,
+                  done: handedIn(task.status),
+                })}
+                outline={latenessOutline(viewer)}
+              />
+              {task.blockedBy.length > 0 && (
+                <StatusFlag>Blocked by {quotedTitles(task.blockedBy)}</StatusFlag>
+              )}
+            </>
           }
           actions={
             <>
@@ -409,11 +429,6 @@ export default function TaskDetailPage({
           <div className="whitespace-pre-wrap mb-6">
             <Linkify text={task.description} />
           </div>
-        )}
-        {task.blockedBy.length > 0 && (
-          <p className="mb-4 text-sm">
-            <strong>Blocked by</strong> {quotedTitles(task.blockedBy)}
-          </p>
         )}
         {task.waitingOn.length > 0 && (
           <p role="status" className="border-warning-text mb-4 rounded-lg border p-3 text-sm">

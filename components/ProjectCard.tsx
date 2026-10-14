@@ -1,11 +1,15 @@
 import React from 'react'
 import Link from 'next/link'
 import Button from '@/components/Button'
-import { Badge, badgeClasses, type BadgeVariant } from '@/components/Badge'
+import { Badge, StatusFlag, badgeClasses, type BadgeVariant } from '@/components/Badge'
+import { LatenessBadge } from '@/components/StatusBadges'
+import { lateness } from '@/lib/lateness'
 import { matchGradeLabel } from '@/lib/matching'
-import { plural } from '@/lib/plural'
 import { projectLocationParts } from '@/lib/filter-options'
-import { PROJECT_STATUS_CONFIG as PROJECT_LIFECYCLE_CONFIG } from '@/lib/project-status'
+import {
+  PROJECT_STATUS_CONFIG as PROJECT_LIFECYCLE_CONFIG,
+  projectStatusOutline,
+} from '@/lib/project-status'
 
 export interface Project {
   id: number
@@ -21,6 +25,11 @@ export interface Project {
   needsTasks?: boolean | null
   /** Derived server-side: days the plan runs past the project's deadline, when it does. */
   daysLate?: number | null
+  /**
+   * Derived server-side: the viewer owns the project or is an admin, so its lateness is theirs
+   * to act on. Lists that do not say show it filled.
+   */
+  viewerLeads?: boolean
   isOrgProposed?: boolean | null
   projectType?: string | null
   country?: string | null
@@ -77,12 +86,15 @@ export function ProjectCard({
   userSkillIds = new Set(),
   action,
   badge,
+  viewerIsAdmin = false,
 }: {
   project: Project
   userSkillIds?: Set<number>
   action?: React.ReactNode
   /** An extra badge beside the status, such as where the viewer's application stands. */
   badge?: React.ReactNode
+  /** An admin answers a proposal in review, so for them it is filled. */
+  viewerIsAdmin?: boolean
 }) {
   // The grade says how well the viewer fits; these say why.
   const matchedRequired = (p.skills ?? [])
@@ -102,17 +114,23 @@ export function ProjectCard({
           {p.title}
         </Link>
       </div>
-      {/* Status is the lifecycle position; Seeking Owner/Help/Tasks are separate,
-          independently-derived facts and can co-occur with any status, including Ready. */}
-      <div className="row-start-2 flex gap-1 flex-wrap self-start">
-        <Badge variant={projectStatusVariant(p.status)}>
+      {/* Status is the lifecycle position; Seeking owner/help and Needs tasks are separate,
+          independently-derived facts and can co-occur with any status. */}
+      <div className="row-start-2 flex gap-x-2 gap-y-1 flex-wrap items-center self-start">
+        <Badge
+          variant={projectStatusVariant(p.status)}
+          outline={projectStatusOutline(p.status, viewerIsAdmin)}
+        >
           {STATUS_LABELS[p.status] ?? p.status.replace(/_/g, ' ')}
         </Badge>
-        {p.isSeekingOwner && <Badge variant="caution">Seeking Owner</Badge>}
-        {p.isSeekingHelp && <Badge variant="caution">Seeking Help</Badge>}
-        {p.needsTasks && <Badge variant="warning">Needs Tasks</Badge>}
-        {p.daysLate ? <Badge variant="danger">{plural(p.daysLate, 'day')} late</Badge> : null}
+        <LatenessBadge
+          lateness={lateness({ deadline: null, pastPlanDays: p.daysLate, done: false })}
+          outline={p.viewerLeads === false}
+        />
         {badge}
+        {p.isSeekingOwner && <StatusFlag>Seeking owner</StatusFlag>}
+        {p.isSeekingHelp && <StatusFlag>Seeking help</StatusFlag>}
+        {p.needsTasks && <StatusFlag>Needs tasks</StatusFlag>}
       </div>
       <div className="row-start-3 flex items-center gap-3 flex-wrap text-xs text-text-light self-start">
         <span title="Owner">👤 {p.owner ? p.owner.name : 'Seeking owner'}</span>
@@ -195,16 +213,24 @@ export function ProjectList<P extends Project>({
   userSkillIds = new Set(),
   single = false,
   badgeFor,
+  viewerIsAdmin = false,
 }: {
   projects: P[]
   userSkillIds?: Set<number>
   single?: boolean
   badgeFor?: (project: P) => React.ReactNode
+  viewerIsAdmin?: boolean
 }) {
   return (
     <div className={single ? CARD_GRID_SINGLE_CLASSES : CARD_GRID_CLASSES}>
       {projects.map((p) => (
-        <ProjectCard key={p.id} project={p} userSkillIds={userSkillIds} badge={badgeFor?.(p)} />
+        <ProjectCard
+          key={p.id}
+          project={p}
+          userSkillIds={userSkillIds}
+          badge={badgeFor?.(p)}
+          viewerIsAdmin={viewerIsAdmin}
+        />
       ))}
     </div>
   )

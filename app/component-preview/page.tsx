@@ -31,7 +31,7 @@ export default function ComponentPreviewPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Component Preview</h1>
+      <h1>Component preview</h1>
       <p className="text-text-light mb-8">All button variants and patterns used across the app.</p>
 
       {/* ── Button component ─────────────────────────────────────── */}

@@ -14,7 +14,8 @@ import {
   CARD_GRID_CLASSES,
 } from '@/components/ProjectCard'
 import Tabs from '@/components/Tabs'
-import { badgeClasses } from '@/components/Badge'
+import { Badge } from '@/components/Badge'
+import { INTEREST_STATUS_LABELS, interestStatusVariant } from '@/lib/status-labels'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
@@ -110,7 +111,7 @@ export default function TriagePage() {
   return (
     <>
       <main className="container py-5 pb-15">
-        <h1>Project Triage</h1>
+        <h1>Project triage</h1>
 
         <Tabs
           tabs={[
@@ -118,7 +119,7 @@ export default function TriagePage() {
               key: 'pending_review',
               label: (
                 <>
-                  {`Pending Review`}
+                  {STATUS_LABELS.pending_review}
                   {pending.length > 0 && (
                     <span className="bg-primary text-gray-900 text-xs px-2 py-0.5 rounded-full ml-2">
                       {pending.length}
@@ -238,17 +239,9 @@ export default function TriagePage() {
                           </span>
                         </p>
                       </div>
-                      <span
-                        className={badgeClasses(
-                          i.status === InterestStatus.pending
-                            ? 'caution'
-                            : i.status === InterestStatus.accepted
-                              ? 'success'
-                              : 'neutral',
-                        )}
-                      >
-                        {i.status}
-                      </span>
+                      <Badge variant={interestStatusVariant(i.status)}>
+                        {INTEREST_STATUS_LABELS[i.status] ?? i.status}
+                      </Badge>
                     </div>
 
                     {i.message && (
@@ -335,6 +328,7 @@ export default function TriagePage() {
                   <ProjectCard
                     key={p.id}
                     project={p}
+                    viewerIsAdmin
                     action={
                       tab === 'drafts' ? (
                         <div className="flex gap-2">

@@ -11,7 +11,7 @@ export async function generateMetadata({
     where: { id: parseInt(id), type: 'PROJECT' },
     select: { title: true },
   })
-  return { title: project ? `Edit ${project.title}` : 'Edit Project' }
+  return { title: project ? `Edit ${project.title}` : 'Edit project' }
 }
 
 export default function Layout({ children }: { children: React.ReactNode }) {

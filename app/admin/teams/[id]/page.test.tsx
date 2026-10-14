@@ -66,7 +66,7 @@ describe('admin team detail', () => {
     ).toBe(1)
     await userEvent.click(screen.getByRole('button', { name: 'Decline' }))
     await screen.findByText('Request declined')
-    await waitFor(() => expect(screen.queryByText('Pending Join Requests')).toBeNull())
+    await waitFor(() => expect(screen.queryByText('Pending join requests')).toBeNull())
 
     // Members: add, promote, demote, remove.
     await userEvent.click(screen.getByRole('button', { name: 'Select volunteer to add' }))

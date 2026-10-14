@@ -155,7 +155,7 @@ describe('/privacy', () => {
     cleanup()
     await renderApp(<PrivacyPage />)
     expect(screen.queryByRole('button', { name: 'Download My Data' })).toBeNull()
-    expect(screen.getByRole('heading', { name: 'Privacy & Data' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Privacy & data' })).toBeInTheDocument()
     expect(
       screen.getByText(/a reminder after 14 days, a final warning after 21, and after 28 days/),
     ).toBeInTheDocument()

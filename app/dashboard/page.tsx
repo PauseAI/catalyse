@@ -8,9 +8,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRequireAuth } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
 import Button from '@/components/Button'
-import { plural } from '@/lib/plural'
-import { Badge, type BadgeVariant } from '@/components/Badge'
+import { Badge } from '@/components/Badge'
 import DeadlineChip from '@/components/DeadlineChip'
+import { LatenessBadge } from '@/components/StatusBadges'
+import { lateness } from '@/lib/lateness'
 import WorkItemCard from '@/components/WorkItemCard'
 import Modal from '@/components/ui/Modal'
 import Skeleton from '@/components/Skeleton'
@@ -20,7 +21,6 @@ import type { AppRouter } from '@/server/router'
 import type { InferRouterOutputs } from '@orpc/server'
 
 type Home = InferRouterOutputs<AppRouter>['dashboard']['get']
-type WorkRow = Home['work'][number]
 type FindRow = NonNullable<Home['find']>['quickTasks']
 
 const WORK_FILTERS = [
@@ -30,15 +30,6 @@ const WORK_FILTERS = [
   { key: 'team', label: 'Teams' },
 ] as const
 type WorkFilter = (typeof WORK_FILTERS)[number]['key']
-
-const ROLE_VARIANTS: Record<WorkRow['role'], BadgeVariant> = {
-  Lead: 'success',
-  Deputy: 'success',
-  Helper: 'info',
-  Proposed: 'warning',
-  Task: 'caution',
-  Member: 'neutral',
-}
 
 // My work's buckets are small grey labels, so they never read as a section like "Needs your
 // attention" above them.
@@ -250,14 +241,8 @@ export default function HomePage() {
             <WorkItemCard
               item={w.item}
               variant="compact"
-              extra={
-                <>
-                  {w.context && <span className="text-text-light">in {w.context}</span>}
-                  {w.pastPlanDays ? (
-                    <Badge variant="warning">{plural(w.pastPlanDays, 'day')} past plan</Badge>
-                  ) : null}
-                </>
-              }
+              pastPlanDays={w.pastPlanDays}
+              extra={w.context && <span className="text-text-light">in {w.context}</span>}
             />
             {w.attention && <p className="text-sm font-semibold m-0 mt-1">{w.attention}</p>}
           </li>
@@ -272,9 +257,20 @@ export default function HomePage() {
               </Link>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant={ROLE_VARIANTS[w.role]}>{w.role}</Badge>
-              {w.daysLate ? <Badge variant="danger">{plural(w.daysLate, 'day')} late</Badge> : null}
-              {w.deadline && <DeadlineChip deadline={w.deadline} done={w.done} />}
+              <Badge>{w.role}</Badge>
+              {w.deadline ? (
+                <DeadlineChip
+                  deadline={w.deadline}
+                  done={w.done}
+                  pastPlanDays={w.daysLate}
+                  outline={!w.leads}
+                />
+              ) : (
+                <LatenessBadge
+                  lateness={lateness({ deadline: null, pastPlanDays: w.daysLate, done: w.done })}
+                  outline={!w.leads}
+                />
+              )}
               {w.status && <span className="text-sm text-text-light">{w.status}</span>}
             </div>
           </li>

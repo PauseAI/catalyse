@@ -291,12 +291,12 @@ describe('inbox', () => {
     const row = (await screen.findByText(mention.title)).closest('li') as HTMLElement
     const card = within(row).getByRole('link', { name: 'Pack flyering stall kit' })
     expect(card).toHaveAttribute('href', `/projects/${project.id}/tasks/${task.id}`)
-    expect(within(row).getByText('Ready')).toBeInTheDocument()
+    expect(within(row).getByText('To do')).toBeInTheDocument()
     const left = screen.getByText('Mentioned on a task you left').closest('li') as HTMLElement
     expect(within(left).queryByText('Hidden task')).toBeNull()
 
     // Following the card reads the notification, as Open does; its status badge is not a link.
-    await userEvent.click(within(row).getByText('Ready'))
+    await userEvent.click(within(row).getByText('To do'))
     expect((await note(mention.id)).readAt).toBeNull()
     await userEvent.click(card)
     await waitFor(async () => expect((await note(mention.id)).readAt).not.toBeNull())

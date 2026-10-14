@@ -169,7 +169,7 @@ describe('verify email', () => {
 describe('accept invite', () => {
   it('walks through login prompt, acceptance and error states', async () => {
     await renderApp(<AcceptInvitePage />, { url: '/accept-invite?token=abc' })
-    expect(await screen.findByText('Admin Invite')).toBeInTheDocument()
+    expect(await screen.findByText('Admin invite')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Log In' })).toHaveAttribute(
       'href',
       expect.stringContaining('redirect='),
@@ -187,7 +187,7 @@ describe('accept invite', () => {
       },
     })
     await renderApp(<AcceptInvitePage />, { url: '/accept-invite?token=good-token', as: invitee })
-    expect(await screen.findByText('Welcome to the Team!')).toBeInTheDocument()
+    expect(await screen.findByText('Welcome to the team!')).toBeInTheDocument()
     await waitFor(() => expect(navigation.push).toHaveBeenCalledWith('/dashboard'))
     expect((await prisma.volunteer.findUniqueOrThrow({ where: { id: invitee.id } })).isAdmin).toBe(
       true,

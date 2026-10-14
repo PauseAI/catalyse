@@ -184,7 +184,7 @@ export default function ApplicationsPage() {
                 tabIndex={0}
                 onKeyDown={(e) => e.key === 'Enter' && setAnonymisedOpen((o) => !o)}
               >
-                Rejected – Anonymised: {anonymised.data?.length ?? 0}
+                Rejected – anonymised: {anonymised.data?.length ?? 0}
                 <svg
                   className={`text-text-light shrink-0 transition-transform ${anonymisedOpen ? 'rotate-180' : 'rotate-0'}`}
                   width="32"

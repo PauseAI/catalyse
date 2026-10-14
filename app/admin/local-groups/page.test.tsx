@@ -69,9 +69,9 @@ describe('admin local groups', () => {
     // Add: backdrop, ×, Cancel close it; needs both country and name.
     await userEvent.click(screen.getByRole('button', { name: 'Add Local Group' }))
     await userEvent.click(
-      screen.getByRole('heading', { name: 'Add Local Group' }).closest('.fixed')!,
+      screen.getByRole('heading', { name: 'Add local group' }).closest('.fixed')!,
     )
-    expect(screen.queryByRole('heading', { name: 'Add Local Group' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Add local group' })).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Add Local Group' }))
     await userEvent.click(screen.getByRole('button', { name: 'Close' }))
     await userEvent.click(screen.getByRole('button', { name: 'Add Local Group' }))
@@ -91,7 +91,7 @@ describe('admin local groups', () => {
       within(article('United Kingdom, Zz Bangor')).getByRole('button', { name: 'Edit' }),
     )
     await userEvent.click(
-      screen.getByRole('heading', { name: 'Edit Local Group' }).closest('.fixed')!,
+      screen.getByRole('heading', { name: 'Edit local group' }).closest('.fixed')!,
     )
     await userEvent.click(
       within(article('United Kingdom, Zz Bangor')).getByRole('button', { name: 'Edit' }),
@@ -119,7 +119,7 @@ describe('admin local groups', () => {
     )
     expect(screen.getByText('Suggested by Sam Suggester')).toBeInTheDocument()
     await userEvent.click(
-      screen.getByRole('heading', { name: 'Review Suggestion' }).closest('.fixed')!,
+      screen.getByRole('heading', { name: 'Review suggestion' }).closest('.fixed')!,
     )
     await userEvent.click(
       within(article('United Kingdom, Zz Bath')).getByRole('button', { name: 'Review' }),
@@ -182,10 +182,10 @@ describe('admin local groups', () => {
       within(article('United States, Zz Boston')).getByRole('button', { name: 'Delete' }),
     )
     expect(
-      screen.getByRole('heading', { name: 'Confirm Delete' }).closest('.fixed'),
+      screen.getByRole('heading', { name: 'Confirm delete' }).closest('.fixed'),
     ).toHaveTextContent('Delete United States, Zz Boston?')
     await userEvent.click(
-      screen.getByRole('heading', { name: 'Confirm Delete' }).closest('.fixed')!,
+      screen.getByRole('heading', { name: 'Confirm delete' }).closest('.fixed')!,
     )
     await userEvent.click(
       within(article('United States, Zz Boston')).getByRole('button', { name: 'Delete' }),

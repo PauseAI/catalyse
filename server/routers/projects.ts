@@ -811,6 +811,7 @@ export const projectsRouter = {
         .map((p) => ({
           ...withProjectExtras(p as EnrichedProject, volunteerSkillIds, viewerTeamIds),
           daysLate: late.get(p.id) ?? null,
+          viewerLeads: canManageProject(p, volunteer),
         }))
 
       // Match sorting can't be done in SQL, so this branch fetched every matching id and
@@ -954,6 +955,7 @@ export const projectsRouter = {
             .map((p) => ({
               ...withProjectExtras(p as EnrichedProject, volunteerSkillIds, viewerTeamIds),
               daysLate: late.get(p.id) ?? null,
+              viewerLeads: canManageProject(p, volunteer),
             })),
         })),
       }
@@ -1233,10 +1235,18 @@ export const projectsRouter = {
       const sides = keyDateSides(sortedTasks, edges)
       const views = taskStatusViews(sortedTasks, edges)
       // The list names a Blocked task's first open predecessor, in the manual order, as a card.
+      const reviewer = {
+        id: volunteer.id,
+        canReview: canManageProjectTasks(
+          project,
+          volunteer,
+          await isProjectDeputy(input.id, volunteer.id),
+        ),
+      }
       const firstBlocker = (i: number) => {
         const open = new Set(views[i].blockedBy.map((b) => b.id))
         const n = sortedTasks.findIndex((t) => open.has(t.id))
-        return n < 0 ? null : toWorkItemSummary(sortedTasks[n], views[n].displayStatus)
+        return n < 0 ? null : toWorkItemSummary(sortedTasks[n], views[n].displayStatus, reviewer)
       }
 
       const mappedTasks = sortedTasks.map((t, i) => ({

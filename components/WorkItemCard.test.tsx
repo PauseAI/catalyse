@@ -18,6 +18,7 @@ const task = (overrides: Partial<WorkItemSummary> = {}): WorkItemSummary => ({
   deadline: null,
   completedAt: null,
   href: '/projects/3/tasks/7',
+  viewer: { isAssignee: false, canReview: false },
   ...overrides,
 })
 
@@ -31,7 +32,7 @@ describe('WorkItemCard', () => {
       'href',
       '/projects/3/tasks/7',
     )
-    expect(screen.getByText('Ready')).toHaveClass('status-badge')
+    expect(screen.getByText('To do')).toHaveClass('status-badge')
     expect(screen.getByText('Unclaimed')).toBeInTheDocument()
     expect(screen.getByText('No deadline')).toBeInTheDocument()
   })
@@ -46,7 +47,13 @@ describe('WorkItemCard', () => {
     )
     expect(screen.getByText('In progress')).toBeInTheDocument()
     expect(screen.getByText('Sam')).toBeInTheDocument()
-    expect(screen.getByText('14 Oct · in 3 days')).not.toHaveClass('text-error')
+    expect(screen.getByText('Due in 3 days')).toHaveAttribute('data-emphasis', 'outline')
+    expect(screen.getByText('Due 14 Oct')).toBeInTheDocument()
+  })
+
+  it('counts down to a deadline further off than Due soon', () => {
+    card(task({ deadline: new Date('2026-10-20T00:00:00Z') }))
+    expect(screen.getByText('20 Oct · in 9 days')).toBeInTheDocument()
   })
 
   it('shows the lead and helpers of a task that has or seeks them', () => {
@@ -59,14 +66,25 @@ describe('WorkItemCard', () => {
     expect(screen.getByText('Unclaimed · 2 helpers wanted')).toBeInTheDocument()
   })
 
-  it('shows a blocked task as Blocked', () => {
+  it('shows a blocked task as To do', () => {
     card(task({ displayStatus: 'blocked', assigneeName: 'Sam' }))
-    expect(screen.getByText('Blocked')).toBeInTheDocument()
+    expect(screen.getByText('To do')).toBeInTheDocument()
   })
 
-  it('marks an overdue task', () => {
-    card(task({ deadline: new Date('2026-10-09T00:00:00Z') }))
-    expect(screen.getByText('9 Oct · 2 days overdue')).toHaveClass('text-error')
+  it('marks a late task, filled for its assignee', () => {
+    card(
+      task({
+        deadline: new Date('2026-10-09T00:00:00Z'),
+        viewer: { isAssignee: true, canReview: false },
+      }),
+    )
+    expect(screen.getByText('2 days late')).toHaveAttribute('data-emphasis', 'filled')
+    expect(screen.getByText('Due 9 Oct')).toBeInTheDocument()
+  })
+
+  it('counts days past plan towards Late', () => {
+    card(task({ displayStatus: 'in_progress' }), { pastPlanDays: 4 })
+    expect(screen.getByText('4 days late')).toBeInTheDocument()
   })
 
   it('shows when a done task finished instead of when it was due', () => {
@@ -89,15 +107,21 @@ describe('WorkItemCard', () => {
 
   it('keeps the due date, without a countdown, while work waits for review', () => {
     card(task({ displayStatus: 'under_review', deadline: new Date('2026-10-01T00:00:00Z') }))
-    expect(screen.getByText('Submitted for review')).toBeInTheDocument()
-    expect(screen.getByText('Due 1 Oct')).not.toHaveClass('text-error')
+    expect(screen.getByText('In review')).toHaveAttribute('data-emphasis', 'outline')
+    expect(screen.getByText('Due 1 Oct')).toBeInTheDocument()
+    expect(screen.queryByText(/late/)).not.toBeInTheDocument()
+  })
+
+  it('fills work in review for whoever can accept it', () => {
+    card(task({ displayStatus: 'under_review', viewer: { isAssignee: false, canReview: true } }))
+    expect(screen.getByText('In review')).toHaveAttribute('data-emphasis', 'filled')
   })
 
   it('draws a Quick Task with its own status words', () => {
     card(
       task({ type: 'QUICK_TASK', projectId: null, displayStatus: 'open', href: '/quick-tasks/7' }),
     )
-    expect(screen.getByText('Open')).toBeInTheDocument()
+    expect(screen.getByText('To do')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Book the venue' })).toHaveAttribute(
       'href',
       '/quick-tasks/7',
@@ -118,6 +142,6 @@ describe('WorkItemCard', () => {
 
   it('counts from now when no day is given', () => {
     render(<WorkItemCard item={task({ deadline: new Date('2000-01-01T00:00:00Z') })} />)
-    expect(screen.getByText(/days overdue$/)).toBeInTheDocument()
+    expect(screen.getByText(/days late$/)).toBeInTheDocument()
   })
 })

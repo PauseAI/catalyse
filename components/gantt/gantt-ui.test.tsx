@@ -658,7 +658,7 @@ describe('GanttLegend / BaselineDialog', () => {
     const user = userEvent.setup({ advanceTimers: () => {} })
     const { container } = render(<GanttLegend />)
     expect(legendEntries(container)).toEqual([
-      'Blocked / Ready',
+      'To do',
       'In progress',
       'Done',
       'Today',
@@ -676,7 +676,7 @@ describe('GanttLegend / BaselineDialog', () => {
     const { container } = render(
       <GanttLegend statuses={['completed', 'on_hold', 'ready', 'under_review', 'ready']} />,
     )
-    expect(legendEntries(container).slice(0, 3)).toEqual(['Ready', 'Submitted for review', 'Done'])
+    expect(legendEntries(container).slice(0, 3)).toEqual(['To do', 'In review', 'Done'])
     expect(legendEntries(container)).toContain('On Hold')
   })
 
@@ -767,6 +767,7 @@ describe('GanttItemPanel', () => {
           deadline: day('2026-06-03'),
           completedAt: day('2026-06-03'),
           href: '/projects/1/tasks/1',
+          viewer: { isAssignee: false, canReview: false },
         },
       },
     ],

@@ -201,7 +201,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
       <h1 className="mt-3 mb-6">{team.name}</h1>
 
       <div className={`${SECTION_CARD} mb-4`}>
-        <h2>Team Details</h2>
+        <h2>Team details</h2>
         <form onSubmit={handleSave}>
           <div className="mb-5">
             <label htmlFor="team-name">Team Name</label>
@@ -257,7 +257,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
 
       {joinRequests.length > 0 && (
         <div className={`${SECTION_CARD} mb-4`}>
-          <h2>Pending Join Requests</h2>
+          <h2>Pending join requests</h2>
           <div className="space-y-3">
             {joinRequests.map((r) => (
               <div key={r.id} className="flex items-center justify-between gap-3">

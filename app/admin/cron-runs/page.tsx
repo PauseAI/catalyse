@@ -58,7 +58,7 @@ export default function AdminCronRunsPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Cron Job Runs</h1>
+      <h1>Cron job runs</h1>
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {CRON_JOB_NAMES.map((jobName) => {
@@ -70,7 +70,7 @@ export default function AdminCronRunsPage() {
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold">{jobName}</span>
-                <Badge variant={info.idempotent ? 'success' : 'warning'}>
+                <Badge variant={info.idempotent ? 'success' : 'attention'}>
                   {info.idempotent ? 'idempotent' : 'not idempotent'}
                 </Badge>
               </div>

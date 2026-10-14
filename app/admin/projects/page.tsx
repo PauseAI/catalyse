@@ -18,14 +18,14 @@ export default function AdminProjectsPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1 role="heading">Org Projects</h1>
+      <h1 role="heading">Org projects</h1>
       <p className="text-text-light mb-6">
         Create a project on behalf of PauseAI. This skips the approval process.
       </p>
 
       {drafts.length > 0 && (
         <div className={`max-w-4xl ${SECTION_CARD} mb-4`}>
-          <h2 className="mt-0 mb-3">My Drafts</h2>
+          <h2 className="mt-0 mb-3">My drafts</h2>
           <ul className="flex flex-col gap-2">
             {drafts.map((draft) => (
               <li

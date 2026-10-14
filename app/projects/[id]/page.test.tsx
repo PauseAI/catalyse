@@ -96,9 +96,12 @@ describe('project page — visitor', () => {
 
     await openTab(/^Tasks/)
     expect(window.location.hash).toBe('#tasks')
+    // Someone else's late task is theirs and the owner's to act on, so a visitor sees it outlined.
     expect(
-      within(screen.getByRole('link', { name: 'Open task' }).closest('li')!).getByText('Overdue'),
-    ).toBeInTheDocument()
+      within(screen.getByRole('link', { name: 'Open task' }).closest('li')!).getByText(
+        /days late$/,
+      ),
+    ).toHaveAttribute('data-emphasis', 'outline')
     expect(screen.getByLabelText('1 comment')).toBeInTheDocument()
 
     // Only people on the project can post, so there is no comment box until the claim.
@@ -145,7 +148,11 @@ describe('project page — visitor', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Send request' }))
     await screen.findByText(/You'll get a notification when they reply/)
     // A request to help waits among the actions, beside its Withdraw button.
-    await within(group('Actions')).findByText('Request sent: waiting for the owner')
+    await within(group('Actions')).findByText('Waiting for the owner')
+    expect(within(group('Actions')).getByText('Request sent')).toHaveAttribute(
+      'data-emphasis',
+      'outline',
+    )
     expect(within(group('Status')).queryByLabelText('interest status')).toBeNull()
 
     const contact = screen.getByRole('button', { name: 'Message owner' })
@@ -212,13 +219,14 @@ describe('project page — visitor', () => {
       where: { workItemId: project.id, volunteerId: me.id },
     })
     expect(interest.interestType).toBe('want_to_own')
-    // The sender's request to lead takes the Seeking Owner badge's place, after the other pills;
+    // The sender's request to lead takes the Seeking owner flag's place, after the other flags;
     // Withdraw stays among the actions.
     const status = group('Status')
     const waiting = await within(status).findByLabelText('interest status')
-    expect(waiting).toHaveTextContent('Request to lead sent: waiting for an answer')
-    expect(within(status).queryByText('Seeking Owner')).toBeNull()
-    expect(within(status).getByText('Seeking Help')).toBeInTheDocument()
+    expect(waiting).toHaveTextContent('Request to lead sent')
+    expect(waiting).toHaveTextContent('Waiting for an answer')
+    expect(within(status).queryByText('• Seeking owner')).toBeNull()
+    expect(within(status).getByText('• Seeking help')).toBeInTheDocument()
     expect(status.lastElementChild).toBe(waiting)
     expect(screen.getAllByLabelText('interest status')).toHaveLength(1)
     expect(
@@ -229,7 +237,7 @@ describe('project page — visitor', () => {
     queryClient.clear()
     await mount(project.id, await createVolunteer())
     const othersStatus = await screen.findByRole('group', { name: 'Status' })
-    expect(within(othersStatus).getByText('Seeking Owner')).toBeInTheDocument()
+    expect(within(othersStatus).getByText('• Seeking owner')).toBeInTheDocument()
     expect(screen.queryByLabelText('interest status')).toBeNull()
 
     await prisma.workItemInterest.update({
@@ -312,7 +320,8 @@ describe('project page — submitted work', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Submit work' }))
     const dialog = await screen.findByRole('dialog', { name: 'Submit your work' })
     expect(within(dialog).getByText(/The project owner will look at it/)).toBeInTheDocument()
-    expect(screen.getByText('Submitted for review')).toBeInTheDocument()
+    // The submitter waits on the owner; the owner, who can accept it, sees it filled.
+    expect(screen.getByText('In review')).toHaveAttribute('data-emphasis', 'outline')
     expect(screen.queryByRole('link', { name: 'Review' })).toBeNull()
 
     cleanup()
@@ -321,6 +330,7 @@ describe('project page — submitted work', () => {
       'href',
       `/projects/${project.id}/tasks/${waiting.id}`,
     )
+    expect(screen.getByText('In review')).toHaveAttribute('data-emphasis', 'filled')
   })
 })
 
@@ -357,7 +367,7 @@ describe('project page — joining and held tasks', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Ask to take this' }))
     await screen.findByText(/^Requested\. The task is held for you/)
     await screen.findByText('Held for you: waiting for the owner')
-    await screen.findByText('Request sent: waiting for the owner')
+    await screen.findByText('Waiting for the owner')
     expect(await row(t.id)).toMatchObject({ requestedById: me.id, assigneeId: null })
     await userEvent.click(screen.getByRole('button', { name: '6 helpers' }))
     expect(screen.getByRole('tab', { name: 'People (7)' })).toHaveAttribute('aria-selected', 'true')
@@ -562,6 +572,11 @@ describe('project page — owner', () => {
     const invited = await screen.findByRole('region', { name: 'Invited' })
     expect(within(invited).getByText('Invited by Owen Owner')).toBeInTheDocument()
     expect(within(invited).getByText('Leaflets?')).toBeInTheDocument()
+    // The inviter waits on the invitee, so the badge is outlined.
+    expect(within(invited).getByText('Invited', { selector: '.status-badge' })).toHaveAttribute(
+      'data-emphasis',
+      'outline',
+    )
     await userEvent.click(within(invited).getByRole('button', { name: 'Cancel invite' }))
     await screen.findByText('Invite cancelled.')
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Invited' })).toBeNull())
@@ -702,7 +717,7 @@ describe('project page — task list order', () => {
     ])
     // The blocked row names its first blocker in the manual order, as a card, and counts the rest.
     const blocked = rowOf('Hand out flyers')
-    expect(within(blocked).getByText('Blocked')).toBeInTheDocument()
+    expect(within(blocked).getAllByText('To do')[0]).toHaveClass('status-badge')
     expect(within(blocked).getByText('Blocked by')).toBeInTheDocument()
     expect(within(blocked).getByRole('link', { name: 'Print flyers' })).toBeInTheDocument()
     expect(within(blocked).getByText('+ 1 more')).toBeInTheDocument()
@@ -993,11 +1008,11 @@ describe('project page — past plan', () => {
       durationDays: 2,
     })
     await mount(project.id, owner, '#tasks')
-    await screen.findByText('8 days past plan')
+    await screen.findByText('8 days late')
     await openTab(/^Timeline/)
     await userEvent.click(await screen.findByRole('button', { name: /^Behind:/ }))
     const panel = screen.getByRole('complementary')
-    expect(within(panel).getByText('8 days past plan')).toBeInTheDocument()
+    expect(within(panel).getByText('8 days late')).toHaveAttribute('data-emphasis', 'filled')
     // The owner can replan from the panel without leaving the chart.
     await userEvent.click(within(panel).getByRole('button', { name: 'Replan' }))
     const dialog = await screen.findByRole('dialog')
@@ -1034,7 +1049,7 @@ describe('project page — past plan', () => {
     })
     await mount(project.id, owner, '#tasks')
     await screen.findByText('Waiting')
-    expect(screen.queryByText(/past plan/)).toBeNull()
+    expect(screen.queryByText(/past plan|days late/)).toBeNull()
   })
 })
 

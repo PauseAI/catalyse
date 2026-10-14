@@ -558,7 +558,7 @@ export default function SignupPage() {
           />
         </div>
 
-        <h3 className="mt-6">Contact Preferences</h3>
+        <h3 className="mt-6">Contact preferences</h3>
         <p className="text-sm text-text-light mt-1 mb-4">
           Add ways for the people you work with to reach you. All optional.
         </p>
@@ -674,7 +674,7 @@ export default function SignupPage() {
           </div>
         )}
 
-        <h3 className="mt-6">Email Notifications</h3>
+        <h3 className="mt-6">Email notifications</h3>
         <div className="mb-5">
           <FilterDropdown
             id={`${prefix}emailDigest`}

@@ -384,7 +384,7 @@ function SettingsPageContent() {
         <div
           className={`${SECTION_CARD} mb-4 max-w-4xl border-2 border-amber-300 dark:border-amber-700`}
         >
-          <h2 className="mt-0">Your Application</h2>
+          <h2 className="mt-0">Your application</h2>
           {myApplication?.applicationApplicantNotes && (
             <>
               <p className="text-sm font-semibold text-text-light mb-1">Message from the team</p>
@@ -467,7 +467,7 @@ function SettingsPageContent() {
             />
           </div>
 
-          <h3 className="mt-6 mb-4">Contact Information</h3>
+          <h3 className="mt-6 mb-4">Contact information</h3>
           <aside className="bg-brand-bg border border-brand-border rounded-lg px-4 py-3 mb-4 text-sm text-text-light">
             Always visible to you and admins. Shared with the people you work with on a project, and
             with anyone whose contact request you accept.
@@ -573,7 +573,7 @@ function SettingsPageContent() {
             </div>
           )}
 
-          <h3 className="mt-6 mb-4">Your Skills</h3>
+          <h3 className="mt-6 mb-4">Your skills</h3>
           <div className="mb-5">
             <SkillPicker value={skills} onChange={setSkills} />
           </div>
@@ -594,7 +594,7 @@ function SettingsPageContent() {
 
       {activeTab === 'profile' && (
         <div className={`${SECTION_CARD} mb-4 border-2 border-brand-border max-w-4xl`}>
-          <h3>Local Groups</h3>
+          <h3>Local groups</h3>
           <p className="text-text-light mb-4">
             Don&apos;t see your local group listed? Suggest a new one.
           </p>
@@ -607,7 +607,7 @@ function SettingsPageContent() {
       {activeTab === 'account' && (
         <div className="max-w-4xl">
           <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
-            <h2>Change Email</h2>
+            <h2>Change email</h2>
             <p className="text-sm text-text-light mb-4">
               Current email: <strong>{user.email}</strong>
             </p>
@@ -639,7 +639,7 @@ function SettingsPageContent() {
           </div>
 
           <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
-            <h2>Change Password</h2>
+            <h2>Change password</h2>
             <form method="post" onSubmit={handleChangePassword}>
               <div className="mb-5">
                 <label htmlFor="currentPassword">Current Password</label>
@@ -695,7 +695,7 @@ function SettingsPageContent() {
           </div>
 
           <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
-            <h2>Danger Zone</h2>
+            <h2>Danger zone</h2>
             <p className="text-text-light mb-4">
               Permanently delete your account and all associated data. This cannot be undone.
             </p>
@@ -787,7 +787,7 @@ function SettingsPageContent() {
             className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}
             onSubmit={handleSave}
           >
-            <h2 className="mt-0">Privacy Settings</h2>
+            <h2 className="mt-0">Privacy settings</h2>
             <div className="mb-5 flex flex-col gap-3">
               <Checkbox
                 id="consent_make_profile_visible_in_directory"
@@ -823,7 +823,7 @@ function SettingsPageContent() {
           </form>
 
           <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
-            <h2 className="mt-0">Your Data</h2>
+            <h2 className="mt-0">Your data</h2>
             <p className="text-text-light mb-4">
               Download all your data in JSON format. This includes your profile, skills, project
               interests, and messages.
@@ -838,7 +838,7 @@ function SettingsPageContent() {
           </div>
 
           <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
-            <h2 className="mt-0">Privacy Policy</h2>
+            <h2 className="mt-0">Privacy policy</h2>
             <p className="text-text-light mb-4">
               Read our full data practices, GDPR rights, and third-party processor information.
             </p>
@@ -859,7 +859,7 @@ function SettingsPageContent() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 className="m-0 text-xl">Delete Your Account</h2>
+              <h2 className="m-0 text-xl">Delete your account</h2>
             </div>
             <div className="p-6">
               {user.hasPassword && (

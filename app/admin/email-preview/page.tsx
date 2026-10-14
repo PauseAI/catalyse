@@ -264,7 +264,7 @@ export default function EmailPreviewPage() {
   return (
     <>
       <main className="container pt-8 pb-16">
-        <h1 className="mb-1">Email Previews</h1>
+        <h1 className="mb-1">Email previews</h1>
         <p className="text-gray-500 mb-0">All transactional emails rendered with sample data.</p>
         {EMAIL_TYPES.map((t, i) => (
           <EmailRow key={t.value} type={t} preview={results[i].data} />

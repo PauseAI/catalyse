@@ -29,7 +29,7 @@ test.describe('Project Lifecycle', () => {
 
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
-    await expect(volunteer.page.getByLabel('project status')).toContainText('Ready', {
+    await expect(volunteer.page.getByLabel('project status')).toContainText('To Do', {
       timeout: 10_000,
     })
   })
@@ -92,7 +92,7 @@ test.describe('Project Lifecycle', () => {
     await expect(banner).toHaveCount(0)
 
     await adminPage.goto(`${baseUrl}/admin/triage`)
-    await adminPage.getByRole('tab', { name: /^Pending Review/ }).click()
+    await adminPage.getByRole('tab', { name: /^In Review/ }).click()
     await expect(adminPage.locator('.card').filter({ hasText: title })).toBeVisible({
       timeout: 10_000,
     })
@@ -153,7 +153,7 @@ test.describe('Project Lifecycle', () => {
 
     // Org projects skip review, so this one is live immediately — but the admin didn't
     // claim it, so it goes live as Ready rather than In Progress.
-    await expect(adminPage.getByLabel('project status')).toContainText('Ready', {
+    await expect(adminPage.getByLabel('project status')).toContainText('To Do', {
       timeout: 10_000,
     })
 

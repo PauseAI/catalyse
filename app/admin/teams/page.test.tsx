@@ -70,8 +70,8 @@ describe('admin teams', () => {
 
     // Add a team: backdrop and × close it; the submit needs a name.
     await userEvent.click(screen.getByRole('button', { name: 'Add Team' }))
-    await userEvent.click(screen.getByRole('heading', { name: 'Add Team' }).closest('.fixed')!)
-    expect(screen.queryByRole('heading', { name: 'Add Team' })).toBeNull()
+    await userEvent.click(screen.getByRole('heading', { name: 'Add team' }).closest('.fixed')!)
+    expect(screen.queryByRole('heading', { name: 'Add team' })).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Add Team' }))
     await userEvent.click(screen.getByRole('button', { name: 'Close' }))
     await userEvent.click(screen.getByRole('button', { name: 'Add Team' }))
@@ -95,7 +95,7 @@ describe('admin teams', () => {
     await userEvent.click(within(article('Beta Idea')).getByRole('button', { name: 'Review' }))
     expect(screen.getByText('Suggested by Sue Suggester')).toBeInTheDocument()
     await userEvent.click(
-      screen.getByRole('heading', { name: 'Review Suggestion' }).closest('.fixed')!,
+      screen.getByRole('heading', { name: 'Review suggestion' }).closest('.fixed')!,
     )
     await userEvent.click(within(article('Beta Idea')).getByRole('button', { name: 'Review' }))
     await userEvent.click(screen.getByRole('button', { name: 'Close' }))
@@ -154,10 +154,10 @@ describe('admin teams', () => {
     // Delete a suggestion and a team; the confirm dialog closes by backdrop, ×, and Cancel.
     await userEvent.click(within(article('Delta Idea')).getByRole('button', { name: 'Delete' }))
     expect(
-      screen.getByRole('heading', { name: 'Confirm Delete' }).parentElement!.parentElement,
+      screen.getByRole('heading', { name: 'Confirm delete' }).parentElement!.parentElement,
     ).toHaveTextContent('Delete Delta Idea?')
     await userEvent.click(
-      screen.getByRole('heading', { name: 'Confirm Delete' }).closest('.fixed')!,
+      screen.getByRole('heading', { name: 'Confirm delete' }).closest('.fixed')!,
     )
     await userEvent.click(within(article('Delta Idea')).getByRole('button', { name: 'Delete' }))
     await userEvent.click(screen.getByRole('button', { name: 'Close' }))
@@ -208,6 +208,6 @@ describe('admin teams', () => {
     await userEvent.click(screen.getAllByRole('button', { name: 'Delete' }).at(-1)!)
     // The review's toast is still showing, so wait for the delete's own.
     await waitFor(() => expect(screen.getAllByText('Not found')).toHaveLength(2))
-    expect(screen.queryByRole('heading', { name: 'Confirm Delete' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Confirm delete' })).toBeNull()
   })
 })

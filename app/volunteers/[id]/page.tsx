@@ -7,6 +7,7 @@ import Link from 'next/link'
 import Button from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import { STATUS_LABELS, projectStatusVariant } from '@/components/ProjectCard'
+import { projectStatusOutline } from '@/lib/project-status'
 import ContactButton from '@/components/ContactButton'
 import ActiveDot from '@/components/ActiveDot'
 import Linkify from '@/components/Linkify'
@@ -203,7 +204,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
               id="endorsementsSection"
               className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}
             >
-              <h2>Verified Skills</h2>
+              <h2>Verified skills</h2>
               <p className="text-text-light mb-3">
                 Skills verified through completed work on the platform.
               </p>
@@ -225,7 +226,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
 
           {volunteer.completedTasks.length > 0 && (
             <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
-              <h2>Completed Quick Tasks</h2>
+              <h2>Completed quick tasks</h2>
               {volunteer.completedTasks.map((t, i) => (
                 <div key={i} className="py-3 border-b border-brand-border">
                   <div className="flex justify-between items-center">
@@ -248,14 +249,17 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
 
           {volunteer.projects.length > 0 && (
             <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
-              <h2>Project History</h2>
+              <h2>Project history</h2>
               {volunteer.projects.map((p) => (
                 <div key={p.id} className="py-3 border-b border-brand-border">
                   <div className="flex justify-between items-center">
                     <Link href={`/projects/${p.id}`} className="font-semibold text-primary-dark">
                       {p.title}
                     </Link>
-                    <Badge variant={projectStatusVariant(p.status)}>
+                    <Badge
+                      variant={projectStatusVariant(p.status)}
+                      outline={projectStatusOutline(p.status, Boolean(user?.isAdmin))}
+                    >
                       {STATUS_LABELS[p.status] ?? p.status.replace(/_/g, ' ')}
                     </Badge>
                   </div>

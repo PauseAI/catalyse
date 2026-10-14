@@ -2,7 +2,7 @@ import type { BadgeVariant } from '@/components/Badge'
 import { ProjectStatus } from '@/generated/prisma/enums'
 
 /**
- * The single source of truth for project lifecycle status — labels, badge colours, and
+ * The single source of truth for project lifecycle status: labels, badge colours, and
  * which statuses each role may pick. Server routers, UI and e2e helpers all read from
  * here; previously each kept its own copy and they drifted (notification emails were
  * sending raw enum strings for statuses the server's copy had never heard of).
@@ -15,9 +15,9 @@ import { ProjectStatus } from '@/generated/prisma/enums'
  */
 export const PROJECT_STATUS_CONFIG: Record<string, { label: string; variant: BadgeVariant }> = {
   draft: { label: 'Draft', variant: 'neutral' },
-  pending_review: { label: 'Pending Review', variant: 'warning' },
+  pending_review: { label: 'In Review', variant: 'info' },
   needs_discussion: { label: 'Needs Changes', variant: 'neutral' },
-  ready: { label: 'Ready', variant: 'caution' },
+  ready: { label: 'To Do', variant: 'neutral' },
   in_progress: { label: 'In Progress', variant: 'info' },
   on_hold: { label: 'On Hold', variant: 'neutral' },
   completed: { label: 'Completed', variant: 'success' },
@@ -30,6 +30,11 @@ export const PROJECT_STATUS_LABELS: Record<string, string> = Object.fromEntries(
 
 export function projectStatusLabel(status: string): string {
   return PROJECT_STATUS_LABELS[status] ?? status.replace(/_/g, ' ')
+}
+
+/** A proposal in review is an admin's move; everyone else, the proposer included, waits on it. */
+export function projectStatusOutline(status: string, isAdmin: boolean): boolean {
+  return status === ProjectStatus.pending_review && !isAdmin
 }
 
 /**

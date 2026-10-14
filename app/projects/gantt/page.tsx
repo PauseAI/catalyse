@@ -13,7 +13,7 @@ import { ProjectStatus } from '@/generated/prisma/enums'
 import PageLoading from '@/components/PageLoading'
 
 const STATUS_FILTERS: { key: string; label: string }[] = [
-  { key: ProjectStatus.ready, label: 'Ready' },
+  { key: ProjectStatus.ready, label: 'To do' },
   { key: ProjectStatus.in_progress, label: 'In progress' },
   { key: ProjectStatus.on_hold, label: 'On hold' },
   { key: ProjectStatus.completed, label: 'Completed' },

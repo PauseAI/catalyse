@@ -133,7 +133,7 @@ export default function AdminBugsPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Bug Reports &amp; Feedback</h1>
+      <h1>Bug reports &amp; feedback</h1>
 
       <div className="mb-6 flex gap-4 flex-wrap items-end">
         <FilterDropdown

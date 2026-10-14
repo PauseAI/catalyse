@@ -109,7 +109,7 @@ export default function AdminTeamPage() {
     <>
       <main className="container py-5 pb-15">
         <div className="flex justify-between items-center mb-6">
-          <h1>Team Management</h1>
+          <h1>Team management</h1>
           {user.isSuperAdmin && <Button onClick={openInviteDialog}>Invite Admin</Button>}
         </div>
 
@@ -233,7 +233,7 @@ export default function AdminTeamPage() {
               className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto"
             >
               <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-                <h2 className="mt-0">Invite Admin</h2>
+                <h2 className="mt-0">Invite admin</h2>
               </div>
               <div className="p-6">
                 {inviteSuccess ? (

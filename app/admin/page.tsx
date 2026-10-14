@@ -167,7 +167,7 @@ export default function AdminLandingPage() {
           </div>
 
           <div className="bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden">
-            <h2 className="mt-0">Volunteer Interest</h2>
+            <h2 className="mt-0">Volunteer interest</h2>
             <div className="grid grid-cols-2 gap-5 mt-4">
               <div>
                 <div className="text-4xl font-bold text-brand-text mb-1">
@@ -252,7 +252,7 @@ export default function AdminLandingPage() {
                     >
                       <span>{link.label}</span>
                       {!!link.count && (
-                        <Badge variant={link.count > 0 ? 'caution' : 'neutral'}>{link.count}</Badge>
+                        <Badge variant={link.count > 0 ? 'info' : 'neutral'}>{link.count}</Badge>
                       )}
                     </Link>
                   ))}

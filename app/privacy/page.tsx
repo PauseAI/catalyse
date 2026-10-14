@@ -42,7 +42,7 @@ export default function PrivacyPage() {
     <>
       <main className="container py-5 pb-15">
         <div className="sm:max-w-[600px] mx-auto">
-          <h1>Privacy &amp; Data</h1>
+          <h1>Privacy &amp; data</h1>
           <p className="text-text-light mb-6">
             Manage your data and privacy settings. We&apos;re committed to respecting your rights
             under GDPR.
@@ -51,7 +51,7 @@ export default function PrivacyPage() {
           {user && (
             <>
               <div className={`${SECTION_CARD} overflow-hidden wrap-break-word mb-6`}>
-                <h2>Export Your Data</h2>
+                <h2>Export your data</h2>
                 <p className="text-text-light mb-4">
                   Download all your data in JSON format. This includes your profile, skills, project
                   interests, and messages.
@@ -68,7 +68,7 @@ export default function PrivacyPage() {
           )}
 
           <div className={`${SECTION_CARD} overflow-hidden wrap-break-word mb-6`}>
-            <h2>Our Data Practices</h2>
+            <h2>Our data practices</h2>
 
             <h4>What we collect</h4>
             <ul className="list-disc text-text-light mb-4 pl-5">
@@ -225,7 +225,7 @@ export default function PrivacyPage() {
           </div>
 
           <div className={`${SECTION_CARD} overflow-hidden wrap-break-word mb-6`}>
-            <h2>Your GDPR Rights</h2>
+            <h2>Your GDPR rights</h2>
             <p className="text-text-light mb-4">
               Under GDPR and the UK Data Protection Act 2018, you have the right to:
             </p>

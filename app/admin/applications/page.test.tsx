@@ -136,7 +136,7 @@ describe('applications list', () => {
     await waitFor(() =>
       expect(screen.queryByRole('heading', { name: 'Approved Applicant' })).toBeNull(),
     )
-    const anonToggle = await screen.findByRole('button', { name: /Rejected – Anonymised: 4/ })
+    const anonToggle = await screen.findByRole('button', { name: /Rejected – anonymised: 4/ })
     anonToggle.focus()
     await userEvent.keyboard('{Enter}')
     const anonCards = await screen.findAllByText(/Identity anonymised/)
@@ -194,7 +194,7 @@ describe('applications list', () => {
     const card = (
       await screen.findByRole('heading', { name: 'Doomed Applicant' })
     ).closest<HTMLElement>('[role="article"]')!
-    await userEvent.click(await screen.findByRole('button', { name: /Rejected – Anonymised/ }))
+    await userEvent.click(await screen.findByRole('button', { name: /Rejected – anonymised/ }))
     await prisma.anonymisedEmail.delete({ where: { emailHash: 'fail-hash' } })
     await userEvent.click(await screen.findByRole('button', { name: 'Allow Reapply' }))
     await screen.findByText('Record not found')

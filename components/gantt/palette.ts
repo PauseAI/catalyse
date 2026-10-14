@@ -4,14 +4,22 @@
  * two facts about the same bar never have to fight over one colour.
  */
 
-import { projectStatusLabel } from '@/lib/project-status'
-import { TASK_STATUS_LABELS } from '@/lib/status-labels'
+import type { BadgeVariant } from '@/components/Badge'
+import { PROJECT_STATUS_CONFIG, projectStatusLabel } from '@/lib/project-status'
+import { TASK_STATUS_LABELS, workStatusBadge } from '@/lib/status-labels'
 
 export type BarTone = 'todo' | 'progress' | 'done' | 'hold'
 
 /** A row's status in words: a task's shown status, or a project's lifecycle status. */
 export function statusLabel(status: string): string {
   return TASK_STATUS_LABELS[status] ?? projectStatusLabel(status)
+}
+
+/** A row's status badge: a task's by `workStatusBadge`, a project's by its lifecycle config. */
+export function rowStatusBadge(status: string): { label: string; variant: BadgeVariant } {
+  return TASK_STATUS_LABELS[status]
+    ? workStatusBadge(status, false)
+    : (PROJECT_STATUS_CONFIG[status] ?? { label: projectStatusLabel(status), variant: 'neutral' })
 }
 
 /**
@@ -36,7 +44,7 @@ export function barFill(status: string): string {
 }
 
 export const TONE_LABELS: Record<BarTone, string> = {
-  todo: 'Not started',
+  todo: 'To do',
   progress: 'In progress',
   done: 'Completed',
   hold: 'On hold',

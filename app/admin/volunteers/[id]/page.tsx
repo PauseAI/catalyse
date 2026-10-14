@@ -272,7 +272,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
 
         {/* Skills and contact info */}
         <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
-          <h3>Skills (Self-Assessed)</h3>
+          <h3>Skills (self-assessed)</h3>
           {vol.skills.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 mb-4">
               {vol.skills.map((s) => (
@@ -288,7 +288,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
             <p className="text-text-light mb-4">No skills listed.</p>
           )}
 
-          <h3>Verified Skills (Endorsed)</h3>
+          <h3>Verified skills (endorsed)</h3>
           <div id="endorsements" className="mb-4">
             {vol.endorsements.length > 0 ? (
               vol.endorsements.map((e) => (
@@ -301,7 +301,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
             )}
           </div>
 
-          <h3>Contact Info</h3>
+          <h3>Contact info</h3>
           <div id="contactInfo" className="text-sm">
             <p className="my-1">
               <strong>Email:</strong> {vol.email}
@@ -518,7 +518,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
           {/* Endorse Skill tab */}
           {activeTab === 'endorse_skill' && (
             <div>
-              <h3>Endorse a Skill</h3>
+              <h3>Endorse a skill</h3>
               <form onSubmit={addEndorsement} className="flex flex-col gap-3 max-w-[480px]">
                 <div className="m-0">
                   <FilterDropdown

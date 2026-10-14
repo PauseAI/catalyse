@@ -8,15 +8,13 @@ import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
-import { SUGGESTION_STATUS_LABELS } from '@/lib/status-labels'
+import { Badge } from '@/components/Badge'
+import {
+  SUGGESTION_STATUS_LABELS,
+  suggestionOutline,
+  suggestionStatusVariant,
+} from '@/lib/status-labels'
 import { BLEED, SECTION_CARD } from '@/lib/ui-classes'
-
-const STATUS_CLASSES: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-  accepted: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  on_hold: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  declined: 'bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400',
-}
 
 export default function SuggestTeamPage() {
   const { user, loading } = useRequireAuth()
@@ -55,7 +53,7 @@ export default function SuggestTeamPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Suggest a Team</h1>
+      <h1>Suggest a team</h1>
       <p className="text-text-light mb-2">
         Don&apos;t see a team for what you&apos;re working on? Suggest one and an admin will review
         it.
@@ -99,7 +97,7 @@ export default function SuggestTeamPage() {
 
         {!loadingSuggestions && suggestions.length > 0 && (
           <div>
-            <h2 className="text-lg font-semibold mb-4">Your Previous Suggestions</h2>
+            <h2 className="text-lg font-semibold mb-4">Your previous suggestions</h2>
             <div className="space-y-3">
               {suggestions.map((s) => (
                 <article
@@ -123,11 +121,13 @@ export default function SuggestTeamPage() {
                       <p className="text-sm text-text-light mt-2 mb-0 italic">{s.adminNotes}</p>
                     )}
                   </div>
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap ${STATUS_CLASSES[s.status] ?? ''}`}
+                  <Badge
+                    variant={suggestionStatusVariant(s.status)}
+                    outline={suggestionOutline(s.status)}
+                    className="whitespace-nowrap"
                   >
                     {SUGGESTION_STATUS_LABELS[s.status] ?? s.status}
-                  </span>
+                  </Badge>
                 </article>
               ))}
             </div>

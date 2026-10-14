@@ -127,7 +127,7 @@ describe('admin skills', () => {
     )
     expect(screen.getByText('Delete “Zeta Two”? This cannot be undone.')).toBeInTheDocument()
     await userEvent.click(
-      screen.getByRole('heading', { name: 'Confirm Delete' }).closest('.fixed')!,
+      screen.getByRole('heading', { name: 'Confirm delete' }).closest('.fixed')!,
     )
     await userEvent.click(
       within(
