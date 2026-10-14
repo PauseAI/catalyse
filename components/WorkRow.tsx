@@ -48,7 +48,7 @@ export type WorkRowParts = {
   title: React.ReactNode
   /** Under the title, muted: what a task waits for, its project, a role or a date. */
   below: React.ReactNode
-  chips: React.ReactNode
+  chips?: React.ReactNode
   /** Right-aligned, usually a `PersonAvatar`. */
   person: React.ReactNode
   primaryAction?: React.ReactNode

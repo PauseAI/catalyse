@@ -79,7 +79,7 @@ export default function ForgotPasswordPage() {
                   shortly.
                 </p>
                 <Button href="/login" variant="outline">
-                  Back to Login
+                  Back to login
                 </Button>
                 <p className="text-sm text-text-light mt-4">
                   Not receiving the email? Check your spam folder, or{' '}

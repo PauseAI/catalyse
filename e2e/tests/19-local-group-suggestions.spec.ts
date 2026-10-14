@@ -44,7 +44,7 @@ test.describe('Local Group Suggestions', () => {
     )
     await expect(volunteer.page.getByRole('button', { name: 'Submit suggestion' })).toBeDisabled()
 
-    await volunteer.page.getByLabel('Local Group Name').fill('TestCity')
+    await volunteer.page.getByLabel('Local group name').fill('TestCity')
     await expect(volunteer.page.getByRole('button', { name: 'Submit suggestion' })).toBeEnabled()
   })
 

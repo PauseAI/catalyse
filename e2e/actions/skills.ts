@@ -20,13 +20,13 @@ export async function createSkill(baseUrl: string, adminPage: Page): Promise<Ski
   })
 
   await adminPage.getByRole('button', { name: '+ Add category' }).click()
-  await adminPage.getByLabel('Category Name').fill(categoryName)
+  await adminPage.getByLabel('Category name').fill(categoryName)
   await adminPage.getByRole('button', { name: 'Save category' }).click()
   await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 
   const categoryCard = adminPage.locator('.category-card').filter({ hasText: categoryName })
   await categoryCard.getByRole('button', { name: '+ Add skill' }).click()
-  await adminPage.getByLabel('Skill Name').fill(skillName)
+  await adminPage.getByLabel('Skill name').fill(skillName)
   await adminPage.getByRole('button', { name: 'Save skill' }).click()
   await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 

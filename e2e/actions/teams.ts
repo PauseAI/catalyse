@@ -9,8 +9,8 @@ export async function suggestTeam(
   description?: string,
 ): Promise<void> {
   await page.goto(`${baseUrl}/suggest-team`)
-  await page.getByRole('heading', { name: 'Suggest a Team', level: 1 }).waitFor({ timeout: 10_000 })
-  await page.getByLabel('Team Name').fill(name)
+  await page.getByRole('heading', { name: 'Suggest a team', level: 1 }).waitFor({ timeout: 10_000 })
+  await page.getByLabel('Team name').fill(name)
   if (description) await page.getByLabel(/^Description/).fill(description)
   await page.getByRole('button', { name: 'Submit suggestion' }).click()
   await page.getByText('Suggestion submitted!').waitFor({ timeout: 10_000 })
@@ -58,7 +58,7 @@ export async function adminReviewTeamSuggestion(
 
   if (action === 'accept') {
     if (opts.editName !== undefined) {
-      await adminPage.getByLabel('Team Name').fill(opts.editName)
+      await adminPage.getByLabel('Team name').fill(opts.editName)
     }
     if (opts.leaderName !== undefined) {
       await selectFilterDropdown(adminPage, 'Select team leader', opts.leaderName)
@@ -88,7 +88,7 @@ export async function applyToJoinTeam(
   await page.goto(`${baseUrl}/teams`)
   await page.getByRole('heading', { name: 'Teams', level: 1 }).waitFor({ timeout: 10_000 })
   const card = page.getByRole('article').filter({ hasText: teamName })
-  await card.getByRole('button', { name: 'Apply to Join' }).click()
+  await card.getByRole('button', { name: 'Apply to join' }).click()
   await expect(getAlert(page)).toBeVisible({ timeout: 10_000 })
 }
 

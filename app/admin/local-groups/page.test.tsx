@@ -81,7 +81,7 @@ describe('admin local groups', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Select country/group' }))
     await userEvent.type(screen.getByPlaceholderText('Search…'), 'United K')
     await userEvent.click(await screen.findByRole('option', { name: 'United Kingdom' }))
-    await userEvent.type(screen.getByLabelText('Group Name'), 'Zz Bangor')
+    await userEvent.type(screen.getByLabelText('Group name'), 'Zz Bangor')
     await userEvent.click(screen.getByRole('button', { name: 'Add group' }))
     await screen.findByText('Local group added')
     await screen.findByText('United Kingdom, Zz Bangor', { selector: 'span' })
@@ -104,8 +104,8 @@ describe('admin local groups', () => {
     await userEvent.click(
       within(article('United Kingdom, Zz Bangor')).getByRole('button', { name: 'Edit' }),
     )
-    expect(screen.getByLabelText('Group Name')).toHaveValue('Zz Bangor')
-    await userEvent.type(screen.getByLabelText('Group Name'), ' North')
+    expect(screen.getByLabelText('Group name')).toHaveValue('Zz Bangor')
+    await userEvent.type(screen.getByLabelText('Group name'), ' North')
     await userEvent.click(screen.getByRole('button', { name: 'Select country/group' }))
     await userEvent.type(screen.getByPlaceholderText('Search…'), 'Germ')
     await userEvent.click(await screen.findByRole('option', { name: 'Germany' }))
@@ -132,7 +132,7 @@ describe('admin local groups', () => {
     await userEvent.click(
       within(article('United Kingdom, Zz Bath')).getByRole('button', { name: 'Review' }),
     )
-    await userEvent.type(screen.getByLabelText('Group Name'), ' Spa')
+    await userEvent.type(screen.getByLabelText('Group name'), ' Spa')
     await userEvent.clear(screen.getByLabelText('Country'))
     expect(screen.getByRole('button', { name: 'Confirm' })).toBeDisabled()
     await userEvent.type(screen.getByLabelText('Country'), 'UK')
@@ -237,7 +237,7 @@ describe('admin local groups', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add local group' }))
     await userEvent.click(screen.getByRole('button', { name: 'Select country/group' }))
     await userEvent.click(await screen.findByRole('option', { name: 'Germany' }))
-    await userEvent.type(screen.getByLabelText('Group Name'), 'Doomed Group')
+    await userEvent.type(screen.getByLabelText('Group name'), 'Doomed Group')
     localStorage.setItem('authToken', 'stale')
     await userEvent.click(screen.getByRole('button', { name: 'Add group' }))
     await screen.findByText('Unauthorized')

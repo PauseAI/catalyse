@@ -13,14 +13,14 @@ test.describe('Quick Tasks: self-serve', () => {
     expect(created.status).toBe(200)
 
     await volunteer.page.goto(`${baseUrl}/quick-tasks`)
-    await expect(volunteer.page.getByRole('heading', { name: 'Browse Quick Tasks' })).toBeVisible({
+    await expect(volunteer.page.getByRole('heading', { name: 'Browse quick tasks' })).toBeVisible({
       timeout: 10_000,
     })
 
     // The same title appears in both lists while the two queries settle, so each assertion
     // says which list it means rather than racing them.
-    const browsePool = volunteer.page.getByRole('region', { name: 'Browse Quick Tasks' })
-    const myTasks = volunteer.page.getByRole('region', { name: 'My Quick Tasks' })
+    const browsePool = volunteer.page.getByRole('region', { name: 'Browse quick tasks' })
+    const myTasks = volunteer.page.getByRole('region', { name: 'My quick tasks' })
 
     const browseCard = browsePool.getByRole('article').filter({ hasText: taskTitle })
     await expect(browseCard).toBeVisible({ timeout: 10_000 })
@@ -162,7 +162,7 @@ test.describe('Quick Tasks: self-serve', () => {
     // flagged this way was invisible here even though it correctly appeared in the
     // volunteer-facing browse pool.
     await adminPage.goto(`${baseUrl}/quick-tasks`)
-    await expect(adminPage.getByRole('heading', { name: 'Quick Tasks', level: 1 })).toBeVisible({
+    await expect(adminPage.getByRole('heading', { name: 'Quick tasks', level: 1 })).toBeVisible({
       timeout: 10_000,
     })
     await expect(

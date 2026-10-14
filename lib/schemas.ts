@@ -114,7 +114,7 @@ export const SignupSchema = VolunteerSchema.pick({
     bio: z
       .string()
       .min(20, 'Please write at least 20 characters')
-      .max(2000, 'About You must be no more than 2000 characters'),
+      .max(2000, 'About you must be no more than 2000 characters'),
     country: z.string().min(1, 'Country is required').max(100),
     availabilityHoursPerWeek: z
       .number()
@@ -531,7 +531,7 @@ export const UpdateVolunteerSchema = VolunteerSchema.omit({
   .extend({
     ...VOLUNTEER_TEXT_LIMITS,
     name: PersonNameSchema.optional(),
-    bio: shortText('About You', 2000).nullable().optional(),
+    bio: shortText('About you', 2000).nullable().optional(),
     applicationMessage: z
       .string()
       .min(20, 'Please write at least 20 characters')

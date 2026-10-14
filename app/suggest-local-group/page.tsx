@@ -89,7 +89,7 @@ export default function SuggestLocalGroupPage() {
             </div>
 
             <div className="mb-5">
-              <label htmlFor="name">Local Group Name</label>
+              <label htmlFor="name">Local group name</label>
               <input
                 id="name"
                 type="text"

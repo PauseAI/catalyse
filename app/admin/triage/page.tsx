@@ -9,12 +9,12 @@ import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import {
   ProjectCard,
   type Project as CardProject,
-  statusBadgeClasses,
-  STATUS_LABELS,
   CARD_GRID_CLASSES,
 } from '@/components/ProjectCard'
 import Tabs from '@/components/Tabs'
 import { Badge } from '@/components/Badge'
+import { ProjectStatusBadge } from '@/components/StatusBadges'
+import { projectStatusLabel } from '@/lib/project-status'
 import { INTEREST_STATUS_LABELS, interestStatusVariant } from '@/lib/status-labels'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
@@ -119,7 +119,7 @@ export default function TriagePage() {
               key: 'pending_review',
               label: (
                 <>
-                  {STATUS_LABELS.pending_review}
+                  {projectStatusLabel(ProjectStatus.pending_review)}
                   {pending.length > 0 && (
                     <span className="bg-primary text-gray-900 text-xs px-2 py-0.5 rounded-full ml-2">
                       {pending.length}
@@ -132,7 +132,7 @@ export default function TriagePage() {
               key: 'needs_discussion',
               label: (
                 <>
-                  {`Needs changes`}
+                  {projectStatusLabel(ProjectStatus.needs_discussion)}
                   {discussion.length > 0 && (
                     <span className="bg-primary text-gray-900 text-xs px-2 py-0.5 rounded-full ml-2">
                       {discussion.length}
@@ -145,7 +145,7 @@ export default function TriagePage() {
               key: 'stale_in_progress',
               label: (
                 <>
-                  {`No Open Tasks`}
+                  {`No open tasks`}
                   {stale.length > 0 && (
                     <span className="bg-primary text-gray-900 text-xs px-2 py-0.5 rounded-full ml-2">
                       {stale.length}
@@ -171,7 +171,7 @@ export default function TriagePage() {
               key: 'interests',
               label: (
                 <>
-                  Volunteer Interests
+                  Volunteer interests
                   {pendingInterests.length > 0 && (
                     <span className="bg-primary text-gray-900 text-xs px-2 py-0.5 rounded-full ml-2">
                       {pendingInterests.length}
@@ -201,7 +201,13 @@ export default function TriagePage() {
             {loadingInterests ? (
               <div className="text-center py-10 text-text-light">Loading…</div>
             ) : interests.length === 0 ? (
-              <p>No {interestStatusFilter || ''} interests found.</p>
+              <p>
+                {interestStatusFilter === 'pending' ? (
+                  'No requests right now.'
+                ) : (
+                  <>No {interestStatusFilter} interests found.</>
+                )}
+              </p>
             ) : (
               <div className={CARD_GRID_CLASSES}>
                 {interests.map((i) => (
@@ -233,9 +239,7 @@ export default function TriagePage() {
                           {i.createdAt ? formatDate(i.createdAt) : ''}
                           {' · '}Owner: {i.ownerName ?? 'None'}
                           {' · '}Project:{' '}
-                          <span className={statusBadgeClasses(i.projectStatus)}>
-                            {STATUS_LABELS[i.projectStatus] ?? i.projectStatus}
-                          </span>
+                          <ProjectStatusBadge status={i.projectStatus} viewerIsAdmin />
                         </p>
                       </div>
                       {/* A request carries no badge: its Accept and Decline say it waits on you. */}
@@ -342,7 +346,7 @@ export default function TriagePage() {
                             onClick={() => submitDraftMutation.mutate({ id: p.id })}
                             disabled={submitDraftMutation.isPending}
                           >
-                            Submit for Review
+                            Submit for review
                           </Button>
                         </div>
                       ) : (

@@ -23,7 +23,6 @@ import { useToast } from '@/lib/toast'
 import { TaskStatus } from '@/generated/prisma/enums'
 import { UNCLAIMED_LABEL } from '@/lib/status-labels'
 import { lateness } from '@/lib/lateness'
-import { latenessOutline, statusOutline } from '@/lib/status-emphasis'
 import { LatenessBadge, WorkStatusBadge } from '@/components/StatusBadges'
 import { PROJECT_TASK_CLAIMED_MESSAGE, TASK_REQUESTED_MESSAGE } from '@/lib/action-messages'
 import { CLAIMING, JOIN_AS_HELPER, UNASSIGN, claimLabel } from '@/lib/action-labels'
@@ -260,7 +259,7 @@ export default function TaskDetailPage({
         message="This task doesn't exist, or it isn't one you can see."
       >
         <Link href={`/projects/${projectIdStr}`} className="text-sm">
-          Back to Project
+          Back to project
         </Link>
       </NotFoundCard>
     )
@@ -385,7 +384,7 @@ export default function TaskDetailPage({
               <WorkStatusBadge
                 status={task.displayStatus}
                 changesRequested={task.changesRequested !== null}
-                outline={statusOutline(task.displayStatus, task.changesRequested !== null, viewer)}
+                viewer={viewer}
               />
               <LatenessBadge
                 lateness={lateness({
@@ -393,7 +392,7 @@ export default function TaskDetailPage({
                   pastPlanDays: task.pastPlanDays,
                   done: handedIn(task.status),
                 })}
-                outline={latenessOutline(viewer)}
+                viewer={viewer}
               />
               {task.blockedBy.length > 0 && (
                 <StatusFlag>Blocked by {quotedTitles(task.blockedBy)}</StatusFlag>
@@ -600,7 +599,7 @@ export default function TaskDetailPage({
 
             <div className="mb-5">
               <Checkbox checked={editFeatured} onChange={(e) => setEditFeatured(e.target.checked)}>
-                Add this task to the Quick Tasks page so volunteers can find and claim it without
+                Add this task to the quick tasks page so volunteers can find and claim it without
                 first clicking into this project
               </Checkbox>
             </div>

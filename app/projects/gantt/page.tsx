@@ -10,15 +10,16 @@ import Button from '@/components/Button'
 import GanttChart from '@/components/gantt/GanttChart'
 import type { GanttRow as GanttRowData } from '@/components/gantt/types'
 import { ProjectStatus } from '@/generated/prisma/enums'
+import { projectStatusLabel } from '@/lib/project-status'
 import PageLoading from '@/components/PageLoading'
 
 const STATUS_FILTERS: { key: string; label: string }[] = [
-  { key: ProjectStatus.ready, label: 'To do' },
-  { key: ProjectStatus.in_progress, label: 'In progress' },
-  { key: ProjectStatus.on_hold, label: 'On hold' },
-  { key: ProjectStatus.completed, label: 'Completed' },
-  { key: ProjectStatus.archived, label: 'Archived' },
-]
+  ProjectStatus.ready,
+  ProjectStatus.in_progress,
+  ProjectStatus.on_hold,
+  ProjectStatus.completed,
+  ProjectStatus.archived,
+].map((key) => ({ key, label: projectStatusLabel(key) }))
 const DEFAULT_STATUSES = [ProjectStatus.ready, ProjectStatus.in_progress, ProjectStatus.on_hold]
 
 export default function RoadmapPage() {

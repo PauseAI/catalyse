@@ -32,6 +32,10 @@ export function projectStatusLabel(status: string): string {
   return PROJECT_STATUS_LABELS[status] ?? status.replace(/_/g, ' ')
 }
 
+export function projectStatusVariant(status: string): BadgeVariant {
+  return PROJECT_STATUS_CONFIG[status]?.variant ?? 'neutral'
+}
+
 /** A proposal in review is an admin's move; everyone else, the proposer included, waits on it. */
 export function projectStatusOutline(status: string, isAdmin: boolean): boolean {
   return status === ProjectStatus.pending_review && !isAdmin

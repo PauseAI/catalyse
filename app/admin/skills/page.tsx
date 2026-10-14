@@ -427,10 +427,10 @@ export default function AdminSkillsPage() {
             <div className="p-6">
               <form onSubmit={(e) => handleSaveCategory(e, modal)}>
                 <div className="mb-5">
-                  <label htmlFor="cat-name">Category Name</label>
+                  <label htmlFor="cat-name">Category name</label>
                   <input
                     id="cat-name"
-                    aria-label="Category Name"
+                    aria-label="Category name"
                     type="text"
                     value={inputName}
                     onChange={(e) => setInputName(e.target.value)}
@@ -480,10 +480,10 @@ export default function AdminSkillsPage() {
               )}
               <form onSubmit={(e) => handleSaveSkill(e, modal)}>
                 <div className="mb-5">
-                  <label htmlFor="skill-name">Skill Name</label>
+                  <label htmlFor="skill-name">Skill name</label>
                   <input
                     id="skill-name"
-                    aria-label="Skill Name"
+                    aria-label="Skill name"
                     type="text"
                     value={inputName}
                     onChange={(e) => setInputName(e.target.value)}

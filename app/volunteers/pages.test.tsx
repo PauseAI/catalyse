@@ -259,6 +259,6 @@ describe('volunteer profile', () => {
     expect(screen.queryByText('Verified skills')).toBeNull()
     cleanup()
     await renderApp(<VolunteerDetailPage params={Promise.resolve({ id: '999999' })} />, { as: me })
-    await screen.findByRole('link', { name: 'Back to Volunteers' })
+    await screen.findByRole('link', { name: 'Back to volunteers' })
   })
 })

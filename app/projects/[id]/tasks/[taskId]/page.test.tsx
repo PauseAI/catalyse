@@ -498,10 +498,10 @@ describe('task detail page', () => {
     )
     cleanup()
     await mount(project.id, 999999, admin)
-    await screen.findByRole('link', { name: 'Back to Project' })
+    await screen.findByRole('link', { name: 'Back to project' })
     cleanup()
     await mount('x', 'y', admin)
-    await screen.findByRole('link', { name: 'Back to Project' })
+    await screen.findByRole('link', { name: 'Back to project' })
   })
 
   it('shows the shared not-found card for a task that is gone', async () => {
@@ -512,7 +512,7 @@ describe('task detail page', () => {
       'href',
       '/dashboard',
     )
-    expect(screen.getByRole('link', { name: 'Back to Project' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Back to project' })).toHaveAttribute(
       'href',
       `/projects/${project.id}`,
     )

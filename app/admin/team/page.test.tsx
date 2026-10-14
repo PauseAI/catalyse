@@ -47,13 +47,13 @@ describe('admin team', () => {
     await screen.findByText('Admin access revoked')
     await waitFor(() => expect(screen.queryByText('Olly Other')).toBeNull())
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Pending Invites' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Pending invites' }))
     await screen.findByText('No pending invites.')
     await userEvent.click(screen.getByRole('button', { name: 'Invite admin' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Invite admin' }))
-    await userEvent.type(screen.getByLabelText('Email Address'), 'new.admin@example.com')
+    await userEvent.type(screen.getByLabelText('Email address'), 'new.admin@example.com')
     await userEvent.click(screen.getByRole('button', { name: 'Send invite' }))
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Invite sent to new.admin@example.com',
@@ -68,7 +68,7 @@ describe('admin team', () => {
 
     // A refused invite closes the dialog with the reason.
     await userEvent.click(screen.getByRole('button', { name: 'Invite admin' }))
-    await userEvent.type(screen.getByLabelText('Email Address'), sa.email!)
+    await userEvent.type(screen.getByLabelText('Email address'), sa.email!)
     await userEvent.click(screen.getByRole('button', { name: 'Send invite' }))
     await screen.findByText('This person is already an admin')
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -90,7 +90,7 @@ describe('admin team', () => {
     expect(screen.queryByRole('button', { name: 'Invite admin' })).toBeNull()
     expect(screen.getByText('Notified of bug reports')).toBeInTheDocument()
     expect(screen.queryByRole('checkbox')).toBeNull()
-    await userEvent.click(screen.getByRole('tab', { name: 'Pending Invites' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Pending invites' }))
     await screen.findByText('pending@example.com')
     expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
   })
@@ -118,7 +118,7 @@ describe('admin team', () => {
     await screen.findAllByText(/not found/i)
     cleanup()
     await renderApp(<AdminTeamPage />, { as: sa })
-    await userEvent.click(await screen.findByRole('tab', { name: 'Pending Invites' }))
+    await userEvent.click(await screen.findByRole('tab', { name: 'Pending invites' }))
     const invite = (await screen.findByText('cancel@example.com')).closest<HTMLElement>('.card')!
     localStorage.setItem('authToken', 'stale')
     await userEvent.click(within(invite).getByRole('button', { name: 'Cancel' }))

@@ -74,12 +74,12 @@ describe('/suggest-team', () => {
     expect(screen.getByText('Same thing')).toBeInTheDocument()
     expect(screen.getByText('Under review')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Submit suggestion' })).toBeDisabled()
-    await userEvent.type(screen.getByLabelText('Team Name'), 'Comms')
+    await userEvent.type(screen.getByLabelText('Team name'), 'Comms')
     await userEvent.type(screen.getByLabelText(/Description/), 'Talking to press')
     await userEvent.click(screen.getByRole('button', { name: 'Submit suggestion' }))
     await screen.findByText('Suggestion submitted!')
     await screen.findByText('Comms')
-    expect(screen.getByLabelText('Team Name')).toHaveValue('')
+    expect(screen.getByLabelText('Team name')).toHaveValue('')
     await waitFor(async () =>
       expect(
         await prisma.notification.count({
@@ -88,7 +88,7 @@ describe('/suggest-team', () => {
       ).toBe(1),
     )
     localStorage.setItem('authToken', 'stale')
-    await userEvent.type(screen.getByLabelText('Team Name'), 'Again')
+    await userEvent.type(screen.getByLabelText('Team name'), 'Again')
     await userEvent.click(screen.getByRole('button', { name: 'Submit suggestion' }))
     await screen.findByText('Unauthorized')
   })
@@ -117,7 +117,7 @@ describe('/suggest-local-group', () => {
       ),
     )
     expect(screen.getByRole('button', { name: 'Submit suggestion' })).toBeDisabled()
-    await userEvent.type(screen.getByLabelText('Local Group Name'), 'Bristol')
+    await userEvent.type(screen.getByLabelText('Local group name'), 'Bristol')
     await userEvent.click(screen.getByRole('button', { name: 'Submit suggestion' }))
     await screen.findByText('Suggestion submitted!')
     await screen.findByText('United Kingdom, Bristol')
@@ -125,13 +125,13 @@ describe('/suggest-local-group', () => {
     cleanup()
     const elsewhere = await createVolunteer({ country: 'Narnia' })
     await renderApp(<SuggestLocalGroupPage />, { as: elsewhere })
-    await screen.findByLabelText('Local Group Name')
+    await screen.findByLabelText('Local group name')
     expect(screen.getByRole('button', { name: 'Select country/group' })).toHaveTextContent(
       'Australia',
     )
     await userEvent.click(screen.getByRole('button', { name: 'Select country/group' }))
     await userEvent.click(screen.getByRole('option', { name: 'France' }))
-    await userEvent.type(screen.getByLabelText('Local Group Name'), 'Lyon')
+    await userEvent.type(screen.getByLabelText('Local group name'), 'Lyon')
     localStorage.setItem('authToken', 'stale')
     await userEvent.click(screen.getByRole('button', { name: 'Submit suggestion' }))
     await screen.findByText('Unauthorized')

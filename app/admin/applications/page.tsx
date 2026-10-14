@@ -17,11 +17,11 @@ import { ApprovalStatus } from '@/generated/prisma/enums'
 type Filter = 'mine' | 'others' | 'approved' | 'needs_info' | 'rejected'
 
 const SECTIONS: { key: Filter; label: string; color: string; collapsedByDefault?: boolean }[] = [
-  { key: 'mine', label: 'Pending & Under Review by Me', color: 'text-primary' },
-  { key: 'others', label: 'Under Review by Others', color: 'text-text-light' },
+  { key: 'mine', label: 'Pending & under review by me', color: 'text-primary' },
+  { key: 'others', label: 'Under review by others', color: 'text-text-light' },
   {
     key: 'needs_info',
-    label: 'Needs Info',
+    label: 'Needs info',
     color: 'text-amber-600 dark:text-amber-400',
   },
   { key: 'rejected', label: 'Rejected', color: 'text-red-600 dark:text-red-400' },

@@ -7,10 +7,8 @@ import { useRequireApproved } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import Button from '@/components/Button'
-import { WorkStatusBadge } from '@/components/StatusBadges'
-import DeadlineChip from '@/components/DeadlineChip'
+import { DueChip, WorkStatusBadge } from '@/components/StatusBadges'
 import CommentThread from '@/components/CommentThread'
-import { latenessOutline, statusOutline } from '@/lib/status-emphasis'
 import Linkify from '@/components/Linkify'
 import SubmitWorkButton from '@/components/SubmitWorkButton'
 import SubmittedWork from '@/components/SubmittedWork'
@@ -26,7 +24,7 @@ import PageLoading from '@/components/PageLoading'
 const REVIEW_RATING_LABELS: Record<string, string> = {
   excellent: 'Excellent',
   good: 'Good',
-  needs_improvement: 'Needs Improvement',
+  needs_improvement: 'Needs improvement',
   unsatisfactory: 'Unsatisfactory',
 }
 
@@ -71,7 +69,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
       <main className="container py-5">
         <p className="text-text-light">Task not found.</p>
         <Button href="/quick-tasks" variant="secondary" size="sm">
-          Back to Quick Tasks
+          Back to quick tasks
         </Button>
       </main>
     )
@@ -79,7 +77,6 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
 
   const mine = task.assignedToId === user.id
   const viewer = { isAssignee: mine, canReview: Boolean(user.isAdmin) }
-  const changesRequested = task.changesRequested !== null
 
   return (
     <main className="container py-5 pb-15">
@@ -87,7 +84,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
         href={mine ? '/quick-tasks' : '/quick-tasks#browse-quick-tasks'}
         className="text-sm text-primary-text underline block mb-4"
       >
-        {mine ? '← Back to My Quick Tasks' : '← Back to Quick Tasks'}
+        {mine ? '← Back to my quick tasks' : '← Back to quick tasks'}
       </Link>
 
       <div className={`${SECTION_CARD} overflow-hidden wrap-break-word`}>
@@ -96,8 +93,8 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
           <WorkStatusBadge
             status={task.status}
             quick
-            changesRequested={changesRequested}
-            outline={statusOutline(task.status, changesRequested, viewer)}
+            changesRequested={task.changesRequested !== null}
+            viewer={viewer}
           />
         </div>
 
@@ -113,12 +110,8 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
             </span>
           )}
           {task.deadline && (
-            <span className="flex items-center gap-2 self-center">
-              <DeadlineChip
-                deadline={task.deadline}
-                done={handedIn(task.status)}
-                outline={latenessOutline(viewer)}
-              />
+            <span className="flex items-center gap-2 self-center text-sm">
+              <DueChip deadline={task.deadline} done={handedIn(task.status)} viewer={viewer} />
             </span>
           )}
           {task.projectTitle && task.projectId && (

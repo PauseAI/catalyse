@@ -81,7 +81,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
   return (
     <main className="container py-5 pb-15 max-w-2xl">
       <Link href="/teams" className="text-sm text-brand-text no-underline hover:text-primary">
-        ← All Teams
+        ← All teams
       </Link>
 
       <div className="flex items-start justify-between gap-4 mt-3 mb-2">
@@ -110,7 +110,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
           </Button>
         ) : team.viewerRequestStatus === 'pending' ? (
           <Button size="sm" variant="secondary" disabled>
-            Application Pending
+            Application pending
           </Button>
         ) : (
           <Button
@@ -119,7 +119,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
             disabled={applyMutation.isPending || isCooling(team.id)}
             onClick={() => applyMutation.mutate({ id: team.id })}
           >
-            Apply to Join
+            Apply to join
           </Button>
         )}
       </div>

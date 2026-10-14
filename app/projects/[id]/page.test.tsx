@@ -87,7 +87,7 @@ describe('project page — visitor', () => {
     await screen.findByRole('heading', { name: 'Visible project' })
     // Overview first: the description, skills and the doc link.
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('link', { name: 'Open Project Doc →' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Open project doc →' })).toHaveAttribute(
       'href',
       'https://doc.example',
     )
@@ -202,7 +202,7 @@ describe('project page — visitor', () => {
     })
     await mount(project.id, me)
     await screen.findByRole('heading', { name: 'Ownerless' })
-    expect(screen.queryByRole('link', { name: 'Open Project Doc →' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Open project doc →' })).toBeNull()
     // Nobody owns it: an empty chip, with Join beside it rather than among the page's actions.
     const person = screen.getByText('Owner', { exact: true }).parentElement!
     expect(person).toHaveTextContent(/^OwnerNo owner yet· No helpers yetJoin this project$/)
@@ -1367,8 +1367,8 @@ describe('project page — admin', () => {
     expect(screen.queryByText('Pat Proposer')).toBeNull()
     expect(screen.getByText('No owner yet')).toBeInTheDocument()
     await userEvent.click(screen.getByLabelText('Ask for changes'))
-    await userEvent.type(screen.getByLabelText('Message to Proposer'), 'Tell us more')
-    fireEvent.submit(screen.getByLabelText('Message to Proposer').closest('form')!)
+    await userEvent.type(screen.getByLabelText('Message to proposer'), 'Tell us more')
+    fireEvent.submit(screen.getByLabelText('Message to proposer').closest('form')!)
     await screen.findByText('Changes requested.')
     await waitFor(async () => expect((await row(pending.id)).status).toBe('needs_discussion'))
     cleanup()

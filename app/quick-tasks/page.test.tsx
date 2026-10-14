@@ -80,9 +80,9 @@ describe('quick tasks — volunteer view', () => {
     expect(myCard('Mine done').getByRole('status')).toHaveTextContent('Done')
     // Late only while the work is not handed in: a task waiting for review is off the clock.
     expect(myCard('Mine in progress').getByText(/days late$/)).toBeInTheDocument()
-    expect(myCard('Mine done').getByText('Deadline 2 Jan 2020')).toBeInTheDocument()
+    expect(myCard('Mine done').getByText('Due 2 Jan 2020')).toBeInTheDocument()
     expect(myCard('Mine done').queryByText(/days late$/)).toBeNull()
-    expect(myCard('Mine submitted').getByText('Deadline 2 Jan 2020')).toBeInTheDocument()
+    expect(myCard('Mine submitted').getByText('Due 2 Jan 2020')).toBeInTheDocument()
     expect(myCard('Mine submitted').queryByText(/days late$/)).toBeNull()
     // Opens on my own tasks; the open pool is the other tab.
     expect(screen.getByRole('tab', { name: 'Mine (3)' })).toHaveAttribute('aria-selected', 'true')
@@ -90,8 +90,8 @@ describe('quick tasks — volunteer view', () => {
     await userEvent.click(await screen.findByRole('tab', { name: 'Open (2)' }))
     const browse = screen.getByText('Browse quick tasks').closest('section')!
     await within(browse).findByText('Open quick')
-    expect(within(browse).getByText('Deadline 4 Mar 2099')).toBeInTheDocument()
-    expect(within(browse).getByText('Deadline 6 May 2099')).toBeInTheDocument()
+    expect(within(browse).getByText('Due 4 Mar 2099')).toBeInTheDocument()
+    expect(within(browse).getByText('Due 6 May 2099')).toBeInTheDocument()
     expect(
       within(within(browse).getByText('Open quick').closest('[role=article]')!).getByRole('status'),
     ).toHaveTextContent('To do')
@@ -157,11 +157,11 @@ describe('quick tasks — volunteer view', () => {
   it('shows empty states and reports failures', async () => {
     const me = await createVolunteer()
     await renderApp(<QuickTasksPage />, { as: me })
-    await screen.findByText('No open Quick Tasks right now')
+    await screen.findByText('No open quick tasks right now')
     await userEvent.click(screen.getByRole('tab', { name: 'Mine' }))
     await screen.findByText('No tasks assigned yet')
     await userEvent.click(screen.getByRole('button', { name: 'See open tasks' }))
-    await screen.findByText('No open Quick Tasks right now')
+    await screen.findByText('No open quick tasks right now')
     cleanup()
     const mine = await createQuickTask({
       title: 'Fragile',
@@ -200,6 +200,26 @@ describe('quick tasks — volunteer view', () => {
 })
 
 describe('quick tasks — admin view', () => {
+  it('fills work in review and outlines work sent back to the assignee', async () => {
+    const admin = await createAdmin()
+    const vol = await createVolunteer()
+    await createQuickTask({ title: 'Handed in', assigneeId: vol.id, status: 'under_review' })
+    await createQuickTask({
+      title: 'Sent back',
+      assigneeId: vol.id,
+      status: 'in_progress',
+      changesRequestedNote: 'Add a photo',
+    })
+    await renderApp(<QuickTasksPage />, { as: admin })
+    const status = async (title: string) =>
+      within((await screen.findByText(title)).closest('[role=article]') as HTMLElement).getByRole(
+        'status',
+      )
+    expect(await status('Handed in')).toHaveAttribute('data-emphasis', 'filled')
+    expect(await status('Sent back')).toHaveTextContent('Changes requested')
+    expect(await status('Sent back')).toHaveAttribute('data-emphasis', 'outline')
+  })
+
   it('creates, edits, assigns, unassigns, reviews and deletes quick tasks', async () => {
     const admin = await createAdmin()
     const vol = await createVolunteer({ name: 'Zara Volunteer' })
@@ -238,9 +258,9 @@ describe('quick tasks — admin view', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
     await userEvent.type(screen.getByLabelText('Title'), 'Fresh task')
     await userEvent.type(screen.getByLabelText('Description'), 'Do the thing')
-    await userEvent.click(screen.getByRole('button', { name: 'Skill Being Tested' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Skill being tested' }))
     await userEvent.click(screen.getByRole('option', { name: new RegExp(skill.name) }))
-    await userEvent.type(screen.getByLabelText('Estimated Hours'), '1.5')
+    await userEvent.type(screen.getByLabelText('Estimated hours'), '1.5')
     fireEvent.change(screen.getByLabelText('Deadline (optional)'), {
       target: { value: '2020-01-02' },
     })
@@ -257,10 +277,10 @@ describe('quick tasks — admin view', () => {
       deadline: new Date('2020-01-02T00:00:00Z'),
     })
     const freshCard = () => screen.getByText('Fresh task').closest('[role=article]') as HTMLElement
-    // A deadline that has passed on an open task flags it late.
+    // A deadline that has passed on an open task flags it late, and the badge stands for the date.
     await screen.findByText('Fresh task')
-    expect(within(freshCard()).getByText('Deadline 2 Jan 2020')).toBeInTheDocument()
     expect(within(freshCard()).getByText(/days late$/)).toBeInTheDocument()
+    expect(within(freshCard()).queryByText('Due 2 Jan 2020')).toBeNull()
 
     await userEvent.click(screen.getByRole('button', { name: 'Status' }))
     await userEvent.click(screen.getByRole('option', { name: 'Submitted (needs review)' }))
@@ -276,9 +296,9 @@ describe('quick tasks — admin view', () => {
     await userEvent.clear(editTitle)
     await userEvent.type(editTitle, 'Edited task')
     await userEvent.type(screen.getByLabelText('Description'), ' more')
-    await userEvent.click(screen.getByRole('button', { name: 'Skill Being Tested' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Skill being tested' }))
     await userEvent.click(screen.getByRole('option', { name: 'None specific' }))
-    await userEvent.clear(screen.getByLabelText('Estimated Hours'))
+    await userEvent.clear(screen.getByLabelText('Estimated hours'))
     expect(screen.getByLabelText('Deadline (optional)')).toHaveValue('2020-01-02')
     fireEvent.change(screen.getByLabelText('Deadline (optional)'), { target: { value: '' } })
     expect(screen.getByLabelText('What to submit (optional)')).toHaveValue('The post you wrote')
@@ -333,9 +353,9 @@ describe('quick tasks — admin view', () => {
     await userEvent.click(within(reviewCard).getByRole('button', { name: 'Review' }))
     expect(screen.getByText('Submitted by: Zara Volunteer')).toBeInTheDocument()
     await userEvent.click(screen.getByLabelText(/Excellent/))
-    await userEvent.type(screen.getByLabelText('Internal Notes (admin only)'), 'solid')
-    await userEvent.type(screen.getByLabelText(/Feedback to Volunteer/), 'Great job')
-    fireEvent.submit(screen.getByLabelText('Internal Notes (admin only)').closest('form')!)
+    await userEvent.type(screen.getByLabelText('Internal notes (admin only)'), 'solid')
+    await userEvent.type(screen.getByLabelText(/Feedback to volunteer/), 'Great job')
+    fireEvent.submit(screen.getByLabelText('Internal notes (admin only)').closest('form')!)
     await screen.findByText('Accepted. The task is done.')
 
     await userEvent.click(within(editedCard()).getByRole('button', { name: 'Delete' }))
@@ -364,7 +384,7 @@ describe('quick tasks — admin view', () => {
     await renderApp(<QuickTasksPage />, { as: admin })
     const card = () => screen.getByText('Featured one').closest('[role=article]') as HTMLElement
     await screen.findByText('Featured one')
-    expect(within(card()).getByText('Deadline 6 May 2099')).toBeInTheDocument()
+    expect(within(card()).getByText('Due 6 May 2099')).toBeInTheDocument()
     await userEvent.click(
       within(card()).getByRole('button', { name: 'Assign volunteer to Featured one' }),
     )
@@ -454,7 +474,7 @@ describe('quick tasks — admin view', () => {
     await userEvent.click(within(card()).getByRole('button', { name: 'Unassign' }))
     await expectNotFound()
     await userEvent.click(within(card()).getByRole('button', { name: 'Review' }))
-    fireEvent.submit(screen.getByLabelText('Internal Notes (admin only)').closest('form')!)
+    fireEvent.submit(screen.getByLabelText('Internal notes (admin only)').closest('form')!)
     await expectNotFound()
     fireEvent.click(screen.getByRole('dialog').parentElement!)
     await userEvent.click(within(card()).getByRole('button', { name: 'Delete' }))

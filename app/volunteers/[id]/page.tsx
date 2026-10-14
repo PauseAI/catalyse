@@ -5,9 +5,7 @@ import { useRequireAuth } from '@/lib/hooks/auth'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import Button from '@/components/Button'
-import { Badge } from '@/components/Badge'
-import { STATUS_LABELS, projectStatusVariant } from '@/components/ProjectCard'
-import { projectStatusOutline } from '@/lib/project-status'
+import { ProjectStatusBadge } from '@/components/StatusBadges'
 import ContactButton from '@/components/ContactButton'
 import ActiveDot from '@/components/ActiveDot'
 import Linkify from '@/components/Linkify'
@@ -64,7 +62,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
         <main className="container py-5 pb-15">
           <p className="text-error">Volunteer not found.</p>
           <Button href="/volunteers" variant="secondary" className="mt-4">
-            Back to Volunteers
+            Back to volunteers
           </Button>
         </main>
       </>
@@ -82,7 +80,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
       <main className="container py-5 pb-15">
         <div className="mb-5">
           <Link href="/volunteers" className="text-text-light">
-            &larr; Back to Volunteers
+            &larr; Back to volunteers
           </Link>
         </div>
 
@@ -152,7 +150,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
 
             {volunteer.otherSkills && (
               <div className="mb-5">
-                <h4 className="text-text-light">Other Skills</h4>
+                <h4 className="text-text-light">Other skills</h4>
                 <p>{volunteer.otherSkills}</p>
               </div>
             )}
@@ -256,12 +254,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
                     <Link href={`/projects/${p.id}`} className="font-semibold text-primary-dark">
                       {p.title}
                     </Link>
-                    <Badge
-                      variant={projectStatusVariant(p.status)}
-                      outline={projectStatusOutline(p.status, Boolean(user?.isAdmin))}
-                    >
-                      {STATUS_LABELS[p.status] ?? p.status.replace(/_/g, ' ')}
-                    </Badge>
+                    <ProjectStatusBadge status={p.status} viewerIsAdmin={Boolean(user?.isAdmin)} />
                   </div>
                   <p className="text-sm text-text-light mt-1">
                     {p.role === 'owner' ? 'Project owner' : 'Proposer'}

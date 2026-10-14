@@ -452,7 +452,7 @@ export default function AdminLocalGroupsPage() {
                   />
                 </div>
                 <div className="mb-5">
-                  <label htmlFor="add-name">Group Name</label>
+                  <label htmlFor="add-name">Group name</label>
                   <input
                     id="add-name"
                     type="text"
@@ -504,7 +504,7 @@ export default function AdminLocalGroupsPage() {
                   />
                 </div>
                 <div className="mb-5">
-                  <label htmlFor="edit-name">Group Name</label>
+                  <label htmlFor="edit-name">Group name</label>
                   <input
                     id="edit-name"
                     type="text"
@@ -589,7 +589,7 @@ export default function AdminLocalGroupsPage() {
                 {reviewAction === 'accept' && (
                   <>
                     <div className="mb-4">
-                      <label htmlFor="review-name">Group Name</label>
+                      <label htmlFor="review-name">Group name</label>
                       <input
                         id="review-name"
                         type="text"

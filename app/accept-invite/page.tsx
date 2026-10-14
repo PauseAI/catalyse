@@ -74,7 +74,7 @@ function AcceptInviteContent() {
       <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word text-center`}>
         <h2>Welcome to the team!</h2>
         <p className="text-text-light my-4">You now have admin access to Catalyse. Redirecting…</p>
-        <Button href="/admin/triage">Go to Admin Dashboard</Button>
+        <Button href="/admin/triage">Go to admin dashboard</Button>
       </div>
     )
   }
@@ -97,7 +97,7 @@ function AcceptInviteContent() {
         .
       </p>
       <Button href="/" variant="outline">
-        Back to Home
+        Back to home
       </Button>
     </div>
   )

@@ -149,7 +149,7 @@ test.describe('Project form & settings: remote eligibility', () => {
     await adminPage.goto(`${baseUrl}/admin/projects/new`)
     await openNewProjectForm(adminPage)
 
-    await adminPage.getByLabel('Project Title').fill(title)
+    await adminPage.getByLabel('Project title').fill(title)
     await adminPage.getByLabel('Description').fill('e2e test project description')
     await selectFilterDropdown(
       adminPage,

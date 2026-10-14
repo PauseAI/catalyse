@@ -64,45 +64,45 @@ export default function AdminLandingPage() {
       links: [
         {
           href: '/admin/applications',
-          label: 'Manage Applications',
+          label: 'Manage applications',
           superAdminOnly: true,
           count: counts?.pendingApplications,
         },
-        { href: '/admin/team', label: 'Admin Team' },
+        { href: '/admin/team', label: 'Admin team' },
       ],
     },
     {
       title: 'Projects',
       links: [
-        { href: '/admin/triage', label: 'Triage Queue', count: counts?.pendingTriage },
-        { href: '/admin/projects', label: 'Org Projects' },
+        { href: '/admin/triage', label: 'Triage queue', count: counts?.pendingTriage },
+        { href: '/admin/projects', label: 'Org projects' },
       ],
     },
     {
-      title: 'Content & Support',
+      title: 'Content & support',
       links: [
-        { href: '/admin/skills', label: 'Manage Skills' },
-        { href: '/admin/local-groups', label: 'Manage Local Groups' },
-        { href: '/admin/teams', label: 'Manage Teams' },
-        { href: '/admin/bugs', label: 'Bug Reports', count: counts?.openBugReports },
+        { href: '/admin/skills', label: 'Manage skills' },
+        { href: '/admin/local-groups', label: 'Manage local groups' },
+        { href: '/admin/teams', label: 'Manage teams' },
+        { href: '/admin/bugs', label: 'Bug reports', count: counts?.openBugReports },
         {
           href: '/admin/people-for-a-pause-protest-journalist-outreach',
-          label: 'Journalist Outreach',
+          label: 'Journalist outreach',
         },
       ],
     },
     {
       title: 'Platform',
       links: [
-        { href: '/admin/platform-settings', label: 'Platform Settings', superAdminOnly: true },
-        { href: '/admin/cron-runs', label: 'Cron Job Runs', superAdminOnly: true },
+        { href: '/admin/platform-settings', label: 'Platform settings', superAdminOnly: true },
+        { href: '/admin/cron-runs', label: 'Cron job runs', superAdminOnly: true },
       ],
     },
   ]
 
   return (
     <main className="container-wide py-5 pb-15">
-      <h1>{user.isSuperAdmin ? 'Super Admin' : 'Admin'}</h1>
+      <h1>{user.isSuperAdmin ? 'Super admin' : 'Admin'}</h1>
 
       {!loadingStats && stats && (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6 max-[500px]:grid-cols-1">
@@ -111,7 +111,7 @@ export default function AdminLandingPage() {
             <div className="grid grid-cols-2 gap-5 mt-4">
               <div>
                 <div className="text-4xl font-bold text-primary mb-1">{stats.volunteers.total}</div>
-                <div className="text-text-light">Total Registered</div>
+                <div className="text-text-light">Total registered</div>
               </div>
               <div>
                 <div className="text-4xl font-bold text-success mb-1">
@@ -124,9 +124,9 @@ export default function AdminLandingPage() {
               {[
                 { label: 'Approved', value: stats.volunteers.approved, color: 'text-success' },
                 { label: 'Pending', value: stats.volunteers.pending, color: undefined },
-                { label: 'Under Review', value: stats.volunteers.underReview, color: undefined },
+                { label: 'Under review', value: stats.volunteers.underReview, color: undefined },
                 {
-                  label: 'Needs Info',
+                  label: 'Needs info',
                   value: stats.volunteers.needsInfo,
                   color: 'text-warning-text',
                 },
@@ -173,13 +173,13 @@ export default function AdminLandingPage() {
                 <div className="text-4xl font-bold text-brand-text mb-1">
                   {stats.interests.total}
                 </div>
-                <div className="text-text-light">Total Interests</div>
+                <div className="text-text-light">Total interests</div>
               </div>
               <div>
                 <div className="text-4xl font-bold text-warning-text mb-1">
                   {stats.interests.pending}
                 </div>
-                <div className="text-text-light">Pending Response</div>
+                <div className="text-text-light">Pending response</div>
               </div>
             </div>
           </div>

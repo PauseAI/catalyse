@@ -192,7 +192,7 @@ export default function ComponentPreviewPage() {
         </p>
         <Row label="modal header">
           <div className="bg-surface border border-brand-border rounded-lg px-4 py-3 flex items-center gap-4 min-w-[280px]">
-            <span className="font-medium flex-1">Modal Header</span>
+            <span className="font-medium flex-1">Modal header</span>
             <Button variant="ghost" icon aria-label="Close">
               ×
             </Button>

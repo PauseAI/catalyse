@@ -413,7 +413,7 @@ export default function AdminTeamsPage() {
             <div className="p-6">
               <form onSubmit={submitAdd}>
                 <div className="mb-5">
-                  <label htmlFor="add-name">Team Name</label>
+                  <label htmlFor="add-name">Team name</label>
                   <input
                     id="add-name"
                     type="text"
@@ -527,7 +527,7 @@ export default function AdminTeamsPage() {
                 {reviewAction === 'accept' && (
                   <>
                     <div className="mb-4">
-                      <label htmlFor="review-name">Team Name</label>
+                      <label htmlFor="review-name">Team name</label>
                       <input
                         id="review-name"
                         type="text"
@@ -549,7 +549,7 @@ export default function AdminTeamsPage() {
                     <div className="mb-5">
                       <FilterDropdown
                         id="review-leader"
-                        label="Team Leader"
+                        label="Team leader"
                         ariaLabel="Select team leader"
                         value={reviewLeaderId}
                         options={

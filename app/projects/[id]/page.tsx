@@ -11,8 +11,7 @@ import Checkbox from '@/components/Checkbox'
 import DatesBlock from '@/components/DatesBlock'
 import { plural } from '@/lib/plural'
 import { handedIn } from '@/lib/overdue'
-import { lateness } from '@/lib/lateness'
-import { interestOutline, latenessOutline, statusOutline } from '@/lib/status-emphasis'
+import { interestOutline } from '@/lib/status-emphasis'
 import { KEY_DATE_SIDE_LABELS } from '@/lib/key-date'
 import {
   EMPTY_DATES,
@@ -23,7 +22,6 @@ import {
 } from '@/lib/task-dates'
 import { Badge, StatusFlag } from '@/components/Badge'
 import WorkRow, { PersonAvatar, type WorkRowParts } from '@/components/WorkRow'
-import { projectStatusVariant } from '@/components/ProjectCard'
 import {
   INTEREST_STATUS_LABELS,
   interestHistoryLabel,
@@ -53,7 +51,7 @@ import SubmissionAskFields, {
 } from '@/components/SubmissionAskFields'
 import { awaitsOwnerReview } from '@/lib/task-review'
 import { isHttpUrl } from '@/lib/url'
-import { LatenessBadge, WorkStatusBadge } from '@/components/StatusBadges'
+import { DueChip, ProjectStatusBadge, WorkStatusBadge } from '@/components/StatusBadges'
 import Modal from '@/components/ui/Modal'
 import { EmptyPersonChip, PersonChip } from '@/components/ui/PersonChip'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
@@ -70,7 +68,6 @@ import GanttPlanMenu from '@/components/gantt/GanttPlanMenu'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDateShort } from '@/lib/format-date'
-import { shortDay } from '@/lib/relative-date'
 import BaselineDialog from '@/components/gantt/BaselineDialog'
 import ReplanDialog from '@/components/ReplanDialog'
 import { PlanningTools } from '@/components/gantt/GanttLegend'
@@ -86,7 +83,6 @@ import {
   TERMINAL_STATUSES,
   UNAPPROVED_STATUSES,
   projectStatusLabel,
-  projectStatusOutline,
   proposerDisplay,
 } from '@/lib/project-status'
 import { InterestStatus, ProjectStatus, TaskStatus, WorkItemType } from '@/generated/prisma/enums'
@@ -1964,10 +1960,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               </div>
               {reviewStatus === 'needs_discussion' && (
                 <div className="mb-5">
-                  <label htmlFor="review-message">Message to Proposer</label>
+                  <label htmlFor="review-message">Message to proposer</label>
                   <textarea
                     id="review-message"
-                    aria-label="Message to Proposer"
+                    aria-label="Message to proposer"
                     rows={3}
                     value={reviewMessage}
                     onChange={(e) => setReviewMessage(e.target.value)}
@@ -2164,13 +2160,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           disabled={updateProjectMutation.isPending}
         />
       ) : (
-        <Badge
-          variant={projectStatusVariant(project.status)}
-          outline={projectStatusOutline(project.status, isAdmin)}
+        <ProjectStatusBadge
+          status={project.status}
+          viewerIsAdmin={isAdmin}
           aria-label="project status"
-        >
-          {projectStatusLabel(project.status)}
-        </Badge>
+        />
       )}
       {locked && isOwnerOrAdmin && (
         <ReopenProjectButton projectId={project.id} title={project.title} />
@@ -2348,7 +2342,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                       role="link"
                       className="underline text-primary-dark"
                     >
-                      Open Project Doc →
+                      Open project doc →
                     </a>
                   </p>
                 )}
@@ -2479,7 +2473,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         checked={newTaskFeatured}
                         onChange={(e) => setNewTaskFeatured(e.target.checked)}
                       >
-                        Add this task to the Quick Tasks page so volunteers can find and claim it
+                        Add this task to the quick tasks page so volunteers can find and claim it
                         without first clicking into this project
                       </Checkbox>
                     </div>
@@ -2605,11 +2599,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         isAssignee: task.assignedToId === user.id,
                         canReview: isOwnerOrAdmin || isDeputy,
                       }
-                      const late = lateness({
-                        deadline: task.deadline,
-                        pastPlanDays: task.pastPlanDays,
-                        done: handedIn(task.status),
-                      })
                       const canAssign =
                         canRunTasks && task.status !== TaskStatus.completed && volunteers.length > 0
                       const canUnassign =
@@ -2617,10 +2606,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
                       return {
                         status: task.status !== TaskStatus.completed && (
-                          <WorkStatusBadge
-                            status={task.displayStatus}
-                            outline={statusOutline(task.displayStatus, false, taskViewer)}
-                          />
+                          <WorkStatusBadge status={task.displayStatus} viewer={taskViewer} />
                         ),
                         title: (
                           <Link
@@ -2668,12 +2654,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                             {task.featuredAsQuickTask && (
                               <span
                                 className="text-xs whitespace-nowrap"
-                                title="Also shown on the Quick Tasks page"
+                                title="Also shown on the quick tasks page"
                               >
-                                ⚡ Quick Task
+                                ⚡ Quick task
                               </span>
                             )}
-                            <LatenessBadge lateness={late} outline={latenessOutline(taskViewer)} />
+                            <DueChip
+                              deadline={task.deadline}
+                              done={handedIn(task.status)}
+                              viewer={taskViewer}
+                              pastPlanDays={task.pastPlanDays}
+                              className="text-xs"
+                            />
                             {task.keyDateSide && task.keyDateSide !== 'other' && (
                               <span
                                 className="text-xs whitespace-nowrap"
@@ -2694,12 +2686,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                             {task.estimatedHours !== null && (
                               <span className="text-text-light text-xs whitespace-nowrap">
                                 ~{task.estimatedHours}h
-                              </span>
-                            )}
-                            {/* The date shows once: as the Late / Due soon badge when it has one. */}
-                            {task.deadline && !late && (
-                              <span className="text-text-light text-xs whitespace-nowrap">
-                                Due {shortDay(task.deadline)}
                               </span>
                             )}
                             {task.commentCount > 0 && (

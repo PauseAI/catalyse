@@ -146,7 +146,7 @@ test.describe('Project templates', () => {
       timeout: 10_000,
     })
     // Title defaults to the template's own title, with a hint to make it group-specific.
-    await expect(adminPage.getByLabel('Project Title')).toHaveValue(templateTitle)
+    await expect(adminPage.getByLabel('Project title')).toHaveValue(templateTitle)
     await expect(adminPage.getByText(/adjust the title/i)).toBeVisible()
 
     const adminApi = createApiClient(baseUrl, readAdminToken(baseUrl))

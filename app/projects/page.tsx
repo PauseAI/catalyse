@@ -15,6 +15,7 @@ import { InferRouterInputs } from '@orpc/server'
 import { orpc } from '@/lib/orpc'
 import { AppRouter } from '@/server/router'
 import { type Project, ProjectList } from '@/components/ProjectCard'
+import { projectStatusLabel } from '@/lib/project-status'
 import PageLoading from '@/components/PageLoading'
 import ResendConfirmation from '@/components/ResendConfirmation'
 import Skeleton from '@/components/Skeleton'
@@ -23,11 +24,10 @@ import ViewSwitch, { PROJECT_VIEWS } from '@/components/ViewSwitch'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All' },
-  { value: 'ready', label: 'To do' },
-  { value: 'in_progress', label: 'In progress' },
-  { value: 'on_hold', label: 'On hold' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'archived', label: 'Archived' },
+  ...['ready', 'in_progress', 'on_hold', 'completed', 'archived'].map((value) => ({
+    value,
+    label: projectStatusLabel(value),
+  })),
 ] as const
 
 const NEEDS_OPTIONS = [

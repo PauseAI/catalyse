@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { badgeClasses, badgeColorClasses } from './Badge'
-import { projectStatusVariant } from './ProjectCard'
+import { projectStatusVariant } from '@/lib/project-status'
 import { projectStatusLabel } from '@/lib/project-status'
 
 /**

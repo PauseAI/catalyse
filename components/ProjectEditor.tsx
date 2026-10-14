@@ -548,7 +548,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
       <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
         <div className="mb-5">
           <label htmlFor="project-title" className="required">
-            Project Title
+            Project title
           </label>
           <input
             id="project-title"
@@ -604,7 +604,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
         <div className="mb-5">
           <FilterDropdown
             id="project-type"
-            label="Project Type"
+            label="Project type"
             ariaLabel="Select project type"
             value={projectType}
             options={PROJECT_TYPES}
@@ -620,7 +620,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
 
         <div className="grid grid-cols-2 gap-5 mb-5 max-[600px]:grid-cols-1">
           <div>
-            <label htmlFor="hours-per-week">Hours per Week</label>
+            <label htmlFor="hours-per-week">Hours per week</label>
             <input
               id="hours-per-week"
               type="number"
@@ -660,7 +660,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
 
         {['sprint', 'container'].includes(projectType) && (
           <div className="mb-5">
-            <label htmlFor="duration">Estimated Duration</label>
+            <label htmlFor="duration">Estimated duration</label>
             <input
               id="duration"
               type="text"
@@ -806,7 +806,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
         </div>
 
         <div className="mb-5">
-          <label htmlFor="collaboration-link">Collaboration Doc / Link (optional)</label>
+          <label htmlFor="collaboration-link">Collaboration doc / link (optional)</label>
           <input
             id="collaboration-link"
             type="url"
@@ -828,7 +828,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
         </div>
 
         <div className="mb-5">
-          <label>Skills Needed</label>
+          <label>Skills needed</label>
           <p className="text-sm text-text-light mt-0 mb-2">
             What skills would be helpful for this project?
           </p>
@@ -1131,7 +1131,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
                   : 'Publish'
                 : publishMutation.isPending
                   ? 'Submitting…'
-                  : 'Submit for Review'}
+                  : 'Submit for review'}
             </Button>
           </div>
         </Modal>

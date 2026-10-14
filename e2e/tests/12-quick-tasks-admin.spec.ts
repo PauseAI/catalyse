@@ -34,7 +34,7 @@ async function assignQuickTask(
   volunteerName: string,
 ): Promise<void> {
   await adminPage.goto(`${baseUrl}/quick-tasks`)
-  await expect(adminPage.getByRole('heading', { name: 'Quick Tasks', level: 1 })).toBeVisible({
+  await expect(adminPage.getByRole('heading', { name: 'Quick tasks', level: 1 })).toBeVisible({
     timeout: 10_000,
   })
 
@@ -86,18 +86,18 @@ test.describe('Quick Tasks (admin)', () => {
     const taskTitle = fake.quickTaskTitle()
 
     await adminPage.goto(`${baseUrl}/quick-tasks`)
-    await expect(adminPage.getByRole('heading', { name: 'Quick Tasks', level: 1 })).toBeVisible({
+    await expect(adminPage.getByRole('heading', { name: 'Quick tasks', level: 1 })).toBeVisible({
       timeout: 10_000,
     })
 
     await adminPage.getByRole('button', { name: 'Create task' }).click()
-    const createDialog = adminPage.getByRole('dialog', { name: 'Create Quick Task' })
+    const createDialog = adminPage.getByRole('dialog', { name: 'Create quick task' })
     await expect(createDialog).toBeVisible({ timeout: 10_000 })
 
     await createDialog.getByLabel('Title').fill(taskTitle)
     await createDialog.getByLabel('Description').fill('E2E test task description')
-    await selectFilterDropdown(adminPage, 'Skill Being Tested', skill.optionLabel, createDialog)
-    await createDialog.getByLabel('Estimated Hours').fill('2')
+    await selectFilterDropdown(adminPage, 'Skill being tested', skill.optionLabel, createDialog)
+    await createDialog.getByLabel('Estimated hours').fill('2')
     await createDialog.getByRole('button', { name: 'Create task' }).click()
 
     await expect(getAlert(adminPage)).toContainText('Task created!', { timeout: 10_000 })
@@ -117,7 +117,7 @@ test.describe('Quick Tasks (admin)', () => {
     const taskTitle = await createOpenQuickTaskViaApi(baseUrl, skill)
 
     await adminPage.goto(`${baseUrl}/quick-tasks`)
-    await expect(adminPage.getByRole('heading', { name: 'Quick Tasks', level: 1 })).toBeVisible({
+    await expect(adminPage.getByRole('heading', { name: 'Quick tasks', level: 1 })).toBeVisible({
       timeout: 10_000,
     })
 
@@ -152,7 +152,7 @@ test.describe('Quick Tasks (admin)', () => {
     const commentText = `comment ${Date.now()}`
 
     await adminPage.goto(`${baseUrl}/quick-tasks`)
-    await expect(adminPage.getByRole('heading', { name: 'Quick Tasks', level: 1 })).toBeVisible({
+    await expect(adminPage.getByRole('heading', { name: 'Quick tasks', level: 1 })).toBeVisible({
       timeout: 10_000,
     })
 
@@ -232,7 +232,7 @@ test.describe('Quick Tasks (admin)', () => {
 
     // Task status changes to 'under_review' on the admin page
     await adminPage.goto(`${baseUrl}/quick-tasks`)
-    await expect(adminPage.getByRole('heading', { name: 'Quick Tasks', level: 1 })).toBeVisible({
+    await expect(adminPage.getByRole('heading', { name: 'Quick tasks', level: 1 })).toBeVisible({
       timeout: 10_000,
     })
     const adminTaskCard = adminPage.getByRole('article').filter({ hasText: taskTitle })
@@ -259,7 +259,7 @@ test.describe('Quick Tasks (admin)', () => {
 
     // Admin opens the review modal
     await adminPage.goto(`${baseUrl}/quick-tasks`)
-    await expect(adminPage.getByRole('heading', { name: 'Quick Tasks', level: 1 })).toBeVisible({
+    await expect(adminPage.getByRole('heading', { name: 'Quick tasks', level: 1 })).toBeVisible({
       timeout: 10_000,
     })
 
@@ -271,10 +271,10 @@ test.describe('Quick Tasks (admin)', () => {
     })
     await taskCard.getByRole('button', { name: 'Review', exact: true }).click()
 
-    const reviewDialog = adminPage.getByRole('dialog', { name: 'Review Task' })
+    const reviewDialog = adminPage.getByRole('dialog', { name: 'Review task' })
     await expect(reviewDialog).toBeVisible({ timeout: 10_000 })
     await reviewDialog.getByRole('radio', { name: /Excellent/ }).click()
-    await reviewDialog.getByLabel("Feedback to Volunteer (they'll see this)").fill('Great work!')
+    await reviewDialog.getByLabel("Feedback to volunteer (they'll see this)").fill('Great work!')
     await reviewDialog.getByRole('button', { name: 'Accept' }).click()
 
     await expect(getAlert(adminPage)).toContainText('Accepted. The task is done.', {
@@ -310,7 +310,7 @@ test.describe('Quick Tasks (admin)', () => {
 
     // Admin opens the review modal
     await adminPage.goto(`${baseUrl}/quick-tasks`)
-    await expect(adminPage.getByRole('heading', { name: 'Quick Tasks', level: 1 })).toBeVisible({
+    await expect(adminPage.getByRole('heading', { name: 'Quick tasks', level: 1 })).toBeVisible({
       timeout: 10_000,
     })
 
@@ -322,11 +322,11 @@ test.describe('Quick Tasks (admin)', () => {
     })
     await taskCard.getByRole('button', { name: 'Review', exact: true }).click()
 
-    const reviewDialog = adminPage.getByRole('dialog', { name: 'Review Task' })
+    const reviewDialog = adminPage.getByRole('dialog', { name: 'Review task' })
     await expect(reviewDialog).toBeVisible({ timeout: 10_000 })
     await reviewDialog.getByRole('radio', { name: /Needs improvement/ }).click()
     await reviewDialog
-      .getByLabel("Feedback to Volunteer (they'll see this)")
+      .getByLabel("Feedback to volunteer (they'll see this)")
       .fill('Please try again.')
     await reviewDialog.getByRole('button', { name: 'Accept' }).click()
 
@@ -361,7 +361,7 @@ test.describe('Quick Tasks (admin)', () => {
     const taskTitle = await createOpenQuickTaskViaApi(baseUrl, skill)
 
     await adminPage.goto(`${baseUrl}/quick-tasks`)
-    await expect(adminPage.getByRole('heading', { name: 'Quick Tasks', level: 1 })).toBeVisible({
+    await expect(adminPage.getByRole('heading', { name: 'Quick tasks', level: 1 })).toBeVisible({
       timeout: 10_000,
     })
 
@@ -387,7 +387,7 @@ test.describe('Quick Tasks (admin)', () => {
     const taskTitle = await createOpenQuickTaskViaApi(baseUrl, skill)
 
     await adminPage.goto(`${baseUrl}/quick-tasks`)
-    await expect(adminPage.getByRole('heading', { name: 'Quick Tasks', level: 1 })).toBeVisible({
+    await expect(adminPage.getByRole('heading', { name: 'Quick tasks', level: 1 })).toBeVisible({
       timeout: 10_000,
     })
 
@@ -399,7 +399,7 @@ test.describe('Quick Tasks (admin)', () => {
 
     // Navigate directly to the deep-link — card should be expanded without clicking
     await adminPage.goto(`${baseUrl}/quick-tasks#task-${taskId}`)
-    await expect(adminPage.getByRole('heading', { name: 'Quick Tasks', level: 1 })).toBeVisible({
+    await expect(adminPage.getByRole('heading', { name: 'Quick tasks', level: 1 })).toBeVisible({
       timeout: 10_000,
     })
     await adminPage.getByText('Loading…').waitFor({ state: 'hidden', timeout: 10_000 })

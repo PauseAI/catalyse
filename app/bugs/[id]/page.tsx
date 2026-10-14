@@ -78,7 +78,7 @@ export default function BugReportDetailPage({ params }: { params: Promise<{ id: 
     <main className="container py-5 pb-15">
       {user.isAdmin && (
         <Link href="/admin/bugs" className="text-sm text-primary-text underline block mb-4">
-          ← Back to Bug Reports
+          ← Back to bug reports
         </Link>
       )}
 
@@ -139,7 +139,7 @@ export default function BugReportDetailPage({ params }: { params: Promise<{ id: 
             </div>
 
             <div className="mb-5">
-              <label htmlFor="edit-notes">Resolution Notes</label>
+              <label htmlFor="edit-notes">Resolution notes</label>
               <textarea
                 id="edit-notes"
                 rows={3}

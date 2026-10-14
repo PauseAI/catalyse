@@ -37,9 +37,9 @@ test.describe('Project Management (Owner)', () => {
     // Fields autosave on blur, one request per field, so wait for each save before
     // leaving the page rather than only the last.
     for (const [label, value] of [
-      ['Project Title', newTitle],
+      ['Project title', newTitle],
       ['Description', newDescription],
-      ['Collaboration Doc / Link', collaborationLink],
+      ['Collaboration doc / link', collaborationLink],
     ] as const) {
       const field = volunteer.page.getByLabel(label)
       await field.fill(value)
@@ -54,7 +54,7 @@ test.describe('Project Management (Owner)', () => {
       timeout: 10_000,
     })
     await expect(volunteer.page.getByText(newDescription)).toBeVisible({ timeout: 10_000 })
-    await expect(volunteer.page.getByRole('link', { name: 'Open Project Doc' })).toBeVisible({
+    await expect(volunteer.page.getByRole('link', { name: 'Open project doc' })).toBeVisible({
       timeout: 10_000,
     })
   })

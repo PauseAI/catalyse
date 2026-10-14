@@ -5,7 +5,6 @@ import { useRequireApproved } from '@/lib/hooks/auth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Badge } from '@/components/Badge'
 import Button from '@/components/Button'
 import CommentThread from '@/components/CommentThread'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
@@ -27,12 +26,11 @@ import {
   TASK_REQUESTED_MESSAGE,
 } from '@/lib/action-messages'
 import { ASSIGN_PICKED, CLAIM_TASK, CLAIMING, UNASSIGN, claimLabel } from '@/lib/action-labels'
-import { workStatusBadge } from '@/lib/status-labels'
-import { statusOutline } from '@/lib/status-emphasis'
+import type { WorkViewer } from '@/lib/status-emphasis'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate, fromDateInputValue, toDateInputValue } from '@/lib/format-date'
-import DeadlineChip from '@/components/DeadlineChip'
+import { DueChip, WorkStatusBadge } from '@/components/StatusBadges'
 import { handedIn } from '@/lib/overdue'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import { QuickTaskStatus, TaskStatus } from '@/generated/prisma/enums'
@@ -98,6 +96,10 @@ const RATING_LABELS: Record<string, string> = {
 const SKILL_CHIP_CLASSES =
   'inline-flex items-center px-3 py-1 bg-accent text-secondary-dark rounded-full text-sm font-medium dark:bg-gray-700 dark:text-gray-300'
 
+const ASSIGNEE: WorkViewer = { isAssignee: true, canReview: false }
+const ONLOOKER: WorkViewer = { isAssignee: false, canReview: false }
+const ADMIN: WorkViewer = { isAssignee: false, canReview: true }
+
 // One card shape shared by every quick-task list — volunteer or admin, standalone quick
 // task or featured project task. What differs between them is the meta/description
 // content and whichever role-specific controls get passed in as children, not the card
@@ -109,7 +111,7 @@ function QuickTaskCard({
   status,
   quick = false,
   changesRequested = false,
-  outline = false,
+  viewer,
   meta,
   description,
   children,
@@ -121,12 +123,11 @@ function QuickTaskCard({
   status: string
   quick?: boolean
   changesRequested?: boolean
-  outline?: boolean
+  viewer: WorkViewer
   meta?: React.ReactNode[]
   description?: string | null
   children?: React.ReactNode
 }) {
-  const badge = workStatusBadge(status, quick, changesRequested)
   return (
     <div
       id={anchorId}
@@ -135,14 +136,14 @@ function QuickTaskCard({
     >
       <div className="flex justify-between items-start gap-3 mb-2">
         <h3 className="m-0">{titleHref ? <Link href={titleHref}>{title}</Link> : title}</h3>
-        <Badge
+        <WorkStatusBadge
+          status={status}
+          quick={quick}
+          changesRequested={changesRequested}
+          viewer={viewer}
           role="status"
-          variant={badge.variant}
-          outline={outline}
           className="whitespace-nowrap shrink-0"
-        >
-          {badge.label}
-        </Badge>
+        />
       </div>
       {meta && meta.some(Boolean) && (
         <div className="flex gap-2 mb-3 flex-wrap items-center">{meta}</div>
@@ -168,8 +169,6 @@ export default function QuickTasksPage() {
 type ApprovedUser = NonNullable<ReturnType<typeof useRequireApproved>['user']>
 
 function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
-  // The My tasks tab lists the viewer's own, so a submission there waits on an admin.
-  const myViewer = { isAssignee: true, canReview: Boolean(user.isAdmin) }
   const showToast = useToast()
   const queryClient = useQueryClient()
   const router = useRouter()
@@ -266,7 +265,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                   status={task.status}
                   quick
                   changesRequested={task.changesRequested !== null}
-                  outline={statusOutline(task.status, task.changesRequested !== null, myViewer)}
+                  viewer={ASSIGNEE}
                   description={task.description}
                   meta={[
                     task.skillName && (
@@ -280,10 +279,12 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                       </span>
                     ),
                     task.deadline && (
-                      <DeadlineChip
+                      <DueChip
                         key="deadline"
                         deadline={task.deadline}
                         done={handedIn(task.status)}
+                        viewer={ASSIGNEE}
+                        className="text-sm"
                       />
                     ),
                     task.projectTitle && (
@@ -326,7 +327,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
               <Skeleton label="Loading tasks…" />
             ) : availableTasks.length === 0 ? (
               <EmptyState
-                title="No open Quick Tasks right now"
+                title="No open quick tasks right now"
                 body="Check back soon, or find a project that needs a hand."
                 action={
                   <Button href="/projects" variant="outline">
@@ -343,6 +344,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                     titleHref={`/quick-tasks/${task.id}`}
                     status="open"
                     quick
+                    viewer={ONLOOKER}
                     description={task.description}
                     meta={[
                       task.skillName && (
@@ -356,11 +358,12 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                         </span>
                       ),
                       task.deadline && (
-                        <DeadlineChip
+                        <DueChip
                           key="deadline"
                           deadline={task.deadline}
                           done={false}
-                          outline={!user.isAdmin}
+                          viewer={ONLOOKER}
+                          className="text-sm"
                         />
                       ),
                     ]}
@@ -382,6 +385,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                     title={task.title}
                     titleHref={`/projects/${task.projectId}/tasks/${task.id}`}
                     status="not_started"
+                    viewer={ONLOOKER}
                     description={task.description}
                     meta={[
                       task.projectTitle && (
@@ -396,11 +400,12 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                         </span>
                       ),
                       task.deadline && (
-                        <DeadlineChip
+                        <DueChip
                           key="deadline"
                           deadline={task.deadline}
                           done={false}
-                          outline={!user.isAdmin}
+                          viewer={ONLOOKER}
+                          className="text-sm"
                         />
                       ),
                     ]}
@@ -728,6 +733,7 @@ function AdminQuickTasksView() {
               status={task.status}
               quick
               changesRequested={task.changesRequested !== null}
+              viewer={ADMIN}
               description={task.description}
               meta={[
                 task.skillName && (
@@ -741,10 +747,12 @@ function AdminQuickTasksView() {
                   </span>
                 ),
                 task.deadline && (
-                  <DeadlineChip
+                  <DueChip
                     key="deadline"
                     deadline={task.deadline}
                     done={handedIn(task.status)}
+                    viewer={ADMIN}
+                    className="text-sm"
                   />
                 ),
                 task.assignedToId && task.assignedToName && (
@@ -864,6 +872,7 @@ function AdminQuickTasksView() {
                 title={task.title}
                 titleHref={`/projects/${task.projectId}/tasks/${task.id}`}
                 status={task.status}
+                viewer={ADMIN}
                 description={task.description}
                 meta={[
                   task.projectTitle && (
@@ -877,10 +886,12 @@ function AdminQuickTasksView() {
                     </span>
                   ),
                   task.deadline && (
-                    <DeadlineChip
+                    <DueChip
                       key="deadline"
                       deadline={task.deadline}
                       done={handedIn(task.status)}
+                      viewer={ADMIN}
+                      className="text-sm"
                     />
                   ),
                   task.assignedToId && task.assignedToName && (
@@ -996,8 +1007,8 @@ function AdminQuickTasksView() {
                   <div>
                     <FilterDropdown
                       id="ct-skill"
-                      label="Skill Being Tested"
-                      ariaLabel="Skill Being Tested"
+                      label="Skill being tested"
+                      ariaLabel="Skill being tested"
                       value={createSkillId}
                       options={[
                         { value: '', label: 'None specific' },
@@ -1011,7 +1022,7 @@ function AdminQuickTasksView() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="ct-hours">Estimated Hours</label>
+                    <label htmlFor="ct-hours">Estimated hours</label>
                     <input
                       id="ct-hours"
                       type="number"
@@ -1091,8 +1102,8 @@ function AdminQuickTasksView() {
                   <div>
                     <FilterDropdown
                       id="et-skill"
-                      label="Skill Being Tested"
-                      ariaLabel="Skill Being Tested"
+                      label="Skill being tested"
+                      ariaLabel="Skill being tested"
                       value={editSkillId}
                       options={[
                         { value: '', label: 'None specific' },
@@ -1106,7 +1117,7 @@ function AdminQuickTasksView() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="et-hours">Estimated Hours</label>
+                    <label htmlFor="et-hours">Estimated hours</label>
                     <input
                       id="et-hours"
                       type="number"

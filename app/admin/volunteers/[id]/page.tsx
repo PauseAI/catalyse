@@ -72,20 +72,20 @@ interface VolunteerDetail {
 
 const NOTE_CATEGORIES = [
   { value: 'general', label: 'General' },
-  { value: 'skill_feedback', label: 'Skill Feedback' },
+  { value: 'skill_feedback', label: 'Skill feedback' },
   { value: 'reliability', label: 'Reliability' },
   { value: 'fit', label: 'Fit' },
 ] as const
 
 const RATING_OPTIONS = [
-  { value: 'verified', label: 'Verified - Can deliver' },
-  { value: 'strong', label: 'Strong - Highly skilled' },
+  { value: 'verified', label: 'Verified - can deliver' },
+  { value: 'strong', label: 'Strong - highly skilled' },
 ] as const
 
 const BASED_ON_OPTIONS = [
-  { value: 'direct_observation', label: 'Direct Observation' },
-  { value: 'project_outcome', label: 'Project Outcome' },
-  { value: 'quick_task', label: 'Quick Task' },
+  { value: 'direct_observation', label: 'Direct observation' },
+  { value: 'project_outcome', label: 'Project outcome' },
+  { value: 'quick_task', label: 'Quick task' },
 ] as const
 
 type Tab = 'admin_notes' | 'quick_tasks' | 'project_history' | 'endorse_skill'
@@ -262,7 +262,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
               )}
               {!vol.consentMakeProfileVisibleInDirectory && (
                 <span className="py-0.5 px-2 rounded-xl text-[0.8rem] bg-amber-50 dark:bg-amber-900">
-                  Profile Hidden
+                  Profile hidden
                 </span>
               )}
             </div>
@@ -313,7 +313,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
             )}
             {vol.localGroup && (
               <p className="my-1">
-                <strong>Local Group:</strong> {vol.localGroup}
+                <strong>Local group:</strong> {vol.localGroup}
               </p>
             )}
             {vol.availabilityHoursPerWeek && (
@@ -345,9 +345,9 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
             role="tablist"
             tabs={
               [
-                { key: 'admin_notes', label: 'Admin Notes' },
-                { key: 'quick_tasks', label: 'Quick Tasks' },
-                { key: 'project_history', label: 'Project History' },
+                { key: 'admin_notes', label: 'Admin notes' },
+                { key: 'quick_tasks', label: 'Quick tasks' },
+                { key: 'project_history', label: 'Project history' },
                 { key: 'endorse_skill', label: 'Endorse skill' },
               ] as { key: Tab; label: string }[]
             }
@@ -471,7 +471,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
           {activeTab === 'quick_tasks' && (
             <div>
               {vol.quickTasks.length === 0 ? (
-                <p className="text-text-light">No Quick Tasks assigned yet.</p>
+                <p className="text-text-light">No quick tasks assigned yet.</p>
               ) : (
                 vol.quickTasks.map((t) => (
                   <div
@@ -550,8 +550,8 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
                 <div className="m-0">
                   <FilterDropdown
                     id="endorse-based-on"
-                    label="Based On"
-                    ariaLabel="Based On"
+                    label="Based on"
+                    ariaLabel="Based on"
                     value={endorseBasedOn}
                     options={BASED_ON_OPTIONS}
                     onChange={(v) => setEndorseBasedOn(v)}

@@ -40,7 +40,7 @@ test.describe('Admin: Admin Team Management', () => {
     await adminPage.getByRole('button', { name: 'Invite admin' }).click()
     const inviteDialog = adminPage.getByRole('dialog', { name: 'Invite admin' })
     await expect(inviteDialog).toBeVisible({ timeout: 5_000 })
-    await adminPage.getByLabel('Email Address').fill(inviteEmail)
+    await adminPage.getByLabel('Email address').fill(inviteEmail)
     await adminPage.getByRole('button', { name: 'Send invite' }).click()
 
     await expect(inviteDialog.getByRole('status')).toBeVisible({ timeout: 10_000 })
@@ -56,7 +56,7 @@ test.describe('Admin: Admin Team Management', () => {
     await createAdminInvite(adminPage, baseUrl, inviteEmail)
 
     await adminPage.goto(`${baseUrl}/admin/team`)
-    await adminPage.getByRole('tab', { name: 'Pending Invites' }).click()
+    await adminPage.getByRole('tab', { name: 'Pending invites' }).click()
 
     await expect(adminPage.locator('#inviteList')).toContainText(inviteEmail, { timeout: 10_000 })
   })
@@ -71,7 +71,7 @@ test.describe('Admin: Admin Team Management', () => {
     await createAdminInvite(adminPage, baseUrl, inviteEmail)
 
     await adminPage.goto(`${baseUrl}/admin/team`)
-    await adminPage.getByRole('tab', { name: 'Pending Invites' }).click()
+    await adminPage.getByRole('tab', { name: 'Pending invites' }).click()
 
     const inviteCard = adminPage.locator('#inviteList .card').filter({ hasText: inviteEmail })
     await expect(inviteCard).toBeVisible({ timeout: 10_000 })

@@ -67,7 +67,7 @@ describe('Header', () => {
     expect(screen.queryByRole('link', { name: 'Settings' })).toBeNull()
     // Mobile menu for an admin, then sign out from it.
     await userEvent.click(screen.getByLabelText('Open menu'))
-    expect(screen.getByText('Super Admin')).toBeInTheDocument()
+    expect(screen.getByText('Super admin')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     await waitFor(() => expect(navigation.push).toHaveBeenCalledWith('/login'))
   })

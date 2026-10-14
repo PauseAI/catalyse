@@ -227,7 +227,7 @@ const FIELD_NAMES: Record<string, string> = {
   durationDays: 'length',
   estimatedHours: 'effort',
   timing: 'timing',
-  featuredAsQuickTask: 'Quick Tasks listing',
+  featuredAsQuickTask: 'quick tasks listing',
   submissionPrompt: 'submission box',
   submissionAsksLink: 'submission box',
   helpersWanted: 'helpers wanted',

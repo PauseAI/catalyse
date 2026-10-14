@@ -113,6 +113,17 @@ confusing than it needed to be, and that will do so again.
       enum rename diff carried it again. `scripts/new-migration.ts` should strip that
       statement from the diff it writes.
 
+- [ ] **A git worktree cannot run the suite until it has the main checkout's env files and a
+      real `node_modules`.** Working beside another session's uncommitted changes, the unit tier
+      failed with "DATABASE_URL is not set" until `.env`/`.env.local` were linked in, and the e2e
+      build failed on a symlinked `node_modules` ("points out of the filesystem root") until it
+      was cloned with `cp -cR`. An Orca worktree for the status-badge review had no
+      `node_modules`, `generated/` or `.env` at all: typecheck needed `npm ci`, then
+      `npm run generate` needed a dummy `DATABASE_URL`, `CHECKPOINT_DISABLE=1` and
+      `node --import tsx` (the sandbox refuses tsx's IPC pipe), and no unit test could run. A
+      `scripts/new-worktree.ts` that links the env files, clones `node_modules` and copies
+      `generated/` would make a side worktree work first time.
+
 ## 1x
 
 - [ ] **Component tests count error toasts (`getAllByText(msg).length`), and a
@@ -162,10 +173,3 @@ confusing than it needed to be, and that will do so again.
       so the click never landed, and it took a debugging round to see why. `test/render.tsx`
       could mount into `document` (or `FilterDropdown` could take an "inside" ref), and a line in
       `AGENTS.md` could say not to rely on `stopPropagation` against `document` listeners.
-
-- [ ] **A git worktree cannot run the suite until it has the main checkout's env files and a
-      real `node_modules`.** Working beside another session's uncommitted changes, the unit tier
-      failed with "DATABASE_URL is not set" until `.env`/`.env.local` were linked in, and the e2e
-      build failed on a symlinked `node_modules` ("points out of the filesystem root") until it
-      was cloned with `cp -cR`. A `scripts/new-worktree.ts` that links the env files, clones
-      `node_modules` and copies `generated/` would make a side worktree work first time.

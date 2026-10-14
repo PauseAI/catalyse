@@ -48,12 +48,12 @@ describe('WorkItemCard', () => {
     expect(screen.getByText('In progress')).toBeInTheDocument()
     expect(screen.getByText('Sam')).toBeInTheDocument()
     expect(screen.getByText('Due in 3 days')).toHaveAttribute('data-emphasis', 'outline')
-    expect(screen.getByText('Due 14 Oct')).toBeInTheDocument()
+    expect(screen.queryByText('Due 14 Oct')).not.toBeInTheDocument()
   })
 
-  it('counts down to a deadline further off than Due soon', () => {
+  it('gives the day of a deadline further off than Due soon', () => {
     card(task({ deadline: new Date('2026-10-20T00:00:00Z') }))
-    expect(screen.getByText('20 Oct · in 9 days')).toBeInTheDocument()
+    expect(screen.getByText('Due 20 Oct')).toBeInTheDocument()
   })
 
   it('shows the lead and helpers of a task that has or seeks them', () => {
@@ -79,7 +79,7 @@ describe('WorkItemCard', () => {
       }),
     )
     expect(screen.getByText('2 days late')).toHaveAttribute('data-emphasis', 'filled')
-    expect(screen.getByText('Due 9 Oct')).toBeInTheDocument()
+    expect(screen.queryByText('Due 9 Oct')).not.toBeInTheDocument()
   })
 
   it('counts days past plan towards Late', () => {
@@ -105,7 +105,7 @@ describe('WorkItemCard', () => {
     expect(screen.queryByText(/Oct/)).not.toBeInTheDocument()
   })
 
-  it('keeps the due date, without a countdown, while work waits for review', () => {
+  it('keeps the due date, without a badge, while work waits for review', () => {
     card(task({ displayStatus: 'under_review', deadline: new Date('2026-10-01T00:00:00Z') }))
     expect(screen.getByText('In review')).toHaveAttribute('data-emphasis', 'outline')
     expect(screen.getByText('Due 1 Oct')).toBeInTheDocument()

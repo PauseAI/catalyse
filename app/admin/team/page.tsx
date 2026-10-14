@@ -115,8 +115,8 @@ export default function AdminTeamPage() {
 
         <Tabs
           tabs={[
-            { key: 'admins', label: 'Current Admins' },
-            { key: 'invites', label: 'Pending Invites' },
+            { key: 'admins', label: 'Current admins' },
+            { key: 'invites', label: 'Pending invites' },
           ]}
           activeTab={activeTab}
           onChange={setActiveTab}
@@ -243,7 +243,7 @@ export default function AdminTeamPage() {
                 ) : (
                   <form onSubmit={sendInvite}>
                     <div className="mb-5">
-                      <label htmlFor="invite-email">Email Address</label>
+                      <label htmlFor="invite-email">Email address</label>
                       <input
                         id="invite-email"
                         type="email"

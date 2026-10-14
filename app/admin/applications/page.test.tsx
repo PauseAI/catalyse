@@ -110,7 +110,7 @@ describe('applications list', () => {
     expect(theirCard).toHaveTextContent(`Somewhere · Applied`)
     expect(theirCard).toHaveTextContent(`Reviewer: ${otherAdmin.name}`)
     expect(screen.getByTestId('applications-section-mine')).toHaveTextContent(
-      'Pending & Under Review by Me: 2',
+      'Pending & under review by me: 2',
     )
     await waitFor(() =>
       expect(screen.getByTestId('applications-section-rejected')).toHaveTextContent('Rejected: 3'),

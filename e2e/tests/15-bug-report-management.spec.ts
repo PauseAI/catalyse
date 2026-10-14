@@ -40,7 +40,7 @@ async function updateReportStatus(
   })
   await selectFilterDropdown(adminPage, 'Status', BUG_STATUS_LABELS[status] ?? status)
   if (resolutionNotes) {
-    await adminPage.getByLabel('Resolution Notes').fill(resolutionNotes)
+    await adminPage.getByLabel('Resolution notes').fill(resolutionNotes)
   }
   await adminPage.getByRole('button', { name: 'Update', exact: true }).click()
   await expect(getAlert(adminPage)).toContainText('Report updated!', { timeout: 10_000 })
@@ -48,7 +48,7 @@ async function updateReportStatus(
   // The /bugs/[id] detail page (introduced alongside the comment threads) doesn't redirect
   // back to the list on save — admins land back on /admin/bugs via this link, same as a user
   // would.
-  await adminPage.getByRole('link', { name: 'Back to Bug Reports' }).click()
+  await adminPage.getByRole('link', { name: 'Back to bug reports' }).click()
   await expect(
     adminPage.getByRole('heading', { name: 'Bug Reports & Feedback', level: 1 }),
   ).toBeVisible({ timeout: 10_000 })
@@ -145,7 +145,7 @@ test.describe('Bug Report Management', () => {
     await expect(adminPage.getByRole('heading', { name: title, level: 1 })).toBeVisible({
       timeout: 10_000,
     })
-    await expect(adminPage.getByLabel('Resolution Notes')).toHaveValue(notes)
+    await expect(adminPage.getByLabel('Resolution notes')).toHaveValue(notes)
   })
 
   test('Admin exports bug reports as markdown', async ({ adminPage, volunteer, baseUrl }) => {

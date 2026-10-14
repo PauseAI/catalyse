@@ -396,7 +396,7 @@ export default function Header() {
                   {user.isAdmin && (
                     <>
                       <MobileNavSection admin>
-                        {user.isSuperAdmin ? 'Super Admin' : 'Admin'}
+                        {user.isSuperAdmin ? 'Super admin' : 'Admin'}
                       </MobileNavSection>
                       <MobileNavLink href="/admin">
                         {user.isSuperAdmin ? 'Superadmin panel' : 'Admin panel'}

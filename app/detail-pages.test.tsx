@@ -37,18 +37,18 @@ describe('quick task detail', () => {
     await screen.findByRole('heading', { name: 'Detail task' })
     expect(screen.getByText(skill.name)).toBeInTheDocument()
     expect(screen.getByText('~2h estimated')).toBeInTheDocument()
-    expect(screen.getByText('Deadline 4 Mar 2099')).toBeInTheDocument()
+    expect(screen.getByText('Due 4 Mar 2099')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Related project: Ctx project' })).toHaveAttribute(
       'href',
       `/projects/${project.id}`,
     )
-    expect(screen.getByRole('link', { name: '← Back to Quick Tasks' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '← Back to quick tasks' })).toHaveAttribute(
       'href',
       '/quick-tasks#browse-quick-tasks',
     )
     await userEvent.click(screen.getByRole('button', { name: 'Claim task' }))
     await screen.findByText(/Task claimed\. Submit it for review/)
-    expect(await screen.findByRole('link', { name: '← Back to My Quick Tasks' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: '← Back to my quick tasks' })).toHaveAttribute(
       'href',
       '/quick-tasks',
     )
@@ -98,12 +98,12 @@ describe('quick task detail', () => {
     await asAdmin()
     await userEvent.click(await screen.findByRole('button', { name: 'Accept…' }))
     await userEvent.click(
-      within(screen.getByRole('dialog', { name: 'Review Task' })).getByRole('button', {
+      within(screen.getByRole('dialog', { name: 'Review task' })).getByRole('button', {
         name: 'Cancel',
       }),
     )
     await userEvent.click(screen.getByRole('button', { name: 'Accept…' }))
-    const review = screen.getByRole('dialog', { name: 'Review Task' })
+    const review = screen.getByRole('dialog', { name: 'Review task' })
     await userEvent.click(within(review).getByLabelText(/Excellent/))
     await userEvent.click(within(review).getByRole('button', { name: 'Accept' }))
     await screen.findByText('Accepted. The task is done.')
@@ -145,21 +145,21 @@ describe('quick task detail', () => {
     await renderApp(<QuickTaskDetailPage params={Promise.resolve({ id: String(mine.id) })} />, {
       as: admin,
     })
-    await screen.findByRole('link', { name: '← Back to Quick Tasks' })
+    await screen.findByRole('link', { name: '← Back to quick tasks' })
     expect(screen.queryByRole('button', { name: 'Submit work' })).toBeNull()
     cleanup()
     await prisma.workItem.update({ where: { id: mine.id }, data: { status: 'under_review' } })
     await renderApp(<QuickTaskDetailPage params={Promise.resolve({ id: String(mine.id) })} />, {
       as: admin,
     })
-    await screen.findByRole('link', { name: '← Back to Quick Tasks' })
+    await screen.findByRole('link', { name: '← Back to quick tasks' })
     expect(screen.queryByText('Your submission is awaiting review.')).toBeNull()
     cleanup()
     await renderApp(<QuickTaskDetailPage params={Promise.resolve({ id: '999999' })} />, { as: me })
-    await screen.findByRole('link', { name: 'Back to Quick Tasks' })
+    await screen.findByRole('link', { name: 'Back to quick tasks' })
     cleanup()
     await renderApp(<QuickTaskDetailPage params={Promise.resolve({ id: 'nope' })} />, { as: me })
-    await screen.findByRole('link', { name: 'Back to Quick Tasks' })
+    await screen.findByRole('link', { name: 'Back to quick tasks' })
   })
 })
 
@@ -195,11 +195,11 @@ describe('bug report detail', () => {
       as: admin,
     })
     await screen.findByText('· Assigned to: Fixer')
-    expect(screen.getByRole('link', { name: '← Back to Bug Reports' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '← Back to bug reports' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Status' }))
     await userEvent.click(screen.getByRole('option', { name: 'Resolved' }))
-    await userEvent.clear(screen.getByLabelText('Resolution Notes'))
-    await userEvent.type(screen.getByLabelText('Resolution Notes'), 'Fixed in #12')
+    await userEvent.clear(screen.getByLabelText('Resolution notes'))
+    await userEvent.type(screen.getByLabelText('Resolution notes'), 'Fixed in #12')
     await userEvent.click(screen.getByRole('button', { name: 'Update' }))
     await screen.findByText('Report updated!')
     await waitFor(async () =>

@@ -15,7 +15,7 @@ export default function NotFound() {
             Browse projects
           </Link>
           <Link href="/dashboard" className="text-sm">
-            Go to Dashboard
+            Go to dashboard
           </Link>
         </div>
       </div>

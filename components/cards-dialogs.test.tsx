@@ -4,13 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import { createVolunteer } from '@/test/factories'
 import { renderApp } from '@/test/render'
-import {
-  ProjectCard,
-  ProjectList,
-  statusBadgeClasses,
-  projectStatusVariant,
-  type Project,
-} from './ProjectCard'
+import { ProjectCard, ProjectList, type Project } from './ProjectCard'
 import BugReportDialog from './BugReportDialog'
 
 const base: Project = {
@@ -107,8 +101,6 @@ describe('ProjectCard', () => {
     // Skills the viewer lacks are hidden when they have any skills at all.
     rerender(<ProjectCard project={base} userSkillIds={new Set([99])} />)
     expect(screen.queryByText('A')).toBeNull()
-    expect(statusBadgeClasses('completed')).toContain('bg-emerald-100')
-    expect(projectStatusVariant('nope')).toBe('neutral')
   })
 
   it('outlines what the viewer waits on, and fills what is theirs to act on', () => {

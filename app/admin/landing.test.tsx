@@ -23,13 +23,13 @@ describe('admin landing', () => {
       ],
     })
     await renderApp(<AdminLandingPage />, { as: sa })
-    await screen.findByRole('heading', { name: 'Super Admin' })
+    await screen.findByRole('heading', { name: 'Super admin' })
     await screen.findByText('Bug came in')
     expect(screen.getByRole('link', { name: 'View' })).toHaveAttribute('href', '/admin/bugs')
-    expect(screen.getByRole('link', { name: /Manage Applications/ })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Cron Job Runs/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Manage applications/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Cron job runs/ })).toBeInTheDocument()
     await waitFor(() =>
-      expect(screen.getByRole('link', { name: /Triage Queue/ })).toHaveTextContent('1'),
+      expect(screen.getByRole('link', { name: /Triage queue/ })).toHaveTextContent('1'),
     )
     await screen.findByText('Approved')
     await userEvent.click(screen.getAllByRole('button', { name: 'Mark as read' })[0])
@@ -43,7 +43,7 @@ describe('admin landing', () => {
     const admin = await createAdmin()
     await renderApp(<AdminLandingPage />, { as: admin })
     await screen.findByRole('heading', { name: 'Admin' })
-    expect(screen.queryByRole('link', { name: /Manage Applications/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /Manage applications/ })).toBeNull()
     expect(screen.queryByText('Platform')).toBeNull()
     await screen.findByText(/No notifications|no new notifications/i)
     cleanup()

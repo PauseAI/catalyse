@@ -66,7 +66,7 @@ export default function SuggestTeamPage() {
       <div className="sm:max-w-xl">
         <form onSubmit={handleSubmit} className={`${SECTION_CARD} mb-8`}>
           <div className="mb-5">
-            <label htmlFor="name">Team Name</label>
+            <label htmlFor="name">Team name</label>
             <input
               id="name"
               type="text"

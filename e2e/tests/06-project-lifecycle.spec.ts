@@ -57,7 +57,7 @@ test.describe('Project Lifecycle', () => {
     })
 
     await adminPage.getByRole('radio', { name: /Ask for changes/ }).click()
-    await adminPage.getByLabel('Message to Proposer').fill(feedbackText)
+    await adminPage.getByLabel('Message to proposer').fill(feedbackText)
     await adminPage.getByRole('button', { name: 'Submit review' }).click()
     await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 
@@ -116,7 +116,7 @@ test.describe('Project Lifecycle', () => {
       timeout: 10_000,
     })
     await adminPage.getByRole('radio', { name: /Ask for changes/ }).click()
-    await adminPage.getByLabel('Message to Proposer').fill(feedbackText)
+    await adminPage.getByLabel('Message to proposer').fill(feedbackText)
     await adminPage.getByRole('button', { name: 'Submit review' }).click()
     await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 

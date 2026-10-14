@@ -1,15 +1,11 @@
 import React from 'react'
 import Link from 'next/link'
 import Button from '@/components/Button'
-import { Badge, StatusFlag, badgeClasses, type BadgeVariant } from '@/components/Badge'
-import { LatenessBadge } from '@/components/StatusBadges'
+import { StatusFlag } from '@/components/Badge'
+import { LatenessBadge, ProjectStatusBadge } from '@/components/StatusBadges'
 import { lateness } from '@/lib/lateness'
 import { matchGradeLabel } from '@/lib/matching'
 import { projectLocationParts } from '@/lib/filter-options'
-import {
-  PROJECT_STATUS_CONFIG as PROJECT_LIFECYCLE_CONFIG,
-  projectStatusOutline,
-} from '@/lib/project-status'
 
 export interface Project {
   id: number
@@ -51,34 +47,11 @@ export interface Project {
   } | null
 }
 
-// Project lifecycle statuses come from lib/project-status.ts (shared with the server and
-// e2e helpers); the interest statuses below are badged by the same helpers, so they're
-// merged in here rather than kept in the lifecycle map.
-export const PROJECT_STATUS_CONFIG: Record<string, { label: string; variant: BadgeVariant }> = {
-  ...PROJECT_LIFECYCLE_CONFIG,
-  accepted: { label: 'Accepted', variant: 'success' },
-  declined: { label: 'Declined', variant: 'neutral' },
-  withdrawn: { label: 'Withdrawn', variant: 'neutral' },
-  removed: { label: 'Removed', variant: 'neutral' },
-}
-
-export const STATUS_LABELS: Record<string, string> = Object.fromEntries(
-  Object.entries(PROJECT_STATUS_CONFIG).map(([k, v]) => [k, v.label]),
-)
-
 const PROJECT_TYPE_LABELS: Record<string, string> = {
   sprint: 'Sprint',
   container: 'Time-boxed',
   ongoing: 'Ongoing',
   one_off: 'One-off',
-}
-
-export function projectStatusVariant(status: string): BadgeVariant {
-  return PROJECT_STATUS_CONFIG[status]?.variant ?? 'neutral'
-}
-
-export function statusBadgeClasses(status: string) {
-  return badgeClasses(projectStatusVariant(status))
 }
 
 export function ProjectCard({
@@ -117,15 +90,10 @@ export function ProjectCard({
       {/* Status is the lifecycle position; Seeking owner/help and Needs tasks are separate,
           independently-derived facts and can co-occur with any status. */}
       <div className="row-start-2 flex gap-x-2 gap-y-1 flex-wrap items-center self-start">
-        <Badge
-          variant={projectStatusVariant(p.status)}
-          outline={projectStatusOutline(p.status, viewerIsAdmin)}
-        >
-          {STATUS_LABELS[p.status] ?? p.status.replace(/_/g, ' ')}
-        </Badge>
+        <ProjectStatusBadge status={p.status} viewerIsAdmin={viewerIsAdmin} />
         <LatenessBadge
           lateness={lateness({ deadline: null, pastPlanDays: p.daysLate, done: false })}
-          outline={p.viewerLeads === false}
+          viewer={{ isAssignee: false, canReview: p.viewerLeads !== false }}
         />
         {badge}
         {p.isSeekingOwner && <StatusFlag>Seeking owner</StatusFlag>}

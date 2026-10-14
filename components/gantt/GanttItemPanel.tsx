@@ -15,7 +15,6 @@ import type { WorkItemSummary } from '@/lib/work-item-summary'
 import { handedIn } from '@/lib/overdue'
 import { daysPastPlan } from '@/lib/replan'
 import { lateness } from '@/lib/lateness'
-import { latenessOutline } from '@/lib/status-emphasis'
 import { ASSIGN_PICKED, UNASSIGN, claimLabel, type ClaimViewer } from '@/lib/action-labels'
 import { UNCLAIMED_LABEL } from '@/lib/status-labels'
 import { datesPayload, type DatesPayload, type DatesValue } from '@/lib/task-dates'
@@ -223,7 +222,7 @@ export default function GanttItemPanel({
           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
             <LatenessBadge
               lateness={late}
-              outline={latenessOutline({ isAssignee: viewerIsAssignee, canReview: canManage })}
+              viewer={{ isAssignee: viewerIsAssignee, canReview: canManage }}
             />
             {pastPlan !== null && onReplan && (
               <Button size="sm" variant="secondary" disabled={busy} onClick={onReplan}>

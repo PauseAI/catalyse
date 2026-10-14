@@ -154,7 +154,7 @@ describe('DescriptionTips / Tooltip', () => {
         </Tooltip>
       </>,
     )
-    expect(screen.getByText('Goal & Impact')).toBeInTheDocument()
+    expect(screen.getByText('Goal & impact')).toBeInTheDocument()
     expect(screen.queryByRole('tooltip')).toBeNull()
     await userEvent.hover(screen.getByText('hover me'))
     expect(screen.getByRole('tooltip')).toHaveTextContent('More info')

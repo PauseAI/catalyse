@@ -15,7 +15,7 @@ test.describe('Admin: Skill Management', () => {
       timeout: 5_000,
     })
 
-    await adminPage.getByLabel('Category Name').fill(categoryName)
+    await adminPage.getByLabel('Category name').fill(categoryName)
     await adminPage.getByRole('button', { name: 'Save category' }).click()
 
     await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
@@ -36,7 +36,7 @@ test.describe('Admin: Skill Management', () => {
 
     // Create a fresh category to add the skill into
     await adminPage.getByRole('button', { name: '+ Add category' }).click()
-    await adminPage.getByLabel('Category Name').fill(categoryName)
+    await adminPage.getByLabel('Category name').fill(categoryName)
     await adminPage.getByRole('button', { name: 'Save category' }).click()
     await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
     await expect(getAlert(adminPage)).toContainText('Category created!')
@@ -48,7 +48,7 @@ test.describe('Admin: Skill Management', () => {
       timeout: 5_000,
     })
 
-    await adminPage.getByLabel('Skill Name').fill(skillName)
+    await adminPage.getByLabel('Skill name').fill(skillName)
     await adminPage.getByRole('button', { name: 'Save skill' }).click()
 
     await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
@@ -76,13 +76,13 @@ test.describe('Admin: Skill Management', () => {
 
     // Create category and skill
     await adminPage.getByRole('button', { name: '+ Add category' }).click()
-    await adminPage.getByLabel('Category Name').fill(categoryName)
+    await adminPage.getByLabel('Category name').fill(categoryName)
     await adminPage.getByRole('button', { name: 'Save category' }).click()
     await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 
     const categoryCard = adminPage.locator('.category-card').filter({ hasText: categoryName })
     await categoryCard.getByRole('button', { name: '+ Add skill' }).click()
-    await adminPage.getByLabel('Skill Name').fill(skillName)
+    await adminPage.getByLabel('Skill name').fill(skillName)
     await adminPage.getByRole('button', { name: 'Save skill' }).click()
     await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
     await expect(getAlert(adminPage)).toContainText('Skill created!')
@@ -94,7 +94,7 @@ test.describe('Admin: Skill Management', () => {
       timeout: 5_000,
     })
 
-    await adminPage.getByLabel('Skill Name').fill(updatedSkillName)
+    await adminPage.getByLabel('Skill name').fill(updatedSkillName)
     await adminPage.getByRole('button', { name: 'Save skill' }).click()
 
     await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
@@ -121,13 +121,13 @@ test.describe('Admin: Skill Management', () => {
 
     // Create category and skill
     await adminPage.getByRole('button', { name: '+ Add category' }).click()
-    await adminPage.getByLabel('Category Name').fill(categoryName)
+    await adminPage.getByLabel('Category name').fill(categoryName)
     await adminPage.getByRole('button', { name: 'Save category' }).click()
     await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 
     const categoryCard = adminPage.locator('.category-card').filter({ hasText: categoryName })
     await categoryCard.getByRole('button', { name: '+ Add skill' }).click()
-    await adminPage.getByLabel('Skill Name').fill(skillName)
+    await adminPage.getByLabel('Skill name').fill(skillName)
     await adminPage.getByRole('button', { name: 'Save skill' }).click()
     await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
     await expect(getAlert(adminPage)).toContainText('Skill created!')
@@ -161,7 +161,7 @@ test.describe('Admin: Skill Management', () => {
 
     // Create an empty category
     await adminPage.getByRole('button', { name: '+ Add category' }).click()
-    await adminPage.getByLabel('Category Name').fill(categoryName)
+    await adminPage.getByLabel('Category name').fill(categoryName)
     await adminPage.getByRole('button', { name: 'Save category' }).click()
     await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
     await expect(getAlert(adminPage)).toContainText('Category created!')

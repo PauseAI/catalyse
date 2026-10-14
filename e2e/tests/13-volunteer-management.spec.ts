@@ -63,13 +63,13 @@ test.describe('Volunteer Management', () => {
     })
 
     // All tabs present
-    await expect(adminPage.getByRole('tab', { name: 'Admin Notes' })).toBeVisible({
+    await expect(adminPage.getByRole('tab', { name: 'Admin notes' })).toBeVisible({
       timeout: 10_000,
     })
-    await expect(adminPage.getByRole('tab', { name: 'Quick Tasks' })).toBeVisible({
+    await expect(adminPage.getByRole('tab', { name: 'Quick tasks' })).toBeVisible({
       timeout: 10_000,
     })
-    await expect(adminPage.getByRole('tab', { name: 'Project History' })).toBeVisible({
+    await expect(adminPage.getByRole('tab', { name: 'Project history' })).toBeVisible({
       timeout: 10_000,
     })
     await expect(adminPage.getByRole('tab', { name: 'Endorse skill' })).toBeVisible({
@@ -80,13 +80,13 @@ test.describe('Volunteer Management', () => {
     await expect(adminPage.locator('#contactInfo')).toContainText(volunteer.email)
 
     // Quick Tasks tab shows empty state
-    await adminPage.getByRole('tab', { name: 'Quick Tasks' }).click()
-    await expect(adminPage.getByText('No Quick Tasks assigned yet.')).toBeVisible({
+    await adminPage.getByRole('tab', { name: 'Quick tasks' }).click()
+    await expect(adminPage.getByText('No quick tasks assigned yet.')).toBeVisible({
       timeout: 10_000,
     })
 
     // Project History tab shows empty state
-    await adminPage.getByRole('tab', { name: 'Project History' }).click()
+    await adminPage.getByRole('tab', { name: 'Project history' }).click()
     await expect(adminPage.getByText('No project history.')).toBeVisible({ timeout: 10_000 })
   })
 
@@ -99,7 +99,7 @@ test.describe('Volunteer Management', () => {
 
     await navigateToAdminVolunteerDetail(baseUrl, adminPage, volunteer.name)
 
-    await selectFilterDropdown(adminPage, 'Category', 'Skill Feedback')
+    await selectFilterDropdown(adminPage, 'Category', 'Skill feedback')
     await adminPage.getByLabel('Note', { exact: true }).fill(noteContent)
     await adminPage.getByRole('button', { name: 'Add note' }).click()
 
@@ -121,7 +121,7 @@ test.describe('Volunteer Management', () => {
     await navigateToAdminVolunteerDetail(baseUrl, adminPage, volunteer.name)
 
     // First note: skill_feedback
-    await selectFilterDropdown(adminPage, 'Category', 'Skill Feedback')
+    await selectFilterDropdown(adminPage, 'Category', 'Skill feedback')
     await adminPage.getByLabel('Note', { exact: true }).fill(noteContent1)
     await adminPage.getByRole('button', { name: 'Add note' }).click()
     await expect(getAlert(adminPage)).toContainText('Note added.', { timeout: 10_000 })
@@ -195,8 +195,8 @@ test.describe('Volunteer Management', () => {
     )
 
     await selectFilterDropdown(adminPage, 'Skill', skill.optionLabel)
-    await selectFilterDropdown(adminPage, 'Rating', 'Verified - Can deliver')
-    await selectFilterDropdown(adminPage, 'Based On', 'Direct Observation')
+    await selectFilterDropdown(adminPage, 'Rating', 'Verified - can deliver')
+    await selectFilterDropdown(adminPage, 'Based on', 'Direct observation')
     await adminPage.getByRole('button', { name: 'Endorse skill' }).click()
 
     await expect(getAlert(adminPage)).toContainText('Skill endorsed!', { timeout: 10_000 })

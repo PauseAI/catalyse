@@ -187,7 +187,7 @@ describe('triage', () => {
 
     await userEvent.click(screen.getByRole('tab', { name: 'Needs changes1' }))
     await screen.findByRole('link', { name: 'Talk about it' })
-    await userEvent.click(await screen.findByRole('tab', { name: 'No Open Tasks1' }))
+    await userEvent.click(await screen.findByRole('tab', { name: 'No open tasks1' }))
     await screen.findByRole('link', { name: 'All done really' })
 
     await userEvent.click(await screen.findByRole('tab', { name: 'Drafts2' }))
@@ -199,18 +199,18 @@ describe('triage', () => {
     const emptyCard = screen
       .getByRole('link', { name: 'Empty draft' })
       .closest<HTMLElement>('.card')!
-    await userEvent.click(within(emptyCard).getByRole('button', { name: 'Submit for Review' }))
+    await userEvent.click(within(emptyCard).getByRole('button', { name: 'Submit for review' }))
     await screen.findByText(/Add at least one task/)
     const draftCard = screen
       .getByRole('link', { name: 'Half a draft' })
       .closest<HTMLElement>('.card')!
-    await userEvent.click(within(draftCard).getByRole('button', { name: 'Submit for Review' }))
+    await userEvent.click(within(draftCard).getByRole('button', { name: 'Submit for review' }))
     await screen.findByText('Draft submitted for review')
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Half a draft' })).toBeNull())
     await userEvent.click(await screen.findByRole('tab', { name: 'In review2' }))
     await screen.findByRole('link', { name: 'Half a draft' })
 
-    await userEvent.click(await screen.findByRole('tab', { name: 'Volunteer Interests1' }))
+    await userEvent.click(await screen.findByRole('tab', { name: 'Volunteer interests1' }))
     const interest = (await screen.findByText('Pick me', { exact: false })).closest<HTMLElement>(
       '.card',
     )!
@@ -222,7 +222,10 @@ describe('triage', () => {
     )
     await userEvent.click(within(interest).getByRole('button', { name: 'Decline' }))
     await waitFor(() => expect(screen.queryByText('Pick me', { exact: false })).toBeNull())
-    await screen.findByText('No pending interests found.')
+    await screen.findByText('No requests right now.')
+    await userEvent.click(screen.getByRole('button', { name: 'Status' }))
+    await userEvent.click(screen.getByRole('option', { name: 'Accepted' }))
+    await screen.findByText('No accepted interests found.')
     await userEvent.click(screen.getByRole('button', { name: 'Status' }))
     await userEvent.click(screen.getByRole('option', { name: 'All' }))
     await screen.findByText(/wants to help with/)
@@ -243,11 +246,11 @@ describe('triage', () => {
     await screen.findByText('No projects awaiting review.')
     await userEvent.click(screen.getByRole('tab', { name: 'Needs changes' }))
     await screen.findByText('No projects awaiting discussion.')
-    await userEvent.click(screen.getByRole('tab', { name: 'No Open Tasks' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'No open tasks' }))
     await screen.findByText('No in-progress projects with all tasks completed.')
     await userEvent.click(screen.getByRole('tab', { name: 'Drafts' }))
     await screen.findByText('No volunteer drafts in progress.')
-    await userEvent.click(await screen.findByRole('tab', { name: 'Volunteer Interests1' }))
+    await userEvent.click(await screen.findByRole('tab', { name: 'Volunteer interests1' }))
     await userEvent.click(await screen.findByRole('button', { name: 'Accept' }))
     await waitFor(async () =>
       expect(
@@ -279,7 +282,7 @@ describe('triage', () => {
     await renderApp(<TriagePage />, { as: admin })
     await screen.findByText('No projects awaiting review.')
     await userEvent.click(await screen.findByRole('tab', { name: 'Drafts1' }))
-    const submit = await screen.findByRole('button', { name: 'Submit for Review' })
+    const submit = await screen.findByRole('button', { name: 'Submit for review' })
     localStorage.setItem('authToken', 'stale')
     await userEvent.click(submit)
     await screen.findByText('Unauthorized')

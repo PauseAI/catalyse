@@ -194,7 +194,7 @@ test.describe('Teams', () => {
 
     await applyToJoinTeam(baseUrl, volunteer.page, teamName)
     const pendingCard = volunteer.page.getByRole('article').filter({ hasText: teamName })
-    await expect(pendingCard.getByRole('button', { name: 'Application Pending' })).toBeVisible({
+    await expect(pendingCard.getByRole('button', { name: 'Application pending' })).toBeVisible({
       timeout: 10_000,
     })
 
@@ -223,7 +223,7 @@ test.describe('Teams', () => {
 
     await volunteer.page.goto(`${baseUrl}/teams`)
     const card = volunteer.page.getByRole('article').filter({ hasText: teamName })
-    await expect(card.getByRole('button', { name: 'Apply to Join' })).toBeVisible({
+    await expect(card.getByRole('button', { name: 'Apply to join' })).toBeVisible({
       timeout: 10_000,
     })
   })
@@ -244,7 +244,7 @@ test.describe('Teams', () => {
 
     await volunteer.page.goto(`${baseUrl}/teams`)
     const card = volunteer.page.getByRole('article').filter({ hasText: teamName })
-    await expect(card.getByRole('button', { name: 'Apply to Join' })).toBeVisible({
+    await expect(card.getByRole('button', { name: 'Apply to join' })).toBeVisible({
       timeout: 10_000,
     })
   })

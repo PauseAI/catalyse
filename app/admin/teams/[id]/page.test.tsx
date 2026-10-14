@@ -36,13 +36,13 @@ describe('admin team detail', () => {
 
     await mount(team.id, admin)
     await screen.findByRole('heading', { name: 'Edit Team' })
-    expect(screen.getByRole('link', { name: '← All Teams' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '← All teams' })).toHaveAttribute(
       'href',
       '/admin/teams',
     )
     expect(screen.getByLabelText('Description')).toHaveValue('Before')
     expect(screen.getByLabelText('Luma calendar URL')).toHaveValue('https://luma.before')
-    await userEvent.type(screen.getByLabelText('Team Name'), ' Renamed')
+    await userEvent.type(screen.getByLabelText('Team name'), ' Renamed')
     await userEvent.clear(screen.getByLabelText('Description'))
     await userEvent.clear(screen.getByLabelText('Luma calendar URL'))
     await userEvent.type(screen.getByLabelText('Team doc URL'), 'https://doc.after')
@@ -114,7 +114,7 @@ describe('admin team detail', () => {
     })
     await mount(team.id, stranger)
     await screen.findByText(/Only this team's leader or an admin/)
-    expect(screen.getByRole('link', { name: '← Back to Teams' })).toHaveAttribute('href', '/teams')
+    expect(screen.getByRole('link', { name: '← Back to teams' })).toHaveAttribute('href', '/teams')
     cleanup()
     // A non-admin is refused before the lookup; an admin sees the missing team.
     await mount(999_999, leader)

@@ -27,7 +27,7 @@ test.describe('Bug Reporting', () => {
       severity: 'high',
     })
 
-    const dialog = volunteer.page.getByRole('dialog', { name: 'Report an Issue' })
+    const dialog = volunteer.page.getByRole('dialog', { name: 'Report an issue' })
     await expect(dialog.getByRole('heading', { name: 'Thank you!' })).toBeVisible({
       timeout: 10_000,
     })
@@ -74,7 +74,7 @@ test.describe('Bug Reporting', () => {
       description: 'too short', // 9 characters — below the API minimum of 10
     })
 
-    const dialog = volunteer.page.getByRole('dialog', { name: 'Report an Issue' })
+    const dialog = volunteer.page.getByRole('dialog', { name: 'Report an issue' })
     await expect(dialog.locator('[aria-invalid="true"]')).toBeVisible({ timeout: 10_000 })
   })
 })

@@ -23,7 +23,7 @@ export async function openNewProjectForm(page: Page): Promise<void> {
   const newProjectButton = page
     .getByRole('link', { name: 'Propose a project' })
     .or(page.getByRole('button', { name: 'Propose a project' }))
-  const titleField = page.getByLabel('Project Title')
+  const titleField = page.getByLabel('Project title')
   await Promise.race([
     newProjectButton.first().waitFor({ state: 'visible', timeout: 10_000 }),
     titleField.waitFor({ state: 'visible', timeout: 10_000 }),
@@ -78,7 +78,7 @@ export async function proposeProject(
   await page.goto(`${baseUrl}/suggest`)
   await openNewProjectForm(page)
 
-  await page.getByLabel('Project Title').fill(title)
+  await page.getByLabel('Project title').fill(title)
   await page.getByLabel('Description').fill(description)
   if (skillName) {
     await page
@@ -92,7 +92,7 @@ export async function proposeProject(
   await expect(page.getByRole('heading', { name: 'Submit draft for review?' })).toBeVisible({
     timeout: 10_000,
   })
-  await page.getByRole('button', { name: 'Submit for Review' }).click()
+  await page.getByRole('button', { name: 'Submit for review' }).click()
   await page.waitForURL(`${baseUrl}/dashboard**`, { timeout: 15_000 })
   return id
 }
@@ -106,7 +106,7 @@ export async function adminCreateProject(
   await adminPage.goto(`${baseUrl}/admin/projects/new`)
   await openNewProjectForm(adminPage)
 
-  await adminPage.getByLabel('Project Title').fill(title)
+  await adminPage.getByLabel('Project title').fill(title)
   await adminPage.getByLabel('Description').fill(description)
   const id = await addFirstTask(adminPage, 'Initial task')
   await adminPage.getByRole('button', { name: 'Publish', exact: true }).click()
@@ -165,7 +165,7 @@ export async function adminSaveProjectDraft(
   await openNewProjectForm(adminPage)
 
   const saved = waitForAutosavedDraft(adminPage, '/api/rpc/admin/projects/create')
-  await adminPage.getByLabel('Project Title').fill(title)
+  await adminPage.getByLabel('Project title').fill(title)
   return saved
 }
 
@@ -178,7 +178,7 @@ export async function volunteerSaveProjectDraft(
   await openNewProjectForm(page)
 
   const saved = waitForAutosavedDraft(page, '/api/rpc/projects/create')
-  await page.getByLabel('Project Title').fill(title)
+  await page.getByLabel('Project title').fill(title)
   return saved
 }
 
@@ -217,7 +217,7 @@ export async function publishDraftFromEditPage(
   await expect(page.getByRole('heading', { name: 'Submit draft for review?' })).toBeVisible({
     timeout: 10_000,
   })
-  await page.getByRole('button', { name: 'Submit for Review' }).click()
+  await page.getByRole('button', { name: 'Submit for review' }).click()
 }
 
 // For an org-proposed draft: publishes it live, skipping review entirely.
