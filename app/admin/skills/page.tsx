@@ -134,7 +134,7 @@ function SortableCategory({
   return (
     <div
       ref={setNodeRef}
-      className="category-card bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word mb-6"
+      className="category-card bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden wrap-break-word mb-6"
       style={{
         // dynamic: drag transform/transition/opacity
         transform: CSS.Transform.toString(transform),

@@ -247,7 +247,7 @@ function ApplicationCard({
   ].filter(Boolean)
 
   return (
-    <div role="article" className="bg-surface rounded-xl shadow p-6">
+    <div role="article" className="bg-surface rounded-xl shadow p-4 sm:p-6">
       <h3 className="m-0 mb-1">{app.name}</h3>
       <p className="text-sm text-text-light mb-4">{meta.join(' · ')}</p>
 
@@ -414,7 +414,7 @@ function AnonymisedCard({ app }: { app: AnonymisedApplication }) {
   })
 
   return (
-    <div role="article" className="bg-surface rounded-xl shadow p-6 opacity-75">
+    <div role="article" className="bg-surface rounded-xl shadow p-4 sm:p-6 opacity-75">
       <p className="text-sm text-text-light mb-4">
         [Identity anonymised] · Rejected {formatDate(app.rejectedAt)}
       </p>

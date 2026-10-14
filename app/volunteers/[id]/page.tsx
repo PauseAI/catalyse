@@ -88,7 +88,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
           {incoming && (
             <section
               aria-label="Contact request"
-              className="bg-surface rounded-xl shadow p-6 mb-4 border-l-4 border-primary"
+              className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 border-l-4 border-primary"
             >
               <h2 className="text-lg m-0 mb-2">{volunteer.name} would like to connect</h2>
               <p className="m-0 mb-3 whitespace-pre-wrap">
@@ -115,7 +115,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
               </div>
             </section>
           )}
-          <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word">
+          <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word">
             <div className="flex items-center mb-2">
               <h1 id="volunteerName" className="m-0">
                 {volunteer.name}
@@ -200,7 +200,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
           {endorsements.length > 0 && (
             <div
               id="endorsementsSection"
-              className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word"
+              className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word"
             >
               <h2>Verified Skills</h2>
               <p className="text-text-light mb-3">
@@ -223,7 +223,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
           )}
 
           {volunteer.completedTasks.length > 0 && (
-            <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word">
+            <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word">
               <h2>Completed Quick Tasks</h2>
               {volunteer.completedTasks.map((t, i) => (
                 <div key={i} className="py-3 border-b border-brand-border">
@@ -246,7 +246,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
           )}
 
           {volunteer.projects.length > 0 && (
-            <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word">
+            <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word">
               <h2>Project History</h2>
               {volunteer.projects.map((p) => (
                 <div key={p.id} className="py-3 border-b border-brand-border">

@@ -49,7 +49,7 @@ export default function PrivacyPage() {
 
           {user && (
             <>
-              <div className="bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word mb-6">
+              <div className="bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden wrap-break-word mb-6">
                 <h2>Export Your Data</h2>
                 <p className="text-text-light mb-4">
                   Download all your data in JSON format. This includes your profile, skills, project
@@ -66,7 +66,7 @@ export default function PrivacyPage() {
             </>
           )}
 
-          <div className="bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word mb-6">
+          <div className="bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden wrap-break-word mb-6">
             <h2>Our Data Practices</h2>
 
             <h4>What we collect</h4>
@@ -223,7 +223,7 @@ export default function PrivacyPage() {
             </p>
           </div>
 
-          <div className="bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word mb-6">
+          <div className="bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden wrap-break-word mb-6">
             <h2>Your GDPR Rights</h2>
             <p className="text-text-light mb-4">
               Under GDPR and the UK Data Protection Act 2018, you have the right to:
@@ -277,7 +277,7 @@ export default function PrivacyPage() {
           </div>
 
           {!user && (
-            <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word text-center mb-6">
+            <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word text-center mb-6">
               <p className="text-text-light">
                 <Link href="/login">Log in</Link> to export your data or manage your account.
               </p>

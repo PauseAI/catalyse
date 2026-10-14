@@ -21,7 +21,7 @@ import { Badge, type BadgeVariant } from '@/components/Badge'
 type Preview = Awaited<ReturnType<typeof client.admin.journalistOutreach.previewImport>>
 type Row = Awaited<ReturnType<typeof client.admin.journalistOutreach.list>>['journalists'][number]
 
-const card = 'bg-surface rounded-xl shadow p-6 mb-6 overflow-hidden wrap-break-word'
+const card = 'bg-surface rounded-xl shadow p-4 sm:p-6 mb-6 overflow-hidden wrap-break-word'
 const STATUS_VARIANT: Record<JournalistStatus, BadgeVariant> = {
   available: 'neutral',
   claimed: 'warning',

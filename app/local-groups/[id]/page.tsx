@@ -54,7 +54,7 @@ export default function LocalGroupAdoptPage({ params }: { params: Promise<{ id: 
 
   return (
     <main className="container py-5 pb-15">
-      <div className="bg-surface rounded-xl shadow p-6 max-w-125">
+      <div className="bg-surface rounded-xl shadow p-4 sm:p-6 max-w-125">
         <h1 className="mt-0 mb-1">{group.name}</h1>
         <p className="text-text-light mb-5">{countryLabel(group.country)}</p>
         <p className="mb-5">

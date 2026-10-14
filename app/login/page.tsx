@@ -138,7 +138,7 @@ function LoginPageContent() {
             </div>
           )}
 
-          <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word">
+          <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word">
             {googleClientId && (
               <div className="text-center mb-5">
                 <div id="g_signin_btn" className="flex justify-center" />

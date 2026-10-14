@@ -7,7 +7,6 @@ import { createVolunteer, createAdmin, createProject, createTask } from '@/test/
 import { renderApp } from '@/test/render'
 import { addDays, startOfUtcDay } from '@/lib/schedule'
 import { formatDateShort, toDateInputValue } from '@/lib/format-date'
-import { shortDay } from '@/lib/relative-date'
 import { initials } from '@/components/WorkItemHeader'
 import TaskDetailPage from './page'
 
@@ -42,13 +41,12 @@ describe('task detail page', () => {
 
     cleanup()
     await mount(project.id, task.id, me)
-    await screen.findByText(/claimed on 2 Jan 2030/)
+    await screen.findByRole('button', { name: 'Start' })
     // Claimed is not started: nothing it waits on, so it reads Ready.
     expect(screen.getByText('Ready')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Start' }))
     await screen.findByText('Started. Post updates as you go.')
-    await screen.findByText(`started ${shortDay(new Date())}`, { exact: false })
-    expect(screen.getByText('In progress')).toBeInTheDocument()
+    await screen.findByText('In progress')
     expect(screen.queryByRole('button', { name: 'Start' })).toBeNull()
     expect((await row(task.id)).status).toBe('in_progress')
 
@@ -386,13 +384,13 @@ describe('task detail page', () => {
     await screen.findByText(
       'Task claimed. Post an update within 14 days; after 28 days with none, the task is released.',
     )
-    // The assignee keeps the rule in view above the submit box, now that they can start the task.
+    // The page itself doesn't repeat the rule; when it was claimed is in the history.
     await submitBox()
-    expect(screen.getByText(rule)).toBeInTheDocument()
+    expect(screen.queryByText(rule)).toBeNull()
     await waitFor(async () => expect((await row(task.id)).assigneeId).toBe(me.id))
     await waitFor(() =>
       expect(screen.getByText('Assigned to').parentElement).toHaveTextContent(
-        `Assigned to${initials(me.name)}${me.name}(you)· claimed on ${shortDay(new Date())}`,
+        `Assigned to${initials(me.name)}${me.name}(you)`,
       ),
     )
     // Claiming does not start it: still Blocked, with Start offered for prep.
@@ -495,7 +493,7 @@ describe('task detail page', () => {
     await mount(project.id, done.id, admin)
     await waitFor(() =>
       expect(screen.getByText('Assigned to').parentElement).toHaveTextContent(
-        /^Assigned toNo one· finished 2 Feb/,
+        /^Assigned toNo one$/,
       ),
     )
     cleanup()

@@ -77,7 +77,7 @@ export default function SuggestLocalGroupPage() {
         </p>
 
         <div className="max-w-xl">
-          <form onSubmit={handleSubmit} className="bg-surface rounded-xl shadow p-6 mb-8">
+          <form onSubmit={handleSubmit} className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-8">
             <div className="mb-5">
               <FilterDropdown
                 id="country"

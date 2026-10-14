@@ -37,7 +37,7 @@ export default function TaskStatusBar({
   return (
     <nav
       aria-label="Task summary"
-      className="bg-surface rounded-xl shadow px-6 py-3 mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
+      className="bg-surface rounded-xl shadow px-4 sm:px-6 py-3 mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
     >
       {items.map((item, i) => (
         <span key={item.href} className="whitespace-nowrap">

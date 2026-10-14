@@ -8,7 +8,7 @@ import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 
-const card = 'bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word'
+const card = 'bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word'
 
 type DraftTask = {
   ref: string
@@ -92,7 +92,7 @@ export default function NewTemplatePage() {
   const canSubmit = title.trim() && !createFromScratch.isPending
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
+    <div className="mx-auto max-w-2xl px-4 sm:px-6 py-8">
       <h1 className="mb-1">New template</h1>
       <p className="text-text-light mb-6">
         Build a reusable project structure from scratch. Country, local group, team and assignees

@@ -134,7 +134,7 @@ export default function AdminTeamPage() {
                   admins.map((a) => (
                     <div
                       key={a.id}
-                      className="card bg-surface rounded-xl shadow p-6 mb-3 overflow-hidden wrap-break-word"
+                      className="card bg-surface rounded-xl shadow p-4 sm:p-6 mb-3 overflow-hidden wrap-break-word"
                     >
                       <div className="flex justify-between items-center gap-4">
                         <div>
@@ -190,7 +190,7 @@ export default function AdminTeamPage() {
                   invites.map((inv) => (
                     <div
                       key={inv.id}
-                      className="card bg-surface rounded-xl shadow p-6 mb-3 overflow-hidden wrap-break-word"
+                      className="card bg-surface rounded-xl shadow p-4 sm:p-6 mb-3 overflow-hidden wrap-break-word"
                     >
                       <div className="flex justify-between items-center">
                         <div>

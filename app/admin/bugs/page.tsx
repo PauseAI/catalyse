@@ -263,7 +263,7 @@ function BugReportCard({
       onKeyDown={(e) => {
         if (e.key === 'Enter') onNavigate()
       }}
-      className="card block bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word w-full cursor-pointer"
+      className="card block bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word w-full cursor-pointer"
     >
       <div className="flex justify-between items-start mb-2">
         <div>

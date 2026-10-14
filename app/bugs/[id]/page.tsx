@@ -81,7 +81,7 @@ export default function BugReportDetailPage({ params }: { params: Promise<{ id: 
         </Link>
       )}
 
-      <div className="bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word mb-5">
+      <div className="bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden wrap-break-word mb-5">
         <div className="flex justify-between items-start mb-3 gap-4">
           <h1 className="m-0">{report.title}</h1>
           <Badge variant={BUG_STATUS_VARIANT[report.status] ?? 'neutral'}>
@@ -165,7 +165,7 @@ export default function BugReportDetailPage({ params }: { params: Promise<{ id: 
         )}
       </div>
 
-      <div className="bg-surface rounded-xl shadow p-6">
+      <div className="bg-surface rounded-xl shadow p-4 sm:p-6">
         <h2 className="text-lg mb-4">Discussion</h2>
         <BugReportCommentThread bugReportId={report.id} />
       </div>

@@ -42,7 +42,7 @@ export default function ForgotPasswordPage() {
 
           {!mutation.isSuccess ? (
             <form
-              className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word"
+              className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word"
               onSubmit={handleSubmit}
             >
               <div className="mb-5">
@@ -70,7 +70,7 @@ export default function ForgotPasswordPage() {
               </p>
             </form>
           ) : (
-            <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word">
+            <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word">
               <div className="text-center">
                 <h3 className="text-success">Check Your Email</h3>
                 <p className="text-text-light my-4">

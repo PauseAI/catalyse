@@ -23,7 +23,7 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word text-center">
+      <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word text-center">
         <h3 className="text-error">Invalid Link</h3>
         <p className="text-text-light my-4">
           This reset link is invalid or has expired. Please request a new one.
@@ -62,7 +62,7 @@ function ResetPasswordForm() {
   return (
     <form
       method="post"
-      className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word"
+      className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word"
       onSubmit={handleSubmit}
     >
       {error && (

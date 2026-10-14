@@ -54,7 +54,7 @@ export default function ChangesRequestedBanner({
   return (
     <section
       aria-labelledby={headingId}
-      className="bg-surface rounded-xl shadow p-6 mb-4 border-l-4 border-warning"
+      className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 border-l-4 border-warning"
     >
       <h2 id={headingId} className="text-lg m-0 mb-2">
         Changes requested{open.requestedByName ? ` by ${open.requestedByName}` : ''}

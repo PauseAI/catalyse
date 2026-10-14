@@ -106,7 +106,7 @@ export default function AdminLandingPage() {
 
       {!loadingStats && stats && (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6 max-[500px]:grid-cols-1">
-          <div className="bg-surface rounded-xl shadow p-6 overflow-hidden">
+          <div className="bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden">
             <h2 className="mt-0">Volunteers</h2>
             <div className="grid grid-cols-2 gap-5 mt-4">
               <div>
@@ -142,7 +142,7 @@ export default function AdminLandingPage() {
             </div>
           </div>
 
-          <div className="bg-surface rounded-xl shadow p-6 overflow-hidden">
+          <div className="bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden">
             <h2 className="mt-0">Projects</h2>
             <div className="mt-4">
               {[
@@ -166,7 +166,7 @@ export default function AdminLandingPage() {
             </div>
           </div>
 
-          <div className="bg-surface rounded-xl shadow p-6 overflow-hidden">
+          <div className="bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden">
             <h2 className="mt-0">Volunteer Interest</h2>
             <div className="grid grid-cols-2 gap-5 mt-4">
               <div>

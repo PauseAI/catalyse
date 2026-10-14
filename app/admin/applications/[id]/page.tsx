@@ -156,7 +156,7 @@ export default function ApplicationReviewPage() {
   }
 
   return (
-    <main className="w-full max-w-2xl mx-auto px-6 py-5 pb-15">
+    <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-5 pb-15">
       <div className="mb-6">
         <Button variant="ghost" size="sm" onClick={() => router.push('/admin/applications')}>
           ← Back to applications

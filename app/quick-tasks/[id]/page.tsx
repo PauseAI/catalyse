@@ -93,7 +93,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
         {mine ? '← Back to My Quick Tasks' : '← Back to Quick Tasks'}
       </Link>
 
-      <div className="bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word">
+      <div className="bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden wrap-break-word">
         <div className="flex justify-between items-start mb-3 gap-4">
           <h1 className="m-0">{task.title}</h1>
           <Badge variant={statusVariant(task.status)}>
@@ -189,7 +189,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
         />
       )}
 
-      <div className="bg-surface rounded-xl shadow p-6">
+      <div className="bg-surface rounded-xl shadow p-4 sm:p-6">
         <h2 className="text-lg mb-4">Discussion</h2>
         <CommentThread workItemId={task.id} />
       </div>

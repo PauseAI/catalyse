@@ -9,7 +9,7 @@ export default function EmptyState({
   action?: React.ReactNode
 }) {
   return (
-    <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word text-center">
+    <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word text-center">
       <h3>{title}</h3>
       {body && <p className="text-text-light">{body}</p>}
       {action}

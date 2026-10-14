@@ -81,8 +81,10 @@ export default function WorkItemHeader({
     )
   }
 
+  // Below `lg` the bar stacks under the tabs, so `children` (a note on the bar's actions) moves
+  // down between them: the bar's wrapper drops out of the layout and `order` places its parts.
   return (
-    <header className="mb-4">
+    <header className="mb-4 flex flex-col lg:block">
       <div className="mb-3 min-w-0">
         {heading}
         {(subtitle || person) && (
@@ -93,10 +95,10 @@ export default function WorkItemHeader({
         )}
         {underTitle && <div className="mt-2 empty:hidden">{underTitle}</div>}
       </div>
-      {children}
-      <div className="flex flex-col lg:flex-row lg:items-stretch">
-        <div className="min-w-0 lg:flex-1">{tabs}</div>
-        {toolbar}
+      {children && <div className="order-3 pt-3 lg:pt-0">{children}</div>}
+      <div className="contents lg:flex lg:flex-row lg:items-stretch">
+        <div className="order-2 min-w-0 lg:flex-1">{tabs}</div>
+        <div className="order-4 lg:flex">{toolbar}</div>
       </div>
     </header>
   )

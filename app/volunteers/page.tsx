@@ -171,7 +171,7 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
               {volunteers.map((v) => (
                 <div
                   key={v.id}
-                  className="card bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word flex flex-col"
+                  className="card bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden wrap-break-word flex flex-col"
                 >
                   <h3 className="m-0 mb-2">
                     <Link

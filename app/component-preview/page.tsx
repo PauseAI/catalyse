@@ -9,7 +9,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <section className="mb-10">
       <h2 className="mb-1">{title}</h2>
-      <div className="bg-surface rounded-xl shadow p-6">{children}</div>
+      <div className="bg-surface rounded-xl shadow p-4 sm:p-6">{children}</div>
     </section>
   )
 }

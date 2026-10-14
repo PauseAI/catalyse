@@ -130,7 +130,7 @@ function QuickTaskCard({
     <div
       id={anchorId}
       role="article"
-      className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word"
+      className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word"
     >
       <div className="flex justify-between items-start gap-3 mb-2">
         <h3 className="m-0">{titleHref ? <Link href={titleHref}>{title}</Link> : title}</h3>
@@ -697,7 +697,7 @@ function AdminQuickTasksView() {
         {loadingData ? (
           <div className="text-center py-10 text-text-light">Loading…</div>
         ) : tasks.length === 0 ? (
-          <div className="bg-surface rounded-xl shadow p-6 text-center">
+          <div className="bg-surface rounded-xl shadow p-4 sm:p-6 text-center">
             <h3>No quick tasks</h3>
             <p className="text-text-light">
               Create one to verify a volunteer&apos;s skills before giving them a bigger project.

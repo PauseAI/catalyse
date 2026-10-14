@@ -27,7 +27,7 @@ export default function AiEditingHelp() {
   }
 
   return (
-    <div className="bg-surface rounded-xl shadow p-6 mb-4">
+    <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="m-0 text-base">Editing this file with an AI assistant</h2>

@@ -735,7 +735,7 @@ export default function SignupPage() {
     </p>
   )
 
-  const formCard = 'bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word'
+  const formCard = 'bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word'
   const prefix = isGoogle ? 'g_' : ''
 
   if (loading) return null

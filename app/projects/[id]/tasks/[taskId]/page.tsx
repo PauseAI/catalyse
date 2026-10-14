@@ -22,7 +22,6 @@ import Linkify from '@/components/Linkify'
 import { useToast } from '@/lib/toast'
 import { TaskStatus } from '@/generated/prisma/enums'
 import { TASK_STATUS_LABELS, TASK_STATUS_VARIANTS, UNCLAIMED_LABEL } from '@/lib/status-labels'
-import { shortDay } from '@/lib/relative-date'
 import { PROJECT_TASK_CLAIMED_MESSAGE, TASK_REQUESTED_MESSAGE } from '@/lib/action-messages'
 import { CLAIMING, JOIN_AS_HELPER, UNASSIGN, claimLabel } from '@/lib/action-labels'
 import { TASK_INACTIVITY_RULE } from '@/lib/staleness'
@@ -107,19 +106,6 @@ function LinkedWork({
       )}
     </>
   )
-}
-
-/** When the assignee took it on, started or finished it: "claimed on 2 Jan", "finished 9 Oct". */
-function assigneeSince(task: {
-  assignedToName: string | null
-  claimedAt: Date | string | null
-  startedAt: Date | string | null
-  completedAt: Date | string | null
-}): string | null {
-  if (task.completedAt) return `finished ${shortDay(task.completedAt)}`
-  if (task.assignedToName === null) return null
-  if (task.startedAt) return `started ${shortDay(task.startedAt)}`
-  return task.claimedAt ? `claimed on ${shortDay(task.claimedAt)}` : null
 }
 
 export default function TaskDetailPage({
@@ -310,7 +296,7 @@ export default function TaskDetailPage({
         />
       )}
 
-      <div className="bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word mb-5">
+      <div className="bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden wrap-break-word mb-5">
         <WorkItemHeader
           title={task.title}
           underTitle={
@@ -332,7 +318,6 @@ export default function TaskDetailPage({
               label={
                 task.helpersWanted !== null || task.helpers.length > 0 ? 'Lead' : 'Assigned to'
               }
-              summary={assigneeSince(task)}
               actions={
                 <>
                   {canClaimNow && (
@@ -424,7 +409,6 @@ export default function TaskDetailPage({
             <Linkify text={task.description} />
           </div>
         )}
-        {canStartNow && <p className="text-sm text-text-light mb-4">{TASK_INACTIVITY_RULE}</p>}
         {task.blockedBy.length > 0 && (
           <p className="mb-4 text-sm">
             <strong>Blocked by</strong> {quotedTitles(task.blockedBy)}
@@ -630,7 +614,7 @@ export default function TaskDetailPage({
         )}
       </div>
 
-      <div className="bg-surface rounded-xl shadow p-6">
+      <div className="bg-surface rounded-xl shadow p-4 sm:p-6">
         <h2 className="text-lg mb-1">Discussion</h2>
         <p className="text-sm text-text-light mb-4">
           About this task only. For the whole project, use the{' '}

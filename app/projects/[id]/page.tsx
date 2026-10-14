@@ -124,7 +124,7 @@ const ADMIN_EXTRA_STATUSES = toOptions(ADMIN_ONLY_STATUSES)
 
 // ── Tailwind class constants ──────────────────────────────────────────────────
 
-const card = 'bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word'
+const card = 'bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word'
 const menuItem =
   'w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors cursor-pointer'
 
