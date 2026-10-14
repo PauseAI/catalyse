@@ -9,6 +9,7 @@ import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
 import { countryLabel } from '@/lib/filter-options'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import { InferRouterOutputs } from '@orpc/server'
 import { AppRouter } from '@/server/router'
 import { ApprovalStatus } from '@/generated/prisma/enums'
@@ -247,7 +248,7 @@ function ApplicationCard({
   ].filter(Boolean)
 
   return (
-    <div role="article" className="bg-surface rounded-xl shadow p-4 sm:p-6">
+    <div role="article" className={SECTION_CARD}>
       <h3 className="m-0 mb-1">{app.name}</h3>
       <p className="text-sm text-text-light mb-4">{meta.join(' · ')}</p>
 
@@ -414,7 +415,7 @@ function AnonymisedCard({ app }: { app: AnonymisedApplication }) {
   })
 
   return (
-    <div role="article" className="bg-surface rounded-xl shadow p-4 sm:p-6 opacity-75">
+    <div role="article" className={`${SECTION_CARD} opacity-75`}>
       <p className="text-sm text-text-light mb-4">
         [Identity anonymised] · Rejected {formatDate(app.rejectedAt)}
       </p>

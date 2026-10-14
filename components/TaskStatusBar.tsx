@@ -1,6 +1,7 @@
 import { plural } from '@/lib/plural'
 import { relativeDue, shortDay } from '@/lib/relative-date'
 import type { TaskCounts, TaskFilter } from '@/lib/task-list-order'
+import { BLEED } from '@/lib/ui-classes'
 
 /** The `#tasks=…` hash that opens the Tasks tab under one filter. */
 export function taskFilterHash(filter: TaskFilter | null): string {
@@ -37,7 +38,7 @@ export default function TaskStatusBar({
   return (
     <nav
       aria-label="Task summary"
-      className="bg-surface rounded-xl shadow px-4 sm:px-6 py-3 mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
+      className={`bg-surface ${BLEED} shadow px-4 sm:px-6 py-3 mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm`}
     >
       {items.map((item, i) => (
         <span key={item.href} className="whitespace-nowrap">

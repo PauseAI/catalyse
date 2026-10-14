@@ -18,6 +18,7 @@ import { buildLocationOptions, type LocalGroupOption } from '@/lib/filter-option
 import { useToast } from '@/lib/toast'
 import { toDateInputValue, fromDateInputValue } from '@/lib/format-date'
 import { orpc } from '@/lib/orpc'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import type { AppRouter } from '@/server/router'
 
 // A new proposal starts saving itself once the title or the description has this much in it.
@@ -544,7 +545,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
         </div>
       )}
 
-      <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word">
+      <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
         <div className="mb-5">
           <label htmlFor="project-title" className="required">
             Project Title

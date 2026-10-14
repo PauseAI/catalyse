@@ -9,6 +9,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import { InviteStatus } from '@/generated/prisma/enums'
 
 export default function AdminTeamPage() {
@@ -134,7 +135,7 @@ export default function AdminTeamPage() {
                   admins.map((a) => (
                     <div
                       key={a.id}
-                      className="card bg-surface rounded-xl shadow p-4 sm:p-6 mb-3 overflow-hidden wrap-break-word"
+                      className={`card ${SECTION_CARD} mb-3 overflow-hidden wrap-break-word`}
                     >
                       <div className="flex justify-between items-center gap-4">
                         <div>
@@ -190,7 +191,7 @@ export default function AdminTeamPage() {
                   invites.map((inv) => (
                     <div
                       key={inv.id}
-                      className="card bg-surface rounded-xl shadow p-4 sm:p-6 mb-3 overflow-hidden wrap-break-word"
+                      className={`card ${SECTION_CARD} mb-3 overflow-hidden wrap-break-word`}
                     >
                       <div className="flex justify-between items-center">
                         <div>

@@ -103,6 +103,7 @@ import PageLoading from '@/components/PageLoading'
 import WorkItemCard from '@/components/WorkItemCard'
 import HelpersWantedField, { helpersWantedPayload } from '@/components/HelpersWantedField'
 import { helperSummary } from '@/lib/helper-summary'
+import { BLEED, SECTION_CARD } from '@/lib/ui-classes'
 import {
   TASK_FILTERS,
   matchesTaskFilter,
@@ -124,7 +125,7 @@ const ADMIN_EXTRA_STATUSES = toOptions(ADMIN_ONLY_STATUSES)
 
 // ── Tailwind class constants ──────────────────────────────────────────────────
 
-const card = 'bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word'
+const card = `${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`
 const menuItem =
   'w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors cursor-pointer'
 
@@ -810,7 +811,7 @@ function ReadyToCompleteBanner({
   return (
     <div
       role="status"
-      className="bg-surface rounded-xl shadow p-4 mb-4 border-l-4 border-brand-border flex flex-wrap items-center gap-3"
+      className={`bg-surface ${BLEED} shadow p-4 mb-4 border-l-4 border-brand-border flex flex-wrap items-center gap-3`}
     >
       <span className="flex-1">
         {tasks} done{done.includesKeyDate ? ', including the key date' : ''}. Ready to complete the
@@ -2395,7 +2396,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               {project.outcome && (
                 <div
                   role="status"
-                  className="bg-emerald-100 dark:bg-emerald-900 border border-emerald-300 dark:border-emerald-600 rounded-xl p-6 mb-4"
+                  className={`bg-emerald-100 dark:bg-emerald-900 border border-emerald-300 dark:border-emerald-600 ${BLEED} p-4 sm:p-6 mb-4`}
                 >
                   <strong>Outcome: </strong>
                   {project.outcome === 'successful'

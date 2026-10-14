@@ -8,6 +8,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import { useAuth } from '@/lib/auth-context'
 import { orpc } from '@/lib/orpc'
+import { SECTION_CARD } from '@/lib/ui-classes'
 
 export default function LoginPage() {
   return (
@@ -123,7 +124,7 @@ function LoginPageContent() {
         />
       )}
       <main className="container py-5 pb-15">
-        <div className="max-w-[400px] my-15 mx-auto">
+        <div className="sm:max-w-[400px] my-15 mx-auto">
           <h1 className="text-center">Welcome Back</h1>
           <p className="text-center text-text-light mb-8">
             Login to access your dashboard and projects.
@@ -138,7 +139,7 @@ function LoginPageContent() {
             </div>
           )}
 
-          <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word">
+          <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
             {googleClientId && (
               <div className="text-center mb-5">
                 <div id="g_signin_btn" className="flex justify-center" />
@@ -195,16 +196,6 @@ function LoginPageContent() {
               </p>
             </form>
           </div>
-
-          <p className="text-center text-sm text-text-light mt-6">
-            <Link href="/privacy" className="text-text-light">
-              Privacy Policy
-            </Link>
-            {' · '}
-            <a href="mailto:matilda@pauseai.info" className="text-text-light">
-              Contact Support
-            </a>
-          </p>
         </div>
       </main>
     </>

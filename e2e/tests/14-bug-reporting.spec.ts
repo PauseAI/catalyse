@@ -13,7 +13,9 @@ test.describe('Bug Reporting', () => {
     const title = fake.bugTitle()
 
     await volunteer.page.goto(`${baseUrl}/dashboard`)
-    await expect(volunteer.page.getByRole('heading', { level: 1, name: /^Hi / })).toBeVisible({
+    await expect(
+      volunteer.page.getByRole('heading', { level: 1, name: 'Home', exact: true }),
+    ).toBeVisible({
       timeout: 10_000,
     })
 
@@ -60,7 +62,9 @@ test.describe('Bug Reporting', () => {
     baseUrl,
   }) => {
     await volunteer.page.goto(`${baseUrl}/dashboard`)
-    await expect(volunteer.page.getByRole('heading', { level: 1, name: /^Hi / })).toBeVisible({
+    await expect(
+      volunteer.page.getByRole('heading', { level: 1, name: 'Home', exact: true }),
+    ).toBeVisible({
       timeout: 10_000,
     })
 

@@ -49,6 +49,7 @@ import HelpersWantedField, {
   helpersWantedPayload,
 } from '@/components/HelpersWantedField'
 import { TERMINAL_STATUSES } from '@/lib/project-status'
+import { SECTION_CARD } from '@/lib/ui-classes'
 
 /** "Waiting on 1 of 2.", or that everything it waits on is done; nothing once it is handed in. */
 function waitsOnSummary(waitsOn: WorkItemSummary[], status: string): string | null {
@@ -296,7 +297,7 @@ export default function TaskDetailPage({
         />
       )}
 
-      <div className="bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden wrap-break-word mb-5">
+      <div className={`${SECTION_CARD} overflow-hidden wrap-break-word mb-5`}>
         <WorkItemHeader
           title={task.title}
           underTitle={
@@ -614,7 +615,7 @@ export default function TaskDetailPage({
         )}
       </div>
 
-      <div className="bg-surface rounded-xl shadow p-4 sm:p-6">
+      <div className={SECTION_CARD}>
         <h2 className="text-lg mb-1">Discussion</h2>
         <p className="text-sm text-text-light mb-4">
           About this task only. For the whole project, use the{' '}

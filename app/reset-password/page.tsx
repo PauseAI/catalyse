@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useSearchParams } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import Button from '@/components/Button'
 
 function ResetPasswordForm() {
@@ -23,7 +24,7 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word text-center">
+      <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word text-center`}>
         <h3 className="text-error">Invalid Link</h3>
         <p className="text-text-light my-4">
           This reset link is invalid or has expired. Please request a new one.
@@ -62,7 +63,7 @@ function ResetPasswordForm() {
   return (
     <form
       method="post"
-      className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word"
+      className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}
       onSubmit={handleSubmit}
     >
       {error && (
@@ -118,7 +119,7 @@ export default function ResetPasswordPage() {
   return (
     <>
       <main className="container py-5 pb-15">
-        <div className="max-w-[400px] my-15 mx-auto">
+        <div className="sm:max-w-[400px] my-15 mx-auto">
           <h1 className="text-center">Set New Password</h1>
           <Suspense fallback={<div className="text-center py-10 text-text-light">Loading…</div>}>
             <ResetPasswordForm />

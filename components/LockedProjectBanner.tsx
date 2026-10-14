@@ -8,6 +8,7 @@ import { ProjectStatus } from '@/generated/prisma/enums'
 import { formatDate } from '@/lib/format-date'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
+import { BLEED } from '@/lib/ui-classes'
 
 /** Takes a completed or archived project back to In progress, after asking. Owner or admin. */
 export function ReopenProjectButton({ projectId, title }: { projectId: number; title: string }) {
@@ -71,7 +72,7 @@ export default function LockedProjectBanner({
   return (
     <div
       role="status"
-      className="bg-surface rounded-xl shadow p-4 mb-4 border-l-4 border-brand-border flex flex-wrap items-center gap-3"
+      className={`bg-surface ${BLEED} shadow p-4 mb-4 border-l-4 border-brand-border flex flex-wrap items-center gap-3`}
     >
       <span className="flex-1">{finished}. Read-only.</span>
       {reopen && <ReopenProjectButton projectId={reopen.projectId} title={reopen.title} />}

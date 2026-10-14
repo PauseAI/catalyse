@@ -1,7 +1,8 @@
 import { Page, expect } from '@playwright/test'
 
-/** The Home page's greeting, which shows once the page has loaded. */
-export const homeHeading = (page: Page) => page.getByRole('heading', { level: 1, name: /^Hi / })
+/** The Home page's heading, which shows once the page has loaded. */
+export const homeHeading = (page: Page) =>
+  page.getByRole('heading', { level: 1, name: 'Home', exact: true })
 
 /** The nav's Inbox item, which carries the needs-action count. */
 export const inboxLink = (page: Page) =>

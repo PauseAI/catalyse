@@ -49,7 +49,7 @@ export async function submitBugReport(
   description: string,
 ): Promise<void> {
   await page.goto(`${baseUrl}/dashboard`)
-  await expect(page.getByRole('heading', { level: 1, name: /^Hi / })).toBeVisible({
+  await expect(page.getByRole('heading', { level: 1, name: 'Home', exact: true })).toBeVisible({
     timeout: 10_000,
   })
   await openBugReportForm(page)

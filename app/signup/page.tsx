@@ -11,6 +11,7 @@ import Radio from '@/components/Radio'
 import SignupSkills from '@/components/SignupSkills'
 import { useAuth } from '@/lib/auth-context'
 import { orpc } from '@/lib/orpc'
+import { BLEED, SECTION_CARD } from '@/lib/ui-classes'
 import {
   COUNTRY_OPTIONS,
   NO_LOCAL_GROUP,
@@ -723,19 +724,7 @@ export default function SignupPage() {
     </div>
   )
 
-  const footer = (
-    <p className="text-center text-sm text-text-light mt-6">
-      <Link href="/privacy" className="text-text-light">
-        Privacy Policy
-      </Link>
-      {' · '}
-      <a href="mailto:matilda@pauseai.info" className="text-text-light">
-        Contact Support
-      </a>
-    </p>
-  )
-
-  const formCard = 'bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word'
+  const formCard = `${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`
   const prefix = isGoogle ? 'g_' : ''
 
   if (loading) return null
@@ -745,7 +734,7 @@ export default function SignupPage() {
       <main className="container py-5 pb-15">
         <div className="max-w-2xl mx-auto">
           {/* role="status" so a screen reader announces that the form went through. */}
-          <div role="status" className="bg-surface rounded-xl shadow p-8 text-center">
+          <div role="status" className={`bg-surface ${BLEED} shadow p-8 text-center`}>
             <h1>Application received</h1>
             <p className="text-text-light mt-4 mb-2">
               Thanks for applying! A member of the team usually reviews applications within a few
@@ -1023,8 +1012,6 @@ export default function SignupPage() {
               </div>
             </form>
           )}
-
-          {footer}
         </div>
       </main>
     </>

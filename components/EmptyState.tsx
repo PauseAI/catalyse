@@ -1,3 +1,5 @@
+import { SECTION_CARD } from '@/lib/ui-classes'
+
 /** An empty list, saying what to do next: `action` is a link or button to the next step. */
 export default function EmptyState({
   title,
@@ -9,7 +11,7 @@ export default function EmptyState({
   action?: React.ReactNode
 }) {
   return (
-    <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word text-center">
+    <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word text-center`}>
       <h3>{title}</h3>
       {body && <p className="text-text-light">{body}</p>}
       {action}

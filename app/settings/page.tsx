@@ -12,6 +12,7 @@ import SkillPicker from '@/components/SkillPicker'
 import Tabs from '@/components/Tabs'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import { useUrlParam } from '@/lib/hooks/url-filters'
 import {
   EMAIL_CATEGORY_LABELS,
@@ -380,7 +381,9 @@ function SettingsPageContent() {
       <Tabs tabs={TABS} activeTab={activeTab} onChange={setTab} />
 
       {activeTab === 'profile' && user.approvalStatus === 'needs_info' && (
-        <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 max-w-4xl border-2 border-amber-300 dark:border-amber-700">
+        <div
+          className={`${SECTION_CARD} mb-4 max-w-4xl border-2 border-amber-300 dark:border-amber-700`}
+        >
           <h2 className="mt-0">Your Application</h2>
           {myApplication?.applicationApplicantNotes && (
             <>
@@ -423,7 +426,7 @@ function SettingsPageContent() {
       )}
 
       {activeTab === 'profile' && user.approvalStatus === 'under_review' && (
-        <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 max-w-4xl">
+        <div className={`${SECTION_CARD} mb-4 max-w-4xl`}>
           <p className="text-text-light m-0">
             Your application has been resubmitted and is awaiting review. You can still update your
             profile below, but your application won&apos;t need resubmitting again unless an admin
@@ -434,7 +437,7 @@ function SettingsPageContent() {
 
       {activeTab === 'profile' && (
         <form
-          className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word max-w-4xl"
+          className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word max-w-4xl`}
           onSubmit={handleSave}
         >
           <div className="mb-5">
@@ -590,7 +593,7 @@ function SettingsPageContent() {
       )}
 
       {activeTab === 'profile' && (
-        <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 border-2 border-brand-border max-w-4xl">
+        <div className={`${SECTION_CARD} mb-4 border-2 border-brand-border max-w-4xl`}>
           <h3>Local Groups</h3>
           <p className="text-text-light mb-4">
             Don&apos;t see your local group listed? Suggest a new one.
@@ -603,7 +606,7 @@ function SettingsPageContent() {
 
       {activeTab === 'account' && (
         <div className="max-w-4xl">
-          <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-6 overflow-hidden wrap-break-word">
+          <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
             <h2>Change Email</h2>
             <p className="text-sm text-text-light mb-4">
               Current email: <strong>{user.email}</strong>
@@ -635,7 +638,7 @@ function SettingsPageContent() {
             </form>
           </div>
 
-          <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-6 overflow-hidden wrap-break-word">
+          <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
             <h2>Change Password</h2>
             <form method="post" onSubmit={handleChangePassword}>
               <div className="mb-5">
@@ -674,7 +677,7 @@ function SettingsPageContent() {
             </form>
           </div>
 
-          <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-6 overflow-hidden wrap-break-word">
+          <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
             <h2>Sessions</h2>
             <p className="text-text-light mb-4">
               Sign out everywhere except this device — use this if you signed in somewhere you no
@@ -691,7 +694,7 @@ function SettingsPageContent() {
             </Button>
           </div>
 
-          <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word">
+          <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
             <h2>Danger Zone</h2>
             <p className="text-text-light mb-4">
               Permanently delete your account and all associated data. This cannot be undone.
@@ -705,7 +708,7 @@ function SettingsPageContent() {
 
       {activeTab === 'notifications' && (
         <form
-          className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word max-w-4xl"
+          className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word max-w-4xl`}
           onSubmit={handleSave}
         >
           <div className="mb-5">
@@ -781,7 +784,7 @@ function SettingsPageContent() {
       {activeTab === 'privacy' && (
         <div className="max-w-4xl">
           <form
-            className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-6 overflow-hidden wrap-break-word"
+            className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}
             onSubmit={handleSave}
           >
             <h2 className="mt-0">Privacy Settings</h2>
@@ -819,7 +822,7 @@ function SettingsPageContent() {
             {saveButton}
           </form>
 
-          <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-6 overflow-hidden wrap-break-word">
+          <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
             <h2 className="mt-0">Your Data</h2>
             <p className="text-text-light mb-4">
               Download all your data in JSON format. This includes your profile, skills, project
@@ -834,7 +837,7 @@ function SettingsPageContent() {
             </Button>
           </div>
 
-          <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word">
+          <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
             <h2 className="mt-0">Privacy Policy</h2>
             <p className="text-text-light mb-4">
               Read our full data practices, GDPR rights, and third-party processor information.

@@ -8,6 +8,7 @@ import Button from '@/components/Button'
 import PageLoading from '@/components/PageLoading'
 import { orpc } from '@/lib/orpc'
 import { MAX_VOLUNTEER_DRAFTS } from '@/lib/project-status'
+import { SECTION_CARD } from '@/lib/ui-classes'
 
 export default function SuggestPage() {
   const router = useRouter()
@@ -37,7 +38,7 @@ export default function SuggestPage() {
         if approved, it&apos;ll be visible to all volunteers.
       </p>
 
-      <div className="max-w-4xl bg-surface rounded-xl shadow p-4 sm:p-6 mb-4">
+      <div className={`max-w-4xl ${SECTION_CARD} mb-4`}>
         <h2 className="mt-0 mb-3">My Drafts</h2>
         <ul className="flex flex-col gap-2">
           {drafts.map((draft) => (

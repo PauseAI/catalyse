@@ -32,7 +32,7 @@ export default function PlatformSettingsPage() {
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
       <h1 className="text-2xl font-bold mb-6">Platform Settings</h1>
 
-      <div className="border border-brand-border rounded-lg p-4 sm:p-6">
+      <div className="border-y sm:border border-brand-border -mx-4 sm:mx-0 rounded-none sm:rounded-lg p-4 sm:p-6">
         <div className="flex items-center justify-between gap-6 mb-3">
           <h2 className="text-lg font-semibold m-0!">Application Approval</h2>
           <Toggle
@@ -50,7 +50,7 @@ export default function PlatformSettingsPage() {
         </p>
       </div>
 
-      <div className="border border-brand-border rounded-lg p-4 sm:p-6 mt-6">
+      <div className="border-y sm:border border-brand-border -mx-4 sm:mx-0 rounded-none sm:rounded-lg p-4 sm:p-6 mt-6">
         <div className="flex items-center justify-between gap-6 mb-3">
           <h2 className="text-lg font-semibold m-0!">Maintenance Mode</h2>
           <Toggle

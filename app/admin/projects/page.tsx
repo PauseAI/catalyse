@@ -4,6 +4,7 @@ import { useRequireAdmin } from '@/lib/hooks/auth'
 import { useQuery } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
+import { SECTION_CARD } from '@/lib/ui-classes'
 
 export default function AdminProjectsPage() {
   const { user, loading } = useRequireAdmin()
@@ -23,7 +24,7 @@ export default function AdminProjectsPage() {
       </p>
 
       {drafts.length > 0 && (
-        <div className="max-w-4xl bg-surface rounded-xl shadow p-4 sm:p-6 mb-4">
+        <div className={`max-w-4xl ${SECTION_CARD} mb-4`}>
           <h2 className="mt-0 mb-3">My Drafts</h2>
           <ul className="flex flex-col gap-2">
             {drafts.map((draft) => (

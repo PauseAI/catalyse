@@ -38,6 +38,7 @@ import { useToast } from '@/lib/toast'
 import { formatDate, fromDateInputValue, toDateInputValue } from '@/lib/format-date'
 import DeadlineChip from '@/components/DeadlineChip'
 import { handedIn } from '@/lib/overdue'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import { QuickTaskStatus, TaskStatus } from '@/generated/prisma/enums'
 import PageLoading from '@/components/PageLoading'
 import Skeleton from '@/components/Skeleton'
@@ -130,7 +131,7 @@ function QuickTaskCard({
     <div
       id={anchorId}
       role="article"
-      className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word"
+      className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}
     >
       <div className="flex justify-between items-start gap-3 mb-2">
         <h3 className="m-0">{titleHref ? <Link href={titleHref}>{title}</Link> : title}</h3>
@@ -697,7 +698,7 @@ function AdminQuickTasksView() {
         {loadingData ? (
           <div className="text-center py-10 text-text-light">Loading…</div>
         ) : tasks.length === 0 ? (
-          <div className="bg-surface rounded-xl shadow p-4 sm:p-6 text-center">
+          <div className={`${SECTION_CARD} text-center`}>
             <h3>No quick tasks</h3>
             <p className="text-text-light">
               Create one to verify a volunteer&apos;s skills before giving them a bigger project.

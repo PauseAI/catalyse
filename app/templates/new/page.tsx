@@ -7,8 +7,9 @@ import { useRequireAdmin } from '@/lib/hooks/auth'
 import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
+import { SECTION_CARD } from '@/lib/ui-classes'
 
-const card = 'bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word'
+const card = `${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`
 
 type DraftTask = {
   ref: string

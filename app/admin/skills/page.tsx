@@ -21,6 +21,7 @@ import { CSS } from '@dnd-kit/utilities'
 import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
+import { SECTION_CARD } from '@/lib/ui-classes'
 
 interface Skill {
   id: number
@@ -134,7 +135,7 @@ function SortableCategory({
   return (
     <div
       ref={setNodeRef}
-      className="category-card bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden wrap-break-word mb-6"
+      className={`category-card ${SECTION_CARD} overflow-hidden wrap-break-word mb-6`}
       style={{
         // dynamic: drag transform/transition/opacity
         transform: CSS.Transform.toString(transform),

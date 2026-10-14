@@ -29,7 +29,7 @@ describe('home', () => {
       emailDigest: null,
     })
     await renderApp(<HomePage />, { as: pending, url: '/dashboard' })
-    await screen.findByRole('heading', { name: `Hi ${pending.name}` })
+    await screen.findByRole('heading', { name: 'Home' })
     expect(document.title).toBe('Catalyse | Home')
     const checklist = screen.getByRole('region', { name: 'Getting started' })
     expect(within(checklist).getByText('Application under review')).toBeInTheDocument()
@@ -409,7 +409,7 @@ describe('home', () => {
     // Read, so a later visit does not show it again.
     cleanup()
     await renderApp(<HomePage />, { as: me, url: '/dashboard' })
-    await screen.findByRole('heading', { name: `Hi ${me.name}` })
+    await screen.findByRole('heading', { name: 'Home' })
     expect(screen.queryByRole('dialog')).toBeNull()
 
     // A confirmed volunteer is sent to the projects, and following the link dismisses it.

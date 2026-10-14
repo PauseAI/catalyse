@@ -9,6 +9,7 @@ import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
 import { SUGGESTION_STATUS_LABELS } from '@/lib/status-labels'
+import { BLEED, SECTION_CARD } from '@/lib/ui-classes'
 
 const STATUS_CLASSES: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
@@ -64,8 +65,8 @@ export default function SuggestTeamPage() {
         a function. For a one-off goal, <Link href="/suggest">propose a project</Link> instead.
       </p>
 
-      <div className="max-w-xl">
-        <form onSubmit={handleSubmit} className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-8">
+      <div className="sm:max-w-xl">
+        <form onSubmit={handleSubmit} className={`${SECTION_CARD} mb-8`}>
           <div className="mb-5">
             <label htmlFor="name">Team Name</label>
             <input
@@ -103,7 +104,7 @@ export default function SuggestTeamPage() {
               {suggestions.map((s) => (
                 <article
                   key={s.id}
-                  className="bg-surface rounded-xl shadow px-5 py-4 flex items-start justify-between gap-4"
+                  className={`bg-surface ${BLEED} shadow px-4 sm:px-5 py-4 flex items-start justify-between gap-4`}
                 >
                   <div>
                     <p className="font-semibold m-0">

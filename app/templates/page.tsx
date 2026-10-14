@@ -8,11 +8,12 @@ import { Badge } from '@/components/Badge'
 import { orpc } from '@/lib/orpc'
 import { formatDate } from '@/lib/format-date'
 import { useToast } from '@/lib/toast'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import PageLoading from '@/components/PageLoading'
 import Skeleton from '@/components/Skeleton'
 import EmptyState from '@/components/EmptyState'
 
-const card = 'bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word'
+const card = `${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`
 
 export default function TemplatesLibraryPage() {
   const { user, loading } = useRequireApproved()

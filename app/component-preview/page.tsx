@@ -4,12 +4,13 @@ import { useState } from 'react'
 import Button from '@/components/Button'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import Tabs from '@/components/Tabs'
+import { SECTION_CARD } from '@/lib/ui-classes'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mb-10">
       <h2 className="mb-1">{title}</h2>
-      <div className="bg-surface rounded-xl shadow p-4 sm:p-6">{children}</div>
+      <div className={SECTION_CARD}>{children}</div>
     </section>
   )
 }

@@ -10,6 +10,7 @@ import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { ThemeToggle } from './ThemeToggle'
 import BugReportDialog from './BugReportDialog'
+import { PersonInitials } from './WorkItemHeader'
 
 function MobileNavLink({
   href,
@@ -37,6 +38,27 @@ function MobileNavSection({ children, admin }: { children: React.ReactNode; admi
     >
       {children}
     </div>
+  )
+}
+
+/** "Catalyse" from `sm` up; on a phone, its initial in a tile, to leave room for the buttons. */
+function Wordmark({ href }: { href: string }) {
+  return (
+    <Link
+      href={href}
+      aria-label="Catalyse"
+      className="font-display text-2xl font-black text-primary no-underline flex items-center"
+    >
+      <span
+        aria-hidden="true"
+        className="sm:hidden flex size-9 items-center justify-center rounded-lg bg-primary text-[#111827]"
+      >
+        C
+      </span>
+      <span aria-hidden="true" className="hidden sm:inline">
+        Catalyse
+      </span>
+    </Link>
   )
 }
 
@@ -149,12 +171,7 @@ export default function Header() {
     <>
       <header className="bg-surface border-b border-brand-border py-4 sticky top-0 z-[100]">
         <div className="container flex justify-between items-center gap-2 flex-nowrap xl:gap-4">
-          <Link
-            href={homeHref}
-            className="font-display text-2xl font-black text-primary no-underline flex items-center gap-2"
-          >
-            Catalyse
-          </Link>
+          <Wordmark href={homeHref} />
 
           <nav aria-label="Main" className="hidden xl:flex gap-2 flex-wrap">
             {mounted &&
@@ -189,19 +206,24 @@ export default function Header() {
                       Confirm your location
                     </Button>
                   )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="bg-accent border border-brand-border"
+                  <button
+                    type="button"
+                    aria-label={user.name}
+                    aria-expanded={userMenuOpen}
+                    title={user.name}
+                    className="rounded-full cursor-pointer border-0 bg-transparent p-0 hover:opacity-80"
                     onClick={() => setUserMenuOpen((o) => !o)}
                   >
-                    {user.name}
-                  </Button>
+                    <PersonInitials name={user.name} size="md" />
+                  </button>
                   {userMenuOpen && (
                     <div
                       className="absolute top-full right-0 mt-2 bg-surface rounded-lg border border-brand-border shadow-lg w-max z-[101]"
                       onClick={() => setUserMenuOpen(false)}
                     >
+                      <div className="px-4 py-3 border-b border-brand-border font-semibold text-brand-text">
+                        {user.name}
+                      </div>
                       <Link
                         href={`/volunteers/${user.id}`}
                         className="block px-4 py-3 text-brand-text no-underline"
@@ -225,13 +247,13 @@ export default function Header() {
                       <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-text-light border-t border-brand-border mt-1">
                         Session
                       </div>
-                      <Button
-                        variant="ghost"
+                      <button
+                        type="button"
                         onClick={logout}
-                        className="w-full justify-start px-4 py-3"
+                        className="block w-full text-left px-4 py-3 text-brand-text bg-transparent border-0 cursor-pointer hover:bg-accent"
                       >
                         Sign Out
-                      </Button>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -314,12 +336,7 @@ export default function Header() {
           {/* Panel header */}
           <div className="border-b border-brand-border bg-surface shrink-0">
             <div className="container flex items-center justify-between py-4">
-              <Link
-                href={homeHref}
-                className="font-display text-2xl font-black text-primary no-underline"
-              >
-                Catalyse
-              </Link>
+              <Wordmark href={homeHref} />
               <Button
                 variant="ghost"
                 size="md"
@@ -358,6 +375,10 @@ export default function Header() {
               (user ? (
                 <>
                   <MobileNavSection>Account</MobileNavSection>
+                  <div className="flex items-center gap-3 px-5 py-4 border-b border-brand-border font-semibold text-brand-text">
+                    <PersonInitials name={user.name} size="md" />
+                    {user.name}
+                  </div>
                   {!user.locationConfirmedAt && (
                     <button
                       onClick={() => {

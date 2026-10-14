@@ -14,6 +14,7 @@ import DeadlineChip from '@/components/DeadlineChip'
 import WorkItemCard from '@/components/WorkItemCard'
 import Modal from '@/components/ui/Modal'
 import Skeleton from '@/components/Skeleton'
+import { BLEED } from '@/lib/ui-classes'
 import { ApprovalStatus } from '@/generated/prisma/enums'
 import type { AppRouter } from '@/server/router'
 import type { InferRouterOutputs } from '@orpc/server'
@@ -90,7 +91,7 @@ function GettingStarted({
   return (
     <section
       aria-labelledby="getting-started"
-      className="bg-surface rounded-xl shadow p-5 mb-6 wrap-break-word"
+      className={`bg-surface shadow p-4 sm:p-5 mb-6 wrap-break-word ${BLEED}`}
     >
       <h2 id="getting-started" className="text-lg mt-0 mb-3">
         Getting started
@@ -239,7 +240,7 @@ export default function HomePage() {
   const rest = work.filter((w) => !w.needsAttention)
 
   const workList = (rows: typeof work) => (
-    <ul className="list-none p-0 m-0 bg-surface rounded-xl shadow">
+    <ul className={`list-none p-0 my-0 bg-surface shadow ${BLEED}`}>
       {rows.map((w) =>
         w.item ? (
           <li
@@ -320,8 +321,10 @@ export default function HomePage() {
         </Modal>
       )}
       <main className="container py-5 pb-15">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 role="heading">Hi {user.name}</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <h1 role="heading" className="mb-0">
+            Home
+          </h1>
           {isMember && <Button href="/suggest">Propose a project</Button>}
         </div>
 
@@ -367,7 +370,7 @@ export default function HomePage() {
             {data.attention.length === 0 ? (
               <p className="text-text-light">Nothing is waiting on you right now.</p>
             ) : (
-              <ul className="list-none p-0 m-0 bg-surface rounded-xl shadow">
+              <ul className={`list-none p-0 my-0 bg-surface shadow ${BLEED}`}>
                 {data.attention.map((a) => (
                   <li
                     key={a.key}
@@ -470,7 +473,7 @@ export default function HomePage() {
               </button>
             </h2>
             {showFind && (
-              <div id="find-body" className="bg-surface rounded-xl shadow px-5 py-2">
+              <div id="find-body" className={`bg-surface shadow px-4 sm:px-5 py-2 ${BLEED}`}>
                 <FindRowView
                   label="Quick Tasks"
                   row={data.find.quickTasks}

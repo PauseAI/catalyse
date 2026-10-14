@@ -11,6 +11,7 @@ import VolunteerSelect from '@/components/VolunteerSelect'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import PageLoading from '@/components/PageLoading'
 
 interface TeamMember {
@@ -199,7 +200,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
       </Link>
       <h1 className="mt-3 mb-6">{team.name}</h1>
 
-      <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4">
+      <div className={`${SECTION_CARD} mb-4`}>
         <h2>Team Details</h2>
         <form onSubmit={handleSave}>
           <div className="mb-5">
@@ -255,7 +256,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
       </div>
 
       {joinRequests.length > 0 && (
-        <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4">
+        <div className={`${SECTION_CARD} mb-4`}>
           <h2>Pending Join Requests</h2>
           <div className="space-y-3">
             {joinRequests.map((r) => (
@@ -282,7 +283,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4">
+      <div className={`${SECTION_CARD} mb-4`}>
         <h2>Members</h2>
 
         <div className="mb-5 pb-5 border-b border-brand-border flex items-end gap-2">

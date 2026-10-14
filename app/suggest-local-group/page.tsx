@@ -10,6 +10,7 @@ import { COUNTRY_OPTIONS, countryLabel } from '@/lib/filter-options'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
 import { SUGGESTION_STATUS_LABELS } from '@/lib/status-labels'
+import { BLEED, SECTION_CARD } from '@/lib/ui-classes'
 
 const SUGGESTION_COUNTRIES = COUNTRY_OPTIONS.filter(
   (o) => o.value && o.value !== 'Remote' && o.value !== 'Other',
@@ -76,8 +77,8 @@ export default function SuggestLocalGroupPage() {
           Don&apos;t see your local group listed? Suggest it here and an admin will review it.
         </p>
 
-        <div className="max-w-xl">
-          <form onSubmit={handleSubmit} className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-8">
+        <div className="sm:max-w-xl">
+          <form onSubmit={handleSubmit} className={`${SECTION_CARD} mb-8`}>
             <div className="mb-5">
               <FilterDropdown
                 id="country"
@@ -115,7 +116,7 @@ export default function SuggestLocalGroupPage() {
                 {suggestions.map((s) => (
                   <article
                     key={s.id}
-                    className="bg-surface rounded-xl shadow px-5 py-4 flex items-start justify-between gap-4"
+                    className={`bg-surface ${BLEED} shadow px-4 sm:px-5 py-4 flex items-start justify-between gap-4`}
                   >
                     <div>
                       <p className="font-semibold m-0">

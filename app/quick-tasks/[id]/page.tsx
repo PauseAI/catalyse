@@ -20,6 +20,7 @@ import { QUICK_TASK_CLAIMED_MESSAGE } from '@/lib/action-messages'
 import { CLAIM_TASK, CLAIMING } from '@/lib/action-labels'
 import { QuickTaskStatus } from '@/generated/prisma/enums'
 import { handedIn } from '@/lib/overdue'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import PageLoading from '@/components/PageLoading'
 
 const REVIEW_RATING_LABELS: Record<string, string> = {
@@ -93,7 +94,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
         {mine ? '← Back to My Quick Tasks' : '← Back to Quick Tasks'}
       </Link>
 
-      <div className="bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden wrap-break-word">
+      <div className={`${SECTION_CARD} overflow-hidden wrap-break-word`}>
         <div className="flex justify-between items-start mb-3 gap-4">
           <h1 className="m-0">{task.title}</h1>
           <Badge variant={statusVariant(task.status)}>
@@ -189,7 +190,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
         />
       )}
 
-      <div className="bg-surface rounded-xl shadow p-4 sm:p-6">
+      <div className={SECTION_CARD}>
         <h2 className="text-lg mb-4">Discussion</h2>
         <CommentThread workItemId={task.id} />
       </div>

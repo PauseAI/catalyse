@@ -4,6 +4,7 @@ import { useState, FormEvent } from 'react'
 import Link from 'next/link'
 import { useMutation } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import Button from '@/components/Button'
 
 export default function ForgotPasswordPage() {
@@ -25,7 +26,7 @@ export default function ForgotPasswordPage() {
   return (
     <>
       <main className="container py-5 pb-15">
-        <div className="max-w-[400px] my-15 mx-auto">
+        <div className="sm:max-w-[400px] my-15 mx-auto">
           <h1 className="text-center">Reset Password</h1>
           <p className="text-center text-text-light mb-8">
             Enter your email and we&apos;ll send you a reset link.
@@ -42,7 +43,7 @@ export default function ForgotPasswordPage() {
 
           {!mutation.isSuccess ? (
             <form
-              className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word"
+              className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}
               onSubmit={handleSubmit}
             >
               <div className="mb-5">
@@ -70,7 +71,7 @@ export default function ForgotPasswordPage() {
               </p>
             </form>
           ) : (
-            <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word">
+            <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
               <div className="text-center">
                 <h3 className="text-success">Check Your Email</h3>
                 <p className="text-text-light my-4">

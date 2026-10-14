@@ -10,6 +10,7 @@ import Tabs from '@/components/Tabs'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
+import { SECTION_CARD } from '@/lib/ui-classes'
 
 interface Skill {
   id: number
@@ -247,7 +248,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
         </div>
 
         {/* Profile header */}
-        <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-6 overflow-hidden wrap-break-word">
+        <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
           <div className="flex justify-between items-start mb-3">
             <div>
               <h1 className="mb-1">{vol.name}</h1>
@@ -270,7 +271,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
         </div>
 
         {/* Skills and contact info */}
-        <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-6 overflow-hidden wrap-break-word">
+        <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
           <h3>Skills (Self-Assessed)</h3>
           {vol.skills.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 mb-4">
@@ -339,7 +340,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
         </div>
 
         {/* Tabs */}
-        <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word">
+        <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
           <Tabs
             role="tablist"
             tabs={
