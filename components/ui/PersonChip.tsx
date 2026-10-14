@@ -58,7 +58,7 @@ export function PersonChip({
  */
 export function EmptyPersonChip({ label }: { label: string }) {
   return (
-    <span className={`${PILL} pr-3`}>
+    <span className={PILL}>
       <span
         aria-hidden="true"
         className="h-7 w-7 shrink-0 rounded-full border border-dashed border-text-light dark:border-gray-400"

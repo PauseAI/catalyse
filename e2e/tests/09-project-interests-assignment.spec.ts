@@ -194,7 +194,7 @@ test.describe('Project Interests and Assignment', () => {
 
     await volunteer.page.getByRole('button', { name: 'Withdraw request' }).click()
     await volunteer.page.getByRole('dialog').getByRole('button', { name: 'Withdraw' }).click()
-    await expect(getAlert(volunteer.page)).toContainText("You've left the project", {
+    await expect(getAlert(volunteer.page)).toContainText('Request withdrawn', {
       timeout: 10_000,
     })
 

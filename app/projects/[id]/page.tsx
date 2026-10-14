@@ -29,6 +29,7 @@ import {
   TASK_REQUESTED_MESSAGE,
   VOLUNTEER_ADDED_MESSAGE,
   INTEREST_WITHDRAWN_MESSAGE,
+  REQUEST_WITHDRAWN_MESSAGE,
   INTEREST_ACCEPTED_MESSAGE,
   INTEREST_DECLINED_MESSAGE,
   volunteerRemovedMessage,
@@ -124,6 +125,8 @@ const ADMIN_EXTRA_STATUSES = toOptions(ADMIN_ONLY_STATUSES)
 // ── Tailwind class constants ──────────────────────────────────────────────────
 
 const card = 'bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word'
+const menuItem =
+  'w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors cursor-pointer'
 
 // ── Task list item ──────────────────────────────────────────────────────────
 
@@ -939,6 +942,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [transferTo, setTransferTo] = useState('')
   const ownerSearch = useVolunteerSearch(ownerPickerOpen)
   const ownerPencil = useRef<HTMLButtonElement>(null)
+  // The picker closes on any mousedown outside it, heard on `document`, where React's own
+  // listeners also sit, so stopPropagation can't hold it back. A press on the ✎ or the popover's
+  // Remove row marks itself in the capture phase, and the picker's close then ignores it.
+  const ownerControlPress = useRef(false)
 
   // Invite or add directly
   const [invitee, setInvitee] = useState<{ id: number; name: string } | null>(null)
@@ -1190,7 +1197,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const withdrawInterestMutation = useMutation({
     ...orpc.projects.withdrawInterest.mutationOptions(),
     onSuccess: () => {
-      showToast(INTEREST_WITHDRAWN_MESSAGE, 'success')
+      // Read before the refetch: a viewer who was on the project left it; anyone else withdrew a request.
+      showToast(
+        projectRaw?.myInterest?.status === InterestStatus.accepted
+          ? INTEREST_WITHDRAWN_MESSAGE
+          : REQUEST_WITHDRAWN_MESSAGE,
+        'success',
+      )
       void invalidateProject()
     },
     onError: (err: unknown) =>
@@ -1854,41 +1867,22 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const standingAction = !isOwnerOrAdmin && (
     <>
       {pendingInvite && (
-        // Who invited the viewer, on top of the Accept / Decline that answers it.
-        <div className="flex flex-col items-start lg:items-end gap-1">
-          <p className="text-sm text-text-light m-0 max-w-xs lg:text-right whitespace-pre-wrap">
-            {project.myInterest?.invitedByName ?? 'The owner'} invited you to help
-            {project.myInterest?.message ? (
-              <>
-                : &ldquo;
-                <Linkify text={project.myInterest.message} />
-                &rdquo;
-              </>
-            ) : (
-              ' on this project'
-            )}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              disabled={respondToInviteMutation.isPending}
-              onClick={() =>
-                respondToInviteMutation.mutate({ projectId: project.id, accept: true })
-              }
-            >
-              Accept
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={respondToInviteMutation.isPending}
-              onClick={() =>
-                respondToInviteMutation.mutate({ projectId: project.id, accept: false })
-              }
-            >
-              Decline
-            </Button>
-          </div>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            disabled={respondToInviteMutation.isPending}
+            onClick={() => respondToInviteMutation.mutate({ projectId: project.id, accept: true })}
+          >
+            Accept
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={respondToInviteMutation.isPending}
+            onClick={() => respondToInviteMutation.mutate({ projectId: project.id, accept: false })}
+          >
+            Decline
+          </Button>
         </div>
       )}
       {requestPending && (
@@ -2156,9 +2150,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             aria-label={ownerPickerLabel}
             aria-expanded={ownerPickerOpen}
             title={ownerPickerLabel}
-            className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border-2 border-text-light bg-transparent text-sm font-bold text-brand-text cursor-pointer transition-all hover:bg-secondary hover:text-white"
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-sm text-brand-text cursor-pointer transition-colors hover:bg-accent"
             // While open, a press here is the toggle closing it, not a click outside the picker.
-            onMouseDown={(e) => ownerPickerOpen && e.stopPropagation()}
+            onMouseDownCapture={() => {
+              if (ownerPickerOpen) ownerControlPress.current = true
+            }}
             onClick={() => {
               ownerSearch.setQuery('')
               setOwnerPickerOpen((open) => !open)
@@ -2168,7 +2164,22 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </button>
         )}
         {ownerPickerOpen && (
-          <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-lg shadow-lg">
+          // One place to change the owner: pick someone new, or take the current owner off.
+          // The list opens below the search, so Remove sits above it.
+          <div className="absolute left-0 sm:left-auto sm:right-0 top-full z-50 mt-1 w-64 rounded-lg border border-brand-border bg-surface p-1 shadow-lg">
+            {project.owner && (
+              <button
+                type="button"
+                className={`${menuItem} text-red-700 dark:text-red-400`}
+                onMouseDownCapture={() => (ownerControlPress.current = true)}
+                onClick={() => {
+                  setOwnerPickerOpen(false)
+                  setShowRemoveOwnerConfirm(true)
+                }}
+              >
+                Remove ownership
+              </button>
+            )}
             <MemberPicker
               id="owner-picker"
               label={ownerPickerLabel}
@@ -2180,6 +2191,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               hideLabel
               autoFocus
               onClose={(reason) => {
+                if (reason === 'outside' && ownerControlPress.current) {
+                  ownerControlPress.current = false
+                  return
+                }
                 setOwnerPickerOpen(false)
                 if (reason === 'escape') ownerPencil.current?.focus()
               }}
@@ -2231,31 +2246,23 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               More <span aria-hidden="true">▾</span>
             </summary>
             {/* Above the timeline's sticky labels; Save as template's dialog opens from in here. */}
-            <div className="absolute right-0 z-50 mt-1 w-56 bg-surface border border-brand-border rounded-lg shadow-lg p-2 flex flex-col items-start gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
+            <div className="absolute right-0 z-50 mt-1 w-56 bg-surface border border-brand-border rounded-lg shadow-lg py-2">
+              <button
+                type="button"
+                className={menuItem}
                 onClick={(e) => {
                   e.currentTarget.closest('details')?.removeAttribute('open')
                   setShowPorting(true)
                 }}
               >
                 Export / Import
-              </Button>
+              </button>
               {isAdmin && (
-                <SaveAsTemplateButton projectId={project.id} defaultTitle={project.title} />
-              )}
-              {canChangeOwner && project.owner && (
-                <button
-                  type="button"
-                  className="w-full text-left px-0 py-1 text-sm text-red-700 dark:text-red-400 cursor-pointer border-t border-brand-border mt-1 pt-2"
-                  onClick={(e) => {
-                    e.currentTarget.closest('details')?.removeAttribute('open')
-                    setShowRemoveOwnerConfirm(true)
-                  }}
-                >
-                  Remove ownership
-                </button>
+                <SaveAsTemplateButton
+                  projectId={project.id}
+                  defaultTitle={project.title}
+                  className={menuItem}
+                />
               )}
             </div>
           </details>
@@ -2289,7 +2296,24 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               onChange={(k) => selectTab(k as ProjectTab)}
             />
           }
-        />
+        >
+          {/* Who invited the viewer, just above the Accept / Decline that answers it, outside the
+              bar so a long note doesn't make the bar taller than the tabs. */}
+          {pendingInvite && !isOwnerOrAdmin && (
+            <p className="text-sm text-text-light mt-0 mb-2 whitespace-pre-wrap lg:text-right">
+              {project.myInterest?.invitedByName ?? 'The owner'} invited you to help
+              {project.myInterest?.message ? (
+                <>
+                  : &ldquo;
+                  <Linkify text={project.myInterest.message} />
+                  &rdquo;
+                </>
+              ) : (
+                ' on this project'
+              )}
+            </p>
+          )}
+        </WorkItemHeader>
 
         <div className="min-w-0">
           {/* Notices and admin forms keep a reading measure while the tab below runs wide. */}
@@ -2947,7 +2971,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <Button type="button" variant="secondary" onClick={() => setDeclineTarget(null)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={respondToInterestMutation.isPending}>
+              <Button type="submit" variant="danger" disabled={respondToInterestMutation.isPending}>
                 {respondToInterestMutation.isPending
                   ? declineTarget.accepted
                     ? 'Removing…'

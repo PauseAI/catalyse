@@ -201,7 +201,7 @@ test.describe('Task Detail Page', () => {
     await expect(adminPage.getByRole('heading', { name: 'Edited title', level: 1 })).toBeVisible({
       timeout: 10_000,
     })
-    await expect(adminPage.locator('p').filter({ hasText: 'Edited description' })).toBeVisible()
+    await expect(adminPage.getByText('Edited description', { exact: true })).toBeVisible()
     await expect(adminPage.getByText('Effort: about 4 hours')).toBeVisible()
   })
 

@@ -451,10 +451,6 @@ describe('task detail page', () => {
     expect(screen.getByRole('link', { name: 'Predecessor' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull()
     expect(screen.queryByLabelText('Add a dependency')).toBeNull()
-    expect(screen.getByRole('link', { name: 'project timeline' })).toHaveAttribute(
-      'href',
-      `/projects/${project.id}#timeline`,
-    )
   })
 
   it('leaves the task unclaimed when the claim confirm dialog is cancelled', async () => {
@@ -719,7 +715,6 @@ describe('task detail page — a done task', () => {
     const reopen = await screen.findByRole('button', { name: 'Reopen' })
     expect(screen.getByRole('link', { name: /Book hall/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'project timeline' })).toBeNull()
 
     await userEvent.click(reopen)
     const dialog = await screen.findByRole('dialog', { name: "Reopen 'Print flyers'?" })
@@ -732,9 +727,8 @@ describe('task detail page — a done task', () => {
     await userEvent.click(within(confirm).getByRole('button', { name: 'Reopen' }))
     await screen.findByText('Reopened. It can be edited again.')
     expect(await row(task.id)).toMatchObject({ status: 'in_progress', completedAt: null })
-    await screen.findByRole('link', { name: 'project timeline' })
     const bar = screen.getByRole('toolbar', { name: 'Status and actions' })
-    expect(within(bar).getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+    expect(await within(bar).findByRole('button', { name: 'Edit' })).toBeInTheDocument()
     expect(within(bar).queryByRole('button', { name: 'Reopen' })).toBeNull()
     await screen.findByText(/^Olive reopened this · /)
   })

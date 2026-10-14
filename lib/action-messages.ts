@@ -34,6 +34,8 @@ export const VOLUNTEER_ADDED_MESSAGE =
 export const INTEREST_WITHDRAWN_MESSAGE =
   "You've left the project. Express interest again if you want to rejoin."
 
+export const REQUEST_WITHDRAWN_MESSAGE = 'Request withdrawn. You can ask again at any time.'
+
 export const INTEREST_ACCEPTED_MESSAGE = "Accepted. They're on the project and have been notified."
 
 export const INTEREST_DECLINED_MESSAGE = "Declined. They've been notified."

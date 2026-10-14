@@ -155,6 +155,14 @@ confusing than it needed to be, and that will do so again.
       real date, though nothing about the component had changed. Tests of anything that compares
       to today should either take a fixed today (`vi.setSystemTime`) or use dates far ahead.
 
+- [ ] **Component tests mount React in a `<div>`, but Next.js hydrates it at `document`, so
+      `stopPropagation` in a React handler holds back a `document` listener in jsdom and not in
+      the browser.** The owner popover's Remove row passed every unit test and did nothing in
+      e2e `28`: the picker's outside-click listener on `document` closed the popover on mousedown,
+      so the click never landed, and it took a debugging round to see why. `test/render.tsx`
+      could mount into `document` (or `FilterDropdown` could take an "inside" ref), and a line in
+      `AGENTS.md` could say not to rely on `stopPropagation` against `document` listeners.
+
 - [ ] **A git worktree cannot run the suite until it has the main checkout's env files and a
       real `node_modules`.** Working beside another session's uncommitted changes, the unit tier
       failed with "DATABASE_URL is not set" until `.env`/`.env.local` were linked in, and the e2e

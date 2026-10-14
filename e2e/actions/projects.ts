@@ -326,7 +326,7 @@ export async function removeProjectOwner(
   if (!adminPage.url().includes(`/projects/${projectId}`)) {
     await adminPage.goto(`${baseUrl}/projects/${projectId}`)
   }
-  await openProjectMore(adminPage)
+  await adminPage.getByRole('button', { name: 'Change owner' }).click()
   await adminPage.getByRole('button', { name: 'Remove ownership' }).click()
   await adminPage.getByRole('dialog').getByRole('button', { name: 'Remove ownership' }).click()
   await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })

@@ -69,12 +69,10 @@ function LinkedWork({
   waitsOn,
   unblocks,
   status,
-  timelineHref,
 }: {
   waitsOn: WorkItemSummary[]
   unblocks: WorkItemSummary[]
   status: string
-  timelineHref: string | null
 }) {
   const allDone = waitsOn.every((i) => i.displayStatus === TaskStatus.completed)
   const summary = waitsOnSummary(waitsOn, status)
@@ -106,13 +104,6 @@ function LinkedWork({
           </h2>
           {list(unblocks, 'default')}
         </section>
-      )}
-      {/* Links are planning, so they are drawn and changed on the timeline, not here. */}
-      {timelineHref && (
-        <p className="text-text-light mb-4 text-sm">
-          To add or remove what this waits on, use the{' '}
-          <Link href={timelineHref}>project timeline</Link>.
-        </p>
       )}
     </>
   )
@@ -322,6 +313,19 @@ export default function TaskDetailPage({
       <div className="bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word mb-5">
         <WorkItemHeader
           title={task.title}
+          underTitle={
+            // The form below holds the same dates, so the summary steps aside while it is open.
+            !isEditing && (
+              <TaskDatesSummary
+                className=""
+                estimatedHours={task.estimatedHours}
+                deadline={task.deadline}
+                openStart={task.startDate === null && task.waitsOn.length === 0}
+                placement={task.placement}
+                handedIn={handedIn(task.status)}
+              />
+            )
+          }
           person={
             <WorkItemPerson
               // A task worked by several people names the one in charge as its lead.
@@ -415,15 +419,10 @@ export default function TaskDetailPage({
           }
         />
 
-        {/* The form below holds the same dates, so the summary steps aside while it is open. */}
-        {!isEditing && (
-          <TaskDatesSummary
-            estimatedHours={task.estimatedHours}
-            deadline={task.deadline}
-            openStart={task.startDate === null && task.waitsOn.length === 0}
-            placement={task.placement}
-            handedIn={handedIn(task.status)}
-          />
+        {task.description && (
+          <div className="whitespace-pre-wrap mb-6">
+            <Linkify text={task.description} />
+          </div>
         )}
         {canStartNow && <p className="text-sm text-text-light mb-4">{TASK_INACTIVITY_RULE}</p>}
         {task.blockedBy.length > 0 && (
@@ -436,12 +435,7 @@ export default function TaskDetailPage({
             Still waiting on {quotedTitles(task.waitingOn)}.
           </p>
         )}
-        <LinkedWork
-          waitsOn={task.waitsOn}
-          unblocks={task.unblocks}
-          status={task.status}
-          timelineHref={canEdit ? `/projects/${projectId}#timeline` : null}
-        />
+        <LinkedWork waitsOn={task.waitsOn} unblocks={task.unblocks} status={task.status} />
         {task.pastPlanDays !== null && task.canManage && !isEditing && (
           <section
             aria-label="Past plan"
@@ -520,12 +514,6 @@ export default function TaskDetailPage({
             ★ Key date: the date this project is planned around
           </p>
         )}
-        {task.description && (
-          <p className="whitespace-pre-wrap mb-0">
-            <Linkify text={task.description} />
-          </p>
-        )}
-
         <TaskHelpers projectId={projectId} taskId={taskId} viewerId={user.id} state={task} />
 
         {task.requestedById !== null && (

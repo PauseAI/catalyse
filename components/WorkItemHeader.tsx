@@ -1,14 +1,17 @@
 import React from 'react'
 
 /**
- * The top of a work item's page: the title, then on its own line the person who answers for it,
- * then a bar holding the tabs on the left and the status and actions on the right. The bar
- * wraps under the tabs on narrow screens.
+ * The top of a work item's page. With tabs (a project): the title, then a line with where it
+ * happens on the left and, flush right from `sm` up, the person who answers for it, then a bar
+ * holding the tabs on the left and the status and actions on the right. Without tabs (a task):
+ * the person, status and actions sit on the title's line from `lg` up, and `underTitle` sits
+ * directly beneath the title.
  */
 export default function WorkItemHeader({
   title,
   titleId,
   subtitle,
+  underTitle,
   person,
   tabs,
   status,
@@ -19,6 +22,8 @@ export default function WorkItemHeader({
   titleId?: string
   /** A quiet line under the title: where it happens, whose team. */
   subtitle?: React.ReactNode
+  /** Directly under the title in the title's column, e.g. a task's dates. */
+  underTitle?: React.ReactNode
   /** The owner of a project, the assignee of a task. */
   person?: React.ReactNode
   tabs?: React.ReactNode
@@ -27,39 +32,71 @@ export default function WorkItemHeader({
   /** Sits between the title row and the bar, e.g. the viewer's own standing on the item. */
   children?: React.ReactNode
 }) {
+  const heading = (
+    <h1 id={titleId} className="mb-0">
+      {title}
+    </h1>
+  )
+  const toolbar = (
+    <div
+      aria-label="Status and actions"
+      role="toolbar"
+      className={`flex flex-wrap items-center gap-x-4 gap-y-2 ${tabs ? 'pt-3 lg:pt-0 lg:pl-4 lg:border-b lg:border-brand-border' : ''}`}
+    >
+      {/* Each group drops out when it renders nothing; a divider parts them when both show. */}
+      <div
+        role="group"
+        aria-label="Status"
+        className="flex flex-wrap items-center gap-2 empty:hidden"
+      >
+        {status}
+      </div>
+      <div
+        role="group"
+        aria-label="Actions"
+        className="flex flex-wrap items-center gap-2 empty:hidden border-brand-border sm:[:not(:empty)+&]:border-l sm:[:not(:empty)+&]:pl-4"
+      >
+        {actions}
+      </div>
+    </div>
+  )
+
+  if (!tabs) {
+    return (
+      <header className="mb-4">
+        <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
+          <div className="min-w-0 lg:flex-1">
+            {heading}
+            {subtitle && <div className="text-sm text-text-light mt-1">{subtitle}</div>}
+            {underTitle && <div className="mt-2 empty:hidden">{underTitle}</div>}
+          </div>
+          {/* Nudged down to sit level with the title's first line. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 lg:justify-end lg:pt-2.5">
+            {person}
+            {toolbar}
+          </div>
+        </div>
+        {children}
+      </header>
+    )
+  }
+
   return (
     <header className="mb-4">
       <div className="mb-3 min-w-0">
-        <h1 id={titleId} className="mb-0">
-          {title}
-        </h1>
-        {subtitle && <p className="text-sm text-text-light mt-1 mb-0">{subtitle}</p>}
-        {person && <div className="mt-3 min-w-0">{person}</div>}
+        {heading}
+        {(subtitle || person) && (
+          <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4">
+            {subtitle && <div className="text-sm text-text-light">{subtitle}</div>}
+            {person && <div className="flex min-w-0 sm:ml-auto">{person}</div>}
+          </div>
+        )}
+        {underTitle && <div className="mt-2 empty:hidden">{underTitle}</div>}
       </div>
       {children}
       <div className="flex flex-col lg:flex-row lg:items-stretch">
         <div className="min-w-0 lg:flex-1">{tabs}</div>
-        <div
-          aria-label="Status and actions"
-          role="toolbar"
-          className={`flex flex-wrap items-center gap-x-4 gap-y-2 ${tabs ? 'pt-3 lg:pt-0 lg:pl-4 lg:border-b lg:border-brand-border' : ''}`}
-        >
-          {/* Each group drops out when it renders nothing; a divider parts them when both show. */}
-          <div
-            role="group"
-            aria-label="Status"
-            className="flex flex-wrap items-center gap-2 empty:hidden"
-          >
-            {status}
-          </div>
-          <div
-            role="group"
-            aria-label="Actions"
-            className="flex flex-wrap items-center gap-2 empty:hidden border-brand-border sm:[:not(:empty)+&]:border-l sm:[:not(:empty)+&]:pl-4"
-          >
-            {actions}
-          </div>
-        </div>
+        {toolbar}
       </div>
     </header>
   )

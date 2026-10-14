@@ -1256,13 +1256,14 @@ describe('project page — invites', () => {
       message: 'See https://example.org/brief',
     })
     await mount(project.id, me)
-    // One muted line among the actions, on top of the Accept / Decline it answers; no banner.
-    const actions = await screen.findByRole('group', { name: 'Actions' })
-    const line = within(actions).getByText(/invited you to help/)
+    // One muted line in the header above the bar holding Accept / Decline; no banner.
+    const line = await screen.findByText(/invited you to help/)
     expect(line).toHaveTextContent('Ola Owner invited you to help: “See https://example.org/brief”')
     expect(within(line).getByRole('link', { name: 'https://example.org/brief' })).toBeTruthy()
-    expect(line.parentElement).toContainElement(screen.getByRole('button', { name: 'Accept' }))
-    expect(line.parentElement).toContainElement(screen.getByRole('button', { name: 'Decline' }))
+    const actions = screen.getByRole('group', { name: 'Actions' })
+    expect(actions).not.toContainElement(line)
+    expect(actions).toContainElement(screen.getByRole('button', { name: 'Accept' }))
+    expect(actions).toContainElement(screen.getByRole('button', { name: 'Decline' }))
     expect(screen.queryByRole('region', { name: /invited you/ })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Join this project' })).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Decline' }))
@@ -1296,11 +1297,7 @@ describe('project page — invites', () => {
       },
     })
     await mount(project.id, me)
-    expect(
-      within(await screen.findByRole('group', { name: 'Actions' })).getByText(
-        'The owner invited you to help on this project',
-      ),
-    ).toBeInTheDocument()
+    await screen.findByText('The owner invited you to help on this project')
     await prisma.workItemInterest.update({
       where: { id: invite.id },
       data: { status: 'cancelled' },
@@ -1410,9 +1407,8 @@ describe('project page — admin', () => {
     await waitFor(async () => expect((await row(pending.id)).assigneeId).toBe(otherOwner.id))
     await within(header).findByRole('link', { name: 'Oli Other' })
 
-    // Remove ownership lives in the "More" menu with Export/Import, top right.
-    const bar = screen.getByRole('toolbar', { name: 'Status and actions' })
-    await userEvent.click(within(bar).getByText('More'))
+    // Ownership is removed from the same popover that changes the owner.
+    await userEvent.click(screen.getByRole('button', { name: 'Change owner' }))
     await userEvent.click(await screen.findByRole('button', { name: 'Remove ownership' }))
     await userEvent.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove ownership' }),
@@ -1859,8 +1855,7 @@ describe('project page — remaining edges', () => {
     await userEvent.click(screen.getByRole('button', { name: 'project status' }))
     await userEvent.click(screen.getByRole('option', { name: 'Archived' }))
     await userEvent.keyboard('{Escape}')
-    const bar = screen.getByRole('toolbar', { name: 'Status and actions' })
-    await userEvent.click(within(bar).getByText('More'))
+    await userEvent.click(screen.getByRole('button', { name: 'Change owner' }))
     await userEvent.click(await screen.findByRole('button', { name: 'Remove ownership' }))
     await userEvent.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }),
@@ -1934,6 +1929,12 @@ describe('project page — remaining edges', () => {
     expect(
       (await prisma.workItemInterest.findFirstOrThrow({ where: { volunteerId: me.id } })).status,
     ).toBe('pending')
+    // Withdrawing a request is not leaving: the viewer was never on the project.
+    await userEvent.click(screen.getByRole('button', { name: 'Withdraw request' }))
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Withdraw' }),
+    )
+    await screen.findByText('Request withdrawn. You can ask again at any time.')
     await prisma.workItemInterest.deleteMany({ where: { volunteerId: me.id } })
     cleanup()
     await mount(project.id, me)
