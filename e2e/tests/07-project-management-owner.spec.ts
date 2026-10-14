@@ -92,7 +92,7 @@ test.describe('Project Management (Owner)', () => {
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
 
     await volunteer.page.getByLabel('Add a comment').fill(updateText)
-    await volunteer.page.getByRole('button', { name: 'Post Comment' }).click()
+    await volunteer.page.getByRole('button', { name: 'Post comment' }).click()
 
     await expect(volunteer.page.getByText(updateText)).toBeVisible({ timeout: 10_000 })
   })
@@ -110,14 +110,14 @@ test.describe('Project Management (Owner)', () => {
     await adminPage.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(adminPage.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
     await adminPage.getByLabel('Add a comment').fill(adminComment)
-    await adminPage.getByRole('button', { name: 'Post Comment' }).click()
+    await adminPage.getByRole('button', { name: 'Post comment' }).click()
     await expect(adminPage.getByText(adminComment)).toBeVisible({ timeout: 10_000 })
 
     // Owner sees admin's comment and replies
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(volunteer.page.getByText(adminComment)).toBeVisible({ timeout: 10_000 })
     await volunteer.page.getByLabel('Add a comment').fill(volunteerReply)
-    await volunteer.page.getByRole('button', { name: 'Post Comment' }).click()
+    await volunteer.page.getByRole('button', { name: 'Post comment' }).click()
     await expect(volunteer.page.getByText(volunteerReply)).toBeVisible({ timeout: 10_000 })
 
     // Admin reloads and sees both messages in the thread
@@ -137,7 +137,7 @@ test.describe('Project Management (Owner)', () => {
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await adminPage.getByLabel('Add a comment').fill(question)
-    await adminPage.getByRole('button', { name: 'Post Comment' }).click()
+    await adminPage.getByRole('button', { name: 'Post comment' }).click()
     await expect(adminPage.getByText(question)).toBeVisible({ timeout: 10_000 })
 
     // The admin has commented, so the owner can mention them.

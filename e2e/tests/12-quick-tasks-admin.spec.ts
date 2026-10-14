@@ -90,7 +90,7 @@ test.describe('Quick Tasks (admin)', () => {
       timeout: 10_000,
     })
 
-    await adminPage.getByRole('button', { name: 'Create Task' }).click()
+    await adminPage.getByRole('button', { name: 'Create task' }).click()
     const createDialog = adminPage.getByRole('dialog', { name: 'Create Quick Task' })
     await expect(createDialog).toBeVisible({ timeout: 10_000 })
 
@@ -98,7 +98,7 @@ test.describe('Quick Tasks (admin)', () => {
     await createDialog.getByLabel('Description').fill('E2E test task description')
     await selectFilterDropdown(adminPage, 'Skill Being Tested', skill.optionLabel, createDialog)
     await createDialog.getByLabel('Estimated Hours').fill('2')
-    await createDialog.getByRole('button', { name: 'Create Task' }).click()
+    await createDialog.getByRole('button', { name: 'Create task' }).click()
 
     await expect(getAlert(adminPage)).toContainText('Task created!', { timeout: 10_000 })
 
@@ -161,7 +161,7 @@ test.describe('Quick Tasks (admin)', () => {
     await taskCard.getByText(taskTitle, { exact: true }).click()
 
     await taskCard.getByLabel('Add a comment').fill(commentText)
-    await taskCard.getByRole('button', { name: 'Post Comment' }).click()
+    await taskCard.getByRole('button', { name: 'Post comment' }).click()
 
     await expect(taskCard.getByText(commentText)).toBeVisible({ timeout: 10_000 })
   })
@@ -183,14 +183,14 @@ test.describe('Quick Tasks (admin)', () => {
     await expect(adminCard).toBeVisible({ timeout: 10_000 })
     await adminCard.getByText(taskTitle, { exact: true }).click()
     await adminCard.getByLabel('Add a comment').fill(adminComment)
-    await adminCard.getByRole('button', { name: 'Post Comment' }).click()
+    await adminCard.getByRole('button', { name: 'Post comment' }).click()
     await expect(adminCard.getByText(adminComment)).toBeVisible({ timeout: 10_000 })
 
     // Assignee opens the task from Home, sees the admin's comment and replies
     await openFromHome(baseUrl, volunteer.page, taskTitle)
     await expect(volunteer.page.getByText(adminComment)).toBeVisible({ timeout: 10_000 })
     await volunteer.page.getByLabel('Add a comment').fill(volunteerReply)
-    await volunteer.page.getByRole('button', { name: 'Post Comment' }).click()
+    await volunteer.page.getByRole('button', { name: 'Post comment' }).click()
     await expect(volunteer.page.getByText(volunteerReply)).toBeVisible({ timeout: 10_000 })
 
     // Admin reloads and sees both messages in the thread

@@ -47,14 +47,14 @@ const STATUS_FILTER_OPTIONS: FilterOption<StatusFilter>[] = [
   { value: 'all', label: 'All statuses' },
   { value: 'active', label: 'Active' },
   { value: 'pending', label: 'Pending' },
-  { value: 'on_hold', label: 'On Hold' },
+  { value: 'on_hold', label: 'On hold' },
   { value: 'declined', label: 'Declined' },
 ]
 
 const STATUS_LABEL: Record<string, string> = {
   active: 'Active',
   pending: 'Pending',
-  on_hold: 'On Hold',
+  on_hold: 'On hold',
   declined: 'Declined',
 }
 
@@ -333,7 +333,7 @@ export default function AdminLocalGroupsPage() {
         <div className="flex items-center justify-between mb-2">
           <h1 className="m-0">Local groups</h1>
           <Button size="sm" onClick={openAdd}>
-            Add Local Group
+            Add local group
           </Button>
         </div>
         <p className="text-text-light mb-6">
@@ -466,7 +466,7 @@ export default function AdminLocalGroupsPage() {
                     Cancel
                   </Button>
                   <Button type="submit" disabled={addSubmitting || !addCountry || !addName.trim()}>
-                    {addSubmitting ? 'Saving…' : 'Add Group'}
+                    {addSubmitting ? 'Saving…' : 'Add group'}
                   </Button>
                 </div>
               </form>
@@ -521,7 +521,7 @@ export default function AdminLocalGroupsPage() {
                     type="submit"
                     disabled={editSubmitting || !editCountry || !editName.trim()}
                   >
-                    {editSubmitting ? 'Saving…' : 'Save Changes'}
+                    {editSubmitting ? 'Saving…' : 'Save changes'}
                   </Button>
                 </div>
               </form>
@@ -567,7 +567,7 @@ export default function AdminLocalGroupsPage() {
                       [
                         { value: 'accept', label: 'Accept', desc: 'Add as a new local group' },
                         { value: 'merge', label: 'Merge', desc: 'Link to an existing local group' },
-                        { value: 'on_hold', label: 'On Hold', desc: 'Keep for later review' },
+                        { value: 'on_hold', label: 'On hold', desc: 'Keep for later review' },
                         { value: 'decline', label: 'Decline', desc: 'Not adding at this time' },
                       ] as { value: ReviewAction; label: string; desc: string }[]
                     ).map((opt) => (

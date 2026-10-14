@@ -80,13 +80,23 @@ describe('dashboard.get', () => {
     expect(work.filter((w) => w.kind === 'project').map((w) => w.title)).toHaveLength(7)
     expect(byTitle['Lead P']).toMatchObject({
       role: 'Lead',
-      status: 'In Progress',
+      status: 'In progress',
       href: `/projects/${lead.id}`,
     })
     expect(byTitle['Helping P']).toMatchObject({ role: 'Helper' })
     expect(byTitle['Both P']).toMatchObject({ role: 'Helper' })
-    expect(byTitle['Applied P']).toMatchObject({ role: 'Helper', status: 'Applied' })
-    expect(byTitle['Lead app P']).toMatchObject({ role: 'Lead', status: 'Applied' })
+    // A request names what it asks, and the row's status is the project's.
+    expect(byTitle['Applied P']).toMatchObject({
+      role: 'Asked to help',
+      status: 'To do',
+      statusKey: 'ready',
+      ownerName: other.name,
+    })
+    expect(byTitle['Lead app P']).toMatchObject({
+      role: 'Asked to lead',
+      statusKey: 'ready',
+      ownerName: null,
+    })
     expect(byTitle['Draft P']).toMatchObject({
       role: 'Proposed',
       href: `/projects/${draft.id}/edit`,

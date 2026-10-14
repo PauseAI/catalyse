@@ -76,7 +76,7 @@ function VerifyEmailContent() {
           notify you by email once it&#39;s been assessed.
         </p>
         <p className="text-text-light mb-6">In the meantime, you can browse available projects.</p>
-        <Button href="/projects">Browse Projects</Button>
+        <Button href="/projects">Browse projects</Button>
       </div>
     )
   }

@@ -12,7 +12,7 @@ export async function suggestTeam(
   await page.getByRole('heading', { name: 'Suggest a Team', level: 1 }).waitFor({ timeout: 10_000 })
   await page.getByLabel('Team Name').fill(name)
   if (description) await page.getByLabel(/^Description/).fill(description)
-  await page.getByRole('button', { name: 'Submit Suggestion' }).click()
+  await page.getByRole('button', { name: 'Submit suggestion' }).click()
   await page.getByText('Suggestion submitted!').waitFor({ timeout: 10_000 })
 }
 
@@ -51,7 +51,7 @@ export async function adminReviewTeamSuggestion(
     timeout: 10_000,
   })
 
-  const actionLabel = { accept: 'Accept', merge: 'Merge', on_hold: 'On Hold', decline: 'Decline' }[
+  const actionLabel = { accept: 'Accept', merge: 'Merge', on_hold: 'On hold', decline: 'Decline' }[
     action
   ]
   await adminPage.getByRole('radio', { name: new RegExp(actionLabel) }).click({ force: true })
@@ -122,7 +122,7 @@ export async function adminToggleMemberLeader(
   volunteerName: string,
 ): Promise<void> {
   const row = memberRow(adminPage, volunteerName)
-  await row.getByRole('button', { name: /Make Leader|Demote/ }).click()
+  await row.getByRole('button', { name: /Make leader|Demote/ }).click()
   await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 }
 

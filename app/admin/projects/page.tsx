@@ -42,7 +42,7 @@ export default function AdminProjectsPage() {
         </div>
       )}
 
-      <Button href="/admin/projects/new">New Project</Button>
+      <Button href="/admin/projects/new">New project</Button>
     </main>
   )
 }

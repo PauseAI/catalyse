@@ -18,8 +18,8 @@ test.describe('Admin Landing Page Stats', () => {
     await expect(adminPage.getByText('Under Review')).toBeVisible()
     await expect(adminPage.getByText('Needs Info')).toBeVisible()
 
-    await expect(adminPage.getByText('Seeking Help')).toBeVisible()
-    await expect(adminPage.getByText('In Progress')).toBeVisible()
+    await expect(adminPage.getByText('Seeking help')).toBeVisible()
+    await expect(adminPage.getByText('In progress')).toBeVisible()
     await expect(adminPage.getByText('Completed')).toBeVisible()
 
     await expect(adminPage.getByRole('heading', { name: 'Volunteer Interest' })).toBeVisible()

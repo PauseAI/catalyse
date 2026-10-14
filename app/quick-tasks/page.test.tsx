@@ -235,7 +235,7 @@ describe('quick tasks — admin view', () => {
       window.dispatchEvent(new HashChangeEvent('hashchange'))
     })
 
-    await userEvent.click(screen.getByRole('button', { name: 'Create Task' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
     await userEvent.type(screen.getByLabelText('Title'), 'Fresh task')
     await userEvent.type(screen.getByLabelText('Description'), 'Do the thing')
     await userEvent.click(screen.getByRole('button', { name: 'Skill Being Tested' }))
@@ -387,9 +387,9 @@ describe('quick tasks — admin view', () => {
     )
 
     // Backdrop / cancel closes each modal.
-    await userEvent.click(screen.getByRole('button', { name: 'Create Task' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Create Task' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
     fireEvent.click(screen.getByRole('dialog').parentElement!)
     expect(screen.queryByRole('dialog')).toBeNull()
 
@@ -462,7 +462,7 @@ describe('quick tasks — admin view', () => {
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete task' }),
     )
     await expectNotFound()
-    await userEvent.click(screen.getByRole('button', { name: 'Create Task' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
     localStorage.setItem('authToken', 'stale')
     await userEvent.type(screen.getByLabelText('Title'), 'x')
     fireEvent.submit(screen.getByLabelText('Title').closest('form')!)

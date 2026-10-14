@@ -8,11 +8,11 @@ import { PROJECT_STATUS_LABELS } from '../../lib/project-status'
 const OUTCOME_LABELS: Record<string, string> = {
   successful: 'Successful',
   partial: 'Partial',
-  not_completed: 'Not Completed',
+  not_completed: 'Not completed',
   ongoing: 'Ongoing',
 }
 
-// The new-project form is tucked behind a "New Project" button once the volunteer/admin
+// The new-project form is tucked behind a "New project" button once the volunteer/admin
 // already has drafts — click through it if present, otherwise the form is already showing
 // (either shown directly, or reached via an automatic redirect for a volunteer with no
 // drafts yet). The drafts query is still loading when the page first renders, so neither
@@ -45,7 +45,7 @@ export async function openNewProjectForm(page: Page): Promise<void> {
 // moves to the edit page without a navigation, so wait for it, and for the task to appear.
 async function addFirstTask(page: Page, taskTitle: string): Promise<number> {
   await page.locator('#new-task-title').fill(taskTitle)
-  await page.getByRole('button', { name: 'Add Task' }).click()
+  await page.getByRole('button', { name: 'Add task' }).click()
   await page.waitForURL(/\/projects\/\d+\/edit/, { timeout: 15_000 })
   await expect(page.locator(`input[id^="task-title-"][value="${taskTitle}"]`)).toBeVisible({
     timeout: 10_000,
@@ -126,7 +126,7 @@ export async function adminCreateProject(
 // purely as setup for some other assertion and don't need to re-prove the create+publish UI
 // flow itself — that's already covered end-to-end by 06-project-lifecycle.spec.ts. Produces
 // the same resulting state (status ready, isSeekingHelp true, one task) without the form
-// fill / Add Task / Publish / confirm-dialog round trip.
+// fill / Add task / Publish / confirm-dialog round trip.
 export async function adminCreateProjectViaApi(
   baseUrl: string,
   title: string,
@@ -196,7 +196,7 @@ export async function addTaskFromEditPage(
   })
   // Existing tasks are also labeled "Task title" — target the add-task form's stable id.
   await page.locator('#new-task-title').fill(taskTitle)
-  await page.getByRole('button', { name: 'Add Task' }).click()
+  await page.getByRole('button', { name: 'Add task' }).click()
   // Existing tasks render as editable inputs, so the title is a value, not a text node. The
   // add-task form still holds the title until the create succeeds, so exclude it.
   await expect(page.locator(`input[id^="task-title-"][value="${taskTitle}"]`)).toBeVisible({
@@ -244,11 +244,11 @@ export async function deleteDraftFromEditPage(
   if (!page.url().includes(`/projects/${projectId}/edit`)) {
     await page.goto(`${baseUrl}/projects/${projectId}/edit`)
   }
-  await page.getByRole('button', { name: 'Delete Draft', exact: true }).click()
+  await page.getByRole('button', { name: 'Delete draft', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Delete this draft?' })).toBeVisible({
     timeout: 10_000,
   })
-  await page.getByRole('dialog').getByRole('button', { name: 'Delete Draft' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete draft' }).click()
 }
 
 export async function adminApproveProject(
@@ -265,7 +265,7 @@ export async function adminApproveProject(
   await expect(adminPage.getByRole('heading', { level: 2, name: 'Review Project' })).toBeVisible({
     timeout: 10_000,
   })
-  await adminPage.getByRole('button', { name: 'Submit Review' }).click()
+  await adminPage.getByRole('button', { name: 'Submit review' }).click()
 
   await expect(
     adminPage.getByRole('heading', { level: 2, name: 'Review Project' }),
@@ -285,8 +285,8 @@ export async function adminRecordOutcome(
   ).toBeVisible({ timeout: 10_000 })
 
   await selectFilterDropdown(adminPage, 'Outcome', OUTCOME_LABELS[outcome] ?? outcome)
-  await adminPage.getByLabel('Outcome Notes').fill(notes)
-  await adminPage.getByRole('button', { name: 'Record Outcome' }).click()
+  await adminPage.getByLabel('Outcome notes').fill(notes)
+  await adminPage.getByRole('button', { name: 'Record outcome' }).click()
   await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 }
 

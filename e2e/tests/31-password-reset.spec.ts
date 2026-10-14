@@ -17,7 +17,7 @@ test.describe('Password Reset', () => {
 
       const [response] = await Promise.all([
         page.waitForResponse((resp) => resp.url().includes('/api/rpc/auth/forgotPassword')),
-        page.getByRole('button', { name: 'Send Reset Link' }).click(),
+        page.getByRole('button', { name: 'Send reset link' }).click(),
       ])
       const { json } = await response.json()
       const devResetUrl = json._devResetUrl as string
@@ -29,12 +29,12 @@ test.describe('Password Reset', () => {
 
       const newPassword = 'newtestpassword2'
       await page.goto(`${baseUrl}${devResetUrl}`)
-      await expect(page.getByRole('heading', { name: 'Set New Password' })).toBeVisible({
+      await expect(page.getByRole('heading', { name: 'Set New password' })).toBeVisible({
         timeout: 10_000,
       })
-      await page.getByLabel('New Password').fill(newPassword)
-      await page.getByLabel('Confirm Password').fill(newPassword)
-      await page.getByRole('button', { name: 'Reset Password' }).click()
+      await page.getByLabel('New password').fill(newPassword)
+      await page.getByLabel('Confirm password').fill(newPassword)
+      await page.getByRole('button', { name: 'Reset password' }).click()
       await page.waitForURL(`${baseUrl}/login`, { timeout: 15_000 })
 
       await login(baseUrl, page, volunteer.email, newPassword)
@@ -49,12 +49,12 @@ test.describe('Password Reset', () => {
     const page = await context.newPage()
     try {
       await page.goto(`${baseUrl}/reset-password?token=irrelevant-for-this-check`)
-      await expect(page.getByRole('heading', { name: 'Set New Password' })).toBeVisible({
+      await expect(page.getByRole('heading', { name: 'Set New password' })).toBeVisible({
         timeout: 10_000,
       })
-      await page.getByLabel('New Password').fill('testpassword1')
-      await page.getByLabel('Confirm Password').fill('differentpassword1')
-      await page.getByRole('button', { name: 'Reset Password' }).click()
+      await page.getByLabel('New password').fill('testpassword1')
+      await page.getByLabel('Confirm password').fill('differentpassword1')
+      await page.getByRole('button', { name: 'Reset password' }).click()
       await expect(page.getByText('Passwords do not match')).toBeVisible({ timeout: 10_000 })
     } finally {
       await context.close()
@@ -69,9 +69,9 @@ test.describe('Password Reset', () => {
     const page = await context.newPage()
     try {
       await page.goto(`${baseUrl}/reset-password?token=not-a-real-token`)
-      await page.getByLabel('New Password').fill('testpassword1')
-      await page.getByLabel('Confirm Password').fill('testpassword1')
-      await page.getByRole('button', { name: 'Reset Password' }).click()
+      await page.getByLabel('New password').fill('testpassword1')
+      await page.getByLabel('Confirm password').fill('testpassword1')
+      await page.getByRole('button', { name: 'Reset password' }).click()
       await expect(getAlert(page)).toContainText('Invalid or expired reset token', {
         timeout: 10_000,
       })
@@ -91,7 +91,7 @@ test.describe('Password Reset', () => {
       await expect(page.getByRole('heading', { name: 'Invalid Link' })).toBeVisible({
         timeout: 10_000,
       })
-      await page.getByRole('link', { name: 'Request New Link' }).click()
+      await page.getByRole('link', { name: 'Request new link' }).click()
       await page.waitForURL(`${baseUrl}/forgot-password`)
     } finally {
       await context.close()
@@ -107,7 +107,7 @@ test.describe('Password Reset', () => {
     try {
       await page.goto(`${baseUrl}/forgot-password`)
       await page.getByLabel('Email').fill(fake.uniqueEmail())
-      await page.getByRole('button', { name: 'Send Reset Link' }).click()
+      await page.getByRole('button', { name: 'Send reset link' }).click()
       await expect(page.getByRole('heading', { name: 'Check Your Email' })).toBeVisible({
         timeout: 10_000,
       })

@@ -388,7 +388,7 @@ export default function SignupPage() {
     if (application.trim().length < 20) {
       return setError('Your application must be at least 20 characters')
     }
-    if (bioValue.trim().length < 20) return setError('About You must be at least 20 characters')
+    if (bioValue.trim().length < 20) return setError('About you must be at least 20 characters')
     if (!availabilityValue) return setError('Availability is required')
     if (!countryValue) return setError('Country is required')
     goTo(3)
@@ -516,7 +516,7 @@ export default function SignupPage() {
       <>
         <div className="mb-5">
           <label htmlFor={`${prefix}applicationMessage`} className="required">
-            Your Application
+            Your application
           </label>
           <FieldHint id={`${prefix}applicationMessage-hint`}>
             Tell us your connection to PauseAI (if you&apos;re already in the WhatsApp or Discord,
@@ -539,7 +539,7 @@ export default function SignupPage() {
 
         <div className="mb-5">
           <label htmlFor={`${prefix}bio`} className="required">
-            About You
+            About you
           </label>
           <FieldHint id={`${prefix}bio-hint`}>
             Shown to other volunteers in the directory if you choose to make your profile visible.
@@ -566,7 +566,7 @@ export default function SignupPage() {
         <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-5">
           {contactField(
             'discord',
-            'Discord Handle',
+            'Discord handle',
             'discordHandle',
             discord,
             setDiscord,
@@ -584,7 +584,7 @@ export default function SignupPage() {
             'tel',
           )}
           <div className="mb-5">
-            <label htmlFor={`${prefix}email_display`}>Contact Email</label>
+            <label htmlFor={`${prefix}email_display`}>Contact email</label>
             <input
               type="text"
               id={`${prefix}email_display`}
@@ -602,7 +602,7 @@ export default function SignupPage() {
         </div>
 
         <div className="mb-5">
-          <label htmlFor={`${prefix}contactNotes`}>Contact Notes</label>
+          <label htmlFor={`${prefix}contactNotes`}>Contact notes</label>
           <input
             type="text"
             id={`${prefix}contactNotes`}
@@ -651,7 +651,7 @@ export default function SignupPage() {
           <div className="mb-5">
             <FilterDropdown
               id={`${prefix}locationGroup`}
-              label="Local Group"
+              label="Local group"
               ariaLabel="Select local group"
               value={localGroupValue}
               options={localGroupOptions}
@@ -662,7 +662,7 @@ export default function SignupPage() {
         )}
         {showCityInput && (
           <div className="mb-5">
-            <label htmlFor={`${prefix}location`}>City / Area</label>
+            <label htmlFor={`${prefix}location`}>City / area</label>
             <input
               type="text"
               id={`${prefix}location`}
@@ -835,7 +835,7 @@ export default function SignupPage() {
               <h2 className="mt-0">Account</h2>
               <div className="mb-5">
                 <label htmlFor="name" className="required">
-                  Your Name
+                  Your name
                 </label>
                 <input
                   type="text"
@@ -891,7 +891,7 @@ export default function SignupPage() {
 
               <div className="mb-5">
                 <label htmlFor="password_confirm" className="required">
-                  Confirm Password
+                  Confirm password
                 </label>
                 <input
                   type="password"
@@ -920,7 +920,7 @@ export default function SignupPage() {
               <h2 className="mt-0">About you</h2>
               {isGoogle && (
                 <div className="mb-5">
-                  <label htmlFor="g_name">Your Name</label>
+                  <label htmlFor="g_name">Your name</label>
                   <input type="text" id="g_name" value={name} disabled />
                   <p className="text-sm text-text-light mt-1">
                     From your Google account. To use a different name, change it on your Google
@@ -951,7 +951,7 @@ export default function SignupPage() {
               <SignupSkills value={skills} onChange={setSkills} />
 
               <div className="mb-5 mt-4">
-                <label htmlFor={`${prefix}otherSkills`}>Other Skills</label>
+                <label htmlFor={`${prefix}otherSkills`}>Other skills</label>
                 <input
                   type="text"
                   id={`${prefix}otherSkills`}
@@ -1007,7 +1007,7 @@ export default function SignupPage() {
                   Back
                 </Button>
                 <Button type="submit" className="flex-1" disabled={submitting}>
-                  {submitting ? 'Submitting…' : 'Submit Application'}
+                  {submitting ? 'Submitting…' : 'Submit application'}
                 </Button>
               </div>
             </form>

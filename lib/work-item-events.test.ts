@@ -209,7 +209,7 @@ describe('describeEvent', () => {
     ).toBe('Sam moved this to Done')
     expect(
       say('status', { status: 'ready' }, { status: 'in_progress' }, { itemType: 'PROJECT' }),
-    ).toBe('Sam moved this to In Progress')
+    ).toBe('Sam moved this to In progress')
     expect(
       say(
         'edited',
@@ -247,7 +247,7 @@ describe('describeEvent', () => {
         { assigneeId: 2, status: 'in_progress' },
         { itemType: 'PROJECT' },
       ),
-    ).toBe('Sam made Ali the owner and moved this to In Progress')
+    ).toBe('Sam made Ali the owner and moved this to In progress')
     expect(say('edited', { assigneeId: 2 }, { assigneeId: null }, { itemType: 'PROJECT' })).toBe(
       'Sam removed Ali as owner',
     )

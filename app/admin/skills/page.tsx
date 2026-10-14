@@ -187,7 +187,7 @@ function SortableCategory({
               onClick={onAddSkill}
               className="border-2 border-dashed border-brand-border bg-transparent rounded-lg px-4 py-3 text-text-light cursor-pointer text-center hover:border-primary hover:text-primary hover:bg-accent transition-all"
             >
-              + Add Skill
+              + Add skill
             </button>
           </div>
         </SortableContext>
@@ -361,7 +361,7 @@ export default function AdminSkillsPage() {
       <main className="container py-5 pb-15">
         <div className="flex justify-between items-center mb-3">
           <h1>Manage skills</h1>
-          <Button onClick={() => openModal({ type: 'add-category' })}>+ Add Category</Button>
+          <Button onClick={() => openModal({ type: 'add-category' })}>+ Add category</Button>
         </div>
 
         <p className="text-text-light mb-6">
@@ -421,7 +421,7 @@ export default function AdminSkillsPage() {
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
               <h2 role="heading">
-                {modal.type === 'edit-category' ? 'Edit Category' : 'Add Category'}
+                {modal.type === 'edit-category' ? 'Edit category' : 'Add category'}
               </h2>
             </div>
             <div className="p-6">
@@ -453,7 +453,7 @@ export default function AdminSkillsPage() {
                     Cancel
                   </Button>
                   <Button type="submit" disabled={submitting}>
-                    Save Category
+                    Save category
                   </Button>
                 </div>
               </form>
@@ -472,7 +472,7 @@ export default function AdminSkillsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">{modal.type === 'add-skill' ? 'Add Skill' : 'Edit Skill'}</h2>
+              <h2 role="heading">{modal.type === 'add-skill' ? 'Add skill' : 'Edit skill'}</h2>
             </div>
             <div className="p-6">
               {modal.type === 'add-skill' && (
@@ -507,7 +507,7 @@ export default function AdminSkillsPage() {
                     Cancel
                   </Button>
                   <Button type="submit" disabled={submitting}>
-                    Save Skill
+                    Save skill
                   </Button>
                 </div>
               </form>

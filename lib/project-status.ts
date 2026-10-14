@@ -15,11 +15,11 @@ import { ProjectStatus } from '@/generated/prisma/enums'
  */
 export const PROJECT_STATUS_CONFIG: Record<string, { label: string; variant: BadgeVariant }> = {
   draft: { label: 'Draft', variant: 'neutral' },
-  pending_review: { label: 'In Review', variant: 'info' },
-  needs_discussion: { label: 'Needs Changes', variant: 'neutral' },
-  ready: { label: 'To Do', variant: 'neutral' },
-  in_progress: { label: 'In Progress', variant: 'info' },
-  on_hold: { label: 'On Hold', variant: 'neutral' },
+  pending_review: { label: 'In review', variant: 'info' },
+  needs_discussion: { label: 'Needs changes', variant: 'neutral' },
+  ready: { label: 'To do', variant: 'neutral' },
+  in_progress: { label: 'In progress', variant: 'info' },
+  on_hold: { label: 'On hold', variant: 'neutral' },
   completed: { label: 'Completed', variant: 'success' },
   archived: { label: 'Archived', variant: 'neutral' },
 }

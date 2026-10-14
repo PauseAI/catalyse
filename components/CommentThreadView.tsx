@@ -268,7 +268,7 @@ export default function CommentThreadView({
       {canPost && (
         <CommentComposer
           label="Add a comment"
-          submitLabel="Post Comment"
+          submitLabel="Post comment"
           busyLabel="Posting…"
           isSubmitting={isSubmitting}
           mentionable={mentionable}

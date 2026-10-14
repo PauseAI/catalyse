@@ -23,7 +23,7 @@ describe('admin team', () => {
     const card = (await screen.findByText('Olly Other')).closest<HTMLElement>('.card')!
     expect(within(card).getByRole('checkbox', { name: 'Notify of bug reports' })).toBeChecked()
     const mine = screen.getByText(sa.name).closest<HTMLElement>('.card')!
-    expect(within(mine).queryByRole('button', { name: 'Revoke Access' })).toBeNull()
+    expect(within(mine).queryByRole('button', { name: 'Revoke access' })).toBeNull()
 
     await userEvent.click(within(card).getByRole('checkbox'))
     await screen.findByText('Olly Other will no longer be notified of bug reports')
@@ -33,14 +33,14 @@ describe('admin team', () => {
       ).toBe(false),
     )
 
-    await userEvent.click(within(card).getByRole('button', { name: 'Revoke Access' }))
+    await userEvent.click(within(card).getByRole('button', { name: 'Revoke access' }))
     const revokeDialog = await screen.findByRole('dialog', {
       name: 'Revoke admin access for Olly Other?',
     })
     await userEvent.click(within(revokeDialog).getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('dialog')).toBeNull()
 
-    await userEvent.click(within(card).getByRole('button', { name: 'Revoke Access' }))
+    await userEvent.click(within(card).getByRole('button', { name: 'Revoke access' }))
     await userEvent.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Revoke access' }),
     )
@@ -49,12 +49,12 @@ describe('admin team', () => {
 
     await userEvent.click(screen.getByRole('tab', { name: 'Pending Invites' }))
     await screen.findByText('No pending invites.')
-    await userEvent.click(screen.getByRole('button', { name: 'Invite Admin' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Invite admin' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('dialog')).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Invite Admin' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Invite admin' }))
     await userEvent.type(screen.getByLabelText('Email Address'), 'new.admin@example.com')
-    await userEvent.click(screen.getByRole('button', { name: 'Send Invite' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Send invite' }))
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Invite sent to new.admin@example.com',
     )
@@ -67,9 +67,9 @@ describe('admin team', () => {
     await screen.findByText('No pending invites.')
 
     // A refused invite closes the dialog with the reason.
-    await userEvent.click(screen.getByRole('button', { name: 'Invite Admin' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Invite admin' }))
     await userEvent.type(screen.getByLabelText('Email Address'), sa.email!)
-    await userEvent.click(screen.getByRole('button', { name: 'Send Invite' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Send invite' }))
     await screen.findByText('This person is already an admin')
     expect(screen.queryByRole('dialog')).toBeNull()
   })
@@ -87,7 +87,7 @@ describe('admin team', () => {
     })
     await renderApp(<AdminTeamPage />, { as: admin })
     await screen.findByText('Plain Admin')
-    expect(screen.queryByRole('button', { name: 'Invite Admin' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Invite admin' })).toBeNull()
     expect(screen.getByText('Notified of bug reports')).toBeInTheDocument()
     expect(screen.queryByRole('checkbox')).toBeNull()
     await userEvent.click(screen.getByRole('tab', { name: 'Pending Invites' }))
@@ -111,7 +111,7 @@ describe('admin team', () => {
     await prisma.volunteer.delete({ where: { id: other.id } })
     await userEvent.click(within(card).getByRole('checkbox'))
     await screen.findByText(/not found/i)
-    await userEvent.click(within(card).getByRole('button', { name: 'Revoke Access' }))
+    await userEvent.click(within(card).getByRole('button', { name: 'Revoke access' }))
     await userEvent.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Revoke access' }),
     )

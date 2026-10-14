@@ -50,19 +50,19 @@ describe('admin skills', () => {
     ).toEqual([expect.stringContaining('Zeta Onefirst'), expect.stringContaining('Zeta Two')])
 
     // Category: add (backdrop click cancels first), edit, and reorder by drag.
-    await userEvent.click(screen.getByRole('button', { name: '+ Add Category' }))
-    await userEvent.click(screen.getByRole('heading', { name: 'Add Category' }).closest('.fixed')!)
-    expect(screen.queryByRole('heading', { name: 'Add Category' })).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: '+ Add Category' }))
+    await userEvent.click(screen.getByRole('button', { name: '+ Add category' }))
+    await userEvent.click(screen.getByRole('heading', { name: 'Add category' }).closest('.fixed')!)
+    expect(screen.queryByRole('heading', { name: 'Add category' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: '+ Add category' }))
     await userEvent.type(screen.getByLabelText('Category Name'), 'Zany Cat')
     await userEvent.type(screen.getByLabelText('Description'), 'Brand new')
-    await userEvent.click(screen.getByRole('button', { name: 'Save Category' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save category' }))
     await screen.findByText('Category created!')
     await screen.findByRole('heading', { name: 'Zany Cat' })
     await userEvent.click(within(catCard('Zulu Cat')).getByRole('button', { name: 'Edit' }))
     expect(screen.getByLabelText('Category Name')).toHaveValue('Zulu Cat')
     await userEvent.type(screen.getByLabelText('Category Name'), ' Renamed')
-    await userEvent.click(screen.getByRole('button', { name: 'Save Category' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save category' }))
     await screen.findByText('Category updated!')
     await screen.findByRole('heading', { name: 'Zulu Cat Renamed' })
     drag(drags.at(0), catB.id, catA.id)
@@ -89,13 +89,13 @@ describe('admin skills', () => {
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Zany Cat' })).toBeNull())
 
     // Skill: add, edit, reorder by drag, delete.
-    await userEvent.click(within(catCard('Zeta Cat')).getByRole('button', { name: '+ Add Skill' }))
+    await userEvent.click(within(catCard('Zeta Cat')).getByRole('button', { name: '+ Add skill' }))
     expect(screen.getByText('Category: Zeta Cat')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('heading', { name: 'Add Skill' }).closest('.fixed')!)
-    expect(screen.queryByRole('heading', { name: 'Add Skill' })).toBeNull()
-    await userEvent.click(within(catCard('Zeta Cat')).getByRole('button', { name: '+ Add Skill' }))
+    await userEvent.click(screen.getByRole('heading', { name: 'Add skill' }).closest('.fixed')!)
+    expect(screen.queryByRole('heading', { name: 'Add skill' })).toBeNull()
+    await userEvent.click(within(catCard('Zeta Cat')).getByRole('button', { name: '+ Add skill' }))
     await userEvent.type(screen.getByLabelText('Skill Name'), 'Zeta Three')
-    await userEvent.click(screen.getByRole('button', { name: 'Save Skill' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save skill' }))
     await screen.findByText('Skill created!')
     await screen.findByRole('heading', { name: 'Zeta Three' })
     await userEvent.click(
@@ -106,7 +106,7 @@ describe('admin skills', () => {
     expect(screen.getByLabelText('Description')).toHaveValue('first')
     await userEvent.clear(screen.getByLabelText('Description'))
     await userEvent.type(screen.getByLabelText('Skill Name'), ' Edited')
-    await userEvent.click(screen.getByRole('button', { name: 'Save Skill' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save skill' }))
     await screen.findByText('Skill updated!')
     await screen.findByRole('heading', { name: 'Zeta One Edited' })
     expect((await prisma.skill.findUniqueOrThrow({ where: { id: s1.id } })).description).toBeNull()
@@ -149,7 +149,7 @@ describe('admin skills', () => {
           .closest<HTMLElement>('.skill-item')!,
       ).getByRole('button', { name: 'Edit' }),
     )
-    await userEvent.click(screen.getByRole('button', { name: 'Save Skill' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save skill' }))
     await screen.findByText('Skill not found')
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     await userEvent.click(
@@ -166,7 +166,7 @@ describe('admin skills', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     await prisma.skillCategory.delete({ where: { id: catB.id } })
     await userEvent.click(within(catCard('Zulu Cat Renamed')).getByRole('button', { name: 'Edit' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Save Category' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save category' }))
     // The earlier "Skill not found" toasts are still up, so wait for this one by name.
     await screen.findByText('Category not found')
   }, 120_000)

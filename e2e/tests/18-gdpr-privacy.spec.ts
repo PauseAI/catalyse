@@ -35,7 +35,7 @@ test.describe('GDPR & Privacy', () => {
       .locator('label.skill-option')
       .filter({ hasText: new RegExp(`^\\s*${skill.name}\\s*$`) })
       .click()
-    await volunteer.page.getByRole('button', { name: 'Save Changes' }).click()
+    await volunteer.page.getByRole('button', { name: 'Save changes' }).click()
     await expect(getAlert(volunteer.page)).toContainText('Profile updated!', { timeout: 10_000 })
 
     // Admin creates a project and transfers ownership to the volunteer so they have a project in the
@@ -107,7 +107,7 @@ test.describe('GDPR & Privacy', () => {
     await expect(outboundDialog.getByLabel('Subject')).toBeVisible({ timeout: 10_000 })
     await outboundDialog.getByLabel('Subject').fill(fake.messageSubject())
     await outboundDialog.getByLabel('Message').fill(fake.messageBody())
-    await outboundDialog.getByRole('button', { name: 'Send Message' }).click()
+    await outboundDialog.getByRole('button', { name: 'Send message' }).click()
     await expect(getAlert(volunteer.page)).toContainText('Message sent', { timeout: 10_000 })
 
     // vol2 contacts the volunteer on their approved project — creates a messagesReceived record
@@ -124,7 +124,7 @@ test.describe('GDPR & Privacy', () => {
       await expect(inboundDialog.getByLabel('Subject')).toBeVisible({ timeout: 10_000 })
       await inboundDialog.getByLabel('Subject').fill(fake.messageSubject())
       await inboundDialog.getByLabel('Message').fill(fake.messageBody())
-      await inboundDialog.getByRole('button', { name: 'Send Message' }).click()
+      await inboundDialog.getByRole('button', { name: 'Send message' }).click()
       await expect(getAlert(vol2Page)).toContainText('Message sent', { timeout: 10_000 })
     } finally {
       await vol2Ctx.close()
@@ -138,7 +138,7 @@ test.describe('GDPR & Privacy', () => {
 
     const [download] = await Promise.all([
       volunteer.page.waitForEvent('download'),
-      volunteer.page.getByRole('button', { name: 'Download My Data' }).click(),
+      volunteer.page.getByRole('button', { name: 'Download my data' }).click(),
     ])
 
     await expect(getAlert(volunteer.page)).toContainText('Data exported successfully!', {
@@ -193,19 +193,19 @@ test.describe('GDPR & Privacy', () => {
 
     try {
       await page2.goto(`${baseUrl}/settings`)
-      await expect(page2.getByLabel('Discord Handle')).toBeVisible({ timeout: 10_000 })
+      await expect(page2.getByLabel('Discord handle')).toBeVisible({ timeout: 10_000 })
 
-      await page2.getByLabel('Discord Handle').fill(discordHandle)
+      await page2.getByLabel('Discord handle').fill(discordHandle)
       await page2.getByLabel('Signal').fill(signalNumber)
       await page2.getByLabel('WhatsApp').fill(whatsappNumber)
 
-      // Switch to Privacy & Data tab to configure visibility and contact sharing
-      await page2.getByRole('tab', { name: 'Privacy & Data' }).click()
+      // Switch to Privacy & data tab to configure visibility and contact sharing
+      await page2.getByRole('tab', { name: 'Privacy & data' }).click()
 
       // Listed in the directory, so others can find them and ask to connect.
       await page2.getByLabel('Show me in the volunteer directory').check()
 
-      await page2.getByRole('button', { name: 'Save Changes' }).click()
+      await page2.getByRole('button', { name: 'Save changes' }).click()
       await expect(getAlert(page2)).toContainText('Profile updated!', { timeout: 10_000 })
 
       // The results list keeps re-rendering (debounced search refetch) for a bit after

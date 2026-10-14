@@ -91,7 +91,7 @@ export default function SuggestTeamPage() {
           </div>
 
           <Button type="submit" disabled={createMutation.isPending || !name.trim()}>
-            {createMutation.isPending ? 'Submitting…' : 'Submit Suggestion'}
+            {createMutation.isPending ? 'Submitting…' : 'Submit suggestion'}
           </Button>
         </form>
 

@@ -330,7 +330,7 @@ export default function ApplicationReviewPage() {
 
         <div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => handleSaveNotes(app.id)} disabled={submitting}>
-            Save Notes
+            Save notes
           </Button>
           {canAction && (
             <>
@@ -339,7 +339,7 @@ export default function ApplicationReviewPage() {
                 onClick={() => setConfirmAction('request_info')}
                 disabled={submitting}
               >
-                Request More Info
+                Request more info
               </Button>
               <Button
                 variant="danger"
@@ -355,7 +355,7 @@ export default function ApplicationReviewPage() {
           )}
           {canReopen && (
             <Button onClick={() => setConfirmAction('reopen')} disabled={submitting}>
-              Reopen Application
+              Reopen application
             </Button>
           )}
         </div>
@@ -405,7 +405,7 @@ export default function ApplicationReviewPage() {
                   {
                     approve: 'Approve',
                     reject: 'Reject',
-                    request_info: 'Request Info',
+                    request_info: 'Request info',
                     reopen: 'Reopen',
                   }[confirmAction]
                 }

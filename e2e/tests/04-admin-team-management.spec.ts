@@ -33,15 +33,15 @@ test.describe('Admin: Admin Team Management', () => {
     const inviteEmail = fake.uniqueEmail()
 
     await adminPage.goto(`${baseUrl}/admin/team`)
-    await expect(adminPage.getByRole('button', { name: 'Invite Admin' })).toBeVisible({
+    await expect(adminPage.getByRole('button', { name: 'Invite admin' })).toBeVisible({
       timeout: 10_000,
     })
 
-    await adminPage.getByRole('button', { name: 'Invite Admin' }).click()
-    const inviteDialog = adminPage.getByRole('dialog', { name: 'Invite Admin' })
+    await adminPage.getByRole('button', { name: 'Invite admin' }).click()
+    const inviteDialog = adminPage.getByRole('dialog', { name: 'Invite admin' })
     await expect(inviteDialog).toBeVisible({ timeout: 5_000 })
     await adminPage.getByLabel('Email Address').fill(inviteEmail)
-    await adminPage.getByRole('button', { name: 'Send Invite' }).click()
+    await adminPage.getByRole('button', { name: 'Send invite' }).click()
 
     await expect(inviteDialog.getByRole('status')).toBeVisible({ timeout: 10_000 })
   })
@@ -50,7 +50,7 @@ test.describe('Admin: Admin Team Management', () => {
     const inviteEmail = fake.uniqueEmail()
 
     await adminPage.goto(`${baseUrl}/admin/team`)
-    await expect(adminPage.getByRole('button', { name: 'Invite Admin' })).toBeVisible({
+    await expect(adminPage.getByRole('button', { name: 'Invite admin' })).toBeVisible({
       timeout: 10_000,
     })
     await createAdminInvite(adminPage, baseUrl, inviteEmail)
@@ -65,7 +65,7 @@ test.describe('Admin: Admin Team Management', () => {
     const inviteEmail = fake.uniqueEmail()
 
     await adminPage.goto(`${baseUrl}/admin/team`)
-    await expect(adminPage.getByRole('button', { name: 'Invite Admin' })).toBeVisible({
+    await expect(adminPage.getByRole('button', { name: 'Invite admin' })).toBeVisible({
       timeout: 10_000,
     })
     await createAdminInvite(adminPage, baseUrl, inviteEmail)
@@ -164,7 +164,7 @@ test.describe('Admin: Admin Team Management', () => {
     const adminCard = adminPage.locator('#adminList .card').filter({ hasText: volunteer.email })
     await expect(adminCard).toBeVisible({ timeout: 10_000 })
 
-    await adminCard.getByRole('button', { name: 'Revoke Access' }).click()
+    await adminCard.getByRole('button', { name: 'Revoke access' }).click()
     await adminPage.getByRole('dialog').getByRole('button', { name: 'Revoke access' }).click()
 
     await expect(getAlert(adminPage)).toContainText('Admin access revoked', { timeout: 10_000 })

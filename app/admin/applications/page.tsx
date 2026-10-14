@@ -382,10 +382,10 @@ function ApplicationCard({
       <div className="flex gap-2 justify-end border-t border-brand-border pt-4 mt-2">
         {app.approvalStatus === ApprovalStatus.pending ? (
           <Button onClick={() => onStartReview(app.id)} disabled={startingReview === app.id}>
-            Start Review
+            Start review
           </Button>
         ) : app.approvalStatus === ApprovalStatus.under_review ? (
-          <Button onClick={() => onNavigate(app.id)}>Continue Review</Button>
+          <Button onClick={() => onNavigate(app.id)}>Continue review</Button>
         ) : (
           <Button variant="secondary" onClick={() => onNavigate(app.id)}>
             View
@@ -445,7 +445,7 @@ function AnonymisedCard({ app }: { app: AnonymisedApplication }) {
             onClick={() => allowReapplyMutation.mutate({ emailHash: app.emailHash })}
             disabled={allowReapplyMutation.isPending}
           >
-            Allow Reapply
+            Allow reapply
           </Button>
         )}
       </div>

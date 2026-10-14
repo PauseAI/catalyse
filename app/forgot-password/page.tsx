@@ -63,7 +63,7 @@ export default function ForgotPasswordPage() {
               </div>
 
               <Button type="submit" className="w-full" disabled={mutation.isPending}>
-                {mutation.isPending ? 'Sending…' : 'Send Reset Link'}
+                {mutation.isPending ? 'Sending…' : 'Send reset link'}
               </Button>
 
               <p className="text-center text-text-light mt-5">

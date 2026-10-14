@@ -26,7 +26,7 @@ async function setupInProgressProject(
 }
 
 test.describe('Project Tasks', () => {
-  // An owned project with an empty backlog is still owned, so it stays In Progress and
+  // An owned project with an empty backlog is still owned, so it stays In progress and
   // shows a derived "Needs Tasks" badge rather than moving to a status of its own. Get
   // there via the API (every project requires a task up front, so the only route is
   // deleting the last one), then check the badge clears as soon as a task is added.
@@ -78,18 +78,18 @@ test.describe('Project Tasks', () => {
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     // Accepting the owner started the work, empty backlog or not.
-    await expect(adminPage.getByLabel('project status')).toContainText('In Progress', {
+    await expect(adminPage.getByLabel('project status')).toContainText('In progress', {
       timeout: 10_000,
     })
     await expect(adminPage.getByText('Needs Tasks')).toBeVisible({ timeout: 10_000 })
 
-    await adminPage.getByRole('button', { name: 'Add Task' }).click()
+    await adminPage.getByRole('button', { name: 'Add task' }).click()
     await adminPage.getByLabel('Task title').fill('First task')
-    await adminPage.getByRole('button', { name: 'Create Task' }).click()
+    await adminPage.getByRole('button', { name: 'Create task' }).click()
     await expect(getAlert(adminPage)).toContainText('Task added!', { timeout: 10_000 })
 
     await expect(adminPage.getByText('Needs Tasks')).toBeHidden({ timeout: 10_000 })
-    await expect(adminPage.getByLabel('project status')).toContainText('In Progress')
+    await expect(adminPage.getByLabel('project status')).toContainText('In progress')
   })
 
   test('An accepted project member can create a task, but a non-member cannot', async ({
@@ -450,9 +450,9 @@ test.describe('Project Tasks', () => {
     await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(adminPage.locator('#projectContent')).toBeVisible({ timeout: 10_000 })
 
-    await adminPage.getByRole('button', { name: 'Add Task' }).click()
+    await adminPage.getByRole('button', { name: 'Add task' }).click()
     await adminPage.getByLabel('Task title').fill('Task to delete')
-    await adminPage.getByRole('button', { name: 'Create Task' }).click()
+    await adminPage.getByRole('button', { name: 'Create task' }).click()
     await expect(getAlert(adminPage)).toContainText('Task added!', { timeout: 10_000 })
 
     await adminPage.getByRole('button', { name: 'Task actions for Task to delete' }).click()

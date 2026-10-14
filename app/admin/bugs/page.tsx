@@ -301,7 +301,7 @@ function BugReportCard({
             disabled={markInProgressPending}
             onClick={onMarkInProgress}
           >
-            Mark In Progress
+            Mark in progress
           </Button>
         )}
 

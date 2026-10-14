@@ -61,7 +61,7 @@ export default function PrivacyPage() {
                   onClick={() => exportMutation.mutate({})}
                   disabled={exportMutation.isPending}
                 >
-                  {exportMutation.isPending ? 'Preparing…' : 'Download My Data'}
+                  {exportMutation.isPending ? 'Preparing…' : 'Download my data'}
                 </Button>
               </div>
             </>

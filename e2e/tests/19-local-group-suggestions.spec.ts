@@ -34,7 +34,7 @@ test.describe('Local Group Suggestions', () => {
   }) => {
     await volunteer.page.goto(`${baseUrl}/suggest-local-group`)
     await volunteer.page
-      .getByRole('heading', { name: 'Suggest a Local Group', level: 1 })
+      .getByRole('heading', { name: 'Suggest a local group', level: 1 })
       .waitFor({ timeout: 10_000 })
 
     // Country is required at signup, so it's already prefilled from the volunteer's own
@@ -42,10 +42,10 @@ test.describe('Local Group Suggestions', () => {
     await expect(volunteer.page.getByLabel('Select country/group', { exact: true })).not.toHaveText(
       'Select…',
     )
-    await expect(volunteer.page.getByRole('button', { name: 'Submit Suggestion' })).toBeDisabled()
+    await expect(volunteer.page.getByRole('button', { name: 'Submit suggestion' })).toBeDisabled()
 
     await volunteer.page.getByLabel('Local Group Name').fill('TestCity')
-    await expect(volunteer.page.getByRole('button', { name: 'Submit Suggestion' })).toBeEnabled()
+    await expect(volunteer.page.getByRole('button', { name: 'Submit suggestion' })).toBeEnabled()
   })
 
   test('Admin sees pending suggestion', async ({ volunteer, adminPage, baseUrl }) => {
@@ -167,7 +167,7 @@ test.describe('Local Group Suggestions', () => {
 
     await expect(getAlert(adminPage)).toContainText('on hold', { timeout: 10_000 })
 
-    await selectFilterDropdown(adminPage, 'Status filter', 'On Hold')
+    await selectFilterDropdown(adminPage, 'Status filter', 'On hold')
     await adminPage.getByText('Loading…').waitFor({ state: 'hidden', timeout: 10_000 })
     await expect(adminPage.getByRole('article').filter({ hasText: groupName })).toBeVisible({
       timeout: 10_000,
@@ -226,7 +226,7 @@ test.describe('Local Group Suggestions', () => {
 
     await volunteer.page.goto(`${baseUrl}/suggest-local-group`)
     await volunteer.page
-      .getByRole('heading', { name: 'Suggest a Local Group', level: 1 })
+      .getByRole('heading', { name: 'Suggest a local group', level: 1 })
       .waitFor({ timeout: 10_000 })
 
     await expect(volunteer.page.getByRole('article').filter({ hasText: groupName })).toContainText(

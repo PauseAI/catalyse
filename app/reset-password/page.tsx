@@ -30,7 +30,7 @@ function ResetPasswordForm() {
           This reset link is invalid or has expired. Please request a new one.
         </p>
         <Button href="/forgot-password" variant="outline">
-          Request New Link
+          Request new link
         </Button>
       </div>
     )
@@ -77,7 +77,7 @@ function ResetPasswordForm() {
 
       <div className="mb-5">
         <label htmlFor="password" className="required">
-          New Password
+          New password
         </label>
         <input
           type="password"
@@ -94,7 +94,7 @@ function ResetPasswordForm() {
 
       <div className="mb-5">
         <label htmlFor="password_confirm" className="required">
-          Confirm Password
+          Confirm password
         </label>
         <input
           type="password"
@@ -109,7 +109,7 @@ function ResetPasswordForm() {
       </div>
 
       <Button type="submit" className="w-full" disabled={mutation.isPending}>
-        {mutation.isPending ? 'Resetting…' : 'Reset Password'}
+        {mutation.isPending ? 'Resetting…' : 'Reset password'}
       </Button>
     </form>
   )

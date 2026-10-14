@@ -139,7 +139,7 @@ describe('admin projects', () => {
   it("lists the admin's drafts, untitled or not, above the new-project button", async () => {
     const admin = await createAdmin()
     await renderApp(<AdminProjectsPage />, { as: admin })
-    await screen.findByRole('link', { name: 'New Project' })
+    await screen.findByRole('link', { name: 'New project' })
     expect(screen.queryByText('My drafts')).toBeNull()
     cleanup()
     const draft = await createProject({

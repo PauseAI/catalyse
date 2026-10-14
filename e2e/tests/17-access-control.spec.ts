@@ -51,7 +51,7 @@ test.describe('Access Control', () => {
       'You do not have permission to edit this project.',
       { timeout: 10_000 },
     )
-    await expect(volunteer.page.getByRole('button', { name: 'Delete Project' })).not.toBeVisible()
+    await expect(volunteer.page.getByRole('button', { name: 'Delete project' })).not.toBeVisible()
   })
 
   test('Admin can update any project', async ({ adminPage, volunteer, baseUrl }) => {

@@ -201,7 +201,7 @@ export default function BugReportDialog({ isOpen, onClose }: BugReportDialogProp
                   Cancel
                 </Button>
                 <Button type="submit" disabled={submitting}>
-                  {submitting ? 'Sending…' : 'Submit Report'}
+                  {submitting ? 'Sending…' : 'Submit report'}
                 </Button>
               </div>
             </form>

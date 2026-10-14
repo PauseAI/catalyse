@@ -148,8 +148,7 @@ describe('project page — visitor', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Send request' }))
     await screen.findByText(/You'll get a notification when they reply/)
     // A request to help waits among the actions, beside its Withdraw button.
-    await within(group('Actions')).findByText('Waiting for the owner')
-    expect(within(group('Actions')).getByText('Request sent')).toHaveAttribute(
+    expect(await within(group('Actions')).findByText('Request sent')).toHaveAttribute(
       'data-emphasis',
       'outline',
     )
@@ -224,7 +223,7 @@ describe('project page — visitor', () => {
     const status = group('Status')
     const waiting = await within(status).findByLabelText('interest status')
     expect(waiting).toHaveTextContent('Request to lead sent')
-    expect(waiting).toHaveTextContent('Waiting for an answer')
+    expect(waiting).not.toHaveTextContent('Waiting')
     expect(within(status).queryByText('• Seeking owner')).toBeNull()
     expect(within(status).getByText('• Seeking help')).toBeInTheDocument()
     expect(status.lastElementChild).toBe(waiting)
@@ -367,7 +366,7 @@ describe('project page — joining and held tasks', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Ask to take this' }))
     await screen.findByText(/^Requested\. The task is held for you/)
     await screen.findByText('Held for you: waiting for the owner')
-    await screen.findByText('Waiting for the owner')
+    await screen.findByText('Request sent')
     expect(await row(t.id)).toMatchObject({ requestedById: me.id, assigneeId: null })
     await userEvent.click(screen.getByRole('button', { name: '6 helpers' }))
     expect(screen.getByRole('tab', { name: 'People (7)' })).toHaveAttribute('aria-selected', 'true')
@@ -378,7 +377,8 @@ describe('project page — joining and held tasks', () => {
     cleanup()
     await mount(project.id, owner, '#tasks')
     await screen.findByText('Requested by Mo Newcomer')
-    await screen.findByText('1 waiting for an answer')
+    // Only the requests the viewer can answer are counted, on the People tab.
+    await screen.findByRole('tab', { name: 'People (7), 1 waiting for an answer' })
     await userEvent.click(screen.getByRole('button', { name: '6 helpers' }))
     expect(window.location.hash).toBe('#people')
   })
@@ -411,9 +411,9 @@ describe('project page — owner', () => {
     await mount(project.id, owner, '#tasks')
     await screen.findByRole('heading', { name: 'Owned project' })
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Add Task' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Add task' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Add Task' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
     await userEvent.type(screen.getByLabelText('Task title'), 'Third task')
     await userEvent.type(screen.getByLabelText('Description'), 'details')
     await userEvent.type(screen.getByLabelText('Effort: about'), '2')
@@ -450,6 +450,11 @@ describe('project page — owner', () => {
       within(screen.getByRole('region', { name: 'People on this project' }))
         .getByText(name)
         .closest('li') as HTMLElement
+    // A request is grouped under Requests and says what it asks; Accept and Decline stand for
+    // its status, so it carries no badge.
+    expect(screen.getByRole('region', { name: 'Requests' })).toHaveTextContent('Requests (2)')
+    expect(interestCard('Hana Helper')).toHaveTextContent('wants to help')
+    expect(within(interestCard('Hana Helper')).queryByText(/Request sent|Applied/)).toBeNull()
     await userEvent.click(
       within(interestCard('Hana Helper')).getByRole('button', { name: 'Accept' }),
     )
@@ -541,10 +546,10 @@ describe('project page — owner', () => {
     await screen.findByText('Task deleted!')
 
     await userEvent.click(screen.getByRole('button', { name: 'project status' }))
-    await userEvent.click(screen.getByRole('option', { name: 'On Hold' }))
+    await userEvent.click(screen.getByRole('option', { name: 'On hold' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     await userEvent.click(screen.getByRole('button', { name: 'project status' }))
-    await userEvent.click(screen.getByRole('option', { name: 'On Hold' }))
+    await userEvent.click(screen.getByRole('option', { name: 'On hold' }))
     await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
     await screen.findByText('Status updated!')
     await waitFor(async () => expect((await row(project.id)).status).toBe('on_hold'))
@@ -634,7 +639,7 @@ describe('project page — owner', () => {
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete task' }),
     )
     await screen.findByText('Task not found')
-    await userEvent.click(screen.getByRole('button', { name: 'Add Task' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
     await userEvent.type(screen.getByLabelText('Task title'), 'x')
     await prisma.workItemInterest.deleteMany({ where: { workItemId: project.id } })
     await prisma.workItem.delete({ where: { id: project.id } })
@@ -857,7 +862,7 @@ describe('project page — Overview status bar and Discussion', () => {
     })
     await clientAs(owner).projects.update({ id: project.id, status: 'on_hold' })
     await mount(project.id, helper)
-    const line = await screen.findByText(/^Olive moved this to On Hold · /)
+    const line = await screen.findByText(/^Olive moved this to On hold · /)
     expect(
       line.compareDocumentPosition(screen.getByText('Ready?')) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
@@ -1440,10 +1445,10 @@ describe('project page — admin', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Confirm' }))
     await screen.findByText('Status updated!')
     await userEvent.click(await screen.findByRole('button', { name: 'Outcome' }))
-    fireEvent.submit(screen.getByLabelText('Outcome Notes').closest('form')!)
+    fireEvent.submit(screen.getByLabelText('Outcome notes').closest('form')!)
     await userEvent.click(screen.getByRole('option', { name: 'Successful' }))
-    await userEvent.type(screen.getByLabelText('Outcome Notes'), 'Went well')
-    await userEvent.click(screen.getByRole('button', { name: 'Record Outcome' }))
+    await userEvent.type(screen.getByLabelText('Outcome notes'), 'Went well')
+    await userEvent.click(screen.getByRole('button', { name: 'Record outcome' }))
     await screen.findByText('Outcome recorded!')
     await waitFor(() =>
       expect(screen.getByText(/Outcome:/).parentElement).toHaveTextContent('Successful'),
@@ -1472,7 +1477,7 @@ describe('project page — admin', () => {
     const admin = await createAdmin()
     for (const [outcome, label] of [
       ['partial', 'Partial'],
-      ['not_completed', 'Not Completed'],
+      ['not_completed', 'Not completed'],
       ['ongoing', 'Ongoing'],
       ['weird', 'weird'],
     ] as const) {
@@ -1861,11 +1866,11 @@ describe('project page — remaining edges', () => {
     })
     await mount(project.id, admin, '#tasks')
     await screen.findByRole('heading', { name: 'Edge project' })
-    await userEvent.click(await screen.findByRole('button', { name: 'Add Task' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Add task' }))
     fireEvent.submit(screen.getByLabelText('Task title').closest('form')!)
     expect(await prisma.workItem.count({ where: { parentId: project.id } })).toBe(0)
     await userEvent.click(screen.getByRole('button', { name: 'project status' }))
-    await userEvent.click(screen.getByRole('option', { name: 'In Progress' }))
+    await userEvent.click(screen.getByRole('option', { name: 'In progress' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'project status' }))
     await userEvent.click(screen.getByRole('option', { name: 'Archived' }))
@@ -1902,7 +1907,7 @@ describe('project page — remaining edges', () => {
     })
     await mount(project.id, owner)
     await screen.findByRole('heading', { name: 'Under review' })
-    expect(screen.getByLabelText('project status')).toHaveTextContent('Needs Changes')
+    expect(screen.getByLabelText('project status')).toHaveTextContent('Needs changes')
     expect(screen.queryByRole('button', { name: 'project status' })).toBeNull()
   })
 
@@ -1977,7 +1982,7 @@ describe('project page — remaining edges', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Outcome' }))
     await userEvent.click(screen.getByRole('option', { name: 'Ongoing' }))
     await prisma.workItem.delete({ where: { id: done.id } })
-    await userEvent.click(screen.getByRole('button', { name: 'Record Outcome' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Record outcome' }))
     await screen.findByText('Project not found')
   })
 
@@ -2137,7 +2142,7 @@ describe('project page — a completed project', () => {
     await banner()
     await screen.findByText('Open bit')
     expect(screen.queryByRole('link', { name: 'Edit project' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Add Task' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Add task' })).toBeNull()
     expect(screen.queryByLabelText('Task actions for Open bit')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Claim task' })).toBeNull()
     // Nothing can be dragged, so there is no Your order to drag in.

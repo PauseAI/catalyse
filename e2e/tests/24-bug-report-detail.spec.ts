@@ -53,7 +53,7 @@ test.describe('Bug Report Detail Page', () => {
     })
 
     await volunteer.page.getByLabel('Add a comment').fill('Any update on this?')
-    await volunteer.page.getByRole('button', { name: 'Post Comment' }).click()
+    await volunteer.page.getByRole('button', { name: 'Post comment' }).click()
     await expect(volunteer.page.getByText('Any update on this?')).toBeVisible({ timeout: 10_000 })
 
     await adminPage.goto(`${baseUrl}/admin/bugs`)
@@ -67,7 +67,7 @@ test.describe('Bug Report Detail Page', () => {
     await expect(adminPage.getByText('Any update on this?')).toBeVisible({ timeout: 10_000 })
 
     await adminPage.getByLabel('Add a comment').fill('Looking into it now')
-    await adminPage.getByRole('button', { name: 'Post Comment' }).click()
+    await adminPage.getByRole('button', { name: 'Post comment' }).click()
     await expect(adminPage.getByText('Looking into it now')).toBeVisible({ timeout: 10_000 })
 
     await goToInbox(baseUrl, volunteer.page)

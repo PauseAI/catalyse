@@ -93,7 +93,7 @@ describe('teams list', () => {
     await createTeam({ name: 'Admin Sees' })
     await renderApp(<TeamsPage />, { as: admin })
     await screen.findByRole('link', { name: 'Admin Sees' })
-    expect(screen.getByRole('button', { name: 'Manage Members' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Manage members' })).toBeInTheDocument()
   })
 })
 
@@ -126,7 +126,7 @@ describe('team detail', () => {
     cleanup()
     await renderApp(<TeamDetailPage params={Promise.resolve({ id: String(led.id) })} />, { as: me })
     await screen.findByRole('heading', { name: /Led Team/ })
-    expect(screen.getByRole('button', { name: 'Manage Members' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Manage members' })).toBeInTheDocument()
     cleanup()
     await prisma.teamMembership.create({ data: { teamId: pending.id, volunteerId: me.id } })
     await prisma.team.update({

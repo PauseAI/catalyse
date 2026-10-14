@@ -469,7 +469,7 @@ describe('reopening a project', () => {
         await prisma.notification.findFirst({
           where: { volunteerId: l.helper.id, type: 'project_status_changed' },
         }),
-      ).toMatchObject({ title: `'${l.project.title}' is now In Progress` })
+      ).toMatchObject({ title: `'${l.project.title}' is now In progress` })
     })
   })
 

@@ -15,19 +15,19 @@ export async function createSkill(baseUrl: string, adminPage: Page): Promise<Ski
   const skillName = fake.skillName()
 
   await adminPage.goto(`${baseUrl}/admin/skills`)
-  await expect(adminPage.getByRole('button', { name: '+ Add Category' })).toBeVisible({
+  await expect(adminPage.getByRole('button', { name: '+ Add category' })).toBeVisible({
     timeout: 10_000,
   })
 
-  await adminPage.getByRole('button', { name: '+ Add Category' }).click()
+  await adminPage.getByRole('button', { name: '+ Add category' }).click()
   await adminPage.getByLabel('Category Name').fill(categoryName)
-  await adminPage.getByRole('button', { name: 'Save Category' }).click()
+  await adminPage.getByRole('button', { name: 'Save category' }).click()
   await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 
   const categoryCard = adminPage.locator('.category-card').filter({ hasText: categoryName })
-  await categoryCard.getByRole('button', { name: '+ Add Skill' }).click()
+  await categoryCard.getByRole('button', { name: '+ Add skill' }).click()
   await adminPage.getByLabel('Skill Name').fill(skillName)
-  await adminPage.getByRole('button', { name: 'Save Skill' }).click()
+  await adminPage.getByRole('button', { name: 'Save skill' }).click()
   await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 
   return { name: skillName, optionLabel: `${skillName} (${categoryName})` }

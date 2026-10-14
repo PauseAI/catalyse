@@ -103,7 +103,7 @@ export default function SuggestLocalGroupPage() {
             </div>
 
             <Button type="submit" disabled={createMutation.isPending || !country || !name.trim()}>
-              {createMutation.isPending ? 'Submitting…' : 'Submit Suggestion'}
+              {createMutation.isPending ? 'Submitting…' : 'Submit suggestion'}
             </Button>
           </form>
 

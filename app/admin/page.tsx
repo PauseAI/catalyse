@@ -148,11 +148,11 @@ export default function AdminLandingPage() {
               {[
                 { label: 'Total', value: stats.projects.total, color: undefined },
                 {
-                  label: 'Seeking Help',
+                  label: 'Seeking help',
                   value: stats.projects.seekingHelp,
                   color: 'text-brand-text',
                 },
-                { label: 'In Progress', value: stats.projects.inProgress, color: undefined },
+                { label: 'In progress', value: stats.projects.inProgress, color: undefined },
                 { label: 'Completed', value: stats.projects.completed, color: 'text-success' },
               ].map((row, i, arr) => (
                 <div

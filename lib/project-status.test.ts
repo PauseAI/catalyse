@@ -12,7 +12,7 @@ import {
 
 describe('projectStatusLabel', () => {
   it('uses the configured label, humanising unknown statuses', () => {
-    expect(projectStatusLabel('in_progress')).toBe('In Progress')
+    expect(projectStatusLabel('in_progress')).toBe('In progress')
     expect(projectStatusLabel('some_new_state')).toBe('some new state')
   })
 })

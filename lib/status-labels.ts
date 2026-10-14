@@ -75,7 +75,7 @@ export const UNCLAIMED_LABEL = 'Unclaimed'
 
 /** A volunteer's interest in a project, from their side and the owner's. */
 export const INTEREST_STATUS_LABELS: Record<string, string> = {
-  pending: 'Applied',
+  pending: 'Request sent',
   accepted: 'Accepted',
   declined: 'Declined',
   withdrawn: 'Withdrawn',

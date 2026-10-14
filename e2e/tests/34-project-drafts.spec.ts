@@ -54,7 +54,7 @@ test.describe('Admin project drafts', () => {
 
     await expect(getAlert(adminPage)).toContainText('Project published', { timeout: 10_000 })
     await adminPage.waitForURL(`${baseUrl}/projects/${projectId}`, { timeout: 10_000 })
-    await expect(adminPage.getByLabel('project status')).toContainText('To Do', {
+    await expect(adminPage.getByLabel('project status')).toContainText('To do', {
       timeout: 10_000,
     })
 

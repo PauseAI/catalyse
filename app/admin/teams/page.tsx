@@ -52,14 +52,14 @@ const STATUS_FILTER_OPTIONS: FilterOption<StatusFilter>[] = [
   { value: 'all', label: 'All statuses' },
   { value: 'active', label: 'Active' },
   { value: 'pending', label: 'Pending' },
-  { value: 'on_hold', label: 'On Hold' },
+  { value: 'on_hold', label: 'On hold' },
   { value: 'declined', label: 'Declined' },
 ]
 
 const STATUS_LABEL: Record<string, string> = {
   active: 'Active',
   pending: 'Pending',
-  on_hold: 'On Hold',
+  on_hold: 'On hold',
   declined: 'Declined',
 }
 
@@ -308,7 +308,7 @@ export default function AdminTeamsPage() {
         <div className="flex items-center justify-between mb-2">
           <h1 className="m-0">Teams</h1>
           <Button size="sm" onClick={openAdd}>
-            Add Team
+            Add team
           </Button>
         </div>
         <p className="text-text-light mb-6">
@@ -457,7 +457,7 @@ export default function AdminTeamsPage() {
                     Cancel
                   </Button>
                   <Button type="submit" disabled={addSubmitting || !addName.trim()}>
-                    {addSubmitting ? 'Saving…' : 'Add Team'}
+                    {addSubmitting ? 'Saving…' : 'Add team'}
                   </Button>
                 </div>
               </form>
@@ -505,7 +505,7 @@ export default function AdminTeamsPage() {
                           desc: 'Add as a new team (suggester becomes leader)',
                         },
                         { value: 'merge', label: 'Merge', desc: 'Link to an existing team' },
-                        { value: 'on_hold', label: 'On Hold', desc: 'Keep for later review' },
+                        { value: 'on_hold', label: 'On hold', desc: 'Keep for later review' },
                         { value: 'decline', label: 'Decline', desc: 'Not adding at this time' },
                       ] as { value: ReviewAction; label: string; desc: string }[]
                     ).map((opt) => (

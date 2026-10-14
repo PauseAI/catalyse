@@ -531,7 +531,7 @@ describe('task detail page — messaging the assignee', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Message Ann' })
     await userEvent.type(within(dialog).getByLabelText('Subject'), 'Progress')
     await userEvent.type(within(dialog).getByLabelText('Message'), 'How is it going?')
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Send Message' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Send message' }))
     await screen.findByText(/Message sent/)
     expect(
       await prisma.message.findFirst({

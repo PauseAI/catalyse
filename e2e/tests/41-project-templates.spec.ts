@@ -199,8 +199,8 @@ test.describe('Project templates', () => {
 
     await expect(getAlert(adminPage)).toContainText('Project published', { timeout: 10_000 })
     await adminPage.waitForURL(`${baseUrl}/projects/${newProjectId}`, { timeout: 10_000 })
-    // Instantiating a template makes the admin its owner, so it goes live as In Progress.
-    await expect(adminPage.getByLabel('project status')).toContainText('In Progress', {
+    // Instantiating a template makes the admin its owner, so it goes live as In progress.
+    await expect(adminPage.getByLabel('project status')).toContainText('In progress', {
       timeout: 10_000,
     })
   })

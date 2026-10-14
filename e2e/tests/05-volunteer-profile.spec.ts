@@ -24,12 +24,12 @@ test.describe('Volunteer Profile', () => {
     const uniqueName = fake.personName()
 
     await volunteer.page.goto(`${baseUrl}/profile`)
-    await expect(volunteer.page.getByLabel('Your Name')).toBeVisible({ timeout: 10_000 })
+    await expect(volunteer.page.getByLabel('Your name')).toBeVisible({ timeout: 10_000 })
 
-    await volunteer.page.getByLabel('Your Name').fill(uniqueName)
-    await volunteer.page.getByLabel('About You').fill('Bio text for e2e test')
-    await volunteer.page.getByLabel('Hours per Week').fill('10')
-    await volunteer.page.getByRole('button', { name: 'Save Changes' }).click()
+    await volunteer.page.getByLabel('Your name').fill(uniqueName)
+    await volunteer.page.getByLabel('About you').fill('Bio text for e2e test')
+    await volunteer.page.getByLabel('Hours per week').fill('10')
+    await volunteer.page.getByRole('button', { name: 'Save changes' }).click()
 
     await expect(getAlert(volunteer.page)).toBeVisible({ timeout: 10_000 })
     await expect(getAlert(volunteer.page)).toContainText('Profile updated!')
@@ -48,7 +48,7 @@ test.describe('Volunteer Profile', () => {
     await expect(skillOption).toBeVisible({ timeout: 10_000 })
     await skillOption.click()
 
-    await volunteer.page.getByRole('button', { name: 'Save Changes' }).click()
+    await volunteer.page.getByRole('button', { name: 'Save changes' }).click()
     await expect(getAlert(volunteer.page)).toBeVisible({ timeout: 10_000 })
     await expect(getAlert(volunteer.page)).toContainText('Profile updated!')
 
@@ -63,11 +63,11 @@ test.describe('Volunteer Profile', () => {
 
     // First make the volunteer visible so we can confirm the transition
     await volunteer.page.goto(`${baseUrl}/settings`)
-    await expect(volunteer.page.getByLabel('Your Name')).toBeVisible({ timeout: 10_000 })
-    await volunteer.page.getByLabel('Your Name').fill(uniqueName)
-    await volunteer.page.getByRole('tab', { name: 'Privacy & Data' }).click()
+    await expect(volunteer.page.getByLabel('Your name')).toBeVisible({ timeout: 10_000 })
+    await volunteer.page.getByLabel('Your name').fill(uniqueName)
+    await volunteer.page.getByRole('tab', { name: 'Privacy & data' }).click()
     await setCheckbox(volunteer.page, 'consent_make_profile_visible_in_directory', true)
-    await volunteer.page.getByRole('button', { name: 'Save Changes' }).click()
+    await volunteer.page.getByRole('button', { name: 'Save changes' }).click()
     await expect(getAlert(volunteer.page)).toBeVisible({ timeout: 10_000 })
 
     await volunteer.page.goto(`${baseUrl}/volunteers`)
@@ -85,7 +85,7 @@ test.describe('Volunteer Profile', () => {
       timeout: 10_000,
     })
     await setCheckbox(volunteer.page, 'consent_make_profile_visible_in_directory', false)
-    await volunteer.page.getByRole('button', { name: 'Save Changes' }).click()
+    await volunteer.page.getByRole('button', { name: 'Save changes' }).click()
     await expect(getAlert(volunteer.page)).toBeVisible({ timeout: 10_000 })
 
     await volunteer.page.goto(`${baseUrl}/volunteers`)
@@ -103,11 +103,11 @@ test.describe('Volunteer Profile', () => {
 
     // First hide the volunteer so we can confirm the transition
     await volunteer.page.goto(`${baseUrl}/settings`)
-    await expect(volunteer.page.getByLabel('Your Name')).toBeVisible({ timeout: 10_000 })
-    await volunteer.page.getByLabel('Your Name').fill(uniqueName)
-    await volunteer.page.getByRole('tab', { name: 'Privacy & Data' }).click()
+    await expect(volunteer.page.getByLabel('Your name')).toBeVisible({ timeout: 10_000 })
+    await volunteer.page.getByLabel('Your name').fill(uniqueName)
+    await volunteer.page.getByRole('tab', { name: 'Privacy & data' }).click()
     await setCheckbox(volunteer.page, 'consent_make_profile_visible_in_directory', false)
-    await volunteer.page.getByRole('button', { name: 'Save Changes' }).click()
+    await volunteer.page.getByRole('button', { name: 'Save changes' }).click()
     await expect(getAlert(volunteer.page)).toBeVisible({ timeout: 10_000 })
 
     await volunteer.page.goto(`${baseUrl}/volunteers`)
@@ -125,7 +125,7 @@ test.describe('Volunteer Profile', () => {
       timeout: 10_000,
     })
     await setCheckbox(volunteer.page, 'consent_make_profile_visible_in_directory', true)
-    await volunteer.page.getByRole('button', { name: 'Save Changes' }).click()
+    await volunteer.page.getByRole('button', { name: 'Save changes' }).click()
     await expect(getAlert(volunteer.page)).toBeVisible({ timeout: 10_000 })
 
     await volunteer.page.goto(`${baseUrl}/volunteers`)
@@ -150,7 +150,7 @@ test.describe('Volunteer Profile', () => {
       'Keep me in the loop about new projects',
       'Send me a fortnightly digest',
     )
-    await volunteer.page.getByRole('button', { name: 'Save Changes' }).click()
+    await volunteer.page.getByRole('button', { name: 'Save changes' }).click()
     await expect(getAlert(volunteer.page)).toBeVisible({ timeout: 10_000 })
     await expect(getAlert(volunteer.page)).toContainText('Profile updated!')
 
@@ -200,9 +200,9 @@ test.describe('Volunteer Profile', () => {
       const skillOption = page2.locator('.skill-option').filter({ hasText: 'Fundraising' })
       await expect(skillOption).toBeVisible({ timeout: 10_000 })
       await skillOption.click()
-      await page2.getByRole('tab', { name: 'Privacy & Data' }).click()
+      await page2.getByRole('tab', { name: 'Privacy & data' }).click()
       await setCheckbox(page2, 'consent_make_profile_visible_in_directory', true)
-      await page2.getByRole('button', { name: 'Save Changes' }).click()
+      await page2.getByRole('button', { name: 'Save changes' }).click()
       await expect(getAlert(page2)).toBeVisible({ timeout: 10_000 })
 
       const vol2Id = await getVolunteerId(page2, baseUrl)
@@ -237,14 +237,14 @@ test.describe('Volunteer Profile', () => {
     await adminAddGroup(adminPage, 'United Kingdom', groupName)
 
     await volunteer.page.goto(`${baseUrl}/profile`)
-    await expect(volunteer.page.getByLabel('Your Name')).toBeVisible({ timeout: 10_000 })
+    await expect(volunteer.page.getByLabel('Your name')).toBeVisible({ timeout: 10_000 })
 
     // Country is required at signup, so the volunteer's profile already has "United Kingdom"
     // set — the local group dropdown is visible immediately, city input stays hidden.
     await expect(volunteer.page.getByLabel('Select local group', { exact: true })).toBeVisible({
       timeout: 5_000,
     })
-    await expect(volunteer.page.getByLabel('City / Area')).not.toBeVisible()
+    await expect(volunteer.page.getByLabel('City / area')).not.toBeVisible()
 
     // Pick "None of these" — city input should appear
     await selectFilterDropdown(
@@ -252,14 +252,14 @@ test.describe('Volunteer Profile', () => {
       'Select local group',
       "None of these, I'll enter my city",
     )
-    await expect(volunteer.page.getByLabel('City / Area')).toBeVisible({ timeout: 5_000 })
+    await expect(volunteer.page.getByLabel('City / area')).toBeVisible({ timeout: 5_000 })
 
     // Switch to the real group — city input should disappear again
     await selectFilterDropdown(volunteer.page, 'Select local group', groupName)
-    await expect(volunteer.page.getByLabel('City / Area')).not.toBeVisible()
+    await expect(volunteer.page.getByLabel('City / area')).not.toBeVisible()
 
     // Save and verify
-    await volunteer.page.getByRole('button', { name: 'Save Changes' }).click()
+    await volunteer.page.getByRole('button', { name: 'Save changes' }).click()
     await expect(getAlert(volunteer.page)).toContainText('Profile updated!', { timeout: 10_000 })
   })
 
@@ -268,22 +268,22 @@ test.describe('Volunteer Profile', () => {
     baseUrl,
   }) => {
     await volunteer.page.goto(`${baseUrl}/profile`)
-    await expect(volunteer.page.getByLabel('Your Name')).toBeVisible({ timeout: 10_000 })
+    await expect(volunteer.page.getByLabel('Your name')).toBeVisible({ timeout: 10_000 })
 
     // Select Germany — no local groups exist for it, so dropdown should be skipped
     await selectFilterDropdown(volunteer.page, 'Select country', 'Germany')
     await expect(volunteer.page.getByLabel('Select local group', { exact: true })).not.toBeVisible()
-    await expect(volunteer.page.getByLabel('City / Area')).toBeVisible({ timeout: 5_000 })
+    await expect(volunteer.page.getByLabel('City / area')).toBeVisible({ timeout: 5_000 })
 
     // Fill city and save
-    await volunteer.page.getByLabel('City / Area').fill('Berlin')
-    await volunteer.page.getByRole('button', { name: 'Save Changes' }).click()
+    await volunteer.page.getByLabel('City / area').fill('Berlin')
+    await volunteer.page.getByRole('button', { name: 'Save changes' }).click()
     await expect(getAlert(volunteer.page)).toContainText('Profile updated!', { timeout: 10_000 })
 
     // Reload and verify city persisted
     await volunteer.page.goto(`${baseUrl}/profile`)
-    await expect(volunteer.page.getByLabel('Your Name')).toBeVisible({ timeout: 10_000 })
-    await expect(volunteer.page.getByLabel('City / Area')).toBeVisible({ timeout: 5_000 })
-    await expect(volunteer.page.getByLabel('City / Area')).toHaveValue('Berlin')
+    await expect(volunteer.page.getByLabel('Your name')).toBeVisible({ timeout: 10_000 })
+    await expect(volunteer.page.getByLabel('City / area')).toBeVisible({ timeout: 5_000 })
+    await expect(volunteer.page.getByLabel('City / area')).toHaveValue('Berlin')
   })
 })

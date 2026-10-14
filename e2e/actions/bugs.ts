@@ -39,7 +39,7 @@ export async function fillAndSubmitBugReport(
       dialog,
     )
   }
-  await dialog.getByRole('button', { name: 'Submit Report' }).click()
+  await dialog.getByRole('button', { name: 'Submit report' }).click()
 }
 
 export async function submitBugReport(

@@ -71,9 +71,9 @@ describe('ProjectEditor — new volunteer proposal', () => {
     blur(hours)
     await waitFor(async () => expect((await row(draft.id)).timeCommitmentHoursPerWeek).toBe(4))
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/Last saved/))
-    // Delete Draft follows the refetched project, not the save itself.
+    // Delete draft follows the refetched project, not the save itself.
     expect(
-      await screen.findByRole('button', { name: 'Delete Draft' }, { timeout: 20_000 }),
+      await screen.findByRole('button', { name: 'Delete draft' }, { timeout: 20_000 }),
     ).toBeInTheDocument()
   })
 
@@ -110,15 +110,15 @@ describe('ProjectEditor — new volunteer proposal', () => {
     const onCancel = vi.fn()
     await mount({ variant: 'volunteer', onCancel }, me)
     await waitFor(() => expect(localStorage.getItem('authToken')).toBeTruthy())
-    expect(screen.getByRole('button', { name: 'Add Task' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Add task' })).toBeDisabled()
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onCancel).toHaveBeenCalled()
     await userEvent.type(screen.getByLabelText('Task title'), 'First task')
-    await userEvent.click(screen.getByRole('button', { name: 'Add Task' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
     expect(await screen.findByText('A title is required, even for a draft.')).toBeInTheDocument()
     await userEvent.type(screen.getByLabelText('Project Title'), 'With task')
     await userEvent.type(screen.getByLabelText('Details (optional)'), 'detail')
-    await userEvent.click(screen.getByRole('button', { name: 'Add Task' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
     const draft = await waitFor(
       async () =>
         prisma.workItem.findFirstOrThrow({ where: { creatorId: me.id, type: 'PROJECT' } }),
@@ -131,14 +131,14 @@ describe('ProjectEditor — new volunteer proposal', () => {
     await waitFor(() => expect(screen.getByDisplayValue('First task')).toBeInTheDocument())
   })
 
-  it('makes one draft when Add Task lands while a create is already in flight', async () => {
+  it('makes one draft when Add task lands while a create is already in flight', async () => {
     const me = await createVolunteer()
     await mount({ variant: 'volunteer' }, me)
     await waitFor(() => expect(localStorage.getItem('authToken')).toBeTruthy())
     // A title too short to autosave, so the clicks below make the only create.
     await userEvent.type(screen.getByLabelText('Project Title'), 'Go')
     await userEvent.type(screen.getByLabelText('Task title'), 'Step')
-    const add = screen.getByRole('button', { name: 'Add Task' })
+    const add = screen.getByRole('button', { name: 'Add task' })
     // Two clicks before either has re-rendered, so the button is still enabled for the second:
     // both reach the create together.
     act(() => {
@@ -169,7 +169,7 @@ describe('ProjectEditor — new volunteer proposal', () => {
     const skillBox = await screen.findByLabelText(skill.name)
     // The create is sent on the click; the skill and ownership change before it lands.
     act(() => {
-      fireEvent.click(screen.getByRole('button', { name: 'Add Task' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Add task' }))
       fireEvent.click(skillBox)
       fireEvent.click(screen.getByLabelText(/I want to lead this project/))
     })
@@ -196,7 +196,7 @@ describe('ProjectEditor — new volunteer proposal', () => {
     await userEvent.type(screen.getByLabelText('Task title'), 'Orphan')
     // On a slow run the autosave's own draft create is in flight here, and the button reads
     // "Adding…" until it fails.
-    await userEvent.click(await screen.findByRole('button', { name: 'Add Task' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Add task' }))
     expect(await screen.findByText(/already have 2 drafts/)).toBeInTheDocument()
     expect(await prisma.workItem.count({ where: { title: 'Orphan' } })).toBe(0)
   })
@@ -245,11 +245,11 @@ describe('ProjectEditor — new volunteer proposal', () => {
     await userEvent.type(screen.getByLabelText('Task title'), 'First step')
     // The title's autosave creates the draft, and the button reads "Adding…" until it has.
     await userEvent.click(
-      await screen.findByRole('button', { name: 'Add Task' }, { timeout: 20_000 }),
+      await screen.findByRole('button', { name: 'Add task' }, { timeout: 20_000 }),
     )
     // Once the new draft has loaded, Submit is the draft's own button, enabled once the
-    // task's own save has landed (Delete Draft only renders for a saved draft).
-    await screen.findByRole('button', { name: 'Delete Draft' }, { timeout: 20_000 })
+    // task's own save has landed (Delete draft only renders for a saved draft).
+    await screen.findByRole('button', { name: 'Delete draft' }, { timeout: 20_000 })
     const submit = await screen.findByRole('button', { name: 'Submit' })
     await waitFor(() => expect(submit).toBeEnabled())
     await userEvent.click(submit)
@@ -295,7 +295,7 @@ describe('ProjectEditor — new volunteer proposal', () => {
     expect(screen.queryByText('Publish this project?')).toBeNull()
 
     await userEvent.type(screen.getByLabelText('Task title'), 'T1')
-    await userEvent.click(screen.getByRole('button', { name: 'Add Task' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
     const draft = await waitFor(
       async () =>
         prisma.workItem.findFirstOrThrow({ where: { creatorId: admin.id, type: 'PROJECT' } }),
@@ -324,7 +324,7 @@ describe('ProjectEditor — autosave line', () => {
     expect(line()).not.toHaveTextContent('Last saved')
 
     await userEvent.type(screen.getByLabelText('Task title'), 'New task')
-    await userEvent.click(screen.getByRole('button', { name: 'Add Task' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
     await waitFor(() => expect(line()).toHaveTextContent(/Last saved \d/))
 
     // A save that fails says so and can be retried once the cause is gone.
@@ -483,12 +483,12 @@ describe('ProjectEditor — editing an existing project', () => {
       expect(await prisma.workItem.count({ where: { id: task.id } })).toBe(0),
     )
 
-    await userEvent.click(screen.getByRole('button', { name: 'Delete Draft' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Delete Draft' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
     await userEvent.keyboard('{Escape}')
-    await userEvent.click(screen.getByRole('button', { name: 'Delete Draft' }))
-    await userEvent.click(screen.getAllByRole('button', { name: 'Delete Draft' })[1])
+    await userEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
+    await userEvent.click(screen.getAllByRole('button', { name: 'Delete draft' })[1])
     await waitFor(() => expect(navigation.push).toHaveBeenCalledWith('/suggest'))
   })
 
@@ -499,7 +499,7 @@ describe('ProjectEditor — editing an existing project', () => {
     await mount({ projectId: project.id }, stranger)
     expect(await screen.findByRole('alert')).toHaveTextContent('You do not have permission')
     expect(screen.getByLabelText('Project Title')).toBeDisabled()
-    expect(screen.getByRole('link', { name: 'View Project' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'View project' })).toHaveAttribute(
       'href',
       `/projects/${project.id}`,
     )
@@ -518,12 +518,12 @@ describe('ProjectEditor — editing an existing project', () => {
     const project = await createProject({ status: 'ready' })
     await mount({ projectId: project.id }, admin)
     await screen.findByDisplayValue(project.title)
-    await userEvent.click(screen.getByRole('button', { name: 'Delete Project' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Delete project' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Delete Project' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Delete project' }))
     await userEvent.keyboard('{Escape}')
-    await userEvent.click(screen.getByRole('button', { name: 'Delete Project' }))
-    await userEvent.click(screen.getAllByRole('button', { name: 'Delete Project' })[1])
+    await userEvent.click(screen.getByRole('button', { name: 'Delete project' }))
+    await userEvent.click(screen.getAllByRole('button', { name: 'Delete project' })[1])
     await waitFor(() => expect(navigation.push).toHaveBeenCalledWith('/projects'))
     expect(await prisma.workItem.count({ where: { id: project.id } })).toBe(0)
 
@@ -559,10 +559,10 @@ describe('ProjectEditor — editing an existing project', () => {
     )
     expect(await screen.findByText('Project not found')).toBeInTheDocument()
     await userEvent.type(screen.getByLabelText('Task title', { selector: '#new-task-title' }), 'N')
-    await userEvent.click(screen.getByRole('button', { name: 'Add Task' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add task' }))
     await waitFor(() => expect(screen.getAllByText('Project not found').length).toBeGreaterThan(1))
-    await userEvent.click(screen.getByRole('button', { name: 'Delete Draft' }))
-    await userEvent.click(screen.getAllByRole('button', { name: 'Delete Draft' })[1])
+    await userEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
+    await userEvent.click(screen.getAllByRole('button', { name: 'Delete draft' })[1])
     expect(await screen.findByText('Draft not found')).toBeInTheDocument()
     // Submitting checks the draft first, and says it has gone.
     for (const dismiss of screen.queryAllByLabelText('Dismiss')) await userEvent.click(dismiss)
@@ -592,8 +592,8 @@ describe('ProjectEditor — editing an existing project', () => {
     await mount({ projectId: live.id }, admin)
     await screen.findByDisplayValue('Live')
     await prisma.workItem.delete({ where: { id: live.id } })
-    await userEvent.click(screen.getByRole('button', { name: 'Delete Project' }))
-    await userEvent.click(screen.getAllByRole('button', { name: 'Delete Project' })[1])
+    await userEvent.click(screen.getByRole('button', { name: 'Delete project' }))
+    await userEvent.click(screen.getAllByRole('button', { name: 'Delete project' })[1])
     expect(await screen.findByText('Project not found')).toBeInTheDocument()
 
     const me = await createVolunteer()

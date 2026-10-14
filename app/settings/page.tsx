@@ -40,7 +40,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'profile', label: 'Profile' },
   { key: 'account', label: 'Account' },
   { key: 'notifications', label: 'Notifications' },
-  { key: 'privacy', label: 'Privacy & Data' },
+  { key: 'privacy', label: 'Privacy & data' },
 ]
 
 const VALID_TABS = new Set<string>(TABS.map((t) => t.key))
@@ -370,7 +370,7 @@ function SettingsPageContent() {
 
   const saveButton = (
     <Button type="submit" disabled={updateMutation.isPending}>
-      {updateMutation.isPending ? 'Saving…' : 'Save Changes'}
+      {updateMutation.isPending ? 'Saving…' : 'Save changes'}
     </Button>
   )
 
@@ -394,7 +394,7 @@ function SettingsPageContent() {
             </>
           )}
           <div className="mb-4">
-            <label htmlFor="applicationMessage">Your Application</label>
+            <label htmlFor="applicationMessage">Your application</label>
             <textarea
               id="applicationMessage"
               rows={5}
@@ -416,7 +416,7 @@ function SettingsPageContent() {
           >
             {updateApplicationMutation.isPending || resubmitMutation.isPending
               ? 'Resubmitting…'
-              : 'Resubmit for Review'}
+              : 'Resubmit for review'}
           </Button>
           <p className="text-sm text-text-light mt-3">
             Update your skills, contact details, or availability below, then resubmit when
@@ -442,7 +442,7 @@ function SettingsPageContent() {
         >
           <div className="mb-5">
             <label htmlFor="name" className="required">
-              Your Name
+              Your name
             </label>
             <input
               type="text"
@@ -453,10 +453,10 @@ function SettingsPageContent() {
             />
           </div>
           <div className="mb-5">
-            <label htmlFor="bio">About You</label>
+            <label htmlFor="bio">About you</label>
             <aside className="bg-brand-bg border border-brand-border rounded-lg px-4 py-3 mb-2 text-sm text-text-light">
               Shown to other volunteers in the directory if you choose to make your profile visible
-              in the Privacy &amp; Data tab.
+              in the Privacy &amp; data tab.
             </aside>
             <textarea
               id="bio"
@@ -474,7 +474,7 @@ function SettingsPageContent() {
           </aside>
           <div className="grid grid-cols-2 gap-5 mb-5 max-sm:grid-cols-1">
             <div>
-              <label htmlFor="discord_handle">Discord Handle</label>
+              <label htmlFor="discord_handle">Discord handle</label>
               <input
                 type="text"
                 id="discord_handle"
@@ -506,8 +506,8 @@ function SettingsPageContent() {
             <div>
               <FilterDropdown
                 id="contact_preference"
-                label="Preferred Contact Method"
-                ariaLabel="Preferred Contact Method"
+                label="Preferred contact method"
+                ariaLabel="Preferred contact method"
                 value={contactPreference}
                 options={contactPrefOptions}
                 onChange={setContactPreference}
@@ -515,7 +515,7 @@ function SettingsPageContent() {
             </div>
           </div>
           <div className="mb-5">
-            <label htmlFor="contact_notes">Contact Notes</label>
+            <label htmlFor="contact_notes">Contact notes</label>
             <input
               type="text"
               id="contact_notes"
@@ -527,7 +527,7 @@ function SettingsPageContent() {
 
           <h3 className="mt-6 mb-4">Availability</h3>
           <div className="mb-5">
-            <label htmlFor="hours">Hours per Week</label>
+            <label htmlFor="hours">Hours per week</label>
             <input
               type="number"
               id="hours"
@@ -552,7 +552,7 @@ function SettingsPageContent() {
             <div className="mb-5">
               <FilterDropdown
                 id="locationGroup"
-                label="Local Group"
+                label="Local group"
                 ariaLabel="Select local group"
                 value={localGroupValue}
                 options={localGroupOptions}
@@ -563,7 +563,7 @@ function SettingsPageContent() {
           )}
           {showCityInput && (
             <div className="mb-5">
-              <label htmlFor="location">City / Area</label>
+              <label htmlFor="location">City / area</label>
               <input
                 type="text"
                 id="location"
@@ -578,7 +578,7 @@ function SettingsPageContent() {
             <SkillPicker value={skills} onChange={setSkills} />
           </div>
           <div className="mb-5">
-            <label htmlFor="other_skills">Other Skills</label>
+            <label htmlFor="other_skills">Other skills</label>
             <input
               type="text"
               id="other_skills"
@@ -599,7 +599,7 @@ function SettingsPageContent() {
             Don&apos;t see your local group listed? Suggest a new one.
           </p>
           <Button href="/suggest-local-group" variant="outline">
-            Suggest a Local Group
+            Suggest a local group
           </Button>
         </div>
       )}
@@ -613,7 +613,7 @@ function SettingsPageContent() {
             </p>
             <form method="post" onSubmit={handleChangeEmail}>
               <div className="mb-5">
-                <label htmlFor="newEmail">New Email Address</label>
+                <label htmlFor="newEmail">New email address</label>
                 <input
                   type="email"
                   id="newEmail"
@@ -623,7 +623,7 @@ function SettingsPageContent() {
                 />
               </div>
               <div className="mb-5">
-                <label htmlFor="email_password">Your Password</label>
+                <label htmlFor="email_password">Your password</label>
                 <input
                   type="password"
                   id="email_password"
@@ -633,7 +633,7 @@ function SettingsPageContent() {
                 />
               </div>
               <Button type="submit" disabled={changeEmailMutation.isPending}>
-                {changeEmailMutation.isPending ? 'Changing…' : 'Change Email'}
+                {changeEmailMutation.isPending ? 'Changing…' : 'Change email'}
               </Button>
             </form>
           </div>
@@ -642,7 +642,7 @@ function SettingsPageContent() {
             <h2>Change password</h2>
             <form method="post" onSubmit={handleChangePassword}>
               <div className="mb-5">
-                <label htmlFor="currentPassword">Current Password</label>
+                <label htmlFor="currentPassword">Current password</label>
                 <input
                   type="password"
                   id="currentPassword"
@@ -652,7 +652,7 @@ function SettingsPageContent() {
                 />
               </div>
               <div className="mb-5">
-                <label htmlFor="newPassword">New Password</label>
+                <label htmlFor="newPassword">New password</label>
                 <input
                   type="password"
                   id="newPassword"
@@ -662,7 +662,7 @@ function SettingsPageContent() {
                 />
               </div>
               <div className="mb-5">
-                <label htmlFor="confirm_password">Confirm New Password</label>
+                <label htmlFor="confirm_password">Confirm new password</label>
                 <input
                   type="password"
                   id="confirm_password"
@@ -672,7 +672,7 @@ function SettingsPageContent() {
                 />
               </div>
               <Button type="submit" disabled={changePasswordMutation.isPending}>
-                {changePasswordMutation.isPending ? 'Changing…' : 'Change Password'}
+                {changePasswordMutation.isPending ? 'Changing…' : 'Change password'}
               </Button>
             </form>
           </div>
@@ -700,7 +700,7 @@ function SettingsPageContent() {
               Permanently delete your account and all associated data. This cannot be undone.
             </p>
             <Button variant="danger" onClick={() => setShowDeleteModal(true)}>
-              Delete My Account
+              Delete my account
             </Button>
           </div>
         </div>
@@ -833,7 +833,7 @@ function SettingsPageContent() {
               onClick={() => exportMutation.mutate({})}
               disabled={exportMutation.isPending}
             >
-              {exportMutation.isPending ? 'Preparing…' : 'Download My Data'}
+              {exportMutation.isPending ? 'Preparing…' : 'Download my data'}
             </Button>
           </div>
 
@@ -843,7 +843,7 @@ function SettingsPageContent() {
               Read our full data practices, GDPR rights, and third-party processor information.
             </p>
             <Link href="/privacy" className="underline font-medium">
-              Read Privacy Policy
+              Read privacy policy
             </Link>
           </div>
         </div>
@@ -854,7 +854,7 @@ function SettingsPageContent() {
           id="deleteModal"
           role="dialog"
           aria-modal="true"
-          aria-label="Delete Account"
+          aria-label="Delete account"
           className="fixed inset-0 bg-[rgba(29,53,87,0.5)] flex items-center justify-center z-1000 p-5"
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
@@ -913,7 +913,7 @@ function SettingsPageContent() {
                 )}
                 <div className="flex gap-2">
                   <Button type="submit" variant="danger" disabled={deleteAccountMutation.isPending}>
-                    {deleteAccountMutation.isPending ? 'Deleting…' : 'Permanently Delete Account'}
+                    {deleteAccountMutation.isPending ? 'Deleting…' : 'Permanently delete account'}
                   </Button>
                   <Button
                     type="button"

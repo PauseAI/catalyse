@@ -21,9 +21,9 @@ describe('static pages', () => {
     const reset = vi.fn()
     render(<ErrorPage error={new Error('boom')} reset={reset} />)
     expect(error).toHaveBeenCalled()
-    await userEvent.click(screen.getByRole('button', { name: 'Try Again' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(reset).toHaveBeenCalled()
-    expect(screen.getByRole('link', { name: 'Go Home' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: 'Go home' })).toHaveAttribute('href', '/')
   })
 
   it('not-found and landing pages render', async () => {

@@ -61,9 +61,9 @@ function AcceptInviteContent() {
           You&apos;ve been invited to become an admin on Catalyse.
         </p>
         <p className="mb-6">Please log in or sign up with the invited email address to accept.</p>
-        <Button href={`/login?redirect=${redirectUrl}`}>Log In</Button>
+        <Button href={`/login?redirect=${redirectUrl}`}>Log in</Button>
         <Button href={`/signup?redirect=${redirectUrl}`} variant="outline" className="ml-2">
-          Sign Up
+          Sign up
         </Button>
       </div>
     )

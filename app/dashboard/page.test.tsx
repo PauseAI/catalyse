@@ -58,7 +58,7 @@ describe('home', () => {
 
     const needsInfo = await createVolunteer({ approvalStatus: 'needs_info' })
     await renderApp(<HomePage />, { as: needsInfo, url: '/dashboard' })
-    expect(await screen.findByRole('link', { name: 'Update Application' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Update application' })).toBeInTheDocument()
   })
 
   it('opens discovery for someone with nothing of their own yet', async () => {
@@ -229,6 +229,26 @@ describe('home', () => {
     expect(within(row).getByText(/^\d+ days late$/)).toHaveAttribute('data-emphasis', 'filled')
   })
 
+  it('words a request as what it asks, with the project status as the badge', async () => {
+    const me = await createVolunteer()
+    const project = await createProject({ title: 'Unowned', status: 'ready' })
+    await prisma.workItemInterest.create({
+      data: { workItemId: project.id, volunteerId: me.id, interestType: 'want_to_own' },
+    })
+    const team = await createTeam({ name: 'Crew' })
+    await prisma.teamMembership.create({ data: { teamId: team.id, volunteerId: me.id } })
+    await renderApp(<HomePage />, { as: me, url: '/dashboard' })
+    const work = await screen.findByRole('region', { name: 'My work' })
+    const row = (name: string) => within(work).getByRole('link', { name }).closest('li')!
+    expect(within(row('Unowned')).getByText('Asked to lead')).not.toHaveClass('status-badge')
+    expect(within(row('Unowned')).getByText('To do')).toHaveClass('status-badge')
+    expect(within(row('Unowned')).getByLabelText('No owner yet')).toBeInTheDocument()
+    // A team has neither a status nor one person holding it.
+    expect(within(row('Crew')).getByText('Member')).toBeInTheDocument()
+    expect(row('Crew').querySelector('.status-badge')).toBeNull()
+    expect(within(row('Crew')).queryByLabelText(/^Owner|No owner yet/)).toBeNull()
+  })
+
   it('lists what needs attention now first, saying why, then everything else', async () => {
     const me = await createVolunteer()
     const project = await createProject({
@@ -275,17 +295,28 @@ describe('home', () => {
 
     const row = (name: string) => within(work).getByRole('link', { name }).closest('li')!
     expect(within(row('Late quick')).getByText(/^\d+ days late$/)).toHaveClass('status-badge')
-    expect(within(row('Late quick')).getByText('Due 2 Jan 2020')).toBeInTheDocument()
-    // Already late or merely due soon reads as a badge on the card; no second line repeats it.
-    expect(row('Late quick').querySelector('p')).toBeNull()
+    // Already late or merely due soon reads as a badge, and no plain date repeats it.
+    expect(row('Late quick')).not.toHaveTextContent('Due 2 Jan 2020')
     expect(within(row('Soon')).getByText('Due in 2 days')).toBeInTheDocument()
-    expect(row('Soon').querySelector('p')).toBeNull()
+    expect(row('Soon')).not.toHaveTextContent(/Due \d/)
+    expect(within(row('Far off')).getByText(/^Due \d+ \w+/)).toBeInTheDocument()
     expect(
       within(row('Big job')).getByText('About 12 hours of work, due in 6 days: start now'),
     ).toBeInTheDocument()
     expect(within(row('Big job')).getByText('In progress')).toBeInTheDocument()
     expect(within(row('Undated')).getByText('No deadline')).toBeInTheDocument()
-    expect(within(row('Leafleting')).getByText('Deadline 4 Mar 2099')).toBeInTheDocument()
+    expect(within(row('Leafleting')).getByText('Due 4 Mar 2099')).toBeInTheDocument()
+    // A project row: its status is the badge, the viewer's role plain text, its owner on the right.
+    expect(within(row('Leafleting')).getByText('In progress')).toHaveClass('status-badge')
+    expect(within(row('Leafleting')).getByText('Lead')).not.toHaveClass('status-badge')
+    expect(within(row('Leafleting')).getByLabelText(`Owner ${me.name}`)).toBeInTheDocument()
+    expect(within(row('Undated')).getByLabelText(`Assigned to ${me.name}`)).toBeInTheDocument()
+    // Each row is one link, stretched over the whole row.
+    for (const li of within(work).getAllByRole('listitem')) {
+      expect(li).toHaveClass('relative')
+      expect(within(li).getAllByRole('link')).toHaveLength(1)
+      expect(within(li).getByRole('link')).toHaveClass('after:inset-0')
+    }
 
     // A filter can leave only one part, which then needs no sub-heading of its own.
     await userEvent.click(within(work).getByRole('button', { name: 'Projects' }))

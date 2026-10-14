@@ -195,7 +195,7 @@ test.describe('Task Detail Page', () => {
     await adminPage.getByLabel('Description').fill('Edited description')
     await adminPage.getByLabel('Effort: about').fill('4')
     await adminPage.getByLabel('Deadline', { exact: true }).fill('2099-01-01')
-    await adminPage.getByRole('button', { name: 'Save Changes' }).click()
+    await adminPage.getByRole('button', { name: 'Save changes' }).click()
 
     await expect(getAlert(adminPage)).toContainText('Task updated!', { timeout: 10_000 })
     await expect(adminPage.getByRole('heading', { name: 'Edited title', level: 1 })).toBeVisible({
@@ -251,7 +251,7 @@ test.describe('Task Detail Page', () => {
     ).toBeVisible({ timeout: 10_000 })
 
     await adminPage.getByLabel('Add a comment').fill('This is a permalink test comment')
-    await adminPage.getByRole('button', { name: 'Post Comment' }).click()
+    await adminPage.getByRole('button', { name: 'Post comment' }).click()
 
     const commentItem = adminPage
       .locator('li')

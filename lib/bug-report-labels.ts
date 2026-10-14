@@ -2,9 +2,9 @@ import type { BadgeVariant } from '@/components/Badge'
 
 export const BUG_STATUS_OPTIONS = [
   { value: 'open', label: 'Open' },
-  { value: 'in_progress', label: 'In Progress' },
+  { value: 'in_progress', label: 'In progress' },
   { value: 'resolved', label: 'Resolved' },
-  { value: 'wont_fix', label: "Won't Fix" },
+  { value: 'wont_fix', label: "Won't fix" },
 ] as const
 
 export const BUG_CATEGORY_OPTIONS = [

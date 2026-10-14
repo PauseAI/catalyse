@@ -110,7 +110,7 @@ export default function AdminTeamPage() {
       <main className="container py-5 pb-15">
         <div className="flex justify-between items-center mb-6">
           <h1>Team management</h1>
-          {user.isSuperAdmin && <Button onClick={openInviteDialog}>Invite Admin</Button>}
+          {user.isSuperAdmin && <Button onClick={openInviteDialog}>Invite admin</Button>}
         </div>
 
         <Tabs
@@ -171,7 +171,7 @@ export default function AdminTeamPage() {
                               size="sm"
                               onClick={() => setRevokeTarget({ id: a.id, name: a.name })}
                             >
-                              Revoke Access
+                              Revoke access
                             </Button>
                           )}
                         </div>
@@ -229,7 +229,7 @@ export default function AdminTeamPage() {
               ref={dialogRef}
               role="dialog"
               aria-modal="true"
-              aria-label="Invite Admin"
+              aria-label="Invite admin"
               className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto"
             >
               <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
@@ -259,7 +259,7 @@ export default function AdminTeamPage() {
                         Cancel
                       </Button>
                       <Button type="submit" disabled={inviteMutation.isPending}>
-                        {inviteMutation.isPending ? 'Sending…' : 'Send Invite'}
+                        {inviteMutation.isPending ? 'Sending…' : 'Send invite'}
                       </Button>
                     </div>
                   </form>

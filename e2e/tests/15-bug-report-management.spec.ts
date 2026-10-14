@@ -6,9 +6,9 @@ import { fake } from '../fake'
 
 const BUG_STATUS_LABELS: Record<string, string> = {
   open: 'Open',
-  in_progress: 'In Progress',
+  in_progress: 'In progress',
   resolved: 'Resolved',
-  wont_fix: "Won't Fix",
+  wont_fix: "Won't fix",
 }
 
 async function navigateToBugsPage(baseUrl: string, adminPage: Page): Promise<void> {
@@ -19,7 +19,7 @@ async function navigateToBugsPage(baseUrl: string, adminPage: Page): Promise<voi
   await expect(adminPage.getByText('Loading...')).not.toBeVisible({ timeout: 10_000 })
 }
 
-// The Resolved / Won't Fix sections are collapsed by default; expand before asserting on cards inside them.
+// The Resolved / Won't fix sections are collapsed by default; expand before asserting on cards inside them.
 async function expandBugSection(adminPage: Page, sectionLabel: string): Promise<void> {
   const header = adminPage.getByRole('button', { name: new RegExp(`^${sectionLabel}: \\d+`) })
   await expect(header).toBeVisible({ timeout: 10_000 })
@@ -115,7 +115,7 @@ test.describe('Bug Report Management', () => {
 
     const card = adminPage.locator('.card').filter({ hasText: title })
     await expect(card).toBeVisible({ timeout: 10_000 })
-    await expect(card).toContainText('In Progress')
+    await expect(card).toContainText('In progress')
   })
 
   test('Admin resolves a bug report with resolution notes', async ({
@@ -188,9 +188,9 @@ test.describe('Bug Report Management', () => {
     await navigateToBugsPage(baseUrl, adminPage)
     await updateReportStatus(adminPage, title, 'wont_fix')
 
-    await expandBugSection(adminPage, "Won't Fix")
+    await expandBugSection(adminPage, "Won't fix")
     const card = adminPage.locator('.card').filter({ hasText: title })
     await expect(card).toBeVisible({ timeout: 10_000 })
-    await expect(card).toContainText("Won't Fix")
+    await expect(card).toContainText("Won't fix")
   })
 })

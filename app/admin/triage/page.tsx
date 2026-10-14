@@ -35,7 +35,7 @@ export default function TriagePage() {
     options: interestStatusOptions,
   } = useFilterOptions(
     [
-      { value: 'pending', label: 'Pending' },
+      { value: 'pending', label: 'Requests' },
       { value: 'accepted', label: 'Accepted' },
       { value: 'declined', label: 'Declined' },
       { value: 'withdrawn', label: 'Withdrawn' },
@@ -132,7 +132,7 @@ export default function TriagePage() {
               key: 'needs_discussion',
               label: (
                 <>
-                  {`Needs Changes`}
+                  {`Needs changes`}
                   {discussion.length > 0 && (
                     <span className="bg-primary text-gray-900 text-xs px-2 py-0.5 rounded-full ml-2">
                       {discussion.length}
@@ -220,8 +220,7 @@ export default function TriagePage() {
                           </Link>
                           <span className="font-normal text-sm text-text-light">
                             {' '}
-                            wants to{' '}
-                            {i.interestType === 'want_to_own' ? 'own' : 'contribute to'}{' '}
+                            wants to {i.interestType === 'want_to_own' ? 'lead' : 'help with'}{' '}
                           </span>
                           <Link
                             href={`/projects/${i.projectId}`}
@@ -239,9 +238,12 @@ export default function TriagePage() {
                           </span>
                         </p>
                       </div>
-                      <Badge variant={interestStatusVariant(i.status)}>
-                        {INTEREST_STATUS_LABELS[i.status] ?? i.status}
-                      </Badge>
+                      {/* A request carries no badge: its Accept and Decline say it waits on you. */}
+                      {i.status !== InterestStatus.pending && (
+                        <Badge variant={interestStatusVariant(i.status)}>
+                          {INTEREST_STATUS_LABELS[i.status] ?? i.status}
+                        </Badge>
+                      )}
                     </div>
 
                     {i.message && (
@@ -293,7 +295,7 @@ export default function TriagePage() {
                           Decline
                         </Button>
                         <Button size="sm" variant="ghost" href={`/projects/${i.projectId}`}>
-                          View Project
+                          View project
                         </Button>
                       </div>
                     )}

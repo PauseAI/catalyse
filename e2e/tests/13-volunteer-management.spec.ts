@@ -20,7 +20,7 @@ async function navigateToAdminVolunteerDetail(
   const volunteerCard = adminPage.locator('.card').filter({ hasText: volunteerName }).first()
   await expect(volunteerCard).toBeVisible({ timeout: 10_000 })
 
-  const href = await volunteerCard.getByRole('link', { name: 'View Profile' }).getAttribute('href')
+  const href = await volunteerCard.getByRole('link', { name: 'View profile' }).getAttribute('href')
   const id = new URL(href!, baseUrl).pathname.split('/').pop()
 
   await adminPage.goto(`${baseUrl}/admin/volunteers/${id}`)
@@ -41,7 +41,7 @@ test.describe('Volunteer Management', () => {
 
     const volunteerCard = adminPage.locator('.card').filter({ hasText: volunteer.name }).first()
     await expect(volunteerCard).toBeVisible({ timeout: 10_000 })
-    await expect(volunteerCard.getByRole('link', { name: 'View Profile' })).toBeVisible()
+    await expect(volunteerCard.getByRole('link', { name: 'View profile' })).toBeVisible()
   })
 
   test('Admin views a comprehensive volunteer profile', async ({
@@ -72,7 +72,7 @@ test.describe('Volunteer Management', () => {
     await expect(adminPage.getByRole('tab', { name: 'Project History' })).toBeVisible({
       timeout: 10_000,
     })
-    await expect(adminPage.getByRole('tab', { name: 'Endorse Skill' })).toBeVisible({
+    await expect(adminPage.getByRole('tab', { name: 'Endorse skill' })).toBeVisible({
       timeout: 10_000,
     })
 
@@ -101,7 +101,7 @@ test.describe('Volunteer Management', () => {
 
     await selectFilterDropdown(adminPage, 'Category', 'Skill Feedback')
     await adminPage.getByLabel('Note', { exact: true }).fill(noteContent)
-    await adminPage.getByRole('button', { name: 'Add Note' }).click()
+    await adminPage.getByRole('button', { name: 'Add note' }).click()
 
     await expect(getAlert(adminPage)).toContainText('Note added.', { timeout: 10_000 })
 
@@ -123,13 +123,13 @@ test.describe('Volunteer Management', () => {
     // First note: skill_feedback
     await selectFilterDropdown(adminPage, 'Category', 'Skill Feedback')
     await adminPage.getByLabel('Note', { exact: true }).fill(noteContent1)
-    await adminPage.getByRole('button', { name: 'Add Note' }).click()
+    await adminPage.getByRole('button', { name: 'Add note' }).click()
     await expect(getAlert(adminPage)).toContainText('Note added.', { timeout: 10_000 })
 
     // Second note: reliability
     await selectFilterDropdown(adminPage, 'Category', 'Reliability')
     await adminPage.getByLabel('Note', { exact: true }).fill(noteContent2)
-    await adminPage.getByRole('button', { name: 'Add Note' }).click()
+    await adminPage.getByRole('button', { name: 'Add note' }).click()
     await expect(getAlert(adminPage)).toContainText('Note added.', { timeout: 10_000 })
 
     const notesList = adminPage.locator('#notesList')
@@ -146,7 +146,7 @@ test.describe('Volunteer Management', () => {
     await navigateToAdminVolunteerDetail(baseUrl, adminPage, volunteer.name)
 
     await adminPage.getByLabel('Note', { exact: true }).fill(originalContent)
-    await adminPage.getByRole('button', { name: 'Add Note' }).click()
+    await adminPage.getByRole('button', { name: 'Add note' }).click()
     await expect(getAlert(adminPage)).toContainText('Note added.', { timeout: 10_000 })
 
     const notesList = adminPage.locator('#notesList')
@@ -167,7 +167,7 @@ test.describe('Volunteer Management', () => {
     await navigateToAdminVolunteerDetail(baseUrl, adminPage, volunteer.name)
 
     await adminPage.getByLabel('Note', { exact: true }).fill(noteContent)
-    await adminPage.getByRole('button', { name: 'Add Note' }).click()
+    await adminPage.getByRole('button', { name: 'Add note' }).click()
     await expect(getAlert(adminPage)).toContainText('Note added.', { timeout: 10_000 })
 
     const notesList = adminPage.locator('#notesList')
@@ -189,7 +189,7 @@ test.describe('Volunteer Management', () => {
 
     await navigateToAdminVolunteerDetail(baseUrl, adminPage, volunteer.name)
 
-    await adminPage.getByRole('tab', { name: 'Endorse Skill' }).click()
+    await adminPage.getByRole('tab', { name: 'Endorse skill' }).click()
     await expect(adminPage.getByRole('heading', { name: 'Endorse a Skill', level: 3 })).toBeVisible(
       { timeout: 5_000 },
     )
@@ -197,7 +197,7 @@ test.describe('Volunteer Management', () => {
     await selectFilterDropdown(adminPage, 'Skill', skill.optionLabel)
     await selectFilterDropdown(adminPage, 'Rating', 'Verified - Can deliver')
     await selectFilterDropdown(adminPage, 'Based On', 'Direct Observation')
-    await adminPage.getByRole('button', { name: 'Endorse Skill' }).click()
+    await adminPage.getByRole('button', { name: 'Endorse skill' }).click()
 
     await expect(getAlert(adminPage)).toContainText('Skill endorsed!', { timeout: 10_000 })
 

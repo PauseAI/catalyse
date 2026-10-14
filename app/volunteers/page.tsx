@@ -225,7 +225,7 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
                       contactRequested={v.contactRequested}
                     />
                     <Button href={`/volunteers/${v.id}`} variant="ghost" size="sm">
-                      View Profile
+                      View profile
                     </Button>
                   </div>
                 </div>

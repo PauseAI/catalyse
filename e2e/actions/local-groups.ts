@@ -10,12 +10,12 @@ export async function submitLocalGroupSuggestion(
   name: string,
 ): Promise<void> {
   await page.goto(`${baseUrl}/suggest-local-group`)
-  await page.getByRole('heading', { name: 'Suggest a Local Group', level: 1 }).waitFor({
+  await page.getByRole('heading', { name: 'Suggest a local group', level: 1 }).waitFor({
     timeout: 10_000,
   })
   await selectFilterDropdown(page, 'Select country/group', country)
   await page.getByLabel('Local Group Name').fill(name)
-  await page.getByRole('button', { name: 'Submit Suggestion' }).click()
+  await page.getByRole('button', { name: 'Submit suggestion' }).click()
   await page.getByText('Suggestion submitted!').waitFor({ timeout: 10_000 })
 }
 
@@ -53,15 +53,15 @@ export async function navigateToAdminLocalGroups(baseUrl: string, adminPage: Pag
 }
 
 export async function adminAddGroup(adminPage: Page, country: string, name: string): Promise<void> {
-  await adminPage.getByRole('button', { name: 'Add Local Group' }).click()
+  await adminPage.getByRole('button', { name: 'Add local group' }).click()
   await adminPage
-    .getByRole('heading', { name: 'Add Local Group', level: 2 })
+    .getByRole('heading', { name: 'Add local group', level: 2 })
     .waitFor({ timeout: 10_000 })
   await selectFilterDropdown(adminPage, 'Select country/group', country)
   await adminPage.getByLabel('Group Name').fill(name)
-  await adminPage.getByRole('button', { name: 'Add Group' }).click()
+  await adminPage.getByRole('button', { name: 'Add group' }).click()
   await adminPage
-    .getByRole('heading', { name: 'Add Local Group', level: 2 })
+    .getByRole('heading', { name: 'Add local group', level: 2 })
     .waitFor({ state: 'hidden', timeout: 10_000 })
 }
 
@@ -81,7 +81,7 @@ export async function adminEditGroup(
   if (opts.newName !== undefined) {
     await adminPage.getByLabel('Group Name').fill(opts.newName)
   }
-  await adminPage.getByRole('button', { name: 'Save Changes' }).click()
+  await adminPage.getByRole('button', { name: 'Save changes' }).click()
   await adminPage
     .getByRole('heading', { name: 'Edit Local Group', level: 2 })
     .waitFor({ state: 'hidden', timeout: 10_000 })
@@ -118,7 +118,7 @@ export async function adminReviewSuggestion(
     timeout: 10_000,
   })
 
-  const actionLabel = { accept: 'Accept', merge: 'Merge', on_hold: 'On Hold', decline: 'Decline' }[
+  const actionLabel = { accept: 'Accept', merge: 'Merge', on_hold: 'On hold', decline: 'Decline' }[
     action
   ]
   await adminPage.getByRole('radio', { name: new RegExp(actionLabel) }).click({ force: true })

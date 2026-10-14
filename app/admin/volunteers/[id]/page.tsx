@@ -348,7 +348,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
                 { key: 'admin_notes', label: 'Admin Notes' },
                 { key: 'quick_tasks', label: 'Quick Tasks' },
                 { key: 'project_history', label: 'Project History' },
-                { key: 'endorse_skill', label: 'Endorse Skill' },
+                { key: 'endorse_skill', label: 'Endorse skill' },
               ] as { key: Tab; label: string }[]
             }
             activeTab={activeTab}
@@ -461,7 +461,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
                   />
                 </div>
                 <Button type="submit" variant="secondary" disabled={submitting}>
-                  Add Note
+                  Add note
                 </Button>
               </form>
             </div>
@@ -559,7 +559,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
                 </div>
                 <div>
                   <Button type="submit" variant="secondary" disabled={submitting}>
-                    Endorse Skill
+                    Endorse skill
                   </Button>
                 </div>
               </form>

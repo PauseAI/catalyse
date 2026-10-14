@@ -166,7 +166,7 @@ test.describe('Project Interests and Assignment', () => {
     const interestCard = adminPage.locator('.interest-card').filter({ hasText: volunteer.name })
     await expect(interestCard).toBeVisible({ timeout: 10_000 })
     await interestCard.getByRole('button', { name: 'Decline' }).click()
-    const declineDialog = adminPage.getByRole('dialog', { name: 'Decline Volunteer' })
+    const declineDialog = adminPage.getByRole('dialog', { name: 'Decline volunteer' })
     await expect(declineDialog).toBeVisible({ timeout: 10_000 })
     await declineDialog.getByLabel('Optional message for the volunteer').fill(declineMessage)
     await declineDialog.getByRole('button', { name: 'Decline' }).click()
@@ -303,7 +303,7 @@ test.describe('Project Interests and Assignment', () => {
     await adminPage.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(adminPage.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
     await adminPage.getByLabel('Add a comment').fill(commentText)
-    await adminPage.getByRole('button', { name: 'Post Comment' }).click()
+    await adminPage.getByRole('button', { name: 'Post comment' }).click()
     await expect(adminPage.getByText(commentText)).toBeVisible({ timeout: 10_000 })
 
     // A non-participant volunteer can read the thread but has no post form
@@ -317,7 +317,7 @@ test.describe('Project Interests and Assignment', () => {
     )
     await expect(volunteer.page.locator('#discussion')).toBeInViewport()
     await expect(volunteer.page.getByLabel('Add a comment')).not.toBeVisible({ timeout: 5_000 })
-    await expect(volunteer.page.getByRole('button', { name: 'Post Comment' })).not.toBeVisible({
+    await expect(volunteer.page.getByRole('button', { name: 'Post comment' })).not.toBeVisible({
       timeout: 5_000,
     })
   })
@@ -352,7 +352,7 @@ test.describe('Project Interests and Assignment', () => {
     await volunteer.page.reload()
     await expect(volunteer.page.getByLabel('Add a comment')).toBeVisible({ timeout: 10_000 })
     await volunteer.page.getByLabel('Add a comment').fill(commentText)
-    await volunteer.page.getByRole('button', { name: 'Post Comment' }).click()
+    await volunteer.page.getByRole('button', { name: 'Post comment' }).click()
     await expect(volunteer.page.getByText(commentText)).toBeVisible({ timeout: 10_000 })
   })
 
@@ -371,7 +371,7 @@ test.describe('Project Interests and Assignment', () => {
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(volunteer.page.getByLabel('Add a comment')).toBeVisible({ timeout: 10_000 })
     await volunteer.page.getByLabel('Add a comment').fill(commentText)
-    await volunteer.page.getByRole('button', { name: 'Post Comment' }).click()
+    await volunteer.page.getByRole('button', { name: 'Post comment' }).click()
     await expect(volunteer.page.getByText(commentText)).toBeVisible({ timeout: 10_000 })
 
     // Admin (the project creator) receives a comment notification

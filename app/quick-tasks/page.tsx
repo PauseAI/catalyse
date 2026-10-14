@@ -692,7 +692,7 @@ function AdminQuickTasksView() {
       <main className="container py-5 pb-15">
         <div className="flex justify-between items-center mb-3">
           <h1>Quick tasks</h1>
-          <Button onClick={() => setShowCreate(true)}>Create Task</Button>
+          <Button onClick={() => setShowCreate(true)}>Create task</Button>
         </div>
 
         <p className="text-text-light mb-6">
@@ -1039,7 +1039,7 @@ function AdminQuickTasksView() {
                     Cancel
                   </Button>
                   <Button type="submit" disabled={createTaskMutation.isPending}>
-                    {createTaskMutation.isPending ? 'Creating…' : 'Create Task'}
+                    {createTaskMutation.isPending ? 'Creating…' : 'Create task'}
                   </Button>
                 </div>
               </form>
@@ -1133,7 +1133,7 @@ function AdminQuickTasksView() {
                     Cancel
                   </Button>
                   <Button type="submit" disabled={editTaskMutation.isPending}>
-                    {editTaskMutation.isPending ? 'Saving…' : 'Save Changes'}
+                    {editTaskMutation.isPending ? 'Saving…' : 'Save changes'}
                   </Button>
                 </div>
               </form>

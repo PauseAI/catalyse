@@ -607,7 +607,7 @@ export default function TaskDetailPage({
 
             <div className="flex gap-3">
               <Button type="submit" disabled={updateMutation.isPending || !editTitle.trim()}>
-                {updateMutation.isPending ? 'Saving…' : 'Save Changes'}
+                {updateMutation.isPending ? 'Saving…' : 'Save changes'}
               </Button>
               <Button
                 type="button"

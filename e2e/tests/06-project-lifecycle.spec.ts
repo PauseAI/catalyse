@@ -29,7 +29,7 @@ test.describe('Project Lifecycle', () => {
 
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
-    await expect(volunteer.page.getByLabel('project status')).toContainText('To Do', {
+    await expect(volunteer.page.getByLabel('project status')).toContainText('To do', {
       timeout: 10_000,
     })
   })
@@ -58,12 +58,12 @@ test.describe('Project Lifecycle', () => {
 
     await adminPage.getByRole('radio', { name: /Ask for changes/ }).click()
     await adminPage.getByLabel('Message to Proposer').fill(feedbackText)
-    await adminPage.getByRole('button', { name: 'Submit Review' }).click()
+    await adminPage.getByRole('button', { name: 'Submit review' }).click()
     await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 
-    // Project status becomes needs_discussion — visible in the triage "Needs Changes" tab
+    // Project status becomes needs_discussion — visible in the triage "Needs changes" tab
     await adminPage.goto(`${baseUrl}/admin/triage`)
-    await adminPage.getByRole('tab', { name: 'Needs Changes' }).click()
+    await adminPage.getByRole('tab', { name: 'Needs changes' }).click()
     await expect(adminPage.locator('.card').filter({ hasText: title })).toBeVisible({
       timeout: 10_000,
     })
@@ -92,7 +92,7 @@ test.describe('Project Lifecycle', () => {
     await expect(banner).toHaveCount(0)
 
     await adminPage.goto(`${baseUrl}/admin/triage`)
-    await adminPage.getByRole('tab', { name: /^In Review/ }).click()
+    await adminPage.getByRole('tab', { name: /^In review/ }).click()
     await expect(adminPage.locator('.card').filter({ hasText: title })).toBeVisible({
       timeout: 10_000,
     })
@@ -117,7 +117,7 @@ test.describe('Project Lifecycle', () => {
     })
     await adminPage.getByRole('radio', { name: /Ask for changes/ }).click()
     await adminPage.getByLabel('Message to Proposer').fill(feedbackText)
-    await adminPage.getByRole('button', { name: 'Submit Review' }).click()
+    await adminPage.getByRole('button', { name: 'Submit review' }).click()
     await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 
     // Proposer sees the review message as a comment on their project
@@ -130,7 +130,7 @@ test.describe('Project Lifecycle', () => {
     // Admin posts a follow-up reply via the triage modal thread
     const followUp = fake.feedbackText()
     await adminPage.goto(`${baseUrl}/admin/triage`)
-    await adminPage.getByRole('tab', { name: 'Needs Changes' }).click()
+    await adminPage.getByRole('tab', { name: 'Needs changes' }).click()
     const discussionCard = adminPage.locator('.card').filter({ hasText: title })
     await expect(discussionCard).toBeVisible({ timeout: 10_000 })
     await discussionCard.getByRole('link', { name: 'Review' }).click()
@@ -139,7 +139,7 @@ test.describe('Project Lifecycle', () => {
     })
     // The Discussion is on the Overview, under the review form.
     await adminPage.getByLabel('Add a comment').fill(followUp)
-    await adminPage.getByRole('button', { name: 'Post Comment' }).click()
+    await adminPage.getByRole('button', { name: 'Post comment' }).click()
     await expect(getAlert(adminPage)).toContainText('Comment added', { timeout: 10_000 })
 
     // Proposer sees the follow-up too (the page is already at this address, so reload it)
@@ -152,8 +152,8 @@ test.describe('Project Lifecycle', () => {
     await adminCreateProject(baseUrl, adminPage, title, 'Admin-created project description')
 
     // Org projects skip review, so this one is live immediately — but the admin didn't
-    // claim it, so it goes live as Ready rather than In Progress.
-    await expect(adminPage.getByLabel('project status')).toContainText('To Do', {
+    // claim it, so it goes live as Ready rather than In progress.
+    await expect(adminPage.getByLabel('project status')).toContainText('To do', {
       timeout: 10_000,
     })
 

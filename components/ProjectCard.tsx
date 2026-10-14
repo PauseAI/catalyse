@@ -196,7 +196,7 @@ export function ProjectCard({
         {action ?? (
           <Link href={`/projects/${p.id}`}>
             <Button variant="secondary" size="sm">
-              View Details
+              View details
             </Button>
           </Link>
         )}

@@ -22,7 +22,7 @@ import {
   type DatesValue,
 } from '@/lib/task-dates'
 import { Badge, StatusFlag } from '@/components/Badge'
-import Tooltip from '@/components/Tooltip'
+import WorkRow, { PersonAvatar, type WorkRowParts } from '@/components/WorkRow'
 import { projectStatusVariant } from '@/components/ProjectCard'
 import {
   INTEREST_STATUS_LABELS,
@@ -62,7 +62,7 @@ import { useVolunteerSearch } from '@/lib/hooks/useVolunteerSearch'
 import ReopenTaskDialog, { type ReopenTarget } from '@/components/ReopenTaskDialog'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import Tabs from '@/components/Tabs'
-import WorkItemHeader, { WorkItemPerson, initials } from '@/components/WorkItemHeader'
+import WorkItemHeader, { WorkItemPerson } from '@/components/WorkItemHeader'
 import GanttChart, { inStartOrder } from '@/components/gantt/GanttChart'
 import type { GanttRow as GanttRowData, GanttUndatedRow } from '@/components/gantt/types'
 import GanttItemPanel from '@/components/gantt/GanttItemPanel'
@@ -138,29 +138,6 @@ const menuItem =
 
 // ── Task list item ──────────────────────────────────────────────────────────
 
-function TaskAvatar({ name }: { name: string | null }) {
-  if (!name) {
-    return (
-      <span
-        aria-label="Unassigned"
-        title="Unassigned"
-        className="w-6 h-6 rounded-full border border-dashed border-brand-border shrink-0"
-      />
-    )
-  }
-
-  return (
-    <Tooltip content={name}>
-      <span
-        aria-label={`Assigned to ${name}`}
-        className="w-6 h-6 rounded-full bg-secondary text-white text-xs font-semibold flex items-center justify-center shrink-0"
-      >
-        {initials(name)}
-      </span>
-    </Tooltip>
-  )
-}
-
 function ActionMenu({
   ariaLabel,
   children,
@@ -233,55 +210,7 @@ function ActionMenu({
   )
 }
 
-type TaskRowParts = {
-  title: React.ReactNode
-  /** Under the title: what a Blocked task waits for. */
-  below: React.ReactNode
-  chips: React.ReactNode
-  assigneeName: string | null
-  primaryAction: React.ReactNode
-  menu: React.ReactNode
-}
-
-function TaskRow({
-  handle,
-  rowRef,
-  style,
-  title,
-  below,
-  chips,
-  assigneeName,
-  primaryAction,
-  menu,
-}: TaskRowParts & {
-  handle?: React.ReactNode
-  rowRef?: (node: HTMLElement | null) => void
-  style?: React.CSSProperties
-}) {
-  return (
-    <li
-      ref={rowRef}
-      className="group flex items-start gap-2 py-2 border-b border-brand-border last:border-0"
-      style={style}
-    >
-      {handle}
-      <div className="flex-1 min-w-0 break-words">
-        {title}
-        {below}
-      </div>
-      <div className="flex items-center gap-2 shrink-0 mt-1">
-        {chips}
-        {primaryAction}
-        <TaskAvatar name={assigneeName} />
-        {menu && (
-          <div className="opacity-60 group-hover:opacity-100 focus-within:opacity-100 has-aria-expanded:opacity-100 transition-opacity">
-            {menu}
-          </div>
-        )}
-      </div>
-    </li>
-  )
-}
+type TaskRowParts = WorkRowParts
 
 /** A task row in "Your order", with a handle to drag it to a new place. */
 function SortableTaskItem({ task, ...parts }: TaskRowParts & { task: ProjectTask }) {
@@ -289,7 +218,7 @@ function SortableTaskItem({ task, ...parts }: TaskRowParts & { task: ProjectTask
     id: task.id,
   })
   return (
-    <TaskRow
+    <WorkRow
       {...parts}
       rowRef={setNodeRef}
       style={{
@@ -355,7 +284,7 @@ function TaskList({
     ) : (
       <ul className={list}>
         {shown.map((task) => (
-          <TaskRow key={task.id} {...rowParts(task)} />
+          <WorkRow key={task.id} {...rowParts(task)} />
         ))}
       </ul>
     )
@@ -364,7 +293,7 @@ function TaskList({
     <>
       <ul className={list}>
         {open.map((task) => (
-          <TaskRow key={task.id} {...rowParts(task)} />
+          <WorkRow key={task.id} {...rowParts(task)} />
         ))}
       </ul>
       {done.length > 0 && (
@@ -374,7 +303,7 @@ function TaskList({
           </summary>
           <ul className={list}>
             {done.map((task) => (
-              <TaskRow key={task.id} {...rowParts(task)} />
+              <WorkRow key={task.id} {...rowParts(task)} />
             ))}
           </ul>
         </details>
@@ -973,7 +902,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       { value: '', label: '— Select outcome —' },
       { value: 'successful', label: 'Successful' },
       { value: 'partial', label: 'Partial' },
-      { value: 'not_completed', label: 'Not Completed' },
+      { value: 'not_completed', label: 'Not completed' },
       { value: 'ongoing', label: 'Ongoing' },
     ],
     '',
@@ -1410,7 +1339,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const peopleGroups = [
     {
       key: 'requested',
-      title: 'Requested',
+      title: 'Requests',
       rows: volunteerInterests.filter((i) => i.status === InterestStatus.pending),
     },
     {
@@ -1425,14 +1354,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     },
   ]
   const pastPeople = volunteerInterests.filter((i) => !peopleGroups.some((g) => g.rows.includes(i)))
-  // Whoever sees this list answers requests; an invite waits on the person invited.
+  // A request carries no badge: its Accept and Decline say whose move it is. An invite waits on
+  // the person invited.
   const interestBadge = (interest: (typeof volunteerInterests)[number]) => (
     <Badge
       variant={interestStatusVariant(interest.status)}
-      outline={interestOutline(
-        interest.status,
-        interest.status === InterestStatus.pending || interest.volunteerId === user.id,
-      )}
+      outline={interestOutline(interest.status, interest.volunteerId === user.id)}
     >
       {INTEREST_STATUS_LABELS[interest.status] ?? interest.status}
     </Badge>
@@ -1468,7 +1395,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 : 'Helper'
             : interest.status === InterestStatus.pending
               ? interest.interestType === 'want_to_own'
-                ? 'wants to own'
+                ? 'wants to lead'
                 : 'wants to help'
               : interest.status === InterestStatus.invited
                 ? `Invited${interest.invitedByName ? ` by ${interest.invitedByName}` : ''}`
@@ -1477,7 +1404,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       </div>
       {locked ? null : interest.status === InterestStatus.pending ? (
         <div className="flex items-center gap-2 shrink-0">
-          {interestBadge(interest)}
           <Button size="sm" onClick={() => handleAcceptInterest(interest.id)}>
             Accept
           </Button>
@@ -1695,11 +1621,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   }
 
   const helperCount = (project.helpers ?? []).length
-  const waitingCount = isOwnerOrAdmin
-    ? volunteerInterests.filter(
-        (i) => i.status === InterestStatus.pending || i.status === InterestStatus.invited,
-      ).length
-    : 0
+  // Requests the viewer can answer; an invite waits on the person invited.
+  const waitingCount =
+    isOwnerOrAdmin && !locked
+      ? volunteerInterests.filter((i) => i.status === InterestStatus.pending).length
+      : 0
   const peopleCount = helperCount + (project.owner ? 1 : 0)
   const keyDateTask = orderedTasks.find((t) => t.keyDateSide === 'key')
   const pastPlanCount = orderedTasks.filter((t) => t.pastPlanDays).length
@@ -1793,7 +1719,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             .filter((g) => g.rows.length > 0)
             .map((g) => (
               <section key={g.key} aria-label={g.title} className="mb-2">
-                <h4 className="text-xs uppercase text-text-light m-0 mt-2">
+                <h4 className="text-xs text-text-light m-0 mt-2">
                   {g.title} ({g.rows.length})
                 </h4>
                 <ul className="list-none p-0 m-0">{g.rows.map(renderPerson)}</ul>
@@ -1801,7 +1727,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             ))}
           {pastPeople.length > 0 && (
             <details className="mt-2">
-              <summary className="text-xs uppercase text-text-light cursor-pointer">
+              <summary className="text-xs text-text-light cursor-pointer">
                 Past ({pastPeople.length})
               </summary>
               <ul className="list-none p-0 m-0">{pastPeople.map(renderPerson)}</ul>
@@ -1884,9 +1810,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       <Badge variant={interestStatusVariant(InterestStatus.pending)} outline>
         {leadRequestPending ? 'Request to lead sent' : 'Request sent'}
       </Badge>
-      <span className="text-sm text-text-light">
-        {leadRequestPending ? 'Waiting for an answer' : 'Waiting for the owner'}
-      </span>
     </span>
   )
   const canJoinProject =
@@ -2051,13 +1974,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               )}
               <Button type="submit" disabled={reviewMutation.isPending}>
-                {reviewMutation.isPending ? 'Submitting…' : 'Submit Review'}
+                {reviewMutation.isPending ? 'Submitting…' : 'Submit review'}
               </Button>
             </form>
           </div>
         )}
 
-      {/* Record Outcome */}
+      {/* Record outcome */}
       {isAdmin && project.status === ProjectStatus.completed && !project.outcome && (
         <div className={card}>
           <h2>Record project outcome</h2>
@@ -2073,10 +1996,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               />
             </div>
             <div className="mb-5">
-              <label htmlFor="outcome-notes">Outcome Notes</label>
+              <label htmlFor="outcome-notes">Outcome notes</label>
               <textarea
                 id="outcome-notes"
-                aria-label="Outcome Notes"
+                aria-label="Outcome notes"
                 rows={3}
                 value={outcomeNotes}
                 onChange={(e) => setOutcomeNotes(e.target.value)}
@@ -2084,7 +2007,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               />
             </div>
             <Button type="submit" disabled={!outcomeValue || setOutcomeMutation.isPending}>
-              {setOutcomeMutation.isPending ? 'Recording…' : 'Record Outcome'}
+              {setOutcomeMutation.isPending ? 'Recording…' : 'Record outcome'}
             </Button>
           </form>
         </div>
@@ -2134,12 +2057,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           >
             {helperCount === 0 ? 'No helpers yet' : plural(helperCount, 'helper')}
           </button>
-          {waitingCount > 0 && (
-            <>
-              {' · '}
-              <span>{waitingCount} waiting for an answer</span>
-            </>
-          )}
         </>
       }
       actions={
@@ -2322,7 +2239,20 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 { key: 'overview', label: 'Overview' },
                 { key: 'tasks', label: `Tasks (${orderedTasks.length})` },
                 { key: 'timeline', label: 'Timeline' },
-                { key: 'people', label: `People (${peopleCount})` },
+                {
+                  key: 'people',
+                  label: (
+                    <>
+                      People ({peopleCount})
+                      {waitingCount > 0 && (
+                        <span className="bg-primary text-[#111827] text-xs px-2 py-0.5 rounded-full ml-1">
+                          <span aria-hidden="true">{waitingCount}</span>
+                          <span className="sr-only">, {waitingCount} waiting for an answer</span>
+                        </span>
+                      )}
+                    </>
+                  ),
+                },
               ]}
               activeTab={tab}
               onChange={(k) => selectTab(k as ProjectTab)}
@@ -2435,7 +2365,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     : project.outcome === 'partial'
                       ? 'Partial'
                       : project.outcome === 'not_completed'
-                        ? 'Not Completed'
+                        ? 'Not completed'
                         : project.outcome === 'ongoing'
                           ? 'Ongoing'
                           : project.outcome}
@@ -2487,7 +2417,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   )}
                   {canCreateTasks && (
                     <Button variant="secondary" onClick={() => setShowTaskForm((v) => !v)}>
-                      Add Task
+                      Add task
                     </Button>
                   )}
                 </div>
@@ -2554,7 +2484,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     </div>
                     <div className="flex gap-2">
                       <Button type="submit" disabled={createTaskMutation.isPending}>
-                        {createTaskMutation.isPending ? 'Creating…' : 'Create Task'}
+                        {createTaskMutation.isPending ? 'Creating…' : 'Create task'}
                       </Button>
                       <Button type="button" variant="ghost" onClick={() => setShowTaskForm(false)}>
                         Cancel
@@ -2674,6 +2604,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         canRunTasks && task.assignedToId !== null && !handedIn(task.status)
 
                       return {
+                        status: task.status !== TaskStatus.completed && (
+                          <WorkStatusBadge
+                            status={task.displayStatus}
+                            outline={statusOutline(task.displayStatus, false, taskViewer)}
+                          />
+                        ),
                         title: (
                           <Link
                             href={`/projects/${idParam}/tasks/${task.id}`}
@@ -2698,8 +2634,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                             />
                           </div>
                         ),
-                        assigneeName:
-                          task.status !== TaskStatus.completed ? task.assignedToName : null,
+                        person: (
+                          <PersonAvatar
+                            name={task.status !== TaskStatus.completed ? task.assignedToName : null}
+                          />
+                        ),
                         chips: (
                           <>
                             {task.status === TaskStatus.completed && (
@@ -2713,12 +2652,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                   ? 'Held for you: waiting for the owner'
                                   : `Requested by ${task.requestedByName}`}
                               </span>
-                            )}
-                            {task.status !== TaskStatus.completed && (
-                              <WorkStatusBadge
-                                status={task.displayStatus}
-                                outline={statusOutline(task.displayStatus, false, taskViewer)}
-                              />
                             )}
                             {task.featuredAsQuickTask && (
                               <span
@@ -2990,7 +2923,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           title={
             declineTarget.accepted
               ? `Remove ${declineTarget.name} from this project?`
-              : 'Decline Volunteer'
+              : 'Decline volunteer'
           }
           isOpen
           onClose={() => setDeclineTarget(null)}

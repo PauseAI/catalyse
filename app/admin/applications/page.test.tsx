@@ -144,7 +144,7 @@ describe('applications list', () => {
     expect(screen.getByText('Reapplication allowed since 1 April 2025')).toBeInTheDocument()
     const anonCard = screen.getByText('anon notes').closest<HTMLElement>('[role="article"]')!
     expect(anonCard).toHaveTextContent('anon applicant')
-    await userEvent.click(within(anonCard).getByRole('button', { name: 'Allow Reapply' }))
+    await userEvent.click(within(anonCard).getByRole('button', { name: 'Allow reapply' }))
     await screen.findByText('Reapplication allowed')
     await waitFor(() => expect(screen.getAllByText(/Reapplication allowed since/)).toHaveLength(2))
     await userEvent.click(anonToggle)
@@ -154,18 +154,18 @@ describe('applications list', () => {
     const mineCard = screen
       .getByRole('heading', { name: 'Continuing Applicant' })
       .closest<HTMLElement>('[role="article"]')!
-    await userEvent.click(within(mineCard).getByRole('button', { name: 'Continue Review' }))
+    await userEvent.click(within(mineCard).getByRole('button', { name: 'Continue review' }))
     expect(navigation.push).toHaveBeenCalledWith(`/admin/applications/${mineReview.id}`)
     const article = (name: string) =>
       screen.getByRole('heading', { name }).closest<HTMLElement>('[role="article"]')!
     await userEvent.click(
-      within(article('Their Applicant')).getByRole('button', { name: 'Continue Review' }),
+      within(article('Their Applicant')).getByRole('button', { name: 'Continue review' }),
     )
     expect(navigation.push).toHaveBeenCalledWith(`/admin/applications/${theirs.id}`)
     await userEvent.click(within(article('Rejected Soon')).getByRole('button', { name: 'View' }))
     expect(navigation.push).toHaveBeenCalledTimes(3)
     await userEvent.click(
-      within(article('Fresh Applicant')).getByRole('button', { name: 'Start Review' }),
+      within(article('Fresh Applicant')).getByRole('button', { name: 'Start review' }),
     )
     await waitFor(() =>
       expect(navigation.push).toHaveBeenCalledWith(`/admin/applications/${fresh.id}`),
@@ -196,10 +196,10 @@ describe('applications list', () => {
     ).closest<HTMLElement>('[role="article"]')!
     await userEvent.click(await screen.findByRole('button', { name: /Rejected – anonymised/ }))
     await prisma.anonymisedEmail.delete({ where: { emailHash: 'fail-hash' } })
-    await userEvent.click(await screen.findByRole('button', { name: 'Allow Reapply' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Allow reapply' }))
     await screen.findByText('Record not found')
     localStorage.setItem('authToken', 'stale')
-    await userEvent.click(within(card).getByRole('button', { name: 'Start Review' }))
+    await userEvent.click(within(card).getByRole('button', { name: 'Start review' }))
     await screen.findByText('Failed to start review')
     await waitFor(() =>
       expect(navigation.push).toHaveBeenCalledWith(`/admin/applications/${applicant.id}`),

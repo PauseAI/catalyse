@@ -677,7 +677,7 @@ describe('GanttLegend / BaselineDialog', () => {
       <GanttLegend statuses={['completed', 'on_hold', 'ready', 'under_review', 'ready']} />,
     )
     expect(legendEntries(container).slice(0, 3)).toEqual(['To do', 'In review', 'Done'])
-    expect(legendEntries(container)).toContain('On Hold')
+    expect(legendEntries(container)).toContain('On hold')
   })
 
   it('folds the planner’s help and every planning mark into Planning tools', async () => {

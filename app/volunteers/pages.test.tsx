@@ -150,7 +150,7 @@ describe('volunteer profile', () => {
     await userEvent.type(within(dialog).getByLabelText('Message'), 'Can we talk?')
     // Sharing my address lets them reply to the email itself.
     await userEvent.click(within(dialog).getByLabelText(/Let Reachable reply by email/))
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Send Message' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Send message' }))
     await screen.findByText(/Message sent\./)
     expect(screen.queryByRole('dialog')).toBeNull()
     await waitFor(() =>

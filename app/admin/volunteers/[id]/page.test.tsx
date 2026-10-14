@@ -91,7 +91,7 @@ describe('admin volunteer detail', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Category' }))
     await userEvent.click(screen.getByRole('option', { name: 'Reliability' }))
     await userEvent.type(screen.getByLabelText('Note'), 'Always on time')
-    await userEvent.click(screen.getByRole('button', { name: 'Add Note' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add note' }))
     await screen.findByText('Note added.')
     await waitFor(() => expect(notes()).toHaveTextContent('reliability'))
     expect(await prisma.adminNote.count({ where: { volunteerId: vol.id } })).toBe(2)
@@ -122,7 +122,7 @@ describe('admin volunteer detail', () => {
       'proposer · pending review',
     )
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Endorse Skill' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Endorse skill' }))
     await userEvent.click(screen.getByRole('button', { name: 'Skill' }))
     await userEvent.type(screen.getByPlaceholderText('Search…'), 'Unicy')
     await userEvent.click(await screen.findByRole('option', { name: /Unicycling/ }))
@@ -130,7 +130,7 @@ describe('admin volunteer detail', () => {
     await userEvent.click(screen.getByRole('option', { name: /Strong/ }))
     await userEvent.click(screen.getByRole('button', { name: 'Based On' }))
     await userEvent.click(screen.getByRole('option', { name: 'Quick Task' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Endorse Skill' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Endorse skill' }))
     await screen.findByText('Skill endorsed!')
     await waitFor(() =>
       expect(document.getElementById('endorsements')).toHaveTextContent(
@@ -180,14 +180,14 @@ describe('admin volunteer detail', () => {
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete note' }),
     )
     await screen.findAllByText('Note not found')
-    await userEvent.click(screen.getByRole('tab', { name: 'Endorse Skill' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Endorse Skill' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Endorse skill' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Endorse skill' }))
     await screen.findByText(/Input validation failed|expected number/i)
     await userEvent.click(screen.getByRole('tab', { name: 'Admin Notes' }))
     await userEvent.type(screen.getByLabelText('Note'), 'x')
     await prisma.adminNote.deleteMany({ where: { volunteerId: vol.id } })
     await prisma.volunteer.delete({ where: { id: vol.id } })
-    await userEvent.click(screen.getByRole('button', { name: 'Add Note' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add note' }))
     await screen.findByText('Volunteer not found')
 
     cleanup()

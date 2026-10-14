@@ -166,7 +166,7 @@ describe('projects.update fields and status', () => {
         where: { type: 'project_status_changed' },
       })
       expect(notified.map((n) => n.volunteerId).sort()).toEqual([creator.id, helper.id].sort())
-      expect(notified[0].title).toBe(`'${project.title}' is now On Hold`)
+      expect(notified[0].title).toBe(`'${project.title}' is now On hold`)
     })
 
     // Dropping the owner keeps the status; giving a ready project an owner starts it.

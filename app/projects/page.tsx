@@ -14,8 +14,7 @@ import { buildLocationOptions, type LocalGroupOption } from '@/lib/filter-option
 import { InferRouterInputs } from '@orpc/server'
 import { orpc } from '@/lib/orpc'
 import { AppRouter } from '@/server/router'
-import { type Project, ProjectList, statusBadgeClasses } from '@/components/ProjectCard'
-import { badgeClasses } from '@/components/Badge'
+import { type Project, ProjectList } from '@/components/ProjectCard'
 import PageLoading from '@/components/PageLoading'
 import ResendConfirmation from '@/components/ResendConfirmation'
 import Skeleton from '@/components/Skeleton'
@@ -24,19 +23,19 @@ import ViewSwitch, { PROJECT_VIEWS } from '@/components/ViewSwitch'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All' },
-  { value: 'ready', label: 'To Do' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'on_hold', label: 'On Hold' },
+  { value: 'ready', label: 'To do' },
+  { value: 'in_progress', label: 'In progress' },
+  { value: 'on_hold', label: 'On hold' },
   { value: 'completed', label: 'Completed' },
   { value: 'archived', label: 'Archived' },
 ] as const
 
 const NEEDS_OPTIONS = [
   { value: '', label: 'Any' },
-  { value: 'looking_for_people', label: 'Looking for People' },
-  { value: 'seeking_help', label: 'Seeking Help', indent: true },
-  { value: 'seeking_owner', label: 'Seeking Owner', indent: true },
-  { value: 'not_seeking', label: 'Not Seeking' },
+  { value: 'looking_for_people', label: 'Looking for people' },
+  { value: 'seeking_help', label: 'Seeking help', indent: true },
+  { value: 'seeking_owner', label: 'Seeking owner', indent: true },
+  { value: 'not_seeking', label: 'Not seeking' },
 ] as const
 
 const URGENCY_OPTIONS = [
@@ -227,25 +226,25 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
     { label: string; desc: string; color: string; viewAllHref?: string }
   > = {
     your_team: {
-      label: 'Your Team Projects',
+      label: 'Your team projects',
       desc: 'Tagged to a team you belong to',
       color: 'text-primary',
     },
     seeking: {
-      label: 'Looking for People',
+      label: 'Looking for people',
       desc: 'These projects need your help',
       color: 'text-orange-600 dark:text-orange-400',
       viewAllHref: '/projects?needs=looking_for_people',
     },
     in_progress: {
-      label: 'In Progress',
+      label: 'In progress',
       desc: 'Actively being worked on',
       color: 'text-blue-600 dark:text-blue-400',
       viewAllHref: '/projects?status=in_progress',
     },
-    other: { label: 'Other Active', desc: '', color: 'text-text-light' },
+    other: { label: 'Other active', desc: '', color: 'text-text-light' },
     on_hold: {
-      label: 'On Hold',
+      label: 'On hold',
       desc: '',
       color: 'text-red-600 dark:text-red-400',
       viewAllHref: '/projects?status=on_hold',
@@ -267,8 +266,6 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
       projects: sortGroup(g.projects),
       ...GROUP_META[g.key],
     }))
-  const seeking = groups.find((g) => g.key === 'seeking')?.projects ?? []
-  const inProgress = groups.find((g) => g.key === 'in_progress')?.projects ?? []
 
   // Nothing to search or filter until the email is confirmed; the card below says what to do.
   const needsConfirmation = !user.emailConfirmed && !user.isAdmin
@@ -436,22 +433,6 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
           />
         ) : (
           <>
-            {/* Status summary bar */}
-            {!isFlatView && groups.length > 1 && (
-              <div className="flex flex-wrap gap-2 mb-6">
-                {seeking.length > 0 && (
-                  <span className={badgeClasses('info')}>
-                    Looking for People: {groups.find((g) => g.key === 'seeking')?.total ?? 0}
-                  </span>
-                )}
-                {inProgress.length > 0 && (
-                  <span className={statusBadgeClasses('in_progress')}>
-                    In Progress: {groups.find((g) => g.key === 'in_progress')?.total ?? 0}
-                  </span>
-                )}
-              </div>
-            )}
-
             {/* Grouped project cards */}
             {isFlatView ? (
               <>

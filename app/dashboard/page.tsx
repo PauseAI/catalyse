@@ -9,14 +9,18 @@ import { useRequireAuth } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
 import Button from '@/components/Button'
 import { Badge } from '@/components/Badge'
-import DeadlineChip from '@/components/DeadlineChip'
-import { LatenessBadge } from '@/components/StatusBadges'
+import { LatenessBadge, WorkStatusBadge } from '@/components/StatusBadges'
 import { lateness } from '@/lib/lateness'
-import WorkItemCard from '@/components/WorkItemCard'
+import { handedIn } from '@/lib/overdue'
+import { shortDay } from '@/lib/relative-date'
+import { latenessOutline, statusOutline } from '@/lib/status-emphasis'
+import { projectStatusOutline } from '@/lib/project-status'
+import { projectStatusVariant } from '@/components/ProjectCard'
+import WorkRow, { PersonAvatar, STRETCHED_LINK } from '@/components/WorkRow'
 import Modal from '@/components/ui/Modal'
 import Skeleton from '@/components/Skeleton'
 import { BLEED } from '@/lib/ui-classes'
-import { ApprovalStatus } from '@/generated/prisma/enums'
+import { ApprovalStatus, WorkItemType } from '@/generated/prisma/enums'
 import type { AppRouter } from '@/server/router'
 import type { InferRouterOutputs } from '@orpc/server'
 
@@ -33,7 +37,7 @@ type WorkFilter = (typeof WORK_FILTERS)[number]['key']
 
 // My work's buckets are small grey labels, so they never read as a section like "Needs your
 // attention" above them.
-const SUB_HEADING = 'text-sm font-semibold uppercase tracking-wide text-text-light mb-2'
+const SUB_HEADING = 'text-sm font-semibold text-text-light mb-2'
 
 // Links into the old tabbed dashboard still land somewhere sensible.
 const PROJECT_HASHES = ['#tab-projects', '#tab-owned', '#tab-interests', '#tab-proposed']
@@ -230,53 +234,100 @@ export default function HomePage() {
   const urgent = work.filter((w) => w.needsAttention)
   const rest = work.filter((w) => !w.needsAttention)
 
-  const workList = (rows: typeof work) => (
-    <ul className={`list-none p-0 my-0 bg-surface shadow ${BLEED}`}>
-      {rows.map((w) =>
-        w.item ? (
-          <li
-            key={w.key}
-            className="p-4 border-b border-brand-border last:border-0 wrap-break-word"
-          >
-            <WorkItemCard
-              item={w.item}
-              variant="compact"
-              pastPlanDays={w.pastPlanDays}
-              extra={w.context && <span className="text-text-light">in {w.context}</span>}
+  const today = new Date()
+  // `[status] Title … person`, the whole row one link, as on a project's Tasks tab. A date is
+  // said once: by the Late or Due soon badge when there is one, otherwise as a plain day.
+  const workRow = (w: (typeof work)[number]) => {
+    const title = (
+      <Link href={w.href} className={`font-semibold ${STRETCHED_LINK}`}>
+        {w.title}
+      </Link>
+    )
+    const muted = 'text-sm text-text-light mt-1 flex flex-wrap items-center gap-x-2 gap-y-1'
+    // The whole row is its title link, so it highlights as one.
+    const rowClass = 'p-4 wrap-break-word transition-colors hover:bg-brand-bg'
+    if (w.item) {
+      const item = w.item
+      const late = lateness(
+        {
+          deadline: item.deadline,
+          pastPlanDays: w.pastPlanDays,
+          done: handedIn(item.displayStatus),
+        },
+        today,
+      )
+      return (
+        <WorkRow
+          key={w.key}
+          className={rowClass}
+          status={
+            <WorkStatusBadge
+              status={item.displayStatus}
+              quick={item.type === WorkItemType.QUICK_TASK}
+              outline={statusOutline(item.displayStatus, false, item.viewer)}
             />
-            {w.attention && <p className="text-sm font-semibold m-0 mt-1">{w.attention}</p>}
-          </li>
-        ) : (
-          <li
-            key={w.key}
-            className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-brand-border last:border-0 wrap-break-word"
-          >
-            <div className="min-w-0">
-              <Link href={w.href} className="font-semibold">
-                {w.title}
-              </Link>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge>{w.role}</Badge>
-              {w.deadline ? (
-                <DeadlineChip
-                  deadline={w.deadline}
-                  done={w.done}
-                  pastPlanDays={w.daysLate}
-                  outline={!w.leads}
-                />
-              ) : (
-                <LatenessBadge
-                  lateness={lateness({ deadline: null, pastPlanDays: w.daysLate, done: w.done })}
-                  outline={!w.leads}
-                />
-              )}
-              {w.status && <span className="text-sm text-text-light">{w.status}</span>}
-            </div>
-          </li>
-        ),
-      )}
-    </ul>
+          }
+          title={title}
+          below={
+            <>
+              <div className={muted}>
+                {late ? (
+                  <LatenessBadge lateness={late} outline={latenessOutline(item.viewer)} />
+                ) : (
+                  <span>
+                    {item.deadline ? `Due ${shortDay(item.deadline, today)}` : 'No deadline'}
+                  </span>
+                )}
+                {w.context && <span>in {w.context}</span>}
+              </div>
+              {w.attention && <div className="text-sm font-semibold mt-1">{w.attention}</div>}
+            </>
+          }
+          chips={null}
+          person={<PersonAvatar name={item.assigneeName} />}
+        />
+      )
+    }
+    const late = lateness(
+      { deadline: w.deadline ?? null, pastPlanDays: w.daysLate, done: w.done },
+      today,
+    )
+    return (
+      <WorkRow
+        key={w.key}
+        className={rowClass}
+        status={
+          w.statusKey && (
+            <Badge
+              variant={projectStatusVariant(w.statusKey)}
+              outline={projectStatusOutline(w.statusKey, Boolean(user.isAdmin))}
+            >
+              {w.status}
+            </Badge>
+          )
+        }
+        title={title}
+        below={
+          <div className={muted}>
+            <span>{w.role}</span>
+            {late ? (
+              <LatenessBadge lateness={late} outline={!w.leads} />
+            ) : (
+              w.deadline && <span>Due {shortDay(w.deadline, today)}</span>
+            )}
+          </div>
+        }
+        chips={null}
+        person={
+          w.kind === 'project' && (
+            <PersonAvatar name={w.ownerName ?? null} label="Owner" emptyLabel="No owner yet" />
+          )
+        }
+      />
+    )
+  }
+  const workList = (rows: typeof work) => (
+    <ul className={`list-none p-0 my-0 bg-surface shadow ${BLEED}`}>{rows.map(workRow)}</ul>
   )
 
   function dismissWelcome(notificationId: number) {
@@ -328,7 +379,7 @@ export default function HomePage() {
           <div className="flex items-center justify-between gap-3 p-4 rounded-lg mb-5 bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
             <span>We need a bit more information before we can review your application.</span>
             <Button href="/settings" size="sm">
-              Update Application
+              Update application
             </Button>
           </div>
         )}

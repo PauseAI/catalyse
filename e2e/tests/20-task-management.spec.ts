@@ -341,11 +341,11 @@ test.describe('Task Deadlines', () => {
     const deadlineValue = futureDeadline.toISOString().slice(0, 10)
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
-    await adminPage.getByRole('button', { name: 'Add Task' }).click()
+    await adminPage.getByRole('button', { name: 'Add task' }).click()
     await adminPage.getByLabel('Task title').fill('Task with deadline')
     await adminPage.getByLabel('Effort: about').fill('4')
     await adminPage.getByLabel('Deadline', { exact: true }).fill(deadlineValue)
-    await adminPage.getByRole('button', { name: 'Create Task' }).click()
+    await adminPage.getByRole('button', { name: 'Create task' }).click()
 
     await expect(adminPage.getByText('Task added!')).toBeVisible({ timeout: 10_000 })
     const taskItem = adminPage.locator('li').filter({ hasText: 'Task with deadline' })

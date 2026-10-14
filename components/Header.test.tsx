@@ -43,7 +43,7 @@ describe('Header', () => {
     expect(screen.getByRole('link', { name: 'Catalyse' })).toHaveAttribute('href', '/')
     await userEvent.click(screen.getByLabelText('Open menu'))
     expect(document.body.style.overflow).toBe('hidden')
-    expect(screen.getAllByRole('link', { name: 'Sign Up' })).toHaveLength(2)
+    expect(screen.getAllByRole('link', { name: 'Sign up' })).toHaveLength(2)
     await userEvent.click(screen.getByLabelText('Close menu'))
     expect(document.body.style.overflow).toBe('')
   })
@@ -68,7 +68,7 @@ describe('Header', () => {
     // Mobile menu for an admin, then sign out from it.
     await userEvent.click(screen.getByLabelText('Open menu'))
     expect(screen.getByText('Super Admin')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Sign Out' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     await waitFor(() => expect(navigation.push).toHaveBeenCalledWith('/login'))
   })
 
@@ -89,7 +89,7 @@ describe('Header', () => {
     const nameButton = screen.getByRole('button', { name: vol.name })
     await userEvent.click(nameButton)
     expect(screen.queryByText(/Admin panel/)).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Sign Out' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     await waitFor(() => expect(navigation.push).toHaveBeenCalledWith('/login'))
   })
 
@@ -217,7 +217,7 @@ describe('Header', () => {
       'href',
       `/volunteers/${vol.id}`,
     )
-    expect(screen.queryByRole('link', { name: 'Privacy & Data' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Privacy & data' })).toBeNull()
   })
 
   it('shows a plain admin panel link for non-super admins', async () => {

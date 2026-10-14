@@ -46,7 +46,7 @@ describe('admin team detail', () => {
     await userEvent.clear(screen.getByLabelText('Description'))
     await userEvent.clear(screen.getByLabelText('Luma calendar URL'))
     await userEvent.type(screen.getByLabelText('Team doc URL'), 'https://doc.after')
-    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
     await screen.findByText('Team updated')
     await screen.findByRole('heading', { name: 'Edit Team Renamed' })
     expect(await prisma.team.findUniqueOrThrow({ where: { id: team.id } })).toMatchObject({
@@ -92,14 +92,14 @@ describe('admin team detail', () => {
     await waitFor(() => expect(screen.queryByText('Lars Leader', { selector: 'p' })).toBeNull())
 
     // Delete needs confirmation.
-    await userEvent.click(screen.getByRole('button', { name: 'Delete Team' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Delete team' }))
     await userEvent.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }),
     )
     expect(await prisma.team.count({ where: { id: team.id } })).toBe(1)
-    await userEvent.click(screen.getByRole('button', { name: 'Delete Team' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Delete team' }))
     await userEvent.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete Team' }),
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete team' }),
     )
     await screen.findByText('Team deleted')
     expect(navigation.push).toHaveBeenCalledWith('/admin/teams')
@@ -125,7 +125,7 @@ describe('admin team detail', () => {
     cleanup()
     await mount(team.id, leader)
     await screen.findByRole('heading', { name: 'Led Team' })
-    expect(screen.queryByRole('button', { name: 'Delete Team' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Delete team' })).toBeNull()
     await prisma.teamJoinRequest.create({ data: { teamId: team.id, volunteerId: stranger.id } })
     await prisma.teamMembership.deleteMany({ where: { teamId: team.id } })
     cleanup()
@@ -148,18 +148,18 @@ describe('admin team detail', () => {
     const team = await createTeam({ name: 'Fragile Team' })
     await prisma.teamMembership.create({ data: { teamId: team.id, volunteerId: member.id } })
     // An expired session logs the page out, so each failure gets its own mount.
-    for (const name of ['Make Leader', 'Remove', 'Save Changes', 'Delete Team']) {
+    for (const name of ['Make leader', 'Remove', 'Save changes', 'Delete team']) {
       cleanup()
       localStorage.clear()
       await mount(team.id, admin)
       await screen.findByRole('heading', { name: 'Fragile Team' })
       // The token goes stale just before the request that should fail: any request made
       // earlier (while a confirm dialog opens, say) would sign the page out and unmount it.
-      if (name === 'Delete Team') {
+      if (name === 'Delete team') {
         await userEvent.click(screen.getByRole('button', { name }))
         const dialog = await screen.findByRole('dialog')
         localStorage.setItem('authToken', 'stale')
-        await userEvent.click(within(dialog).getByRole('button', { name: 'Delete Team' }))
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Delete team' }))
       } else {
         localStorage.setItem('authToken', 'stale')
         await userEvent.click(screen.getByRole('button', { name }))

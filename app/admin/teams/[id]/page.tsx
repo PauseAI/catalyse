@@ -244,11 +244,11 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
           </div>
           <div className="flex gap-3 justify-between">
             <Button type="submit" disabled={!name.trim() || updateTeamMutation.isPending}>
-              {updateTeamMutation.isPending ? 'Saving…' : 'Save Changes'}
+              {updateTeamMutation.isPending ? 'Saving…' : 'Save changes'}
             </Button>
             {user.isAdmin && (
               <Button type="button" variant="danger" onClick={() => setShowDeleteDialog(true)}>
-                Delete Team
+                Delete team
               </Button>
             )}
           </div>
@@ -324,7 +324,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
                     </span>
                   )}
                   <Button size="sm" variant="secondary" onClick={() => toggleLeader(m)}>
-                    {m.role === 'leader' ? 'Demote' : 'Make Leader'}
+                    {m.role === 'leader' ? 'Demote' : 'Make leader'}
                   </Button>
                   <Button size="sm" variant="danger" onClick={() => removeMember(m)}>
                     Remove
@@ -341,7 +341,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
         isOpen={showDeleteDialog}
         title="Delete this team?"
         body="Its members lose access to the projects scoped to it. This cannot be undone."
-        confirmLabel="Delete Team"
+        confirmLabel="Delete team"
         busyLabel="Deleting…"
         danger
         busy={deleteTeamMutation.isPending}

@@ -119,7 +119,7 @@ test.describe('Project ownership states', () => {
     expect(project.isSeekingOwner).toBe(false)
   })
 
-  // Regression: removing the owner left the project In Progress with nobody on it and no
+  // Regression: removing the owner left the project In progress with nobody on it and no
   // "seeking owner" flag, so nothing browsing for a project to lead could ever find it.
   test('Removing the owner keeps the status and re-advertises the project for an owner', async ({
     adminPage,
@@ -134,7 +134,7 @@ test.describe('Project ownership states', () => {
     })
 
     await adminPage.goto(`${baseUrl}/projects/${id}`)
-    await expect(adminPage.getByLabel('project status')).toContainText('In Progress', {
+    await expect(adminPage.getByLabel('project status')).toContainText('In progress', {
       timeout: 10_000,
     })
 
@@ -142,14 +142,14 @@ test.describe('Project ownership states', () => {
 
     // The work is still where it was; a Seeking owner flag says it needs a lead.
     await expect(adminPage.getByText('• Seeking owner')).toBeVisible({ timeout: 10_000 })
-    await expect(adminPage.getByLabel('project status')).toContainText('In Progress')
+    await expect(adminPage.getByLabel('project status')).toContainText('In progress')
     const project = await getProject(baseUrl, adminToken, id)
     expect(project.ownerId).toBeNull()
     expect(project.isSeekingOwner).toBe(true)
 
     // And it is findable again by someone filtering for projects that need a lead.
     await adminPage.goto(`${baseUrl}/projects`)
-    await selectFilterDropdown(adminPage, 'Needs filter', 'Seeking Owner')
+    await selectFilterDropdown(adminPage, 'Needs filter', 'Seeking owner')
     await expect(adminPage.getByRole('link', { name: title })).toBeVisible({ timeout: 10_000 })
   })
 
@@ -239,7 +239,7 @@ test.describe('Project ownership states', () => {
   // Regression: an owned project used to be able to sit in the retired `seeking_owner`
   // status with the flag cleared, and the card suppressed the status badge for exactly
   // that status — so the card rendered no status at all.
-  test('An owned project shows its status and is excluded from the Seeking Owner filter', async ({
+  test('An owned project shows its status and is excluded from the Seeking owner filter', async ({
     adminPage,
     baseUrl,
   }) => {
@@ -251,19 +251,19 @@ test.describe('Project ownership states', () => {
     })
 
     await adminPage.goto(`${baseUrl}/projects`)
-    await selectFilterDropdown(adminPage, 'Needs filter', 'Seeking Owner')
+    await selectFilterDropdown(adminPage, 'Needs filter', 'Seeking owner')
     await expect(adminPage.getByRole('link', { name: title })).toBeHidden({ timeout: 10_000 })
 
     await adminPage.goto(`${baseUrl}/projects/${id}`)
-    await expect(adminPage.getByLabel('project status')).toContainText('In Progress', {
+    await expect(adminPage.getByLabel('project status')).toContainText('In progress', {
       timeout: 10_000,
     })
-    await expect(adminPage.getByText('Seeking Owner')).toBeHidden()
+    await expect(adminPage.getByText('Seeking owner')).toBeHidden()
   })
 
   // Regression: setOutcome completes a project directly, and used to do it without
   // clearing isSeekingHelp — unlike projects.update, the other route to `completed`. A
-  // finished project then kept its "Seeking Help" badge and its place in the "Looking for
+  // finished project then kept its "Seeking help" badge and its place in the "Looking for
   // People" group. Driven through the API because the UI's outcome panel only appears once
   // the project is already completed, which is the path that always cleared the flag.
   test('Recording an outcome stops the project advertising for help', async ({
@@ -289,7 +289,7 @@ test.describe('Project ownership states', () => {
     expect(project.isSeekingOwner).toBe(false)
 
     await adminPage.goto(`${baseUrl}/projects`)
-    await selectFilterDropdown(adminPage, 'Needs filter', 'Looking for People')
+    await selectFilterDropdown(adminPage, 'Needs filter', 'Looking for people')
     await expect(adminPage.getByRole('link', { name: title })).toBeHidden({ timeout: 10_000 })
   })
 

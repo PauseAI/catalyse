@@ -10,9 +10,9 @@ export default function NotFound() {
           The page you&apos;re looking for doesn&apos;t exist or may have moved.
         </p>
         <div className="flex flex-col gap-3 items-center">
-          <Button href="/">Go Home</Button>
+          <Button href="/">Go home</Button>
           <Link href="/projects" className="text-sm">
-            Browse Projects
+            Browse projects
           </Link>
           <Link href="/dashboard" className="text-sm">
             Go to Dashboard

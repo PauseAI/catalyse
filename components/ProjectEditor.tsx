@@ -337,7 +337,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
   // only moves the address to the edit page, so nothing jumps under the volunteer's cursor.
   async function ensureProjectExists(): Promise<number | null> {
     if (projectId !== undefined) return projectId
-    // The timer and an Add Task click can both reach here before the first create lands.
+    // The timer and an Add task click can both reach here before the first create lands.
     if (creation.current) return creation.current
     setCreatingDraft(true)
     setAutosaveError(null)
@@ -1025,7 +1025,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
                 onClick={handleAddTask}
                 disabled={creatingDraft || createTaskMutation.isPending || !newTaskTitle.trim()}
               >
-                {creatingDraft || createTaskMutation.isPending ? 'Adding…' : 'Add Task'}
+                {creatingDraft || createTaskMutation.isPending ? 'Adding…' : 'Add task'}
               </Button>
             </div>
           </div>
@@ -1057,7 +1057,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
 
           {projectId !== undefined && !isDraft && (
             <Button href={`/projects/${projectId}`} variant="secondary">
-              View Project
+              View project
             </Button>
           )}
 
@@ -1078,7 +1078,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
               onClick={() => setShowDeleteDraftModal(true)}
               disabled={deleteDraftMutation.isPending}
             >
-              Delete Draft
+              Delete draft
             </Button>
           )}
 
@@ -1089,7 +1089,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
               onClick={() => setShowDeleteProjectModal(true)}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? 'Deleting…' : 'Delete Project'}
+              {deleteMutation.isPending ? 'Deleting…' : 'Delete project'}
             </Button>
           )}
         </div>
@@ -1150,7 +1150,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
                 comments, and interest history. This cannot be undone.
               </p>
             }
-            confirmLabel="Delete Project"
+            confirmLabel="Delete project"
             busyLabel="Deleting…"
             danger
             busy={deleteMutation.isPending}
@@ -1169,7 +1169,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
                 you&apos;ve added. This cannot be undone.
               </p>
             }
-            confirmLabel="Delete Draft"
+            confirmLabel="Delete draft"
             busyLabel="Deleting…"
             danger
             busy={deleteDraftMutation.isPending}

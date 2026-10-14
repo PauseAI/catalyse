@@ -3,11 +3,7 @@ import { loadTaskStatusViews, projectScopeWhere, type ProjectViewer } from '@/li
 import type { TaskDisplayStatus, TaskRef } from '@/lib/task-status'
 import { authedProcedure } from '../procedures'
 import { ADVERTISABLE_STATUSES, TERMINAL_STATUSES, projectStatusLabel } from '@/lib/project-status'
-import {
-  INTEREST_STATUS_LABELS,
-  QUICK_TASK_STATUS_LABELS,
-  TASK_STATUS_LABELS,
-} from '@/lib/status-labels'
+import { QUICK_TASK_STATUS_LABELS, TASK_STATUS_LABELS } from '@/lib/status-labels'
 import { daysQuiet } from '@/lib/staleness'
 import { lateProjects, pastPlanTasks } from '@/lib/project-schedule'
 import { pastPlanDetail } from '@/lib/replan'
@@ -60,8 +56,20 @@ export type WorkRow = {
   kind: WorkKind
   title: string
   href: string
-  role: 'Lead' | 'Deputy' | 'Helper' | 'Proposed' | 'Task' | 'Member'
+  role:
+    | 'Lead'
+    | 'Deputy'
+    | 'Helper'
+    | 'Proposed'
+    | 'Task'
+    | 'Member'
+    | 'Asked to lead'
+    | 'Asked to help'
   status: string | null
+  /** A project's stored status, for its badge's colour. */
+  statusKey?: string
+  /** Who holds a project: its owner. */
+  ownerName?: string | null
   /** The project a task belongs to. */
   context: string | null
   /** Finished or archived work, listed after the rest. */
@@ -379,6 +387,7 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
     updatedAt: true,
     startDate: true,
     deadline: true,
+    assignee: { select: { name: true } },
   } as const
   const [owned, interests, proposed, tasks, memberships, deputyRows] = await Promise.all([
     prisma.workItem.findMany({
@@ -446,7 +455,7 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
   // applying.
   const projects = new Map<number, WorkRow & { updatedAt: Date | null }>()
   const projectRowsById = new Map<number, (typeof owned)[number]>()
-  const addProject = (p: (typeof owned)[number], role: WorkRow['role'], status: string) => {
+  const addProject = (p: (typeof owned)[number], role: WorkRow['role']) => {
     if (projects.has(p.id)) return
     projectRowsById.set(p.id, p)
     projects.set(p.id, {
@@ -455,7 +464,9 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
       title: p.title,
       href: p.status === ProjectStatus.draft ? `/projects/${p.id}/edit` : `/projects/${p.id}`,
       role,
-      status,
+      status: projectStatusLabel(p.status),
+      statusKey: p.status,
+      ownerName: p.assignee?.name ?? null,
       context: null,
       done: TERMINAL_STATUSES.includes(p.status),
       deadline: p.deadline,
@@ -463,21 +474,13 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
       updatedAt: p.updatedAt,
     })
   }
-  for (const p of owned) addProject(p, 'Lead', projectStatusLabel(p.status))
+  for (const p of owned) addProject(p, 'Lead')
   for (const i of interests.filter((i) => i.status === InterestStatus.accepted)) {
-    addProject(
-      i.workItem,
-      deputyOf.has(i.workItem.id) ? 'Deputy' : 'Helper',
-      projectStatusLabel(i.workItem.status),
-    )
+    addProject(i.workItem, deputyOf.has(i.workItem.id) ? 'Deputy' : 'Helper')
   }
-  for (const p of proposed) addProject(p, 'Proposed', projectStatusLabel(p.status))
+  for (const p of proposed) addProject(p, 'Proposed')
   for (const i of interests.filter((i) => i.status === InterestStatus.pending)) {
-    addProject(
-      i.workItem,
-      i.interestType === 'want_to_own' ? 'Lead' : 'Helper',
-      INTEREST_STATUS_LABELS[i.status],
-    )
+    addProject(i.workItem, i.interestType === 'want_to_own' ? 'Asked to lead' : 'Asked to help')
   }
 
   const late = await lateProjects([...projectRowsById.values()])

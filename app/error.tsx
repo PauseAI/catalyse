@@ -22,9 +22,9 @@ export default function Error({
           An unexpected error occurred. You can try again, or head back home.
         </p>
         <div className="flex flex-col gap-3 items-center">
-          <Button onClick={reset}>Try Again</Button>
+          <Button onClick={reset}>Try again</Button>
           <Button href="/" variant="outline">
-            Go Home
+            Go home
           </Button>
         </div>
       </div>

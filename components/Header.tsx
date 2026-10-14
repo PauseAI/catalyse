@@ -252,7 +252,7 @@ export default function Header() {
                         onClick={logout}
                         className="block w-full text-left px-4 py-3 text-brand-text bg-transparent border-0 cursor-pointer hover:bg-accent"
                       >
-                        Sign Out
+                        Sign out
                       </button>
                     </div>
                   )}
@@ -263,7 +263,7 @@ export default function Header() {
                     Login
                   </Button>
                   <Button href="/signup" size="sm">
-                    Sign Up
+                    Sign up
                   </Button>
                 </>
               ))}
@@ -412,14 +412,14 @@ export default function Header() {
                     }}
                     className="block w-full text-left px-5 py-4 text-brand-text font-medium text-base border-b border-brand-border hover:bg-brand-bg cursor-pointer bg-transparent"
                   >
-                    Sign Out
+                    Sign out
                   </button>
                 </>
               ) : (
                 <>
                   <MobileNavSection>Account</MobileNavSection>
                   <MobileNavLink href="/login">Login</MobileNavLink>
-                  <MobileNavLink href="/signup">Sign Up</MobileNavLink>
+                  <MobileNavLink href="/signup">Sign up</MobileNavLink>
                 </>
               ))}
           </div>

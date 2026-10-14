@@ -16,17 +16,17 @@ const submitStep = () =>
 const onStep = (name: string) => screen.findByRole('heading', { level: 2, name })
 
 async function accountStep(email = 'ann.applicant@example.com') {
-  await type('Your Name', 'Ann Applicant')
+  await type('Your name', 'Ann Applicant')
   await type('Email', email)
   await type('Password', 'a-long-password')
-  await type('Confirm Password', 'a-long-password')
+  await type('Confirm password', 'a-long-password')
   await userEvent.click(screen.getByRole('button', { name: 'Next: About you' }))
   await onStep('About you')
 }
 
 async function aboutStep() {
-  await type('Your Application', 'I want to help with campaigns and policy work.')
-  await type('About You', 'A biography that comfortably passes twenty characters.')
+  await type('Your application', 'I want to help with campaigns and policy work.')
+  await type('About you', 'A biography that comfortably passes twenty characters.')
   await type('Hours per week you can give (1–40)', '5')
   await userEvent.click(screen.getByRole('button', { name: 'Select country' }))
   await userEvent.click(await screen.findByRole('option', { name: 'United Kingdom' }))
@@ -40,7 +40,7 @@ async function toSkillsStep() {
 beforeEach(() => sessionStorage.clear())
 
 describe('signup with email and password', () => {
-  it('shows the steps, and fills Contact Email from the sign-up email', async () => {
+  it('shows the steps, and fills Contact email from the sign-up email', async () => {
     await renderApp(<SignupPage />)
     await onStep('Account')
     const steps = screen.getByRole('list', { name: 'Sign-up steps' })
@@ -48,7 +48,7 @@ describe('signup with email and password', () => {
     expect(screen.getByText('1. Account')).toHaveAttribute('aria-current', 'step')
     await accountStep()
     expect(screen.getByText('✓ Account')).toBeInTheDocument()
-    const contact = screen.getByLabelText('Contact Email')
+    const contact = screen.getByLabelText('Contact email')
     expect(contact).toBeDisabled()
     expect(contact).toHaveValue('ann.applicant@example.com')
   })
@@ -58,26 +58,26 @@ describe('signup with email and password', () => {
     await onStep('Account')
     submitStep()
     expect(await screen.findByRole('alert')).toHaveTextContent('Your name is required')
-    await type('Your Name', 'Ann Applicant')
+    await type('Your name', 'Ann Applicant')
     await type('Email', 'not-an-email')
     submitStep()
     expect(await screen.findByRole('alert')).toHaveTextContent('Enter a valid email address')
     await userEvent.clear(screen.getByLabelText('Email'))
     await type('Email', 'ann@example.com')
     await type('Password', 'a-long-password')
-    await type('Confirm Password', 'different')
+    await type('Confirm password', 'different')
     submitStep()
     expect(await screen.findByRole('alert')).toHaveTextContent('Passwords do not match')
-    await userEvent.clear(screen.getByLabelText('Confirm Password'))
+    await userEvent.clear(screen.getByLabelText('Confirm password'))
     await userEvent.clear(screen.getByLabelText('Password'))
     await type('Password', 'short')
-    await type('Confirm Password', 'short')
+    await type('Confirm password', 'short')
     submitStep()
     expect(await screen.findByRole('alert')).toHaveTextContent('at least 8 characters')
-    await userEvent.clear(screen.getByLabelText('Confirm Password'))
+    await userEvent.clear(screen.getByLabelText('Confirm password'))
     await userEvent.clear(screen.getByLabelText('Password'))
     await type('Password', 'a-long-password')
-    await type('Confirm Password', 'a-long-password')
+    await type('Confirm password', 'a-long-password')
     submitStep()
     await onStep('About you')
     expect(screen.queryByRole('alert')).toBeNull()
@@ -86,12 +86,12 @@ describe('signup with email and password', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Your application must be at least 20 characters',
     )
-    await type('Your Application', 'I want to help with campaigns and policy work.')
+    await type('Your application', 'I want to help with campaigns and policy work.')
     submitStep()
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'About You must be at least 20 characters',
+      'About you must be at least 20 characters',
     )
-    await type('About You', 'A biography that comfortably passes twenty characters.')
+    await type('About you', 'A biography that comfortably passes twenty characters.')
     submitStep()
     expect(await screen.findByRole('alert')).toHaveTextContent('Availability is required')
     await type('Hours per week you can give (1–40)', '5')
@@ -104,12 +104,12 @@ describe('signup with email and password', () => {
     // Back keeps what was typed on each step.
     await userEvent.click(screen.getByRole('button', { name: 'Back' }))
     await onStep('About you')
-    expect(screen.getByLabelText('About You')).toHaveValue(
+    expect(screen.getByLabelText('About you')).toHaveValue(
       'A biography that comfortably passes twenty characters.',
     )
     await userEvent.click(screen.getByRole('button', { name: 'Back' }))
     await onStep('Account')
-    expect(screen.getByLabelText('Your Name')).toHaveValue('Ann Applicant')
+    expect(screen.getByLabelText('Your name')).toHaveValue('Ann Applicant')
   })
 
   it('submits a full application, lands on the confirmation, and can resend the email', async () => {
@@ -124,17 +124,17 @@ describe('signup with email and password', () => {
     await aboutStep()
     await userEvent.click(await screen.findByRole('button', { name: 'Select local group' }))
     await userEvent.click(await screen.findByRole('option', { name: 'Signup Town' }))
-    await type('Discord Handle', 'ann#1')
+    await type('Discord handle', 'ann#1')
     await userEvent.click(screen.getAllByLabelText('Preferred contact method')[0])
     await type('Signal', '+44 1')
     await type('WhatsApp', '+44 2')
-    await type('Contact Notes', 'DM first')
+    await type('Contact notes', 'DM first')
     await userEvent.click(
       screen.getByRole('button', { name: 'Keep me in the loop about new projects' }),
     )
     await userEvent.click(screen.getByRole('option', { name: 'Send me a fortnightly digest' }))
     // Hints describe their field and are not themselves something to fill in.
-    expect(screen.getByLabelText('Your Application')).toHaveAccessibleDescription(
+    expect(screen.getByLabelText('Your application')).toHaveAccessibleDescription(
       /Only admins read this/,
     )
     await toSkillsStep()
@@ -154,7 +154,7 @@ describe('signup with email and password', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Show all skills' }))
     await userEvent.click(await screen.findByLabelText('Rare Skill'))
     await userEvent.click(screen.getByRole('button', { name: 'Show fewer skills' }))
-    await type('Other Skills', 'juggling')
+    await type('Other skills', 'juggling')
     const directory = screen.getByLabelText('Show me in the volunteer directory')
     expect(directory).toBeChecked()
     await userEvent.click(directory)
@@ -162,7 +162,7 @@ describe('signup with email and password', () => {
     expect(analytics).not.toBeChecked()
     await userEvent.click(analytics)
     expect(screen.queryByText(/Allow project owners to contact me/)).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Submit Application' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Submit application' }))
 
     await screen.findByRole('heading', { name: 'Application received' })
     const done = screen.getByRole('status')
@@ -205,10 +205,10 @@ describe('signup with email and password', () => {
     await renderApp(<SignupPage />)
     await onStep('Account')
     await accountStep()
-    await type('Discord Handle', 'x')
+    await type('Discord handle', 'x')
     await userEvent.click(screen.getAllByLabelText('Preferred contact method')[0])
     expect(screen.getAllByLabelText('Preferred contact method')[0]).toBeChecked()
-    await userEvent.clear(screen.getByLabelText('Discord Handle'))
+    await userEvent.clear(screen.getByLabelText('Discord handle'))
     expect(screen.getAllByLabelText('Preferred contact method')[0]).not.toBeChecked()
     await type('Signal', 's')
     await userEvent.click(screen.getAllByLabelText('Preferred contact method')[1])
@@ -221,14 +221,14 @@ describe('signup with email and password', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Select country' }))
     await userEvent.click(await screen.findByRole('option', { name: 'Serbia' }))
-    expect(screen.getByLabelText('City / Area')).toBeInTheDocument()
+    expect(screen.getByLabelText('City / area')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Select country' }))
     await userEvent.click(await screen.findByRole('option', { name: 'United Kingdom' }))
     await userEvent.click(await screen.findByRole('button', { name: 'Select local group' }))
     await userEvent.click(
       await screen.findByRole('option', { name: "None of these, I'll enter my city" }),
     )
-    await type('City / Area', 'Leeds')
+    await type('City / area', 'Leeds')
 
     // Emptying the sign-up email drops it as the preferred method.
     await userEvent.click(screen.getByRole('button', { name: 'Back' }))
@@ -236,7 +236,7 @@ describe('signup with email and password', () => {
     await userEvent.clear(screen.getByLabelText('Email'))
     await type('Email', 'e@x.yz')
     await type('Password', 'a-long-password')
-    await type('Confirm Password', 'a-long-password')
+    await type('Confirm password', 'a-long-password')
     submitStep()
     await onStep('About you')
     expect(
@@ -250,7 +250,7 @@ describe('signup with email and password', () => {
     await renderApp(<SignupPage />)
     await onStep('Account')
     await accountStep()
-    await type('About You', 'Kept across a reload.')
+    await type('About you', 'Kept across a reload.')
     expect(JSON.parse(sessionStorage.getItem('signup_draft')!)).toMatchObject({
       step: 2,
       name: 'Ann Applicant',
@@ -260,19 +260,19 @@ describe('signup with email and password', () => {
     cleanup()
     await renderApp(<SignupPage />)
     await screen.findByText('Your answers so far were kept. Enter your password again to carry on.')
-    expect(screen.getByLabelText('Your Name')).toHaveValue('Ann Applicant')
+    expect(screen.getByLabelText('Your name')).toHaveValue('Ann Applicant')
     expect(screen.getByLabelText('Password')).toHaveValue('')
     await type('Password', 'a-long-password')
-    await type('Confirm Password', 'a-long-password')
+    await type('Confirm password', 'a-long-password')
     submitStep()
     await onStep('About you')
-    expect(screen.getByLabelText('About You')).toHaveValue('Kept across a reload.')
+    expect(screen.getByLabelText('About you')).toHaveValue('Kept across a reload.')
 
     cleanup()
     sessionStorage.setItem('signup_draft', '{not json')
     await renderApp(<SignupPage />)
     await onStep('Account')
-    expect(screen.getByLabelText('Your Name')).toHaveValue('')
+    expect(screen.getByLabelText('Your name')).toHaveValue('')
     expect(screen.queryByText(/Your answers so far were kept/)).toBeNull()
   })
 
@@ -283,7 +283,7 @@ describe('signup with email and password', () => {
     await accountStep('taken@example.com')
     await aboutStep()
     await toSkillsStep()
-    await userEvent.click(screen.getByRole('button', { name: 'Submit Application' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Submit application' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Email already registered')
 
     await prisma.platformSettings.update({
@@ -296,11 +296,11 @@ describe('signup with email and password', () => {
     await userEvent.clear(screen.getByLabelText('Email'))
     await type('Email', 'open@example.com')
     await type('Password', 'a-long-password')
-    await type('Confirm Password', 'a-long-password')
+    await type('Confirm password', 'a-long-password')
     submitStep()
     await onStep('About you')
     await toSkillsStep()
-    await userEvent.click(screen.getByRole('button', { name: 'Submit Application' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Submit application' }))
     await waitFor(() => expect(navigation.push).toHaveBeenCalledWith('/dashboard'))
     await prisma.platformSettings.update({
       where: { id: 1 },
@@ -360,7 +360,7 @@ describe('signup with Google', () => {
     // Google stands in for the account step.
     await onStep('About you')
     expect(screen.getByText('✓ Account (Google)')).toBeInTheDocument()
-    expect(screen.getByLabelText('Your Name')).toHaveValue('Stub User')
+    expect(screen.getByLabelText('Your name')).toHaveValue('Stub User')
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull()
     expect(JSON.parse(sessionStorage.getItem('google_pending_auth')!)).toMatchObject({
       stub: true,
@@ -380,9 +380,9 @@ describe('signup with Google', () => {
     await aboutStep()
     await userEvent.click(await screen.findByRole('button', { name: 'Select local group' }))
     await userEvent.click(await screen.findByRole('option', { name: 'Google Town' }))
-    expect(screen.getByLabelText('Contact Email')).toHaveValue('stub@example.com')
+    expect(screen.getByLabelText('Contact email')).toHaveValue('stub@example.com')
     await userEvent.click(screen.getAllByLabelText('Preferred contact method')[3])
-    await type('Contact Notes', 'n')
+    await type('Contact notes', 'n')
     await userEvent.click(
       screen.getByRole('button', { name: 'Keep me in the loop about new projects' }),
     )
@@ -392,9 +392,9 @@ describe('signup with Google', () => {
     window.dispatchEvent(unload)
     expect(unload.defaultPrevented).toBe(true)
     await toSkillsStep()
-    await type('Other Skills', 'o')
+    await type('Other skills', 'o')
     await userEvent.click(screen.getByLabelText('Allow Google Analytics (recommended)'))
-    await userEvent.click(screen.getByRole('button', { name: 'Submit Application' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Submit application' }))
     await screen.findByRole('heading', { name: 'Application received' })
     expect(screen.getByRole('status')).toHaveTextContent('Your Google email is already confirmed.')
     const row = await prisma.volunteer.findFirstOrThrow({ where: { email: 'stub@example.com' } })
@@ -428,12 +428,12 @@ describe('signup with Google', () => {
     )
     await renderApp(<SignupPage />)
     await onStep('Skills and privacy')
-    expect(screen.getByLabelText('Other Skills')).toHaveValue('kept')
+    expect(screen.getByLabelText('Other skills')).toHaveValue('kept')
     expect(screen.getByLabelText('Show me in the volunteer directory')).not.toBeChecked()
     expect(screen.getByLabelText('Allow Google Analytics (recommended)')).toBeChecked()
     expect(screen.queryByText(/Your answers so far were kept/)).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Back' }))
-    expect(screen.getByLabelText('Your Name')).toHaveValue('Draft User')
+    expect(screen.getByLabelText('Your name')).toHaveValue('Draft User')
   })
 
   it('reports a refused Google application, signs in directly when bootstrapped, and ignores corrupt storage', async () => {
@@ -444,7 +444,7 @@ describe('signup with Google', () => {
     await onStep('About you')
     await aboutStep()
     await toSkillsStep()
-    await userEvent.click(screen.getByRole('button', { name: 'Submit Application' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Submit application' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Email already registered')
 
     cleanup()
@@ -458,7 +458,7 @@ describe('signup with Google', () => {
     await onStep('About you')
     await aboutStep()
     await toSkillsStep()
-    await userEvent.click(screen.getByRole('button', { name: 'Submit Application' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Submit application' }))
     await waitFor(() => expect(navigation.push).toHaveBeenCalledWith('/dashboard'))
     expect(sessionStorage.getItem('google_pending_auth')).toBeNull()
 
