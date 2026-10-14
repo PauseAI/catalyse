@@ -377,8 +377,8 @@ describe('project page — joining and held tasks', () => {
     cleanup()
     await mount(project.id, owner, '#tasks')
     await screen.findByText('Requested by Mo Newcomer')
-    // Only the requests the viewer can answer are counted, on the People tab.
-    await screen.findByRole('tab', { name: 'People (7), 1 waiting for an answer' })
+    // The viewer who answers requests counts them in the tab's number and its bubble.
+    await screen.findByRole('tab', { name: 'People (8), 1 waiting for an answer' })
     await userEvent.click(screen.getByRole('button', { name: '6 helpers' }))
     expect(window.location.hash).toBe('#people')
   })

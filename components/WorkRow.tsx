@@ -90,13 +90,16 @@ export default function WorkRow({
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2 ml-auto mt-1">
         {chips}
-        {primaryAction}
-        {person}
-        {menu && (
-          <div className="opacity-60 group-hover:opacity-100 focus-within:opacity-100 has-aria-expanded:opacity-100 transition-opacity">
-            {menu}
-          </div>
-        )}
+        {/* The action, person and menu stay together when the chips wrap. */}
+        <div className="flex items-center gap-2">
+          {primaryAction}
+          {person}
+          {menu && (
+            <div className="opacity-60 group-hover:opacity-100 focus-within:opacity-100 has-aria-expanded:opacity-100 transition-opacity">
+              {menu}
+            </div>
+          )}
+        </div>
       </div>
     </li>
   )

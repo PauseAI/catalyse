@@ -69,7 +69,8 @@ import GanttItemPanel from '@/components/gantt/GanttItemPanel'
 import GanttPlanMenu from '@/components/gantt/GanttPlanMenu'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
-import { formatDate, formatDateShort } from '@/lib/format-date'
+import { formatDateShort } from '@/lib/format-date'
+import { shortDay } from '@/lib/relative-date'
 import BaselineDialog from '@/components/gantt/BaselineDialog'
 import ReplanDialog from '@/components/ReplanDialog'
 import { PlanningTools } from '@/components/gantt/GanttLegend'
@@ -1626,7 +1627,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     isOwnerOrAdmin && !locked
       ? volunteerInterests.filter((i) => i.status === InterestStatus.pending).length
       : 0
-  const peopleCount = helperCount + (project.owner ? 1 : 0)
+  // Requests count too for the viewer who answers them, so the tab's number matches its bubble.
+  const peopleCount = helperCount + (project.owner ? 1 : 0) + waitingCount
   const keyDateTask = orderedTasks.find((t) => t.keyDateSide === 'key')
   const pastPlanCount = orderedTasks.filter((t) => t.pastPlanDays).length
 
@@ -2546,13 +2548,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               )}
 
+              {/* One line of chips; on a narrow phone they scroll rather than wrap. */}
               {tab === 'tasks' && !yourOrder && orderedTasks.length > 0 && (
-                <div role="group" aria-label="Filter tasks" className="flex flex-wrap gap-1 mb-3">
+                <div
+                  role="group"
+                  aria-label="Filter tasks"
+                  className="flex gap-1 mb-3 overflow-x-auto"
+                >
                   {[null, ...TASK_FILTERS].map((f) => (
                     <Button
                       key={f ?? 'all'}
                       variant="ghost"
                       size="sm"
+                      className="shrink-0 max-sm:px-2.5"
                       active={taskFilter === f}
                       aria-pressed={taskFilter === f}
                       onClick={() => selectTaskFilter(f)}
@@ -2598,6 +2606,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         isAssignee: task.assignedToId === user.id,
                         canReview: isOwnerOrAdmin || isDeputy,
                       }
+                      const late = lateness({
+                        deadline: task.deadline,
+                        pastPlanDays: task.pastPlanDays,
+                        done: handedIn(task.status),
+                      })
                       const canAssign =
                         canRunTasks && task.status !== TaskStatus.completed && volunteers.length > 0
                       const canUnassign =
@@ -2661,14 +2674,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                 ⚡ Quick Task
                               </span>
                             )}
-                            <LatenessBadge
-                              lateness={lateness({
-                                deadline: task.deadline,
-                                pastPlanDays: task.pastPlanDays,
-                                done: handedIn(task.status),
-                              })}
-                              outline={latenessOutline(taskViewer)}
-                            />
+                            <LatenessBadge lateness={late} outline={latenessOutline(taskViewer)} />
                             {task.keyDateSide && task.keyDateSide !== 'other' && (
                               <span
                                 className="text-xs whitespace-nowrap"
@@ -2691,9 +2697,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                 ~{task.estimatedHours}h
                               </span>
                             )}
-                            {task.deadline && (
+                            {/* The date shows once: as the Late / Due soon badge when it has one. */}
+                            {task.deadline && !late && (
                               <span className="text-text-light text-xs whitespace-nowrap">
-                                Deadline {formatDate(task.deadline)}
+                                Due {shortDay(task.deadline)}
                               </span>
                             )}
                             {task.commentCount > 0 && (
