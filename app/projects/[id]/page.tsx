@@ -2247,8 +2247,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     <>
                       People ({peopleCount})
                       {waitingCount > 0 && (
-                        <span className="bg-primary text-[#111827] text-xs px-2 py-0.5 rounded-full ml-1">
-                          <span aria-hidden="true">{waitingCount}</span>
+                        <span className="inline-block w-2 h-2 rounded-full bg-primary ml-1 align-middle">
                           <span className="sr-only">, {waitingCount} waiting for an answer</span>
                         </span>
                       )}

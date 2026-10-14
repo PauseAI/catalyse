@@ -246,7 +246,7 @@ export default function HomePage() {
     const muted = 'text-sm text-text-light mt-1 flex flex-wrap items-center gap-x-2 gap-y-1'
     // The whole row is its title link, so it highlights as one.
     const rowClass =
-      'p-4 wrap-break-word transition-colors hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'
+      'p-4 wrap-break-word transition-colors hover:bg-accent/40 dark:hover:bg-white/[0.06]'
     if (w.item) {
       const item = w.item
       const late = lateness(

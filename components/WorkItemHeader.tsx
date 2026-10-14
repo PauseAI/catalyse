@@ -41,7 +41,7 @@ export default function WorkItemHeader({
     <div
       aria-label="Status and actions"
       role="toolbar"
-      className={`flex flex-wrap items-center gap-x-4 gap-y-2 ${tabs ? 'pt-3 lg:pt-0 lg:pl-4 lg:border-b lg:border-brand-border' : ''}`}
+      className={`flex flex-wrap items-center gap-x-4 gap-y-2 ${tabs ? 'lg:pl-4 lg:border-b lg:border-brand-border' : ''}`}
     >
       {/* Each group drops out when it renders nothing; a divider parts them when both show. */}
       <div
@@ -81,8 +81,8 @@ export default function WorkItemHeader({
     )
   }
 
-  // Below `lg` the bar stacks under the tabs, so `children` (a note on the bar's actions) moves
-  // down between them: the bar's wrapper drops out of the layout and `order` places its parts.
+  // Below `lg` the bar's wrapper drops out of the layout and `order` stacks its parts: `children`
+  // (a note on the bar's actions), then the status and actions, then the tabs over the content.
   return (
     <header className="mb-4 flex flex-col lg:block">
       <div className="mb-3 min-w-0">
@@ -95,10 +95,10 @@ export default function WorkItemHeader({
         )}
         {underTitle && <div className="mt-2 empty:hidden">{underTitle}</div>}
       </div>
-      {children && <div className="order-3 pt-3 lg:pt-0">{children}</div>}
+      {children && <div className="order-1 mb-2 lg:order-none lg:mb-0">{children}</div>}
       <div className="contents lg:flex lg:flex-row lg:items-stretch">
-        <div className="order-2 min-w-0 lg:flex-1">{tabs}</div>
-        <div className="order-4 lg:flex">{toolbar}</div>
+        <div className="order-3 mt-3 min-w-0 lg:order-none lg:mt-0 lg:flex-1">{tabs}</div>
+        <div className="order-2 lg:order-none lg:flex">{toolbar}</div>
       </div>
     </header>
   )
