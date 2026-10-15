@@ -66,3 +66,7 @@ bug-reports*.md
 
 # Scratch
 tmp/
+
+# Visual snapshots (npm run snapshots)
+/snapshots/
+orca.yaml

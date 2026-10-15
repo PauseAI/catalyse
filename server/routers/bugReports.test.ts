@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import { createVolunteer, createAdmin } from '@/test/factories'
-import { clientAs } from '@/test/rpc'
+import { clientAs, anon } from '@/test/rpc'
 import { rateLimit } from '@/test/fakes/rate-limit'
 
 const denyNextRequest = () => rateLimit.denyNext(1000)
@@ -12,6 +12,12 @@ const waitForNotification = (volunteerId: number, type: string, count = 1) =>
   )
 
 describe('bugReports', () => {
+  it('refuses a report from nobody', async () => {
+    await expect(
+      anon().bugReports.create({ title: 'Anon', description: 'From nobody', category: 'bug' }),
+    ).rejects.toMatchObject({ code: 'UNAUTHORIZED' })
+  })
+
   it('creates a report, notifying the reporter and admins (technical admins by email too)', async () => {
     const reporter = await createVolunteer()
     const admin = await createAdmin()

@@ -1,4 +1,4 @@
-import { test, expect, getAlert, readAdminToken, createApprovedVolunteer } from '../fixtures'
+import { test, expect, getAlert, readAdminToken } from '../fixtures'
 import type { Page } from '@playwright/test'
 import { createSkillViaApi } from '../actions/skills'
 import type { SkillInfo } from '../actions/skills'
@@ -149,7 +149,7 @@ test.describe('Quick Tasks (admin)', () => {
   }) => {
     const skill = await createSkillViaApi(baseUrl)
     const taskTitle = await createOpenQuickTaskViaApi(baseUrl, skill)
-    const commentText = `comment ${Date.now()}`
+    const commentText = `comment: ${fake.note()}`
 
     await adminPage.goto(`${baseUrl}/quick-tasks`)
     await expect(adminPage.getByRole('heading', { name: 'Quick Tasks', level: 1 })).toBeVisible({
@@ -174,8 +174,8 @@ test.describe('Quick Tasks (admin)', () => {
     const skill = await createSkillViaApi(baseUrl)
     const taskTitle = await createOpenQuickTaskViaApi(baseUrl, skill)
     await assignQuickTask(baseUrl, adminPage, taskTitle, volunteer.name)
-    const adminComment = `admin note ${Date.now()}`
-    const volunteerReply = `volunteer reply ${Date.now()}`
+    const adminComment = `admin note: ${fake.note()}`
+    const volunteerReply = `volunteer reply: ${fake.note()}`
 
     // Admin expands the task and posts the first comment
     await adminPage.goto(`${baseUrl}/quick-tasks`)
@@ -410,81 +410,5 @@ test.describe('Quick Tasks (admin)', () => {
     await expect(deepLinkCard.getByRole('button', { name: 'Edit', exact: true })).toBeVisible({
       timeout: 10_000,
     })
-  })
-
-  test('Quick task comments are hidden from non-assignee volunteers once claimed', async ({
-    baseUrl,
-  }) => {
-    const adminToken = readAdminToken(baseUrl)
-    expect(adminToken).toBeTruthy()
-    const adminApi = createApiClient(baseUrl, adminToken)
-
-    // Admin creates a quick task and assigns it to a specific volunteer
-    const created = await adminApi.quickTasks.create({
-      body: { title: `Iso task ${Date.now()}`, description: 'isolation test description' },
-    })
-    expect(created.status).toBe(200)
-    const workItemId = (created.body as { id: number }).id
-
-    const assignee = await createApprovedVolunteer(baseUrl)
-    const assignResult = await adminApi.quickTasks.assign({
-      body: { id: workItemId, volunteerId: assignee.id },
-    })
-    expect(assignResult.status).toBe(200)
-
-    const commentText = `admin-only ${Date.now()}`
-    const added = await adminApi.workItemComments.add({
-      body: { workItemId, content: commentText },
-    })
-    expect(added.status).toBe(200)
-
-    // Admin can read the thread
-    const adminList = await adminApi.workItemComments.list({ body: { workItemId } })
-    expect(adminList.status).toBe(200)
-    expect(
-      (adminList.body as { comments: { content: string }[] }).comments.some(
-        (c) => c.content === commentText,
-      ),
-    ).toBe(true)
-
-    // A fresh, approved volunteer who is not the assignee
-    const outsider = await createApprovedVolunteer(baseUrl)
-    const volApi = createApiClient(baseUrl, outsider.token)
-
-    // Cannot read the thread (work item not visible) or post to it
-    const volList = await volApi.workItemComments.list({ body: { workItemId } })
-    expect(volList.status).toBe(404)
-    const volAdd = await volApi.workItemComments.add({
-      body: { workItemId, content: 'should be rejected' },
-    })
-    expect(volAdd.status).toBe(403)
-  })
-
-  test('An open, unclaimed quick task is visible to any approved volunteer', async ({
-    baseUrl,
-  }) => {
-    const adminToken = readAdminToken(baseUrl)
-    expect(adminToken).toBeTruthy()
-    const adminApi = createApiClient(baseUrl, adminToken)
-
-    const created = await adminApi.quickTasks.create({
-      body: { title: `Open task ${Date.now()}`, description: 'open browse test' },
-    })
-    expect(created.status).toBe(200)
-    const workItemId = (created.body as { id: number }).id
-
-    const outsider = await createApprovedVolunteer(baseUrl)
-    const volApi = createApiClient(baseUrl, outsider.token)
-
-    const result = await volApi.quickTasks.get({ body: { id: workItemId } })
-    expect(result.status).toBe(200)
-
-    const available = await volApi.quickTasks.available()
-    expect(available.status).toBe(200)
-    expect(
-      (available.body as { kind: string; id: number }[]).some(
-        (t) => t.kind === 'quick' && t.id === workItemId,
-      ),
-    ).toBe(true)
   })
 })

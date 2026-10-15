@@ -1,8 +1,16 @@
-import { test as base, Browser, Page, WorkerInfo } from '@playwright/test'
+import { test as base, Browser, BrowserContext, Page, TestInfo, WorkerInfo } from '@playwright/test'
 import { workerAuthFile, workerBaseUrl, parallelIndexFromBaseUrl } from './config'
-import { fake } from './fake'
+import { fake, seedFake } from './fake'
 import fs from 'fs'
 import { createApiClient } from './client'
+import { SNAPSHOTS_ENABLED, snapshotServerIndex } from './snapshots/config'
+import {
+  captureFailure,
+  captureSnapshot,
+  laneFor,
+  prepareSnapshotContext,
+  type CaptureOptions,
+} from './snapshots/capture'
 
 interface Volunteer {
   page: Page
@@ -11,9 +19,31 @@ interface Volunteer {
   password: string
 }
 
+/**
+ * Take a picture of the page as it stands, under a label that names the
+ * moment: `snap(page, 'dialog open')`. Only does anything in a snapshot run
+ * (`npm run snapshots`); a plain test run returns at once.
+ */
+export type Snap = (page: Page, label: string, options?: CaptureOptions) => Promise<void>
+
 interface Fixtures {
   adminPage: Page
   volunteer: Volunteer
+  snap: Snap
+  /** Seeds fake data per test; every other fixture that fakes data depends on it. */
+  seededFake: void
+  snapshots: Snapshots
+}
+
+/**
+ * How a test's browser contexts take part in a snapshot run. Every context
+ * the test opens is prepared for the lane as it is created, and shoots the
+ * last page it was looking at as a final frame as it closes; `role` names
+ * that frame (`end (admin)`) where the fixture that opened the context knows
+ * whose it is.
+ */
+interface Snapshots {
+  role: (context: BrowserContext, role: string) => void
 }
 
 interface WorkerFixtures {
@@ -23,22 +53,96 @@ interface WorkerFixtures {
 export const test = base.extend<Fixtures, WorkerFixtures>({
   baseUrl: [
     async ({}, runFixture, workerInfo: WorkerInfo) => {
-      await runFixture(workerBaseUrl(workerInfo.parallelIndex))
+      // A snapshot lane has a block of servers to itself (see snapshotServerIndex).
+      const index = SNAPSHOTS_ENABLED
+        ? snapshotServerIndex(workerInfo.parallelIndex)
+        : workerInfo.parallelIndex
+      await runFixture(workerBaseUrl(index))
     },
     { scope: 'worker' },
   ],
 
-  adminPage: async ({ browser, baseUrl }, runFixture) => {
+  seededFake: [
+    async ({}, runFixture, testInfo) => {
+      // The lane is part of the seed: the same test runs once per lane, and
+      // two lanes can share a server, so each must make its own people.
+      seedFake(`${testInfo.project.name} ${testInfo.titlePath.join(' › ')}`)
+      await runFixture()
+    },
+    { auto: true },
+  ],
+
+  snap: async ({}, runFixture, testInfo) => {
+    let seq = 0
+    await runFixture(async (page, label, options) => {
+      if (!SNAPSHOTS_ENABLED) return
+      seq += 1
+      await captureSnapshot(page, testInfo, seq, label, options)
+    })
+  },
+
+  snapshots: [
+    async ({ browser, snap }, runFixture, testInfo) => {
+      const roles = new WeakMap<BrowserContext, string>()
+      const api: Snapshots = { role: (context, role) => roles.set(context, role) }
+      if (!SNAPSHOTS_ENABLED) {
+        await runFixture(api)
+        return
+      }
+      // Contexts are opened by fixtures and by tests alike, and the one place
+      // they all pass through is the worker's browser, which this test has to
+      // itself for as long as it runs.
+      const lane = laneFor(testInfo)
+      const newContext = browser.newContext
+      let unnamed = 0
+      browser.newContext = async (options) => {
+        const context = await newContext.call(browser, options)
+        await prepareSnapshotContext(context, lane)
+        const close = context.close
+        context.close = async (closeOptions) => {
+          let label = roles.get(context)
+          if (label === undefined) {
+            unnamed += 1
+            label = unnamed === 1 ? 'end' : `end ${String(unnamed)}`
+          } else {
+            label = `end (${label})`
+          }
+          await finalFrame(context, label, testInfo, snap)
+          return close.call(context, closeOptions)
+        }
+        return context
+      }
+      try {
+        await runFixture(api)
+      } finally {
+        browser.newContext = newContext
+      }
+    },
+    { auto: true },
+  ],
+
+  adminPage: async ({ browser, baseUrl, snapshots, seededFake: _seeded }, runFixture) => {
     const authFile = workerAuthFile(parallelIndexFromBaseUrl(baseUrl))
     const context = await browser.newContext({ storageState: authFile })
     await context.addInitScript(dismissCookieConsentScript)
+    snapshots.role(context, 'admin')
     const page = await context.newPage()
     await runFixture(page)
     await context.close()
   },
 
   volunteer: async (
-    { browser, baseUrl }: { browser: Browser; baseUrl: string },
+    {
+      browser,
+      baseUrl,
+      snapshots,
+      seededFake: _seeded,
+    }: {
+      browser: Browser
+      baseUrl: string
+      snapshots: Snapshots
+      seededFake: void
+    },
     runFixture: (v: Volunteer) => Promise<void>,
   ) => {
     const person = fake.person()
@@ -75,6 +179,7 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
       localStorage.setItem('authToken', token)
     }, auth_token)
     await context.addInitScript(dismissCookieConsentScript)
+    snapshots.role(context, 'volunteer')
     const page = await context.newPage()
     await runFixture({ page, ...credentials })
     await context.close()
@@ -82,6 +187,34 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
 })
 
 export { expect } from '@playwright/test'
+
+/** The page a role was last looking at: the newest one still open on the app. */
+function lastOpenPage(context: BrowserContext): Page | undefined {
+  return context
+    .pages()
+    .filter((page) => !page.isClosed() && page.url().startsWith('http'))
+    .at(-1)
+}
+
+async function finalFrame(
+  context: BrowserContext,
+  label: string,
+  testInfo: TestInfo,
+  snap: Snap,
+): Promise<void> {
+  const page = lastOpenPage(context)
+  if (!page) return
+  // A context closed from inside a test body has no status yet; an error on
+  // record is the sign the test is on its way out.
+  const failing =
+    testInfo.errors.length > 0 ||
+    (testInfo.status !== undefined && testInfo.status !== testInfo.expectedStatus)
+  if (failing) {
+    await captureFailure(page, testInfo)
+    return
+  }
+  await snap(page, label, { dismissToasts: true })
+}
 
 // Analytics loads for anyone who has not declined it. Declining up front keeps Google
 // Analytics from loading in a test browser.

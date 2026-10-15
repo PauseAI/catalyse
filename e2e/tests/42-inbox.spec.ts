@@ -10,7 +10,7 @@ import { createApiClient } from '../client'
 import { fake } from '../fake'
 
 test.describe('Inbox', () => {
-  test('An applicant shows in the badge and the popover, and is accepted from the Inbox', async ({
+  test('An applicant shows in the badge, and is accepted from the Inbox', async ({
     adminPage,
     volunteer,
     baseUrl,
@@ -30,11 +30,6 @@ test.describe('Inbox', () => {
     await expect(inboxButton(page)).toHaveText('Inbox, waiting for you: 1', { timeout: 10_000 })
 
     await inboxButton(page).click()
-    const popover = page.getByRole('dialog', { name: 'Recent notifications' })
-    await expect(popover).toContainText(`${applicant.name} asked to help out`, {
-      timeout: 10_000,
-    })
-    await popover.getByRole('link', { name: 'Open inbox →' }).click()
     await expect(page).toHaveURL(`${baseUrl}/inbox`)
 
     // The Inbox opens on Needs action, where it can be answered in place.

@@ -1,5 +1,5 @@
 import { Page, expect } from '@playwright/test'
-import { getAlert, readAdminToken } from '../fixtures'
+import { getAlert, readAdminToken, type Snap } from '../fixtures'
 import { createApiClient } from '../client'
 import { selectFilterDropdown } from './ui'
 
@@ -74,6 +74,7 @@ export async function proposeProject(
   title: string,
   description: string,
   skillName?: string,
+  snap?: Snap,
 ): Promise<number> {
   await page.goto(`${baseUrl}/suggest`)
   await openNewProjectForm(page)
@@ -88,10 +89,12 @@ export async function proposeProject(
   }
   // A project has no tasks yet, so the add-task form is the only task input on the page.
   const id = await addFirstTask(page, 'Initial task')
+  await snap?.(page, 'draft with a task')
   await page.getByRole('button', { name: 'Submit', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Submit draft for review?' })).toBeVisible({
     timeout: 10_000,
   })
+  await snap?.(page, 'submit for review dialog')
   await page.getByRole('button', { name: 'Submit for Review' }).click()
   await page.waitForURL(`${baseUrl}/dashboard**`, { timeout: 15_000 })
   return id
@@ -354,10 +357,4 @@ export async function joinProject(
   if (opts.lead) await dialog.getByRole('radio', { name: 'Lead the project' }).click()
   if (opts.message) await dialog.getByLabel('Message (optional)').fill(opts.message)
   await dialog.getByRole('button', { name: 'Send request' }).click()
-}
-
-/** Opens the owner's folded Manage panel and its More section on the project page. */
-export async function openManageMore(page: Page): Promise<void> {
-  await page.locator('summary', { hasText: 'Manage' }).click()
-  await page.locator('summary', { hasText: 'More' }).click()
 }

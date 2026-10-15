@@ -11,9 +11,10 @@ import http from 'http'
 import path from 'path'
 import fs from 'fs'
 import * as volunteerSignupApprovalFlow from './flows/volunteer-signup-approval-flow'
+import * as projectSetupTaskFlow from './flows/project-setup-task-flow'
 import { snapshotDir, type DemoManifestEntry } from './snapshot'
 
-const ALL_FLOWS = [volunteerSignupApprovalFlow.meta]
+const ALL_FLOWS = [volunteerSignupApprovalFlow.meta, projectSetupTaskFlow.meta]
 
 function scratchDir(flowName: string): string {
   return path.join(process.cwd(), 'demo', '.scratch', flowName)

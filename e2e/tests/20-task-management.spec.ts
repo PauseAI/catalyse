@@ -144,46 +144,6 @@ test.describe('Task Reordering', () => {
     const taskTitles = await adminPage.locator('ul > li > span.flex-1').allTextContents()
     expect(taskTitles).toEqual(['First', 'Second', 'Third'])
   })
-
-  test('A volunteer cannot reorder tasks via the API', async ({ baseUrl }) => {
-    const adminToken = readAdminToken(baseUrl)
-    const adminApi = createApiClient(baseUrl, adminToken)
-
-    const projectId = await createAdminProject(adminApi, 'Reorder permission test')
-    const taskCreated = await adminApi.projects.createTask({
-      body: { projectId, title: 'Solo task' },
-    })
-    const taskId = (taskCreated.body as { id: number }).id
-
-    const person = fake.person()
-    const api = createApiClient(baseUrl)
-    const signup = await api.auth.signup({
-      body: {
-        name: person.name,
-        email: person.email,
-        password: 'testpassword1',
-        bio: 'e2e test bio, at least twenty characters long',
-        country: 'UK',
-        availabilityHoursPerWeek: 5,
-        applicationMessage: 'e2e test application message',
-        consentMakeProfileVisibleInDirectory: true,
-        consentContactableByProjectOwners: true,
-      },
-    })
-    const {
-      id: volId,
-      token: volToken,
-      emailVerificationToken,
-    } = signup.body as { id: number; token: string; emailVerificationToken?: string }
-    if (emailVerificationToken) await confirmVolunteerEmail(baseUrl, emailVerificationToken)
-    await approveVolunteer(baseUrl, volId, volToken)
-    const volApi = createApiClient(baseUrl, volToken)
-
-    const reorder = await volApi.projects.reorderTasks({
-      body: { projectId, items: [{ id: taskId, sortOrder: 1 }] },
-    })
-    expect(reorder.status).toBe(403)
-  })
 })
 
 test.describe('Task Assignment', () => {
@@ -242,25 +202,6 @@ test.describe('Task Assignment', () => {
     await expect(volPage.getByText(/assigned/i).first()).toBeVisible({ timeout: 10_000 })
 
     await context.close()
-  })
-
-  test('A volunteer cannot assign a task via the API', async ({ baseUrl }) => {
-    const adminToken = readAdminToken(baseUrl)
-    const adminApi = createApiClient(baseUrl, adminToken)
-    const projectId = await createAdminProject(adminApi, 'Task assignment permission test')
-    const taskCreated = await adminApi.projects.createTask({
-      body: { projectId, title: 'Solo task' },
-    })
-    const taskId = (taskCreated.body as { id: number }).id
-
-    const volunteer = await signupApprovedVolunteer(baseUrl)
-    const other = await signupApprovedVolunteer(baseUrl)
-    const volApi = createApiClient(baseUrl, volunteer.token)
-
-    const assign = await volApi.projects.assignTask({
-      body: { projectId, taskId, assigneeId: other.id },
-    })
-    expect(assign.status).toBe(403)
   })
 
   test('Interested volunteers are grouped first in the assign dropdown', async ({

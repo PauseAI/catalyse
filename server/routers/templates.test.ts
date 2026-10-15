@@ -225,6 +225,14 @@ describe('templates.instantiate / canInstantiate', () => {
     )
   })
 
+  it('lets an admin instantiate past the draft cap a volunteer would hit', async () => {
+    const { c, id } = await saveTemplate()
+    // The volunteer draft cap is small; an admin making drafts from a template is not held to it.
+    const ids: number[] = []
+    for (let i = 0; i < 4; i++) ids.push((await c.templates.instantiate({ templateId: id })).id)
+    expect(new Set(ids).size).toBe(4)
+  })
+
   it('refuses quick-task, malformed and inconsistent templates', async () => {
     const admin = await createAdmin()
     const c = clientAs(admin)

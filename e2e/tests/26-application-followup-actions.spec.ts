@@ -5,10 +5,13 @@ import {
   rejectVolunteer,
   requestMoreInfo,
   reopenApplication,
+  readAdminToken,
 } from '../fixtures'
+import { Client } from 'pg'
 import { login } from '../actions/auth'
 import { fake } from '../fake'
 import { createApiClient } from '../client'
+import { IS_LOCAL, parallelIndexFromBaseUrl, workerDbUrl } from '../config'
 
 test.describe('Application follow-up actions', () => {
   test('Admin requests more info; applicant logs in, edits, and resubmits', async ({
@@ -201,18 +204,108 @@ test.describe('Application follow-up actions', () => {
     await expect(adminPage).toHaveURL(/\/admin\/applications$/, { timeout: 10_000 })
   })
 
-  test.skip('Anonymised rejection blocks reapplication until an admin allows it', async () => {
-    // Scenario:
-    // 1. Person signs up, admin rejects them.
-    // 2. After 7 days the anonymisation job runs, creating an AnonymisedEmail row for the
-    //    email hash and wiping the volunteer's PII.
-    // 3. The same email attempting to sign up again is rejected with "previously rejected".
-    // 4. Admin opens the Rejected - Anonymised list and clicks "Allow Reapply" on that row.
-    // 5. The same email can now sign up successfully.
-    //
-    // Skipped: triggering anonymisation requires backdating rejected_at by 7 days,
-    // which needs a test-only seed endpoint that doesn't yet exist (same limitation as
-    // the skipped "Re-applicant shows full prior rejection history" test in
-    // 01-auth-signup-login.spec.ts).
+  test('An anonymised rejection blocks reapplying until an admin allows it, and the admin sees the history', async ({
+    adminPage,
+    baseUrl,
+    snap,
+  }) => {
+    test.skip(!IS_LOCAL, 'backdates the rejection directly in the worker database')
+    test.setTimeout(90_000)
+
+    // A rejected application, with the notes and message the admin would leave.
+    const person = fake.person()
+    const api = createApiClient(baseUrl)
+    const signup = await api.auth.signup({
+      body: {
+        name: person.name,
+        email: person.email,
+        password: 'testpassword1',
+        bio: 'e2e test bio, at least twenty characters long',
+        country: 'UK',
+        availabilityHoursPerWeek: 5,
+        applicationMessage: 'e2e test application message',
+        consentMakeProfileVisibleInDirectory: true,
+        consentContactableByProjectOwners: true,
+      },
+    })
+    expect(signup.status, JSON.stringify(signup.body)).toBe(200)
+    const { id } = signup.body as { id: number }
+    const adminNotes = `not this time: ${fake.note()}`
+    await rejectVolunteer(baseUrl, id, adminNotes)
+
+    // The retention period has passed: backdate the rejection in the worker's schema.
+    const dbUrl = new URL(workerDbUrl(parallelIndexFromBaseUrl(baseUrl)))
+    const db = new Client({ connectionString: dbUrl.toString() })
+    await db.connect()
+    try {
+      await db.query(`SET search_path TO "${dbUrl.searchParams.get('schema')}"`)
+      await db.query(
+        `UPDATE volunteers SET rejected_at = now() - interval '30 days' WHERE id = $1`,
+        [id],
+      )
+    } finally {
+      await db.end()
+    }
+    const admin = createApiClient(baseUrl, readAdminToken(baseUrl)!)
+    const ran = await admin.admin.cronRuns.run({ body: { jobName: 'applications-anonymisation' } })
+    expect(ran.status, JSON.stringify(ran.body)).toBe(200)
+
+    // The same email is turned away.
+    const again = await api.auth.signup({
+      body: {
+        name: fake.personName(),
+        email: person.email,
+        password: 'testpassword1',
+        bio: 'e2e test bio, at least twenty characters long',
+        country: 'UK',
+        availabilityHoursPerWeek: 5,
+        applicationMessage: 'trying again after a rejection',
+        consentMakeProfileVisibleInDirectory: true,
+        consentContactableByProjectOwners: true,
+      },
+    })
+    expect(again.status).toBe(400)
+    expect((again.body as { message: string }).message).toMatch(/previously rejected/i)
+
+    // The admin finds it under the anonymised rejections and allows a reapplication.
+    await adminPage.goto(`${baseUrl}/admin/applications`)
+    await adminPage.getByRole('button', { name: /Rejected – Anonymised: [1-9]/ }).click()
+    const row = adminPage
+      .locator('article, li, div')
+      .filter({ hasText: adminNotes })
+      .filter({
+        has: adminPage.getByRole('button', { name: 'Allow Reapply' }),
+      })
+    await expect(row.first()).toBeVisible({ timeout: 10_000 })
+    await snap(adminPage, 'anonymised rejection')
+    await row.first().getByRole('button', { name: 'Allow Reapply' }).click()
+    await expect(adminPage.getByText(/Reapplication allowed since/)).toBeVisible({
+      timeout: 10_000,
+    })
+
+    // Now the signup goes through, and the admin's card carries the prior rejection.
+    const reapplied = await api.auth.signup({
+      body: {
+        name: fake.personName(),
+        email: person.email,
+        password: 'testpassword1',
+        bio: 'e2e test bio, at least twenty characters long',
+        country: 'UK',
+        availabilityHoursPerWeek: 5,
+        applicationMessage: 'trying again after a rejection',
+        consentMakeProfileVisibleInDirectory: true,
+        consentContactableByProjectOwners: true,
+      },
+    })
+    expect(reapplied.status, JSON.stringify(reapplied.body)).toBe(200)
+
+    await adminPage.goto(`${baseUrl}/admin/applications`)
+    const card = adminPage
+      .getByRole('article')
+      .filter({ hasText: 'trying again after a rejection' })
+    await expect(card).toBeVisible({ timeout: 10_000 })
+    await expect(card.getByText('Previously rejected')).toBeVisible()
+    await expect(card.getByText(adminNotes)).toBeVisible()
+    await snap(adminPage, 'reapplicant with history')
   })
 })
