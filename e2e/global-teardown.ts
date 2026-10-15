@@ -1,7 +1,8 @@
 import { FullConfig } from '@playwright/test'
 import { execSync } from 'child_process'
 import fs from 'fs'
-import { IS_LOCAL, BASE_PORT, SERVER_PIDS_FILE } from './config'
+import { IS_LOCAL, BASE_PORT, pidsFile } from './config'
+import { SNAPSHOTS_ENABLED, snapshotBlock } from './snapshots/config'
 
 // Only the listener: a client socket to the port (Playwright itself, holding a keep-alive
 // connection) would otherwise be killed too.
@@ -18,8 +19,10 @@ function killServerOnPort(port: number): void {
 async function globalTeardown(config: FullConfig): Promise<void> {
   if (!IS_LOCAL) return
 
-  if (fs.existsSync(SERVER_PIDS_FILE)) {
-    const pids: Record<string, number> = JSON.parse(fs.readFileSync(SERVER_PIDS_FILE, 'utf8'))
+  const block = SNAPSHOTS_ENABLED ? snapshotBlock() : { first: 0, count: config.workers }
+  const file = pidsFile(block.first)
+  if (fs.existsSync(file)) {
+    const pids: Record<string, number> = JSON.parse(fs.readFileSync(file, 'utf8'))
     for (const pid of Object.values(pids)) {
       try {
         process.kill(pid, 'SIGTERM')
@@ -27,10 +30,10 @@ async function globalTeardown(config: FullConfig): Promise<void> {
         /* already exited */
       }
     }
-    fs.unlinkSync(SERVER_PIDS_FILE)
+    fs.unlinkSync(file)
   }
 
-  for (let i = 0; i < config.workers; i++) {
+  for (let i = block.first; i < block.first + block.count; i++) {
     killServerOnPort(BASE_PORT + i)
   }
 }

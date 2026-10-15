@@ -10,7 +10,7 @@ export const adminSkillCategoriesRouter = {
   list: adminProcedure.handler(async () => {
     const categories = await prisma.skillCategory.findMany({
       include: { _count: { select: { skills: true } } },
-      orderBy: { sortOrder: 'asc' },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     })
     return categories.map((cat) => ({
       id: cat.id,

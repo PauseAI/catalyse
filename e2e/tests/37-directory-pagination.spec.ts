@@ -18,7 +18,7 @@ test.describe('Directory pagination', () => {
 
     // One more than a page → exactly two pages, with a single row on page 2.
     const TOTAL = DIRECTORY_PAGE_SIZE + 1
-    const marker = `PGN${Date.now().toString(36)}`
+    const marker = `PGN${fake.skillName().replace(/\s+/g, '')}`
     // Serial, not parallel: each create is a multi-row write and the worker DB is SQLite,
     // which throws on concurrent writers.
     for (let n = 0; n < TOTAL; n++) {

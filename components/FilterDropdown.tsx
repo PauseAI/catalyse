@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { textMatches } from '@/lib/text-match'
 
 export interface FilterOption<T extends string = string> {
   value: T
@@ -143,9 +144,7 @@ export default function FilterDropdown<T extends string>({
     options.find((o) => o.value === value)?.label ?? placeholderLabel ?? options[0]?.label
 
   const filtered =
-    searchable && query
-      ? options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
-      : options
+    searchable && query ? options.filter((o) => textMatches(o.label, query)) : options
 
   function select(opt: FilterOption<T>) {
     if (opt.header) return
@@ -218,6 +217,7 @@ export default function FilterDropdown<T extends string>({
       <div className="relative">
         <button
           ref={triggerRef}
+          id={searchable && open ? undefined : id}
           type="button"
           aria-label={ariaLabel}
           aria-expanded={open}

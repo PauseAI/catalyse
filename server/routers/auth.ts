@@ -353,7 +353,8 @@ export const authRouter = {
 
     const isApproved = !platformSettings.requireApplicationApproval
     if (!isApproved) {
-      notifyAdmins(
+      // Awaited so an approval that follows at once finds the row to clear.
+      await notifyAdmins(
         'new_volunteer_signup',
         'New volunteer application',
         `${volunteer.name} has applied to join Catalyse`,

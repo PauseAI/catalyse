@@ -148,7 +148,12 @@ test.describe('Project Interests and Assignment', () => {
     })
   })
 
-  test('Project owner declines a pending interest', async ({ adminPage, volunteer, baseUrl }) => {
+  test('Project owner declines a pending interest', async ({
+    adminPage,
+    volunteer,
+    baseUrl,
+    snap,
+  }) => {
     const projectId = await setupSeekingProject(baseUrl)
     const declineMessage = fake.feedbackText()
 
@@ -169,6 +174,7 @@ test.describe('Project Interests and Assignment', () => {
     const declineDialog = adminPage.getByRole('dialog', { name: 'Decline Volunteer' })
     await expect(declineDialog).toBeVisible({ timeout: 10_000 })
     await declineDialog.getByLabel('Optional message for the volunteer').fill(declineMessage)
+    await snap(adminPage, 'decline dialog')
     await declineDialog.getByRole('button', { name: 'Decline' }).click()
     await expect(getAlert(adminPage)).toContainText('Declined. They', { timeout: 10_000 })
 
@@ -297,7 +303,7 @@ test.describe('Project Interests and Assignment', () => {
     baseUrl,
   }) => {
     const projectId = await setupSeekingProject(baseUrl)
-    const commentText = `admin note ${Date.now()}`
+    const commentText = `admin note: ${fake.note()}`
 
     // Admin posts a comment on the project
     await adminPage.goto(`${baseUrl}/projects/${projectId}#discussion`)

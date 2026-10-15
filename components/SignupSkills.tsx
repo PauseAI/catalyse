@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import SkillPicker from '@/components/SkillPicker'
 import { orpc } from '@/lib/orpc'
+import { textMatches } from '@/lib/text-match'
 
 interface SelectedSkill {
   skillId: number
@@ -40,9 +41,9 @@ export default function SignupSkills({
   }
 
   const selectedIds = new Set(value.map((s) => s.skillId))
-  const term = search.trim().toLowerCase()
+  const term = search.trim()
   const shown = term
-    ? all.filter((s) => s.name.toLowerCase().includes(term))
+    ? all.filter((s) => textMatches(s.name, term))
     : [...needed, ...all.filter((s) => selectedIds.has(s.id) && !needed.some((n) => n.id === s.id))]
 
   function toggle(skillId: number) {

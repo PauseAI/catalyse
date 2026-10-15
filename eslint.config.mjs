@@ -34,6 +34,8 @@ const eslintConfig = defineConfig([
     'generated/**',
     // Local scratch space
     'tmp/**',
+    // Visual snapshot gallery, written by npm run snapshots
+    'snapshots/**',
   ]),
 ])
 

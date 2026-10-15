@@ -74,7 +74,7 @@ test.describe('Project Edit Regressions', () => {
     baseUrl,
   }) => {
     const projectId = await setupOwnedProject(baseUrl, adminPage, volunteer)
-    const taskTitle = `regression task ${Date.now()}`
+    const taskTitle = `regression task ${fake.quickTaskTitle()}`
 
     // Add a task on the project detail page.
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#tasks`)
