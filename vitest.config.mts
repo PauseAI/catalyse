@@ -57,6 +57,9 @@ export default defineConfig({
           exclude,
           environment: 'node',
           setupFiles: ['./test/setup-db.ts'],
+          // A job test runs the whole job several times over; with every worker querying
+          // Postgres at once, that outlasts vitest's five-second default.
+          testTimeout: 20_000,
         },
       },
       {

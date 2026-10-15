@@ -29,7 +29,7 @@ GitHub issue. An entry here is about the work itself: something in the code
 structure, tooling, tests, docs or diagnostics that made a task slower or more
 confusing than it needed to be, and that will do so again.
 
-## 7x
+## 8x
 
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
       and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
@@ -58,7 +58,9 @@ confusing than it needed to be, and that will do so again.
       race again: React mirrors a textarea's value into its text, so `getByText` found the
       comment in the box and the admin opened the inbox before the post landed. A trace with
       both pages' network timings showed it in one read; `postComment` (`e2e/actions/ui.ts`)
-      now waits for the box to empty, and every spec that posts a comment uses it.
+      now waits for the box to empty, and every spec that posts a comment uses it. The next
+      `check-all` then hit `jobs/deadline-reminders.test.ts`: one test runs the job four times,
+      past the node project's five-second default under load; that project now allows 20 s.
 
 ## 6x
 
