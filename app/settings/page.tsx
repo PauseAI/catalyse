@@ -10,10 +10,13 @@ import Radio from '@/components/Radio'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import SkillPicker from '@/components/SkillPicker'
 import Tabs from '@/components/Tabs'
+import { Badge } from '@/components/Badge'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import { useUrlParam } from '@/lib/hooks/url-filters'
+import { formatDate } from '@/lib/format-date'
+import { BUG_STATUS_VARIANT, bugStatusLabel } from '@/lib/bug-report-labels'
 import {
   EMAIL_CATEGORY_LABELS,
   MUTABLE_EMAIL_CATEGORIES,
@@ -26,7 +29,7 @@ import {
   type LocalGroupOption,
 } from '@/lib/filter-options'
 
-type TabKey = 'profile' | 'account' | 'notifications' | 'privacy'
+type TabKey = 'profile' | 'account' | 'notifications' | 'privacy' | 'bug-reports'
 
 type DailySummaryChoice = 'email_and_in_app' | 'in_app_only' | 'off'
 
@@ -41,6 +44,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'account', label: 'Account' },
   { key: 'notifications', label: 'Notifications' },
   { key: 'privacy', label: 'Privacy & data' },
+  { key: 'bug-reports', label: 'My bug reports' },
 ]
 
 const VALID_TABS = new Set<string>(TABS.map((t) => t.key))
@@ -129,6 +133,11 @@ function SettingsPageContent() {
   })
   const { data: localGroupsData } = useQuery(orpc.localGroups.list.queryOptions({ input: {} }))
   const allLocalGroups: LocalGroupOption[] = localGroupsData?.groups ?? []
+
+  const { data: myBugReports = [], isPending: loadingBugReports } = useQuery({
+    ...orpc.bugReports.listMine.queryOptions(),
+    enabled: !!user && activeTab === 'bug-reports',
+  })
 
   const { data: myApplication } = useQuery({
     ...orpc.volunteers.myApplication.queryOptions(),
@@ -846,6 +855,43 @@ function SettingsPageContent() {
               Read privacy policy
             </Link>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'bug-reports' && (
+        <div className="max-w-4xl">
+          {loadingBugReports ? (
+            <div className="text-center py-10 text-text-light">Loading…</div>
+          ) : myBugReports.length === 0 ? (
+            <p>You haven&apos;t reported anything yet.</p>
+          ) : (
+            myBugReports.map((r) => (
+              <Link
+                key={r.id}
+                href={`/bugs/${r.id}`}
+                className="card block bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word w-full"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <h3 className="mt-0 mx-0 mb-1">{r.title}</h3>
+                    <div className="text-text-light flex gap-2 flex-wrap text-[0.8rem]">
+                      {r.category && <span>{r.category}</span>}
+                      {r.severity && <span>· {r.severity}</span>}
+                      <span>· {r.createdAt ? formatDate(r.createdAt) : ''}</span>
+                      {r.assigneeName && <span>· Assigned to: {r.assigneeName}</span>}
+                    </div>
+                  </div>
+                  <Badge variant={BUG_STATUS_VARIANT[r.status] ?? 'neutral'}>
+                    {bugStatusLabel(r.status)}
+                  </Badge>
+                </div>
+                <p className="text-text-light mt-0 mx-0 whitespace-pre-wrap">{r.description}</p>
+                {r.resolutionNotes && (
+                  <p className="mt-3 mx-0 mb-0 text-sm italic">Resolution: {r.resolutionNotes}</p>
+                )}
+              </Link>
+            ))
+          )}
         </div>
       )}
 

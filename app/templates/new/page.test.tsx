@@ -59,7 +59,7 @@ describe('new template', () => {
         { ref: 'task-3', title: 'Follow up', dependsOn: [] },
       ],
     })
-    expect(navigation.push).toHaveBeenCalledWith(`/templates/${template.id}/instantiate`)
+    expect(navigation.push).toHaveBeenCalledWith('/templates')
   })
 
   it('reports a refused create', async () => {

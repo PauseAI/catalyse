@@ -212,7 +212,7 @@ function TaskCard({
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="m-0">{name}</h2>
           <span className="text-sm text-text-light whitespace-nowrap" aria-label="Time left">
-            {mm}:{ss} left
+            {`${mm}:${ss} left`}
           </span>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 mt-1">

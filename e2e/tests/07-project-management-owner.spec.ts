@@ -103,8 +103,8 @@ test.describe('Project Management (Owner)', () => {
     baseUrl,
   }) => {
     const projectId = await setupOwnedProject(baseUrl, adminPage, volunteer)
-    const adminComment = `admin update ${Date.now()}`
-    const volunteerReply = `volunteer reply ${Date.now()}`
+    const adminComment = `admin update: ${fake.note()}`
+    const volunteerReply = `volunteer reply: ${fake.note()}`
 
     // Admin posts the opening comment
     await adminPage.goto(`${baseUrl}/projects/${projectId}#discussion`)

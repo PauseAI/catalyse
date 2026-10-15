@@ -46,6 +46,9 @@ test.describe('GDPR & Privacy', () => {
       'GDPR export test project',
     )
     await transferProjectOwnership(baseUrl, adminPage, volunteerProjectId, volunteer.name)
+    // The admin's part is done; a project page left open through the rest of
+    // this long test drifts, and its final frame should be somewhere still.
+    await adminPage.goto(`${baseUrl}/dashboard`)
 
     // Admin creates a seeking-help project (no owner); volunteer expresses interest
     const seekingProjectId = await adminCreateProjectViaApi(

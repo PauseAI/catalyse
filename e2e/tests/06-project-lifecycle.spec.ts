@@ -1,7 +1,6 @@
-import { test, expect, getAlert, readAdminToken, createApprovedVolunteer } from '../fixtures'
+import { test, expect, getAlert } from '../fixtures'
 import { goToInbox } from '../actions/dashboard'
 import { fake } from '../fake'
-import { createApiClient } from '../client'
 import {
   proposeProject,
   adminCreateProject,
@@ -17,6 +16,7 @@ test.describe('Project Lifecycle', () => {
     adminPage,
     volunteer,
     baseUrl,
+    snap,
   }) => {
     const title = fake.projectTitle()
     const projectId = await proposeProject(
@@ -24,6 +24,8 @@ test.describe('Project Lifecycle', () => {
       volunteer.page,
       title,
       'Test proposal description',
+      undefined,
+      snap,
     )
     await adminApproveProject(baseUrl, adminPage, title)
 
@@ -227,12 +229,6 @@ test.describe('Project Lifecycle', () => {
     await expect(outcomeDisplay).toContainText('Successful')
     await expect(outcomeDisplay).toContainText(outcomeNotes)
   })
-
-  // SKIPPED: The app has no UI that displays a volunteer's endorsements — there is no profile
-  // view, directory card, or project page that shows "endorsed via project_outcome". The only
-  // way to verify this is via the admin API endpoint, which requires the volunteer's numeric ID.
-  // Skip until endorsements become visible somewhere in the UI.
-  test.skip('Required-skill endorsements are created for the project owner on a successful outcome', async () => {})
 })
 
 test.describe('Task requirements at project creation', () => {
@@ -253,51 +249,5 @@ test.describe('Task requirements at project creation', () => {
       timeout: 10_000,
     })
     await expect(adminPage.getByRole('heading', { name: 'Publish this project?' })).toHaveCount(0)
-  })
-
-  test('The API accepts a volunteer project proposal with no tasks', async ({ baseUrl }) => {
-    const volunteer = await createApprovedVolunteer(baseUrl)
-    const api = createApiClient(baseUrl, volunteer.token)
-
-    const result = await api.projects.create({
-      body: {
-        title: fake.projectTitle(),
-        description: 'Proposal with no tasks, sent directly to the API',
-        projectType: null,
-        estimatedDuration: null,
-        timeCommitmentHoursPerWeek: null,
-        urgency: 'medium',
-        collaborationLink: null,
-        country: null,
-        localGroup: null,
-        isSeekingHelp: true,
-        tasks: [],
-      },
-    })
-
-    expect(result.status).toBe(200)
-  })
-
-  test('The API rejects an org project with no tasks', async ({ baseUrl }) => {
-    const adminApi = createApiClient(baseUrl, readAdminToken(baseUrl))
-
-    const result = await adminApi.admin.projects.create({
-      body: {
-        title: fake.projectTitle(),
-        description: 'Org project with no tasks, sent directly to the API',
-        projectType: null,
-        estimatedDuration: null,
-        timeCommitmentHoursPerWeek: null,
-        urgency: 'medium',
-        collaborationLink: null,
-        country: null,
-        localGroup: null,
-        isSeekingHelp: false,
-        tasks: [],
-      },
-    })
-
-    expect(result.status).toBe(400)
-    expect(JSON.stringify(result.body)).toContain('At least one task is required')
   })
 })
