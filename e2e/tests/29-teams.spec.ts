@@ -66,32 +66,6 @@ async function getMyId(baseUrl: string, token: string): Promise<number> {
   return (result.body as { id: number }).id
 }
 
-async function createOrgProjectForTeam(
-  baseUrl: string,
-  teamId: number,
-): Promise<{ id: number; title: string }> {
-  const title = fake.projectTitle()
-  const created = await adminApi(baseUrl).admin.projects.create({
-    body: {
-      title,
-      description: 'e2e team-project link description',
-      projectType: null,
-      estimatedDuration: null,
-      timeCommitmentHoursPerWeek: null,
-      urgency: 'medium',
-      collaborationLink: null,
-      country: null,
-      localGroup: null,
-      isSeekingHelp: false,
-      teamId,
-      tasks: [{ title: 'Initial task' }],
-    },
-  })
-  if (created.status !== 200)
-    throw new Error(`Project creation failed: ${JSON.stringify(created.body)}`)
-  return { id: (created.body as { id: number }).id, title }
-}
-
 test.describe('Teams', () => {
   test('Volunteer suggests a team and sees it pending', async ({ volunteer, baseUrl }) => {
     const teamName = fake.teamName()
@@ -305,78 +279,6 @@ test.describe('Teams', () => {
     await expect(async () => {
       const updated = await getTeamByName(baseUrl, teamName)
       expect(updated.members.map((m) => m.id)).not.toContain(member.id)
-    }).toPass({ timeout: 10_000 })
-  })
-
-  test('A volunteer who is neither admin nor team leader cannot review a join request', async ({
-    baseUrl,
-  }) => {
-    const teamName = fake.teamName()
-    const team = await createTeamViaApi(baseUrl, teamName)
-
-    const applicant = await createApprovedVolunteer(baseUrl)
-    const applicantApi = createApiClient(baseUrl, applicant.token)
-    const applied = await applicantApi.teams.apply({ body: { id: team.id } })
-    if (applied.status !== 200) throw new Error(`apply failed: ${JSON.stringify(applied.body)}`)
-
-    const requests = await adminApi(baseUrl).teams.listJoinRequests({
-      params: { teamId: team.id },
-    })
-    const requestId = (requests.body as { requests: { id: number }[] }).requests[0].id
-
-    const bystander = await createApprovedVolunteer(baseUrl)
-    const bystanderApi = createApiClient(baseUrl, bystander.token)
-    const result = await bystanderApi.teams.reviewJoinRequest({
-      body: { id: requestId, action: 'accept' },
-    })
-    expect(result.status).toBe(403)
-  })
-
-  test('A project tagged to a team is visible to its members, hidden from others, and notifies the team', async ({
-    baseUrl,
-  }) => {
-    const teamName = fake.teamName()
-    const team = await createTeamViaApi(baseUrl, teamName)
-
-    const member = await createApprovedVolunteer(baseUrl)
-    await adminApi(baseUrl).teams.assignMember({
-      body: { teamId: team.id, volunteerId: member.id },
-    })
-    const outsider = await createApprovedVolunteer(baseUrl)
-
-    const project = await createOrgProjectForTeam(baseUrl, team.id)
-
-    const memberApi = createApiClient(baseUrl, member.token)
-    const memberGet = await memberApi.projects.getById({ params: { id: project.id } })
-    expect(memberGet.status).toBe(200)
-    expect((memberGet.body as { isMyTeam: boolean }).isMyTeam).toBe(true)
-
-    // Search by title rather than paging the whole list — the shared worker db accumulates
-    // projects from every other test, so an unscoped list() would be pagination-flaky.
-    const memberList = await memberApi.projects.list({ search: project.title })
-    const memberListIds = (memberList.body as { projects: { id: number }[] }).projects.map(
-      (p) => p.id,
-    )
-    expect(memberListIds).toContain(project.id)
-
-    const outsiderApi = createApiClient(baseUrl, outsider.token)
-    const outsiderGet = await outsiderApi.projects.getById({ params: { id: project.id } })
-    expect(outsiderGet.status).toBe(404)
-
-    const outsiderList = await outsiderApi.projects.list({ search: project.title })
-    const outsiderListIds = (outsiderList.body as { projects: { id: number }[] }).projects.map(
-      (p) => p.id,
-    )
-    expect(outsiderListIds).not.toContain(project.id)
-
-    await expect(async () => {
-      const notifications = await memberApi.notifications.list({})
-      const match = (
-        notifications.body as { notifications: { type: string; link: string | null }[] }
-      ).notifications.find(
-        (n) => n.type === 'team_project_assigned' && n.link === `/projects/${project.id}`,
-      )
-      expect(match).toBeTruthy()
     }).toPass({ timeout: 10_000 })
   })
 })

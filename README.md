@@ -136,6 +136,7 @@ npm run test:unit       # Run unit tests only (vitest)
 npm run test:e2e        # Run e2e tests only (Playwright)
 npm run test:e2e:headed # Run with a visible browser (single worker, slowed)
 npm run test:e2e:ui     # Open Playwright UI mode
+npm run snapshots       # Photograph every e2e test and build a visual diff gallery (see e2e/snapshots/README.md)
 ```
 
 Tests spin up an isolated Next.js server with a fresh database — your dev server doesn't need to be running.
@@ -180,6 +181,7 @@ Actions are pinned to commit SHAs with the version in a trailing comment; bump b
 | `test:e2e:log`     | Run e2e tests and save full output to `test-output.txt`                                                                                         |
 | `test:e2e:headed`  | Run e2e tests with a visible browser, single worker                                                                                             |
 | `test:e2e:ui`      | Open Playwright UI mode for interactive test debugging                                                                                          |
+| `snapshots`        | Run the e2e suite with every test photographed and build `snapshots/index.html`, a visual diff gallery; see `e2e/snapshots/README.md`           |
 | `cron:backup`      | Run the database backup cron job                                                                                                                |
 | `demo`             | Run the demo data seeding script                                                                                                                |
 | `demo:snapshot`    | Take a snapshot of the current demo state                                                                                                       |

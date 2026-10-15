@@ -100,6 +100,7 @@ export class DemoEngine {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private ttsInitPromise: Promise<any> | null = null
   private detectMode = false
+  private fast = false
   private detectedTexts: string[] = []
   private pregeneratedCache = new Map<string, string>()
   private readonly scratchDir: string
@@ -109,17 +110,24 @@ export class DemoEngine {
   private manifest: Array<{ key: string; clipIndex: number; clipMs: number; durationMs: number }> =
     []
 
-  constructor(opts: { detectMode?: boolean; scratchDir?: string } = {}) {
+  constructor(opts: { detectMode?: boolean; fast?: boolean; scratchDir?: string } = {}) {
     this.scratchDir = opts.scratchDir ?? path.join(process.cwd(), 'demo', '.scratch')
     this.detectMode = opts.detectMode ?? false
-    if (!this.detectMode) {
-      this.CLICK_CLIP = this.loadClip(path.join(SOUNDS_DIR, 'click.mp3'))
-      this.TYPE_CLIP = this.loadClip(path.join(SOUNDS_DIR, 'type.mp3'))
+    this.fast = opts.fast ?? false
+    if (!this.detectMode && !this.fast) {
+      this.CLICK_CLIP = this.loadClip(path.join(SOUNDS_DIR, 'click.mp3')).map((s) => s * (2 / 3))
+      this.TYPE_CLIP = this.loadClip(path.join(SOUNDS_DIR, 'type.mp3')).map((s) => s * (2 / 3))
       this.initTTS()
     } else {
       this.CLICK_CLIP = new Float32Array(0)
       this.TYPE_CLIP = new Float32Array(0)
     }
+  }
+
+  /** Visuals (cursor, captions, scroll, fades, video, sound) are skipped in both detect
+   *  and fast mode; fast mode still drives real clicks/typing/navigation against a real page. */
+  private get skipVisuals(): boolean {
+    return this.detectMode || this.fast
   }
 
   // ─── Audio ─────────────────────────────────────────────────────────────────
@@ -128,7 +136,6 @@ export class DemoEngine {
   private initTTS(): Promise<any> {
     if (!this.ttsInitPromise) {
       this.ttsInitPromise = (async () => {
-        // @ts-expect-error — kokoro-js uses package exports; not resolvable under moduleResolution:node
         const { KokoroTTS } = await import('kokoro-js')
         console.log('  Loading Kokoro TTS model...')
         const tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
@@ -152,6 +159,10 @@ export class DemoEngine {
 
   get isDetecting(): boolean {
     return this.detectMode
+  }
+
+  get isFast(): boolean {
+    return this.fast
   }
 
   collectNarration(): string[] {
@@ -232,7 +243,7 @@ export class DemoEngine {
   }
 
   addSound(kind: SoundEvent['kind'], atMs?: number): void {
-    if (this.detectMode) return
+    if (this.skipVisuals) return
     this.phaseEvents.push({ kind, ms: atMs ?? Date.now() - this.phaseStartMs })
     if (kind === 'click') this.playLiveClick()
   }
@@ -367,7 +378,7 @@ export class DemoEngine {
 
   /** Move cursor from its current position to (tx, ty) via bezier arc with jittered timing */
   async moveCursorToXY(tx: number, ty: number): Promise<void> {
-    if (this.detectMode || !this.activePage) return
+    if (this.skipVisuals || !this.activePage) return
     const currentTransform: string = await this.activePage.evaluate(
       `(() => { var el = document.getElementById('__demo-cursor__'); return el ? (el.style.transform || 'translate(200px,200px)') : 'translate(200px,200px)'; })()`,
     )
@@ -404,7 +415,7 @@ export class DemoEngine {
   }
 
   async mouseMoveTo(locator: Locator): Promise<void> {
-    if (this.detectMode || !this.activePage) return
+    if (this.skipVisuals || !this.activePage) return
     const box = await locator.boundingBox()
     if (!box) return
     // Land at a random point within the middle 60% of the element
@@ -418,7 +429,7 @@ export class DemoEngine {
    * pxPerSec controls reading speed (default 150 px/s).
    */
   async readText(locator: Locator, pxPerSec = 320): Promise<void> {
-    if (this.detectMode || !this.activePage) return
+    if (this.skipVisuals || !this.activePage) return
     await this.smoothScrollTo(locator)
     const box = await locator.boundingBox()
     if (!box) return
@@ -465,7 +476,7 @@ export class DemoEngine {
 
   /** Force-create/reposition the cursor arrow and move the physical mouse there */
   async placeCursor(x?: number, y?: number): Promise<void> {
-    if (this.detectMode || !this.activePage) return
+    if (this.skipVisuals || !this.activePage) return
     x = x ?? this.cursorX
     y = y ?? this.cursorY
     this.cursorX = x
@@ -488,7 +499,7 @@ export class DemoEngine {
 
   /** Ripple animation at cursor position to indicate a click */
   async clickRipple(): Promise<void> {
-    if (this.detectMode || !this.activePage) return
+    if (this.skipVisuals || !this.activePage) return
     const cursorTransform: string = await this.activePage.evaluate(
       `(function(){ var el=document.getElementById('__demo-cursor__'); return el ? el.style.transform : 'translate(200px,200px)'; })()`,
     )
@@ -520,7 +531,7 @@ export class DemoEngine {
   // ─── Captions ──────────────────────────────────────────────────────────────
 
   async showCaption(text: string): Promise<void> {
-    if (this.detectMode || !this.activePage) return
+    if (this.skipVisuals || !this.activePage) return
     await this.activePage.evaluate(
       ([msg, css]: [string, string]) => {
         document.getElementById('__demo-caption__')?.remove()
@@ -538,7 +549,7 @@ export class DemoEngine {
   }
 
   async hideCaption(): Promise<void> {
-    if (this.detectMode || !this.activePage) return
+    if (this.skipVisuals || !this.activePage) return
     await this.activePage.evaluate(() => {
       const div = document.getElementById('__demo-caption__')
       if (!div) return
@@ -549,7 +560,7 @@ export class DemoEngine {
   }
 
   async caption(text: string, durationMs = 2500): Promise<void> {
-    if (this.detectMode) return
+    if (this.skipVisuals) return
     await this.showCaption(text)
     await this.pause(durationMs)
     await this.hideCaption()
@@ -560,6 +571,10 @@ export class DemoEngine {
   async narrate(text: string, action?: () => Promise<void>): Promise<void> {
     if (this.detectMode) {
       this.detectedTexts.push(text)
+      return
+    }
+    if (this.fast) {
+      if (action) await action()
       return
     }
 
@@ -619,7 +634,7 @@ export class DemoEngine {
   // ─── Actions ───────────────────────────────────────────────────────────────
 
   async pause(ms: number): Promise<void> {
-    if (this.detectMode) return
+    if (this.skipVisuals) return
     await new Promise((r) => setTimeout(r, ms / SPEED))
   }
 
@@ -629,7 +644,7 @@ export class DemoEngine {
    * Call dismissTitleCard() to crossfade directly to the app with no black intermediate.
    */
   async showTitleCard(url: string, html: string): Promise<void> {
-    if (this.detectMode || !this.activePage) return
+    if (this.skipVisuals || !this.activePage) return
     // addInitScript fires before every paint — sessionStorage guard makes it one-shot
     await this.activePage.addInitScript(`
       (function() {
@@ -655,7 +670,7 @@ export class DemoEngine {
 
   /** Fade the title card iframe out, revealing the app page underneath. */
   async dismissTitleCard(durationMs = 600): Promise<void> {
-    if (this.detectMode || !this.activePage) return
+    if (this.skipVisuals || !this.activePage) return
     await this.activePage.evaluate((ms: number) => {
       const el = document.getElementById('__demo-title-card__') as HTMLElement | null
       if (!el) return
@@ -667,7 +682,7 @@ export class DemoEngine {
   }
 
   async fadeOut(durationMs = 600): Promise<void> {
-    if (this.detectMode || !this.activePage) return
+    if (this.skipVisuals || !this.activePage) return
     await this.activePage.evaluate(`(function(){
       var o=document.createElement('div');
       o.style.cssText='position:fixed;inset:0;background:#000;opacity:0;z-index:2147483645;pointer-events:none;transition:opacity ${durationMs}ms ease';
@@ -678,7 +693,7 @@ export class DemoEngine {
   }
 
   async fadeIn(durationMs = 600): Promise<void> {
-    if (this.detectMode || !this.activePage) return
+    if (this.skipVisuals || !this.activePage) return
     await this.activePage.evaluate(`(function(){
       var cover=document.getElementById('__title-cover__');
       if(cover) cover.remove();
@@ -726,6 +741,13 @@ export class DemoEngine {
     const distance = targetY - startY
     if (Math.abs(distance) < 2) return
 
+    if (this.fast) {
+      await this.activePage.evaluate(
+        `(document.scrollingElement || document.documentElement).scrollTop = ${Math.round(targetY)}`,
+      )
+      return
+    }
+
     const totalMs = (Math.abs(distance) / SCROLL_PX_PER_SEC) * 1000
     const steps = Math.max(1, Math.ceil(totalMs / ANIM_STEP_MS))
     for (let i = 1; i <= steps; i++) {
@@ -750,7 +772,7 @@ export class DemoEngine {
     durationMs = 3000,
     direction: 'down' | 'up' = 'down',
   ): Promise<void> {
-    if (this.detectMode || !this.activePage) return
+    if (this.skipVisuals || !this.activePage) return
     const startY: number = await this.activePage.evaluate(
       `(document.scrollingElement || document.documentElement).scrollTop`,
     )
@@ -818,6 +840,12 @@ export class DemoEngine {
   /** Hover → click → type character by character */
   async type(locator: Locator, text: string, charDelayMs = 55): Promise<void> {
     if (this.detectMode) return
+    if (this.fast) {
+      await this.smoothScrollTo(locator)
+      await locator.click()
+      await locator.pressSequentially(text, { delay: 0 })
+      return
+    }
     await this.smoothScrollTo(locator)
     await this.mouseMoveTo(locator)
     await this.pause(150)
@@ -844,6 +872,18 @@ export class DemoEngine {
    *  skips the evaluate() and races waitForURL with the click. */
   async click(locator: Locator, opts: { navigatesTo?: string | RegExp } = {}): Promise<void> {
     if (this.detectMode) return
+    if (this.fast) {
+      await this.smoothScrollTo(locator)
+      if (opts.navigatesTo) {
+        await Promise.all([
+          this.activePage!.waitForURL(opts.navigatesTo, { timeout: 15_000 }),
+          locator.click(),
+        ])
+      } else {
+        await locator.click()
+      }
+      return
+    }
     await this.smoothScrollTo(locator)
     await this.mouseMoveTo(locator)
     await this.pause(200)
@@ -884,10 +924,12 @@ export class DemoEngine {
 
   private async newContext(browser: Browser, authToken?: string): Promise<BrowserContext> {
     const ctx = await browser.newContext({
-      recordVideo: { dir: this.scratchDir, size: { width: 1280, height: 800 } },
+      ...(this.fast
+        ? {}
+        : { recordVideo: { dir: this.scratchDir, size: { width: 1280, height: 800 } } }),
       viewport: { width: 1280, height: 800 },
     })
-    await ctx.addInitScript(CURSOR_SCRIPT)
+    if (!this.fast) await ctx.addInitScript(CURSOR_SCRIPT)
     if (authToken) {
       await ctx.addInitScript(`localStorage.setItem('authToken', ${JSON.stringify(authToken)})`)
     }
@@ -920,7 +962,8 @@ export class DemoEngine {
     ctx: BrowserContext,
     options: { transition?: 'fade-out' | 'cut'; transitionDurationMs?: number } = {},
   ): Promise<void> {
-    if (this.detectMode) {
+    if (this.detectMode || this.fast) {
+      await ctx.close()
       this.activePage = null
       return
     }

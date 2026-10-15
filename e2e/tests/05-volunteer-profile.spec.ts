@@ -20,6 +20,16 @@ async function setCheckbox(page: Page, id: string, checked: boolean) {
 }
 
 test.describe('Volunteer Profile', () => {
+  test('Profile update refuses more hours per week than signup allows', async ({
+    volunteer,
+    baseUrl,
+  }) => {
+    await volunteer.page.goto(`${baseUrl}/profile`)
+    await volunteer.page.getByLabel('Hours per Week').fill('100')
+    await volunteer.page.getByRole('button', { name: 'Save Changes' }).click()
+    await expect(getAlert(volunteer.page)).toContainText(/40 hours/, { timeout: 10_000 })
+  })
+
   test('Volunteer updates their profile', async ({ volunteer, baseUrl }) => {
     const uniqueName = fake.personName()
 

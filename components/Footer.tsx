@@ -36,7 +36,7 @@ export default function Footer() {
         </a>
         {prNumber && (
           <a
-            href={`https://github.com/Username-Matilda/catalyse/pull/${prNumber}`}
+            href={`https://github.com/PauseAI/catalyse/pull/${prNumber}`}
             target="_blank"
             rel="noopener noreferrer"
             className="underline hover:text-foreground transition-colors"

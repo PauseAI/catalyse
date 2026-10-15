@@ -6,6 +6,7 @@ import {
   addTaskFromEditPage,
   publishDraftFromEditPage,
   deleteDraftFromEditPage,
+  openNewProjectForm,
 } from '../actions/projects'
 
 test.describe('Admin project drafts', () => {
@@ -134,6 +135,17 @@ test.describe('Volunteer project drafts', () => {
     await volunteer.page.reload()
     await expect(taskTitleInput).toHaveValue('Updated task title', { timeout: 10_000 })
     await expect(taskDescInput).toHaveValue('Updated task details')
+  })
+
+  test('Submitting a proposal with no title is refused', async ({ volunteer, baseUrl, snap }) => {
+    await volunteer.page.goto(`${baseUrl}/suggest`)
+    await openNewProjectForm(volunteer.page)
+    await volunteer.page.getByRole('button', { name: 'Submit', exact: true }).click()
+    await expect(getAlert(volunteer.page)).toContainText('A title is required, even for a draft.', {
+      timeout: 10_000,
+    })
+    await snap(volunteer.page, 'untitled proposal refused')
+    await expect(volunteer.page).toHaveURL(/\/suggest/)
   })
 
   test('Publishing a draft with no tasks is rejected', async ({ volunteer, baseUrl }) => {

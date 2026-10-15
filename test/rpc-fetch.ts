@@ -17,12 +17,11 @@ let handler:
   | undefined
 
 async function load() {
-  const [{ RPCHandler }, { appRouter }, { createContext }] = await Promise.all([
-    import('@orpc/server/fetch'),
-    import('@/server/router'),
+  const [{ createHandler }, { createContext }] = await Promise.all([
+    import('@/server/handler'),
     import('@/server/context'),
   ])
-  return { rpc: new RPCHandler(appRouter) as RPCHandler<Record<never, never>>, createContext }
+  return { rpc: createHandler(), createContext }
 }
 
 export async function rpcFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {

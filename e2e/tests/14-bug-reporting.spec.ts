@@ -8,6 +8,7 @@ test.describe('Bug Reporting', () => {
     adminPage,
     volunteer,
     baseUrl,
+    snap,
   }) => {
     test.setTimeout(60_000)
     const title = fake.bugTitle()
@@ -18,6 +19,7 @@ test.describe('Bug Reporting', () => {
     })
 
     await openBugReportForm(volunteer.page)
+    await snap(volunteer.page, 'report dialog open')
     await fillAndSubmitBugReport(volunteer.page, {
       title,
       description: 'This is a test bug report submitted via the e2e test suite',

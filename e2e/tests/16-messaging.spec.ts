@@ -19,6 +19,7 @@ test.describe('Messaging', () => {
     volunteer,
     browser,
     baseUrl,
+    snap,
   }) => {
     const subject = fake.messageSubject()
     const body = fake.messageBody()
@@ -74,6 +75,7 @@ test.describe('Messaging', () => {
 
       await dialog.getByLabel('Subject').fill(subject)
       await dialog.getByLabel('Message').fill(body)
+      await snap(senderPage, 'contact form filled')
       await dialog.getByRole('button', { name: 'Send Message' }).click()
 
       await expect(getAlert(senderPage)).toContainText('Message sent', { timeout: 10_000 })
