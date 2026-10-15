@@ -29,7 +29,7 @@ GitHub issue. An entry here is about the work itself: something in the code
 structure, tooling, tests, docs or diagnostics that made a task slower or more
 confusing than it needed to be, and that will do so again.
 
-## 8x
+## 9x
 
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
       and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
@@ -60,7 +60,9 @@ confusing than it needed to be, and that will do so again.
       both pages' network timings showed it in one read; `postComment` (`e2e/actions/ui.ts`)
       now waits for the box to empty, and every spec that posts a comment uses it. The next
       `check-all` then hit `jobs/deadline-reminders.test.ts`: one test runs the job four times,
-      past the node project's five-second default under load; that project now allows 20 s.
+      past the node project's five-second default under load; that project now allows 20 s. Main's
+      first CI run after the merge hit e2e `30`: `transferProjectOwnership` waited for any alert,
+      and the approval toast still up on the same page satisfied it before the transfer saved.
 
 ## 6x
 

@@ -318,7 +318,8 @@ export async function transferProjectOwnership(
       .getByRole('button', { name: 'Transfer', exact: true })
       .click()
   }
-  await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
+  // Approving the project on this same page leaves its own toast up, so name this one.
+  await expect(getAlert(adminPage)).toContainText('Ownership transferred!', { timeout: 10_000 })
 }
 
 export async function removeProjectOwner(
@@ -332,7 +333,7 @@ export async function removeProjectOwner(
   await adminPage.getByRole('button', { name: 'Change owner' }).click()
   await adminPage.getByRole('button', { name: 'Remove ownership' }).click()
   await adminPage.getByRole('dialog').getByRole('button', { name: 'Remove ownership' }).click()
-  await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
+  await expect(getAlert(adminPage)).toContainText('Ownership transferred!', { timeout: 10_000 })
 }
 
 export async function setProjectStatus(
