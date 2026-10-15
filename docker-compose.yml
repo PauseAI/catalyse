@@ -2,10 +2,8 @@
 # point DATABASE_URL at `db` and TEST_DATABASE_URL at `db-test` (see .env.local.example). Pin
 # the major version to what Railway runs in production.
 #
-# Ports default to 5432/5433 (unchanged for a main checkout) but are overridable via DB_PORT /
-# TEST_DB_PORT. In a linked worktree, `npm run local-setup` (scripts/resolve-db-ports.mjs) sets
-# both automatically, and forces TEST_DATABASE_URL on, so parallel worktrees never share a
-# container and a test run never touches the database a manual/CiC session is using.
+# Host ports default to 5432/5433 and can be changed with DB_PORT / TEST_DB_PORT (e.g. in .env)
+# if those are taken; keep DATABASE_URL / TEST_DATABASE_URL in step.
 services:
   db:
     image: postgres:18
