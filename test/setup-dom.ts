@@ -22,8 +22,21 @@ if (typeof window !== 'undefined') {
   // The app's client retries failed queries with backoff; a test asserting on an error state
   // would otherwise wait several seconds for the retries to run out.
   queryClient.setDefaultOptions({ queries: { retry: false } })
-  // jsdom has no layout, so it does not implement scrollIntoView.
+  // jsdom has no layout, so it does not implement scrolling.
   Element.prototype.scrollIntoView = () => {}
+  window.scrollTo = () => {}
+  // Nor can it load another page, and it reports each attempt straight to stderr. A link the
+  // app leaves to the browser stays put; tests assert where it points. This listener runs
+  // after React's, so a handler still sees the click as not yet prevented.
+  const page = (url: string) => url.split('#')[0]
+  window.addEventListener('click', (event) => {
+    const link = event.target instanceof Element ? event.target.closest('a[href]') : null
+    if (link instanceof HTMLAnchorElement && page(link.href) !== page(location.href)) {
+      event.preventDefault()
+    }
+  })
+  // A form the app does not handle itself would post to another page the same way.
+  window.addEventListener('submit', (event) => event.preventDefault())
 
   afterEach(() => {
     cleanup()

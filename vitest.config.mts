@@ -45,10 +45,6 @@ export default defineConfig({
       ...(process.env.GITHUB_ACTIONS === 'true' ? ['github-actions'] : []),
     ],
     globalSetup: ['./test/global-setup.ts'],
-    // jsdom cannot scroll or load another page, and says so on every call; the page tests
-    // assert where a link points, not that the browser went there.
-    onConsoleLog: (log) =>
-      !/Not implemented: (Window's scrollTo\(\) method|navigation to another Document)/.test(log),
     // Transformed modules are kept under node_modules/.vitest-cache, so a run only pays to
     // transform what changed since the last one.
     fsModuleCache: true,
