@@ -3,6 +3,7 @@ import { submitBugReportViaApi } from '../actions/bugs'
 import { goToInbox } from '../actions/dashboard'
 import { createApiClient } from '../client'
 import { fake } from '../fake'
+import { postComment } from '../actions/ui'
 
 test.describe('Bug Report Detail Page', () => {
   test('Reporter and admin exchange comments on a bug report; reporter is notified of the reply', async ({
@@ -24,8 +25,7 @@ test.describe('Bug Report Detail Page', () => {
       timeout: 10_000,
     })
 
-    await volunteer.page.getByLabel('Add a comment').fill('Any update on this?')
-    await volunteer.page.getByRole('button', { name: 'Post comment' }).click()
+    await postComment(volunteer.page, 'Any update on this?')
     await expect(volunteer.page.getByText('Any update on this?')).toBeVisible({ timeout: 10_000 })
 
     await adminPage.goto(`${baseUrl}/admin/bugs`)
@@ -38,8 +38,7 @@ test.describe('Bug Report Detail Page', () => {
     })
     await expect(adminPage.getByText('Any update on this?')).toBeVisible({ timeout: 10_000 })
 
-    await adminPage.getByLabel('Add a comment').fill('Looking into it now')
-    await adminPage.getByRole('button', { name: 'Post comment' }).click()
+    await postComment(adminPage, 'Looking into it now')
     await expect(adminPage.getByText('Looking into it now')).toBeVisible({ timeout: 10_000 })
 
     await goToInbox(baseUrl, volunteer.page)

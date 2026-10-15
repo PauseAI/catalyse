@@ -10,6 +10,7 @@ import {
   adminRecordOutcome,
   transferProjectOwnership,
 } from '../actions/projects'
+import { postComment } from '../actions/ui'
 
 test.describe('Project Lifecycle', () => {
   test('Volunteer proposes a project with tasks; admin approves; project moves to Ready', async ({
@@ -140,8 +141,7 @@ test.describe('Project Lifecycle', () => {
       timeout: 10_000,
     })
     // The Discussion is on the Overview, under the review form.
-    await adminPage.getByLabel('Add a comment').fill(followUp)
-    await adminPage.getByRole('button', { name: 'Post comment' }).click()
+    await postComment(adminPage, followUp)
     await expect(getAlert(adminPage)).toContainText('Comment added', { timeout: 10_000 })
 
     // Proposer sees the follow-up too (the page is already at this address, so reload it)

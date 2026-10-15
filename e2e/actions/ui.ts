@@ -1,4 +1,4 @@
-import { type Page, type Locator } from '@playwright/test'
+import { expect, type Page, type Locator } from '@playwright/test'
 
 export async function selectFilterDropdown(
   page: Page,
@@ -13,4 +13,15 @@ export async function selectFilterDropdown(
     await searchInput.fill(optionLabel)
   }
   await page.getByRole('option', { name: optionLabel, exact: true }).click()
+}
+
+/**
+ * Posts a comment and waits until the server has it. React mirrors a textarea's value into its
+ * text, so the typed words are on screen before the post lands; the box empties only once it has.
+ */
+export async function postComment(scope: Page | Locator, text: string): Promise<void> {
+  const box = scope.getByLabel('Add a comment')
+  await box.fill(text)
+  await scope.getByRole('button', { name: 'Post comment' }).click()
+  await expect(box).toHaveValue('', { timeout: 10_000 })
 }

@@ -10,6 +10,7 @@ import { fake } from '../fake'
 import { createApiClient } from '../client'
 import type { RouterClient } from '@orpc/server'
 import type { appRouter } from '@/server/router'
+import { postComment } from '../actions/ui'
 
 async function createAdminProject(
   adminApi: RouterClient<typeof appRouter>,
@@ -250,8 +251,7 @@ test.describe('Task Detail Page', () => {
       adminPage.getByRole('heading', { name: 'Task with a comment', level: 1 }),
     ).toBeVisible({ timeout: 10_000 })
 
-    await adminPage.getByLabel('Add a comment').fill('This is a permalink test comment')
-    await adminPage.getByRole('button', { name: 'Post comment' }).click()
+    await postComment(adminPage, 'This is a permalink test comment')
 
     const commentItem = adminPage
       .locator('li')

@@ -4,7 +4,7 @@ import { createSkillViaApi } from '../actions/skills'
 import type { SkillInfo } from '../actions/skills'
 import { goToInbox } from '../actions/dashboard'
 import { fake } from '../fake'
-import { selectFilterDropdown } from '../actions/ui'
+import { selectFilterDropdown, postComment } from '../actions/ui'
 import { createApiClient } from '../client'
 
 // API-equivalent of driving the create-quick-task dialog, for tests that need "an open quick
@@ -160,8 +160,7 @@ test.describe('Quick Tasks (admin)', () => {
     await expect(taskCard).toBeVisible({ timeout: 10_000 })
     await taskCard.getByText(taskTitle, { exact: true }).click()
 
-    await taskCard.getByLabel('Add a comment').fill(commentText)
-    await taskCard.getByRole('button', { name: 'Post comment' }).click()
+    await postComment(taskCard, commentText)
 
     await expect(taskCard.getByText(commentText)).toBeVisible({ timeout: 10_000 })
   })
@@ -182,15 +181,13 @@ test.describe('Quick Tasks (admin)', () => {
     const adminCard = adminPage.getByRole('article').filter({ hasText: taskTitle })
     await expect(adminCard).toBeVisible({ timeout: 10_000 })
     await adminCard.getByText(taskTitle, { exact: true }).click()
-    await adminCard.getByLabel('Add a comment').fill(adminComment)
-    await adminCard.getByRole('button', { name: 'Post comment' }).click()
+    await postComment(adminCard, adminComment)
     await expect(adminCard.getByText(adminComment)).toBeVisible({ timeout: 10_000 })
 
     // Assignee opens the task from Home, sees the admin's comment and replies
     await openFromHome(baseUrl, volunteer.page, taskTitle)
     await expect(volunteer.page.getByText(adminComment)).toBeVisible({ timeout: 10_000 })
-    await volunteer.page.getByLabel('Add a comment').fill(volunteerReply)
-    await volunteer.page.getByRole('button', { name: 'Post comment' }).click()
+    await postComment(volunteer.page, volunteerReply)
     await expect(volunteer.page.getByText(volunteerReply)).toBeVisible({ timeout: 10_000 })
 
     // Admin reloads and sees both messages in the thread

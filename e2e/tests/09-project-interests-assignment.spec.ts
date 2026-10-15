@@ -8,7 +8,7 @@ import {
   transferProjectOwnership,
   joinProject,
 } from '../actions/projects'
-import { selectFilterDropdown } from '../actions/ui'
+import { selectFilterDropdown, postComment } from '../actions/ui'
 
 // Creates an org project that immediately accepts interest (is_seeking_help = true by default)
 async function setupSeekingProject(baseUrl: string): Promise<number> {
@@ -308,8 +308,7 @@ test.describe('Project Interests and Assignment', () => {
     // Admin posts a comment on the project
     await adminPage.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(adminPage.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
-    await adminPage.getByLabel('Add a comment').fill(commentText)
-    await adminPage.getByRole('button', { name: 'Post comment' }).click()
+    await postComment(adminPage, commentText)
     await expect(adminPage.getByText(commentText)).toBeVisible({ timeout: 10_000 })
 
     // A non-participant volunteer can read the thread but has no post form
@@ -357,8 +356,7 @@ test.describe('Project Interests and Assignment', () => {
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await volunteer.page.reload()
     await expect(volunteer.page.getByLabel('Add a comment')).toBeVisible({ timeout: 10_000 })
-    await volunteer.page.getByLabel('Add a comment').fill(commentText)
-    await volunteer.page.getByRole('button', { name: 'Post comment' }).click()
+    await postComment(volunteer.page, commentText)
     await expect(volunteer.page.getByText(commentText)).toBeVisible({ timeout: 10_000 })
   })
 
@@ -376,8 +374,7 @@ test.describe('Project Interests and Assignment', () => {
     const commentText = `owner update ${Date.now()}`
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(volunteer.page.getByLabel('Add a comment')).toBeVisible({ timeout: 10_000 })
-    await volunteer.page.getByLabel('Add a comment').fill(commentText)
-    await volunteer.page.getByRole('button', { name: 'Post comment' }).click()
+    await postComment(volunteer.page, commentText)
     await expect(volunteer.page.getByText(commentText)).toBeVisible({ timeout: 10_000 })
 
     // Admin (the project creator) receives a comment notification

@@ -54,7 +54,11 @@ confusing than it needed to be, and that will do so again.
       After the status-badge stack was merged up to main, the unit tier hit
       `scripts/disposable-db.test.ts` twice running (its `DROP DATABASE` hook outlasting 10 s
       while the rest of the suite loads the server), and e2e `09` "Posting a comment notifies
-      other participants" failed in two of eight runs, never when run alone.
+      other participants" failed in three of eleven runs, never when run alone. It was `16`'s
+      race again: React mirrors a textarea's value into its text, so `getByText` found the
+      comment in the box and the admin opened the inbox before the post landed. A trace with
+      both pages' network timings showed it in one read; `postComment` (`e2e/actions/ui.ts`)
+      now waits for the box to empty, and every spec that posts a comment uses it.
 
 ## 6x
 

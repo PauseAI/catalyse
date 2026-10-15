@@ -3,6 +3,7 @@ import { proposeProject, adminApproveProject, transferProjectOwnership } from '.
 import { goToInbox } from '../actions/dashboard'
 import { Page } from '@playwright/test'
 import { fake } from '../fake'
+import { postComment } from '../actions/ui'
 
 async function setupOwnedProject(
   baseUrl: string,
@@ -91,8 +92,7 @@ test.describe('Project Management (Owner)', () => {
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
 
-    await volunteer.page.getByLabel('Add a comment').fill(updateText)
-    await volunteer.page.getByRole('button', { name: 'Post comment' }).click()
+    await postComment(volunteer.page, updateText)
 
     await expect(volunteer.page.getByText(updateText)).toBeVisible({ timeout: 10_000 })
   })
@@ -109,15 +109,13 @@ test.describe('Project Management (Owner)', () => {
     // Admin posts the opening comment
     await adminPage.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(adminPage.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
-    await adminPage.getByLabel('Add a comment').fill(adminComment)
-    await adminPage.getByRole('button', { name: 'Post comment' }).click()
+    await postComment(adminPage, adminComment)
     await expect(adminPage.getByText(adminComment)).toBeVisible({ timeout: 10_000 })
 
     // Owner sees admin's comment and replies
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(volunteer.page.getByText(adminComment)).toBeVisible({ timeout: 10_000 })
-    await volunteer.page.getByLabel('Add a comment').fill(volunteerReply)
-    await volunteer.page.getByRole('button', { name: 'Post comment' }).click()
+    await postComment(volunteer.page, volunteerReply)
     await expect(volunteer.page.getByText(volunteerReply)).toBeVisible({ timeout: 10_000 })
 
     // Admin reloads and sees both messages in the thread
@@ -136,8 +134,7 @@ test.describe('Project Management (Owner)', () => {
     const page = volunteer.page
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}#discussion`)
-    await adminPage.getByLabel('Add a comment').fill(question)
-    await adminPage.getByRole('button', { name: 'Post comment' }).click()
+    await postComment(adminPage, question)
     await expect(adminPage.getByText(question)).toBeVisible({ timeout: 10_000 })
 
     // The admin has commented, so the owner can mention them.
@@ -149,12 +146,15 @@ test.describe('Project Management (Owner)', () => {
     await replyBox.pressSequentially('@')
     await page.getByRole('option').first().click()
     await page.getByRole('button', { name: 'Reply' }).last().click()
-    await expect(page.getByText('Answered,')).toBeVisible({ timeout: 10_000 })
+    // The box holds the same words until the reply is saved (see postComment).
+    await expect(replyBox).toBeHidden({ timeout: 10_000 })
+    await expect(page.getByText('Answered,')).toBeVisible()
 
     await page.getByRole('button', { name: 'Edit' }).click()
     await page.getByLabel('Edit comment').fill('Answered in the doc')
     await page.getByRole('button', { name: 'Save' }).click()
-    await expect(page.getByText('Answered in the doc')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByLabel('Edit comment')).toBeHidden({ timeout: 10_000 })
+    await expect(page.getByText('Answered in the doc')).toBeVisible()
     await expect(page.getByText('(edited)')).toBeVisible()
 
     await page.getByRole('button', { name: 'Delete' }).click()
