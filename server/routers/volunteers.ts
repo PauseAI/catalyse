@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
+import { Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 import { redactVolunteer } from '@/lib/auth'
 import { UpdateVolunteerSchema } from '@/lib/schemas'
@@ -35,6 +36,33 @@ export const volunteersRouter = {
       // public directory.
       const isAdmin = Boolean(currentVolunteer.isAdmin || currentVolunteer.isTechnicalAdmin)
 
+      const textConditions: Prisma.Sql[] = []
+      if (input.search) {
+        const like = `%${input.search}%`
+        textConditions.push(
+          Prisma.sql`(public.unaccent(name) ILIKE public.unaccent(${like}) OR public.unaccent(COALESCE(bio, '')) ILIKE public.unaccent(${like}))`,
+        )
+      }
+      if (input.country) {
+        const like = `%${input.country}%`
+        textConditions.push(
+          Prisma.sql`(country = ${input.country} OR (country IS NULL AND public.unaccent(COALESCE(location, '')) ILIKE public.unaccent(${like})))`,
+        )
+      }
+      if (input.localGroup) {
+        const like = `%${input.localGroup}%`
+        textConditions.push(
+          Prisma.sql`(local_group = ${input.localGroup} OR (local_group IS NULL AND public.unaccent(COALESCE(location, '')) ILIKE public.unaccent(${like})))`,
+        )
+      }
+      const matchingIds = textConditions.length
+        ? (
+            await prisma.$queryRaw<{ id: number }[]>`
+              SELECT id FROM volunteers WHERE ${Prisma.join(textConditions, ' AND ')}
+            `
+          ).map((row) => row.id)
+        : null
+
       const where: Record<string, unknown> = {
         deletedAt: null,
         ...(isAdmin ? {} : { consentMakeProfileVisibleInDirectory: true }),
@@ -42,31 +70,7 @@ export const volunteersRouter = {
         ...(input.skillIds && input.skillIds.length > 0
           ? { skills: { some: { skillId: { in: input.skillIds } } } }
           : {}),
-        AND: [
-          ...(input.search
-            ? [{ OR: [{ name: { contains: input.search } }, { bio: { contains: input.search } }] }]
-            : []),
-          ...(input.country
-            ? [
-                {
-                  OR: [
-                    { country: input.country },
-                    { country: null, location: { contains: input.country } },
-                  ],
-                },
-              ]
-            : []),
-          ...(input.localGroup
-            ? [
-                {
-                  OR: [
-                    { localGroup: input.localGroup },
-                    { localGroup: null, location: { contains: input.localGroup } },
-                  ],
-                },
-              ]
-            : []),
-        ],
+        ...(matchingIds !== null ? { id: { in: matchingIds } } : {}),
       }
 
       const [volunteers, total] = await Promise.all([

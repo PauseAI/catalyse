@@ -59,6 +59,17 @@ const VOLUNTEER_TEXT_LIMITS = {
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
+/** Bounds a volunteer's own fields carry wherever they are set: at signup and on every later edit. */
+const BioSchema = z
+  .string()
+  .min(20, 'Please write at least 20 characters')
+  .max(2000, 'About You must be no more than 2000 characters')
+const AvailabilitySchema = z
+  .number()
+  .int()
+  .min(1, 'Availability is required')
+  .max(40, 'Availability must be no more than 40 hours per week')
+
 export const SignupSchema = VolunteerSchema.pick({
   name: true,
   bio: true,
@@ -111,16 +122,9 @@ export const SignupSchema = VolunteerSchema.pick({
       .string()
       .min(20, 'Please write at least 20 characters')
       .max(5000, 'Application message must be no more than 5000 characters'),
-    bio: z
-      .string()
-      .min(20, 'Please write at least 20 characters')
-      .max(2000, 'About You must be no more than 2000 characters'),
+    bio: BioSchema,
     country: z.string().min(1, 'Country is required').max(100),
-    availabilityHoursPerWeek: z
-      .number()
-      .int()
-      .min(1, 'Availability is required')
-      .max(40, 'Availability must be no more than 40 hours per week'),
+    availabilityHoursPerWeek: AvailabilitySchema,
   })
 
 export const CompleteGoogleSignupSchema = SignupSchema.omit({
@@ -420,11 +424,14 @@ export const ReviewSuggestionSchema = z.object({
 
 // ─── Admin: teams ─────────────────────────────────────────────────────────────
 
+const TeamLinkSchema = z.string().url('Enter a full address, starting with https://').nullable()
+
 export const TeamBodySchema = TeamSchema.pick({
   name: true,
   description: true,
-  lumaUrl: true,
-  docUrl: true,
+}).extend({
+  lumaUrl: TeamLinkSchema,
+  docUrl: TeamLinkSchema,
 })
 
 export const ReviewTeamSuggestionSchema = z.object({
@@ -531,13 +538,14 @@ export const UpdateVolunteerSchema = VolunteerSchema.omit({
   .extend({
     ...VOLUNTEER_TEXT_LIMITS,
     name: PersonNameSchema.optional(),
-    bio: shortText('About You', 2000).nullable().optional(),
+    bio: BioSchema.nullable().optional(),
     applicationMessage: z
       .string()
       .min(20, 'Please write at least 20 characters')
       .max(5000, 'Application message must be no more than 5000 characters')
       .nullable()
       .optional(),
+    availabilityHoursPerWeek: AvailabilitySchema.nullable().optional(),
     emailMutedCategories: z.array(z.enum(MUTABLE_EMAIL_CATEGORIES)).optional(),
     dailySummary: z.enum(['email_and_in_app', 'in_app_only', 'off']).optional(),
   })

@@ -46,9 +46,9 @@ export default function NewTemplatePage() {
 
   const createFromScratch = useMutation({
     ...orpc.templates.createFromScratch.mutationOptions(),
-    onSuccess: (res) => {
+    onSuccess: () => {
       showToast('Template created', 'success')
-      router.push(`/templates/${res.id}/instantiate`)
+      router.push('/templates')
     },
     onError: (err: unknown) =>
       showToast(err instanceof Error ? err.message : 'Could not create template', 'error'),

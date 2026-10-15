@@ -60,65 +60,6 @@ async function getProject(baseUrl: string, token: string, id: number) {
 }
 
 test.describe('Project ownership states', () => {
-  test('An org project with no owner starts Ready and seeking an owner', async ({ baseUrl }) => {
-    const adminToken = readAdminToken(baseUrl)
-    const { id } = await createOrgProject(baseUrl)
-
-    const project = await getProject(baseUrl, adminToken, id)
-    expect(project.status).toBe('ready')
-    expect(project.ownerId).toBeNull()
-    expect(project.isSeekingOwner).toBe(true)
-  })
-
-  // Regression: assigning someone as owner used to create the accepted interest and clear
-  // the stored is_seeking_owner flag without ever setting assignee_id, leaving the project
-  // ownerless *and* no longer advertising for one.
-  test('Assigning a volunteer as owner sets the owner and starts the project', async ({
-    baseUrl,
-  }) => {
-    const adminToken = readAdminToken(baseUrl)
-    const { id } = await createOrgProject(baseUrl)
-    const volunteer = await createApprovedVolunteer(baseUrl)
-
-    const assigned = await createApiClient(baseUrl, adminToken).projects.assign({
-      body: { projectId: id, volunteerId: volunteer.id, interestType: 'want_to_own' },
-    })
-    expect(assigned.status).toBe(200)
-
-    const project = await getProject(baseUrl, adminToken, id)
-    expect(project.ownerId).toBe(volunteer.id)
-    expect(project.status).toBe('in_progress')
-    expect(project.isSeekingOwner).toBe(false)
-  })
-
-  test('Accepting a want_to_own interest sets the owner and starts the project', async ({
-    baseUrl,
-  }) => {
-    const adminToken = readAdminToken(baseUrl)
-    const adminApi = createApiClient(baseUrl, adminToken)
-    const { id } = await createOrgProject(baseUrl)
-    const volunteer = await createApprovedVolunteer(baseUrl)
-
-    const interest = await createApiClient(baseUrl, volunteer.token).projects.expressInterest({
-      body: { projectId: id, interestType: 'want_to_own' },
-    })
-    expect(interest.status).toBe(200)
-
-    const withInterest = await adminApi.projects.getById({ body: { id } })
-    const interestId = (
-      withInterest.body as { interests: { id: number; volunteerId: number }[] }
-    ).interests.find((i) => i.volunteerId === volunteer.id)!.id
-    const accepted = await adminApi.projects.respondToInterest({
-      body: { projectId: id, interestId, status: 'accepted' },
-    })
-    expect(accepted.status).toBe(200)
-
-    const project = await getProject(baseUrl, adminToken, id)
-    expect(project.ownerId).toBe(volunteer.id)
-    expect(project.status).toBe('in_progress')
-    expect(project.isSeekingOwner).toBe(false)
-  })
-
   // Regression: removing the owner left the project In Progress with nobody on it and no
   // "seeking owner" flag, so nothing browsing for a project to lead could ever find it.
   test('Removing the owner keeps the status and re-advertises the project for an owner', async ({

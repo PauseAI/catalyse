@@ -9,9 +9,11 @@
 import { execSync } from 'child_process'
 import path from 'path'
 import fs from 'fs'
+import { fileURLToPath } from 'url'
 import * as volunteerSignupApprovalFlow from './flows/volunteer-signup-approval-flow'
+import * as projectSetupTaskFlow from './flows/project-setup-task-flow'
 
-const ALL_FLOWS = [volunteerSignupApprovalFlow.meta]
+const ALL_FLOWS = [volunteerSignupApprovalFlow.meta, projectSetupTaskFlow.meta]
 
 export function snapshotDir(flowName: string): string {
   return path.join(process.cwd(), 'demo', 'snapshots', flowName)
@@ -84,10 +86,17 @@ export function extractSnapshot(flowName: string): void {
   console.log(`\nSnapshot saved to ${out}`)
 }
 
-const flowArg = process.argv[2]
-const flows = flowArg ? ALL_FLOWS.filter((f) => f.name === flowArg) : ALL_FLOWS
-if (flowArg && !flows.length) {
-  console.error(`Unknown flow: "${flowArg}". Available: ${ALL_FLOWS.map((f) => f.name).join(', ')}`)
-  process.exit(1)
+// Guards the CLI behaviour below so other files can import extractSnapshot without
+// triggering it as a side effect of the import — ESM runs a module's top level once,
+// whether it was loaded directly or pulled in by something else.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const flowArg = process.argv[2]
+  const flows = flowArg ? ALL_FLOWS.filter((f) => f.name === flowArg) : ALL_FLOWS
+  if (flowArg && !flows.length) {
+    console.error(
+      `Unknown flow: "${flowArg}". Available: ${ALL_FLOWS.map((f) => f.name).join(', ')}`,
+    )
+    process.exit(1)
+  }
+  for (const flow of flows) extractSnapshot(flow.name)
 }
-for (const flow of flows) extractSnapshot(flow.name)

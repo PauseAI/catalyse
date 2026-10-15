@@ -9,9 +9,9 @@ export const skillsRouter = {
   list: publicProcedure.handler(async () => {
     const categories = await prisma.skillCategory.findMany({
       include: {
-        skills: { orderBy: { sortOrder: 'asc' } },
+        skills: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] },
       },
-      orderBy: { sortOrder: 'asc' },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     })
     return categories.map((cat) => ({
       id: cat.id,
