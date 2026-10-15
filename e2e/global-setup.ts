@@ -79,6 +79,8 @@ async function startWorkerNextJs(parallelIndex: number, serverCount: number): Pr
     env: {
       ...process.env,
       PORT: String(nextPort),
+      // Links in emails and exports are built from it, so they point at this worker.
+      APP_URL: `http://localhost:${nextPort}`,
       DATABASE_URL: workerDbUrl(parallelIndex, serverCount),
       ADMIN_EMAILS: ADMIN_EMAIL,
       RESEND_API_KEY: '',

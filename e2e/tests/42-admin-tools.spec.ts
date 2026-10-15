@@ -107,7 +107,7 @@ test.describe('Roadmap', () => {
     // Other tests may have left completed projects behind, so what is asserted is that
     // this project leaves the chart, not that the chart empties.
     await adminPage.getByRole('button', { name: 'Completed', exact: true }).click()
-    for (const label of ['Ready', 'In progress', 'On hold']) {
+    for (const label of ['To do', 'In progress', 'On hold']) {
       await adminPage.getByRole('button', { name: label, exact: true }).click()
     }
     await expect(

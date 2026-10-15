@@ -29,25 +29,7 @@ GitHub issue. An entry here is about the work itself: something in the code
 structure, tooling, tests, docs or diagnostics that made a task slower or more
 confusing than it needed to be, and that will do so again.
 
-## 6x
-
-- [ ] **Two sessions running vitest at once share one test template database and one
-      `coverage/` directory, so one run wipes the other's.** During P4-05 another agent's
-      single-file reruns in the same checkout dropped `vitest_template` mid-run (about 70
-      suites failed with "template database does not exist"), and the next full run refused to
-      start on the coverage lock. In P4-14 a P4-07 agent's reruns of the task page test made
-      four of five runs of the project page test fail with bare `PrismaClientKnownRequestError`s,
-      and the full unit suite could not be run at all without breaking the other agent's. P4-07's
-      own full run then failed 49 tests on "Database `vitest_…` does not exist" while P4-14's
-      was going, and passed untouched once that had finished. P4-20's full run, with P4-19 and
-      P4-12 agents in the same tree, first hit the coverage lock and then failed every suite on
-      "Server has closed the connection", so its coverage was checked file by file instead.
-      P4-19's two full runs, beside the same agents, failed 50-100 suites on
-      `PrismaClientInitializationError` while every file passed alone (`--coverage.reportsDirectory`
-      at least got past the lock). In Phase 6 even two agents' single-file runs of the project
-      page test, against separate regions of it, dropped each other's databases repeatedly, so
-      each waited for the other to finish before its tests counted. A per-run database prefix and reports directory in
-      `test/pg.ts` and `scripts/test-unit.ts` (from an env var or the pid) would let runs overlap.
+## 7x
 
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
       and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
@@ -69,6 +51,30 @@ confusing than it needed to be, and that will do so again.
       file under the same parallel load (for example all unit files at once with
       only the suspect repeated) would find them in one pass instead of one per
       full run.
+      After the status-badge stack was merged up to main, the unit tier hit
+      `scripts/disposable-db.test.ts` twice running (its `DROP DATABASE` hook outlasting 10 s
+      while the rest of the suite loads the server), and e2e `09` "Posting a comment notifies
+      other participants" failed in two of eight runs, never when run alone.
+
+## 6x
+
+- [ ] **Two sessions running vitest at once share one test template database and one
+      `coverage/` directory, so one run wipes the other's.** During P4-05 another agent's
+      single-file reruns in the same checkout dropped `vitest_template` mid-run (about 70
+      suites failed with "template database does not exist"), and the next full run refused to
+      start on the coverage lock. In P4-14 a P4-07 agent's reruns of the task page test made
+      four of five runs of the project page test fail with bare `PrismaClientKnownRequestError`s,
+      and the full unit suite could not be run at all without breaking the other agent's. P4-07's
+      own full run then failed 49 tests on "Database `vitest_…` does not exist" while P4-14's
+      was going, and passed untouched once that had finished. P4-20's full run, with P4-19 and
+      P4-12 agents in the same tree, first hit the coverage lock and then failed every suite on
+      "Server has closed the connection", so its coverage was checked file by file instead.
+      P4-19's two full runs, beside the same agents, failed 50-100 suites on
+      `PrismaClientInitializationError` while every file passed alone (`--coverage.reportsDirectory`
+      at least got past the lock). In Phase 6 even two agents' single-file runs of the project
+      page test, against separate regions of it, dropped each other's databases repeatedly, so
+      each waited for the other to finish before its tests counted. A per-run database prefix and reports directory in
+      `test/pg.ts` and `scripts/test-unit.ts` (from an env var or the pid) would let runs overlap.
 
 ## 4x
 
@@ -173,3 +179,9 @@ confusing than it needed to be, and that will do so again.
       so the click never landed, and it took a debugging round to see why. `test/render.tsx`
       could mount into `document` (or `FilterDropdown` could take an "inside" ref), and a line in
       `AGENTS.md` could say not to rely on `stopPropagation` against `document` listeners.
+
+- [ ] **An agent session cannot run `check-all`, the unit tier or e2e.** Its sandbox refuses
+      tsx's IPC pipe (`listen EPERM`), cannot reach the test Postgres on the host, and
+      `next build` dies reading the sandbox's unreadable dotfile mounts in the worktree. Every
+      run in the status-badge stack merge went through the user, one paste per round. Sandbox
+      requests are filed; until they land, a task that needs a test run has to hand it over.

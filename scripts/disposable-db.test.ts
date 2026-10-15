@@ -23,11 +23,14 @@ async function withScratchDb<T>(fn: (db: Client) => Promise<T>): Promise<T> {
   }
 }
 
+// Dropping a database makes Postgres checkpoint, which can outlast the default hook timeout
+// while the rest of the suite keeps the same server busy.
+const DROP_TIMEOUT_MS = 60_000
 afterEach(async () => {
   for (const name of scratch.splice(0)) {
     await withClient((client) => client.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`))
   }
-})
+}, DROP_TIMEOUT_MS)
 
 const counts = { volunteer: 1, admin: 1, superadmin: 0 }
 
