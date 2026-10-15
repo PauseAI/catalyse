@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import type { EventEmitter } from 'node:events'
 import { afterEach, vi } from 'vitest'
 
 // Everything a component test fakes from the framework is listed here. vi.mock is hoisted
@@ -25,18 +26,14 @@ if (typeof window !== 'undefined') {
   // jsdom has no layout, so it does not implement scrolling.
   Element.prototype.scrollIntoView = () => {}
   window.scrollTo = () => {}
-  // Nor can it load another page, and it reports each attempt straight to stderr. A link the
-  // app leaves to the browser stays put; tests assert where it points. This listener runs
-  // after React's, so a handler still sees the click as not yet prevented.
-  const page = (url: string) => url.split('#')[0]
-  window.addEventListener('click', (event) => {
-    const link = event.target instanceof Element ? event.target.closest('a[href]') : null
-    if (link instanceof HTMLAnchorElement && page(link.href) !== page(location.href)) {
-      event.preventDefault()
-    }
+  // Nor can it load another page, and it reports every link followed and file downloaded
+  // straight to stderr. Tests assert where a link points, so only that report is dropped.
+  const jsdomConsole = (window as unknown as { _virtualConsole: EventEmitter })._virtualConsole
+  const [report] = jsdomConsole.listeners('jsdomError')
+  jsdomConsole.removeAllListeners('jsdomError')
+  jsdomConsole.on('jsdomError', (error: Error) => {
+    if (error.message !== 'Not implemented: navigation to another Document') report?.(error)
   })
-  // A form the app does not handle itself would post to another page the same way.
-  window.addEventListener('submit', (event) => event.preventDefault())
 
   afterEach(() => {
     cleanup()
