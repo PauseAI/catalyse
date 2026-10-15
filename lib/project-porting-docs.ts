@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod'
-import { ProjectImportFileSchema } from './project-porting'
+import { ProjectImportFileSchema } from './project-porting-file'
 
 /** The import file's JSON Schema, derived from the validator itself. */
 export function projectImportJsonSchema(): Record<string, unknown> {

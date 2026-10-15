@@ -18,8 +18,9 @@
 
 import { z } from 'zod'
 import { HttpUrlSchema } from '@/lib/schemas'
-import type { CurrentTask, CurrentDependency, LocalRef } from '@/lib/project-porting'
-import { fromYmd } from '@/lib/project-porting'
+import type { CurrentTask, CurrentDependency } from '@/lib/project-porting-file'
+import type { LocalRef } from '@/lib/project-porting'
+import { fromYmd } from '@/lib/project-porting-file'
 import { diffInDays } from '@/lib/schedule'
 
 export const CURRENT_TEMPLATE_SCHEMA_VERSION = 1
