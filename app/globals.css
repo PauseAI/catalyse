@@ -1,4 +1,10 @@
-@import 'tailwindcss';
+/* Explicit sources instead of Tailwind's automatic scan of the whole repo, which reads every
+   file at the root, including placeholder dotfiles some sandboxes (e.g. Claude Code's) mount
+   there unreadably, failing the build. A new top-level directory with class names goes here. */
+@import 'tailwindcss' source(none);
+@source '../app';
+@source '../components';
+@source '../lib';
 
 @variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
