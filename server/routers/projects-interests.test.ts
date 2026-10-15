@@ -83,7 +83,7 @@ describe('projects.expressInterest / withdrawInterest', () => {
     expect((await interestRow(me.id, p.id)).status).toBe('withdrawn')
     expect(await prisma.workItem.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({
       assigneeId: null,
-      status: 'open',
+      status: 'not_started',
     })
     expect(
       (await prisma.workItem.findUniqueOrThrow({ where: { id: doneTask.id } })).assigneeId,
@@ -352,7 +352,7 @@ describe('projects.assign', () => {
     }
   })
 
-  it('assigning as owner sets the assignee, unless the project is finished', async () => {
+  it('assigning as owner sets the assignee; a finished project is locked', async () => {
     const admin = await createAdmin()
     const vol = await createVolunteer()
     const unowned = await createProject()
@@ -366,13 +366,15 @@ describe('projects.assign', () => {
       status: 'in_progress',
     })
     const done = await createProject({ status: 'completed' })
-    await clientAs(admin).projects.assign({
-      projectId: done.id,
-      volunteerId: vol.id,
-      interestType: 'want_to_own',
-    })
+    await expect(
+      clientAs(admin).projects.assign({
+        projectId: done.id,
+        volunteerId: vol.id,
+        interestType: 'want_to_own',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
     expect(await prisma.workItem.findUniqueOrThrow({ where: { id: done.id } })).toMatchObject({
-      assigneeId: vol.id,
+      assigneeId: null,
       status: 'completed',
     })
   })

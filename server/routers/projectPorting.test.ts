@@ -25,8 +25,13 @@ vi.mock('@/lib/project-porting', async (importOriginal) => {
 async function setup() {
   const owner = await createVolunteer()
   const project = await createProject({ assigneeId: owner.id, title: 'Rally', description: 'desc' })
-  const a = await createTask(project.id, { title: 'A', sortOrder: 1, durationDays: 2 })
-  const b = await createTask(project.id, { title: 'B', sortOrder: 2, assigneeId: owner.id })
+  const a = await createTask(project.id, { title: 'A', sortOrder: 1, submissionAsksLink: true })
+  const b = await createTask(project.id, {
+    title: 'B',
+    sortOrder: 2,
+    assigneeId: owner.id,
+    submissionPrompt: 'How many?',
+  })
   await prisma.workItemDependency.create({
     data: { predecessorId: a.id, successorId: b.id, lagDays: 1 },
   })
@@ -40,7 +45,10 @@ describe('projects.exportPlan / previewImport', () => {
     const { project, a, b, c, file, owner } = await setup()
     expect(file.project).toMatchObject({ id: project.id, title: 'Rally', status: 'ready' })
     expect(file.tasks.map((t) => t.id)).toEqual([a.id, b.id])
+    expect(file.tasks[0]).toMatchObject({ submissionPrompt: null, submissionAsksLink: true })
     expect(file.tasks[1]).toMatchObject({
+      submissionPrompt: 'How many?',
+      submissionAsksLink: false,
       assigneeEmail: owner.email,
       dependsOn: [{ on: a.id, lagDays: 1 }],
     })
@@ -126,17 +134,23 @@ describe('projects.applyImport', () => {
           assigneeEmail: helper.email,
           deadline: '2026-12-01',
           startDate: '2026-10-01',
-          durationDays: 4,
           featuredAsQuickTask: true,
           isAnchor: true,
+          timing: 'fixed',
+          submissionPrompt: 'Where is it?',
+          submissionAsksLink: false,
+          helpersWanted: 4,
         },
         { ...file.tasks[1], assigneeEmail: null, dependsOn: [{ on: a.id, lagDays: 3 }] },
         {
           ref: 'n',
           title: 'New',
+          submissionPrompt: 'Photos of the stall',
+          submissionAsksLink: true,
+          helpersWanted: 2,
           assigneeEmail: owner.email,
           startDate: '2026-11-01',
-          durationDays: 1,
+          durationDays: 3,
           dependsOn: [{ on: b.id }],
         },
         { ref: 'n2', title: 'New2', dependsOn: [{ on: 'n', lagDays: 2 }] },
@@ -162,19 +176,44 @@ describe('projects.applyImport', () => {
       title: 'A2',
       status: 'in_progress',
       assigneeId: helper.id,
-      durationDays: 4,
+      startDate: new Date('2026-10-01T00:00:00Z'),
       isAnchor: true,
+      timing: 'fixed',
       featuredAsQuickTask: true,
       deadline: new Date('2026-12-01T00:00:00Z'),
+      submissionPrompt: 'Where is it?',
+      submissionAsksLink: false,
+      helpersWanted: 4,
     })
-    expect((await prisma.workItem.findUniqueOrThrow({ where: { id: b.id } })).assigneeId).toBeNull()
+    expect(await prisma.workItem.findUniqueOrThrow({ where: { id: b.id } })).toMatchObject({
+      assigneeId: null,
+      submissionPrompt: 'How many?',
+    })
     const created = await prisma.workItem.findMany({
       where: { parentId: project.id, title: { in: ['New', 'New2'] } },
       orderBy: { sortOrder: 'asc' },
     })
-    expect(created.map((t) => [t.title, t.sortOrder, t.assigneeId])).toEqual([
-      ['New', 3, owner.id],
-      ['New2', 4, null],
+    // A length in the file becomes the deadline it implies.
+    expect(
+      created.map((t) => [t.title, t.sortOrder, t.assigneeId, t.deadline, t.durationDays]),
+    ).toEqual([
+      ['New', 3, owner.id, new Date('2026-11-03T00:00:00Z'), null],
+      ['New2', 4, null, null, null],
+    ])
+    expect(created.map((t) => [t.submissionPrompt, t.submissionAsksLink])).toEqual([
+      ['Photos of the stall', true],
+      [null, false],
+    ])
+    // The number of helpers sought is carried; who helps is not.
+    expect(created.map((t) => t.helpersWanted)).toEqual([2, null])
+    // What a task asks for comes back out as it went in.
+    const again = await c.projects.exportPlan({ projectId: project.id })
+    expect(again.tasks.map((t) => t.helpersWanted)).toEqual([4, null, 2, null])
+    expect(again.tasks.map((t) => [t.title, t.submissionPrompt, t.submissionAsksLink])).toEqual([
+      ['A2', 'Where is it?', false],
+      ['B', 'How many?', false],
+      ['New', 'Photos of the stall', true],
+      ['New2', null, false],
     ])
     const edges = await prisma.workItemDependency.findMany({
       where: { successor: { parentId: project.id } },

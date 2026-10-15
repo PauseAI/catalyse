@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod'
-import { ProjectImportFileSchema } from './project-porting'
+import { ProjectImportFileSchema } from './project-porting-file'
 
 /** The import file's JSON Schema, derived from the validator itself. */
 export function projectImportJsonSchema(): Record<string, unknown> {
@@ -36,12 +36,12 @@ export const PROJECT_IMPORT_EXAMPLE = {
       id: 101,
       title: 'Book the venue',
       startDate: '2026-09-02',
-      durationDays: 3,
+      deadline: '2026-09-04',
     },
     {
       ref: 'permit',
       title: 'Apply for the permit',
-      durationDays: 8,
+      deadline: '2026-09-20',
       dependsOn: [{ on: 101, lagDays: 2 }],
     },
     {
@@ -98,21 +98,37 @@ Project: \`id\`, \`title\` (required), \`description\`.
 lifecycle is a decision with review rules attached, not a file edit. It is changed on the
 project page instead.
 
-Task: \`id\`, \`ref\`, \`title\` (required), \`description\`, \`status\` (\`open\`,
+Task: \`id\`, \`ref\`, \`title\` (required), \`description\`, \`status\` (\`not_started\`,
 \`in_progress\`, \`completed\`), \`assigneeEmail\`, \`deadline\`, \`startDate\`,
-\`durationDays\`, \`featuredAsQuickTask\`, \`isAnchor\`, \`dependsOn\`.
+\`durationDays\`, \`featuredAsQuickTask\`, \`isAnchor\`, \`timing\`, \`submissionPrompt\`,
+\`submissionAsksLink\`, \`helpersWanted\`, \`dependsOn\`.
+
+- \`status\` is the work's progress, not who has it: a task someone has claimed but not begun is
+  still \`not_started\`. Blocked and Ready are worked out from \`dependsOn\`, so they are not
+  statuses to write. Older files saying \`open\` are read as \`not_started\`.
 
 - Dates are \`YYYY-MM-DD\` strings. Any other format is rejected.
 - A file may carry at most 1000 tasks, each with at most 100 \`dependsOn\` entries. Titles cap
   at 300 characters and descriptions at 20,000.
-- \`durationDays\` is elapsed calendar days, 0 to 3650. **0 means a milestone** — a moment
-  rather than a stretch of work. It is not the same as leaving it out.
+- \`deadline\` is the one date a task should be done by. Its bar runs from its start to the
+  deadline, and reminders count towards it. A task has no separate end date or length.
+- \`durationDays\` is only for a milestone: **0 means a moment** rather than a stretch of work,
+  with no deadline. Any other number, up to 3650, is read as days from \`startDate\` and
+  turned into the deadline it implies; write the \`deadline\` instead.
 - \`startDate\` *pins* a task to that date. A task with no \`startDate\` starts when its
   dependencies allow, which is usually what you want for anything downstream.
 - \`assigneeEmail\` must belong to an existing approved volunteer, or the import is rejected.
 - \`isAnchor\` marks the fixed point the plan is built around — an event date, a deadline. The
   critical path is measured towards anchors, so work that merely follows one is correctly
   shown as having slack. Usually there is exactly one.
+- \`timing\` is \`flexible\` (the default: the work happens any time between the start and the
+  end) or \`fixed\` (it happens on exactly those dates, like a shift or the event itself).
+- \`submissionPrompt\` is what the box for handing in the work asks, such as "How many flyers
+  went out, and where?" — at most 200 characters; \`null\` asks "What did you do?".
+  \`submissionAsksLink\` adds a field for a link to the work; a new task has none unless this
+  is \`true\`.
+- \`helpersWanted\` is how many volunteers the task seeks to help its assignee, from 1 to 100;
+  \`null\` or absent seeks none. The file carries the number, never who is helping.
 
 ## Dependencies
 

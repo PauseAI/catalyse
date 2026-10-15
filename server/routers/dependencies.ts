@@ -9,8 +9,10 @@ import {
   isProjectDeputy,
   resolveProjectPrivy,
 } from '@/lib/work-item'
+import { assertProjectEditable, assertTaskEditable } from '@/lib/work-item-lock'
 import { loadProjectEdges, loadTaskEdges } from '@/lib/project-schedule'
 import { findDependencyCycle, type ScheduleEdge } from '@/lib/schedule'
+import { recordEvent, type EventValues } from '@/lib/work-item-events'
 import { approvedProcedure } from '../procedures'
 import { ApprovalStatus, WorkItemType } from '@/generated/prisma/enums'
 
@@ -113,12 +115,16 @@ async function resolveLink(
         message: 'Only the project owner, a deputy or an admin can link its tasks',
       })
     }
+    assertProjectEditable(project)
+    assertTaskEditable(successor)
   } else {
     if (!canManageProject(successor, volunteer)) {
       throw new ORPCError('FORBIDDEN', {
         message: 'Only the owner or an admin of the dependent project can add this link',
       })
     }
+    // Like a done task, a locked project keeps what it waited on; what waits on it is not its own.
+    assertProjectEditable(successor)
     const privy = await resolveProjectPrivy(predecessor, viewer)
     if (!canViewWorkItem(predecessor, viewer, undefined, privy)) {
       throw new ORPCError('NOT_FOUND', { message: 'One or both items were not found' })
@@ -147,8 +153,16 @@ async function loadManageableDependency(
 ) {
   const dep = await prisma.workItemDependency.findUnique({ where: { id: dependencyId } })
   if (!dep) throw new ORPCError('NOT_FOUND', { message: 'Dependency not found' })
-  await resolveLink(dep.predecessorId, dep.successorId, volunteer)
-  return dep
+  const { predecessor } = await resolveLink(dep.predecessorId, dep.successorId, volunteer)
+  return { dep, predecessor }
+}
+
+/** A link as its successor's event records it; the title keeps the line readable later. */
+function linkValues(
+  dep: { predecessorId: number; lagDays: number },
+  predecessorTitle: string,
+): EventValues {
+  return { predecessorId: dep.predecessorId, predecessorTitle, lagDays: dep.lagDays }
 }
 
 export const dependenciesRouter = {
@@ -184,25 +198,31 @@ export const dependenciesRouter = {
       })
     }
 
-    const dependency = await prisma.workItemDependency.upsert({
-      where: {
-        predecessorId_successorId: {
-          predecessorId: input.predecessorId,
-          successorId: input.successorId,
-        },
-      },
-      create: {
-        predecessorId: input.predecessorId,
-        successorId: input.successorId,
-        lagDays: input.lagDays,
-        createdById: volunteer.id,
-      },
-      update: { lagDays: input.lagDays },
-    })
-
-    await prisma.workItem.update({
-      where: { id: input.successorId },
-      data: { scheduleUpdatedAt: new Date() },
+    const dependency = await prisma.$transaction(async (tx) => {
+      const pair = { predecessorId: input.predecessorId, successorId: input.successorId }
+      const was = await tx.workItemDependency.findUnique({
+        where: { predecessorId_successorId: pair },
+      })
+      const saved = await tx.workItemDependency.upsert({
+        where: { predecessorId_successorId: pair },
+        create: { ...pair, lagDays: input.lagDays, createdById: volunteer.id },
+        update: { lagDays: input.lagDays },
+      })
+      await tx.workItem.update({
+        where: { id: input.successorId },
+        data: { scheduleUpdatedAt: new Date() },
+      })
+      // Re-adding a link changes only its gap.
+      if (!was || was.lagDays !== input.lagDays) {
+        await recordEvent(tx, {
+          workItemId: input.successorId,
+          actorId: volunteer.id,
+          kind: was ? 'dependency_lag' : 'dependency_added',
+          before: was ? linkValues(was, predecessor.title) : {},
+          after: linkValues(saved, predecessor.title),
+        })
+      }
+      return saved
     })
 
     return {
@@ -221,31 +241,53 @@ export const dependenciesRouter = {
       z.object({ dependencyId: z.number().int(), lagDays: z.number().int().min(-365).max(365) }),
     )
     .handler(async ({ input, context }) => {
-      const dep = await loadManageableDependency(input.dependencyId, context.volunteer)
-      await prisma.$transaction([
-        prisma.workItemDependency.update({
+      const { dep, predecessor } = await loadManageableDependency(
+        input.dependencyId,
+        context.volunteer,
+      )
+      await prisma.$transaction(async (tx) => {
+        const saved = await tx.workItemDependency.update({
           where: { id: dep.id },
           data: { lagDays: input.lagDays },
-        }),
-        prisma.workItem.update({
+        })
+        await tx.workItem.update({
           where: { id: dep.successorId },
           data: { scheduleUpdatedAt: new Date() },
-        }),
-      ])
+        })
+        if (saved.lagDays !== dep.lagDays) {
+          await recordEvent(tx, {
+            workItemId: dep.successorId,
+            actorId: context.volunteer.id,
+            kind: 'dependency_lag',
+            before: linkValues(dep, predecessor.title),
+            after: linkValues(saved, predecessor.title),
+          })
+        }
+      })
       return { id: dep.id, lagDays: input.lagDays }
     }),
 
   remove: approvedProcedure
     .input(z.object({ dependencyId: z.number().int() }))
     .handler(async ({ input, context }) => {
-      const dep = await loadManageableDependency(input.dependencyId, context.volunteer)
-      await prisma.$transaction([
-        prisma.workItemDependency.delete({ where: { id: dep.id } }),
-        prisma.workItem.update({
+      const { dep, predecessor } = await loadManageableDependency(
+        input.dependencyId,
+        context.volunteer,
+      )
+      await prisma.$transaction(async (tx) => {
+        await tx.workItemDependency.delete({ where: { id: dep.id } })
+        await tx.workItem.update({
           where: { id: dep.successorId },
           data: { scheduleUpdatedAt: new Date() },
-        }),
-      ])
+        })
+        await recordEvent(tx, {
+          workItemId: dep.successorId,
+          actorId: context.volunteer.id,
+          kind: 'dependency_removed',
+          before: linkValues(dep, predecessor.title),
+          after: {},
+        })
+      })
       return { id: dep.id }
     }),
 }

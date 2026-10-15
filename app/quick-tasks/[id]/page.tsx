@@ -7,29 +7,25 @@ import { useRequireApproved } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import Button from '@/components/Button'
-import { Badge } from '@/components/Badge'
+import { DueChip, WorkStatusBadge } from '@/components/StatusBadges'
 import CommentThread from '@/components/CommentThread'
-import { QUICK_TASK_STATUS_LABELS } from '@/lib/status-labels'
 import Linkify from '@/components/Linkify'
 import SubmitWorkButton from '@/components/SubmitWorkButton'
 import SubmittedWork from '@/components/SubmittedWork'
 import RequestChangesButton from '@/components/RequestChangesButton'
 import QuickTaskReviewDialog from '@/components/QuickTaskReviewDialog'
 import { QUICK_TASK_CLAIMED_MESSAGE } from '@/lib/action-messages'
+import { CLAIM_TASK, CLAIMING } from '@/lib/action-labels'
 import { QuickTaskStatus } from '@/generated/prisma/enums'
+import { handedIn } from '@/lib/overdue'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import PageLoading from '@/components/PageLoading'
 
 const REVIEW_RATING_LABELS: Record<string, string> = {
   excellent: 'Excellent',
   good: 'Good',
-  needs_improvement: 'Needs Improvement',
+  needs_improvement: 'Needs improvement',
   unsatisfactory: 'Unsatisfactory',
-}
-
-function statusVariant(status: string) {
-  if (status === QuickTaskStatus.completed) return 'success'
-  if (status === QuickTaskStatus.under_review) return 'warning'
-  return 'neutral'
 }
 
 export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -73,13 +69,14 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
       <main className="container py-5">
         <p className="text-text-light">Task not found.</p>
         <Button href="/quick-tasks" variant="secondary" size="sm">
-          Back to Quick Tasks
+          Back to quick tasks
         </Button>
       </main>
     )
   }
 
   const mine = task.assignedToId === user.id
+  const viewer = { isAssignee: mine, canReview: Boolean(user.isAdmin) }
 
   return (
     <main className="container py-5 pb-15">
@@ -87,15 +84,18 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
         href={mine ? '/quick-tasks' : '/quick-tasks#browse-quick-tasks'}
         className="text-sm text-primary-text underline block mb-4"
       >
-        {mine ? '← Back to My Quick Tasks' : '← Back to Quick Tasks'}
+        {mine ? '← Back to my quick tasks' : '← Back to quick tasks'}
       </Link>
 
-      <div className="bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word">
+      <div className={`${SECTION_CARD} overflow-hidden wrap-break-word`}>
         <div className="flex justify-between items-start mb-3 gap-4">
           <h1 className="m-0">{task.title}</h1>
-          <Badge variant={statusVariant(task.status)}>
-            {QUICK_TASK_STATUS_LABELS[task.status] ?? task.status}
-          </Badge>
+          <WorkStatusBadge
+            status={task.status}
+            quick
+            changesRequested={task.changesRequested !== null}
+            viewer={viewer}
+          />
         </div>
 
         <div className="flex gap-3 mb-4 flex-wrap">
@@ -107,6 +107,11 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
           {task.estimatedHours && (
             <span className="text-text-light text-sm self-center">
               ~{task.estimatedHours}h estimated
+            </span>
+          )}
+          {task.deadline && (
+            <span className="flex items-center gap-2 self-center text-sm">
+              <DueChip deadline={task.deadline} done={handedIn(task.status)} viewer={viewer} />
             </span>
           )}
           {task.projectTitle && task.projectId && (
@@ -140,7 +145,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
             onClick={() => claimMutation.mutate({ id: task.id })}
             disabled={claimMutation.isPending}
           >
-            {claimMutation.isPending ? 'Claiming…' : 'Claim'}
+            {claimMutation.isPending ? CLAIMING : CLAIM_TASK}
           </Button>
         )}
 
@@ -155,7 +160,11 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
 
         {mine && task.status === QuickTaskStatus.in_progress && (
           <div className="mt-4">
-            <SubmitWorkButton target={{ kind: 'quick', taskId: task.id }} reviewer="An admin" />
+            <SubmitWorkButton
+              target={{ kind: 'quick', taskId: task.id }}
+              ask={task}
+              reviewer="An admin"
+            />
           </div>
         )}
 
@@ -177,7 +186,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
         />
       )}
 
-      <div className="bg-surface rounded-xl shadow p-6">
+      <div className={SECTION_CARD}>
         <h2 className="text-lg mb-4">Discussion</h2>
         <CommentThread workItemId={task.id} />
       </div>

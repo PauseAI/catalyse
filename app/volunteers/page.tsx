@@ -98,7 +98,7 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
   return (
     <>
       <main className="container py-5 pb-15">
-        <h1>Volunteer Directory</h1>
+        <h1>Volunteer directory</h1>
         <ViewSwitch label="People" views={PEOPLE_VIEWS} current="/volunteers" />
 
         <div className="mb-5">
@@ -171,7 +171,7 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
               {volunteers.map((v) => (
                 <div
                   key={v.id}
-                  className="card bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word flex flex-col"
+                  className="card bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden wrap-break-word flex flex-col"
                 >
                   <h3 className="m-0 mb-2">
                     <Link
@@ -225,7 +225,7 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
                       contactRequested={v.contactRequested}
                     />
                     <Button href={`/volunteers/${v.id}`} variant="ghost" size="sm">
-                      View Profile
+                      View profile
                     </Button>
                   </div>
                 </div>

@@ -52,7 +52,7 @@ test.describe('Project Edit Regressions', () => {
     await expect(checkbox).toBeChecked({ checked: !wasChecked })
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
 
-    const badge = volunteer.page.getByText('Seeking Help')
+    const badge = volunteer.page.getByText('• Seeking help')
     if (wasChecked) {
       await expect(badge).toBeHidden({ timeout: 10_000 })
     } else {
@@ -79,9 +79,9 @@ test.describe('Project Edit Regressions', () => {
     // Add a task on the project detail page.
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
-    await volunteer.page.getByRole('button', { name: 'Add Task' }).click()
+    await volunteer.page.getByRole('button', { name: 'Add task' }).click()
     await volunteer.page.getByLabel('Task title').fill(taskTitle)
-    await volunteer.page.getByRole('button', { name: 'Create Task' }).click()
+    await volunteer.page.getByRole('button', { name: 'Create task' }).click()
     await expect(getAlert(volunteer.page)).toContainText('Task added!', { timeout: 10_000 })
     await expect(volunteer.page.getByText(taskTitle)).toBeVisible({ timeout: 10_000 })
 

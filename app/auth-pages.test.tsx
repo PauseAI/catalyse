@@ -51,13 +51,13 @@ describe('forgot / reset password', () => {
     const vol = await createVolunteer()
     await renderApp(<ForgotPasswordPage />)
     await userEvent.type(screen.getByLabelText('Email'), vol.email!)
-    await userEvent.click(screen.getByRole('button', { name: 'Send Reset Link' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Send reset link' }))
     const link = await screen.findByText(/reset-password\?token=/)
     const token = link.textContent!.split('token=')[1]
 
     await renderApp(<ResetPasswordPage />, { url: `/reset-password?token=${token}` })
-    const pw = screen.getByLabelText('New Password')
-    const confirm = screen.getByLabelText('Confirm Password')
+    const pw = screen.getByLabelText('New password')
+    const confirm = screen.getByLabelText('Confirm password')
     await userEvent.type(pw, 'new-password-1')
     await userEvent.type(confirm, 'different')
     fireEvent.submit(pw.closest('form')!)
@@ -81,9 +81,9 @@ describe('forgot / reset password', () => {
     // The same token is now spent.
     cleanup()
     await renderApp(<ResetPasswordPage />, { url: `/reset-password?token=${token}` })
-    const pw2 = screen.getByLabelText('New Password')
+    const pw2 = screen.getByLabelText('New password')
     await userEvent.type(pw2, 'another-long-one')
-    await userEvent.type(screen.getByLabelText('Confirm Password'), 'another-long-one')
+    await userEvent.type(screen.getByLabelText('Confirm password'), 'another-long-one')
     fireEvent.submit(pw2.closest('form')!)
     expect(await screen.findByText('Invalid or expired reset token')).toBeInTheDocument()
   })
@@ -169,8 +169,8 @@ describe('verify email', () => {
 describe('accept invite', () => {
   it('walks through login prompt, acceptance and error states', async () => {
     await renderApp(<AcceptInvitePage />, { url: '/accept-invite?token=abc' })
-    expect(await screen.findByText('Admin Invite')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Log In' })).toHaveAttribute(
+    expect(await screen.findByText('Admin invite')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute(
       'href',
       expect.stringContaining('redirect='),
     )
@@ -187,7 +187,7 @@ describe('accept invite', () => {
       },
     })
     await renderApp(<AcceptInvitePage />, { url: '/accept-invite?token=good-token', as: invitee })
-    expect(await screen.findByText('Welcome to the Team!')).toBeInTheDocument()
+    expect(await screen.findByText('Welcome to the team!')).toBeInTheDocument()
     await waitFor(() => expect(navigation.push).toHaveBeenCalledWith('/dashboard'))
     expect((await prisma.volunteer.findUniqueOrThrow({ where: { id: invitee.id } })).isAdmin).toBe(
       true,

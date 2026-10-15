@@ -9,6 +9,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import { InviteStatus } from '@/generated/prisma/enums'
 
 export default function AdminTeamPage() {
@@ -108,14 +109,14 @@ export default function AdminTeamPage() {
     <>
       <main className="container py-5 pb-15">
         <div className="flex justify-between items-center mb-6">
-          <h1>Team Management</h1>
-          {user.isSuperAdmin && <Button onClick={openInviteDialog}>Invite Admin</Button>}
+          <h1>Team management</h1>
+          {user.isSuperAdmin && <Button onClick={openInviteDialog}>Invite admin</Button>}
         </div>
 
         <Tabs
           tabs={[
-            { key: 'admins', label: 'Current Admins' },
-            { key: 'invites', label: 'Pending Invites' },
+            { key: 'admins', label: 'Current admins' },
+            { key: 'invites', label: 'Pending invites' },
           ]}
           activeTab={activeTab}
           onChange={setActiveTab}
@@ -134,7 +135,7 @@ export default function AdminTeamPage() {
                   admins.map((a) => (
                     <div
                       key={a.id}
-                      className="card bg-surface rounded-xl shadow p-6 mb-3 overflow-hidden wrap-break-word"
+                      className={`card ${SECTION_CARD} mb-3 overflow-hidden wrap-break-word`}
                     >
                       <div className="flex justify-between items-center gap-4">
                         <div>
@@ -170,7 +171,7 @@ export default function AdminTeamPage() {
                               size="sm"
                               onClick={() => setRevokeTarget({ id: a.id, name: a.name })}
                             >
-                              Revoke Access
+                              Revoke access
                             </Button>
                           )}
                         </div>
@@ -190,7 +191,7 @@ export default function AdminTeamPage() {
                   invites.map((inv) => (
                     <div
                       key={inv.id}
-                      className="card bg-surface rounded-xl shadow p-6 mb-3 overflow-hidden wrap-break-word"
+                      className={`card ${SECTION_CARD} mb-3 overflow-hidden wrap-break-word`}
                     >
                       <div className="flex justify-between items-center">
                         <div>
@@ -228,11 +229,11 @@ export default function AdminTeamPage() {
               ref={dialogRef}
               role="dialog"
               aria-modal="true"
-              aria-label="Invite Admin"
+              aria-label="Invite admin"
               className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto"
             >
               <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-                <h2 className="mt-0">Invite Admin</h2>
+                <h2 className="mt-0">Invite admin</h2>
               </div>
               <div className="p-6">
                 {inviteSuccess ? (
@@ -242,7 +243,7 @@ export default function AdminTeamPage() {
                 ) : (
                   <form onSubmit={sendInvite}>
                     <div className="mb-5">
-                      <label htmlFor="invite-email">Email Address</label>
+                      <label htmlFor="invite-email">Email address</label>
                       <input
                         id="invite-email"
                         type="email"
@@ -258,7 +259,7 @@ export default function AdminTeamPage() {
                         Cancel
                       </Button>
                       <Button type="submit" disabled={inviteMutation.isPending}>
-                        {inviteMutation.isPending ? 'Sending…' : 'Send Invite'}
+                        {inviteMutation.isPending ? 'Sending…' : 'Send invite'}
                       </Button>
                     </div>
                   </form>

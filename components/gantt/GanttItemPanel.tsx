@@ -1,13 +1,26 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
+import { Badge } from '@/components/Badge'
+import { LatenessBadge } from '@/components/StatusBadges'
 import Button from '@/components/Button'
 import Linkify from '@/components/Linkify'
 import Tooltip from '@/components/Tooltip'
-import { formatDateShort, toDateInputValue, fromDateInputValue } from '@/lib/format-date'
-import { barFill, barTone, TONE_LABELS } from './palette'
+import { formatDateShort } from '@/lib/format-date'
+import DatesBlock from '@/components/DatesBlock'
+import TaskDatesSummary from '@/components/TaskDatesSummary'
+import WorkItemCard from '@/components/WorkItemCard'
+import type { WorkItemSummary } from '@/lib/work-item-summary'
+import { handedIn } from '@/lib/overdue'
+import { daysPastPlan } from '@/lib/replan'
+import { lateness } from '@/lib/lateness'
+import { ASSIGN_PICKED, UNASSIGN, claimLabel, type ClaimViewer } from '@/lib/action-labels'
+import { UNCLAIMED_LABEL } from '@/lib/status-labels'
+import { datesPayload, type DatesPayload, type DatesValue } from '@/lib/task-dates'
+import { movedText, pinConflictSlip } from '@/lib/slip'
 import { ANCHOR_HINT, CRITICAL_HINT } from './GanttLegend'
+import { rowStatusBadge } from './palette'
 import type { GanttRow } from './types'
 
 /**
@@ -18,6 +31,7 @@ import type { GanttRow } from './types'
 export type PanelAssignment = {
   canAssign: boolean
   canClaim: boolean
+  claimViewer: ClaimViewer
   /** Volunteers the manager may pick from, already grouped and labelled by the caller. */
   options: { value: string; label: string; header?: boolean }[]
   onAssign: (volunteerId: number) => void
@@ -29,7 +43,7 @@ export type PanelPredecessor = {
   dependencyId: number
   predecessorId: number
   predecessorTitle: string
-  lagDays: number
+  item: WorkItemSummary
 }
 
 /** One label/value line in the summary. Values wrap under themselves rather than into the label. */
@@ -45,385 +59,319 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 /** A section heading with a rule above it, so the panel reads as distinct blocks. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border-brand-border mt-4 border-t pt-4">
+    <section className="border-brand-border mt-3 border-t pt-3">
       <h4 className="mb-2 text-sm font-semibold">{title}</h4>
       {children}
     </section>
   )
 }
 
+/** Tasks as compact cards, one per line. */
+function CardList({ items }: { items: WorkItemSummary[] }) {
+  return (
+    <ul className="m-0 list-none space-y-2 p-0">
+      {items.map((item) => (
+        <li key={item.id}>
+          <WorkItemCard item={item} variant="compact" />
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 /**
  * The click-a-bar side panel — and the keyboard/screen-reader-complete way to do everything the
- * drag gestures do: set or clear the pinned start, change the duration, and manage links.
+ * drag gestures do: set or clear the pinned start and change the duration here, and links and
+ * the key date through `planMenu`. Read-only facts come first; a control appears only for a
+ * viewer who can use it, and the Dates block only once Edit dates is pressed.
  */
 export default function GanttItemPanel({
   row,
-  startDate,
-  durationDays,
+  dates,
   description,
   assigneeName,
-  deadline,
-  estimatedHours,
+  helpers,
   canManage,
-  siblings,
   predecessors,
+  successors = [],
   busy,
   onClose,
   onSaveDates,
-  onAddDependency,
-  onRemoveDependency,
-  onUpdateLag,
-  onSetAnchor,
+  planMenu,
+  onReplan,
+  onReopen,
   assignment,
+  viewerIsAssignee = false,
 }: {
   row: GanttRow
-  startDate: Date | null
-  durationDays: number | null
+  /** The stored dates, timing, effort and deadline, as the Dates block edits them. */
+  dates: DatesValue
   description?: string | null
   assigneeName?: string | null
-  deadline?: Date | string | null
-  /** Effort, as opposed to `durationDays` elapsed — the two are independent. */
-  estimatedHours?: number | null
+  /** Its helpers in a few words (helperSummary); omit for none. */
+  helpers?: string | null
   canManage: boolean
-  siblings: { id: number; title: string }[]
   predecessors: PanelPredecessor[]
+  /** The tasks that wait on this one. */
+  successors?: WorkItemSummary[]
   busy?: boolean
   onClose: () => void
-  onSaveDates: (patch: { startDate: Date | null; durationDays: number | null }) => void
-  onAddDependency: (predecessorId: number, lagDays: number) => void
-  onRemoveDependency: (dependencyId: number) => void
-  onUpdateLag: (dependencyId: number, lagDays: number) => void
-  onSetAnchor?: (isAnchor: boolean) => void
+  onSaveDates: (patch: DatesPayload) => void
+  /** The Plan menu (GanttPlanMenu); omit for a viewer who cannot change the plan. */
+  planMenu?: ReactNode
+  /** Opens the replan dialog for a task that has run past its plan; omit where it cannot. */
+  onReplan?: () => void
+  /** Asks to reopen a done task; omit for a viewer who cannot. */
+  onReopen?: () => void
   /** Omit to leave the panel read-only about who is doing the work. */
   assignment?: PanelAssignment
+  /** The viewer holds this task: its lateness is theirs to act on, as it is a manager's. */
+  viewerIsAssignee?: boolean
 }) {
-  const [start, setStart] = useState(toDateInputValue(startDate))
-  const [duration, setDuration] = useState(durationDays !== null ? String(durationDays) : '')
-  const [newPred, setNewPred] = useState('')
-  const [newLag, setNewLag] = useState('')
+  const [draft, setDraft] = useState(dates)
+  // Keyed on the row, so selecting another bar closes the Dates block.
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [pickedAssignee, setPickedAssignee] = useState('')
 
   useEffect(() => {
     // Re-seed the inputs when a different bar is selected or its stored dates change.
-    /* eslint-disable react-hooks/set-state-in-effect */
-    setStart(toDateInputValue(startDate))
-    setDuration(durationDays !== null ? String(durationDays) : '')
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, [row.id, startDate, durationDays])
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDraft(dates)
+    // Keyed on the values, not the object, which callers rebuild on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.id, dates.timing, dates.startDate, dates.estimatedHours, dates.deadline])
 
   const p = row.placement
-  const variance =
-    p.startVarianceDays && p.startVarianceDays !== 0
-      ? p.startVarianceDays > 0
-        ? `${p.startVarianceDays} day${p.startVarianceDays === 1 ? '' : 's'} late`
-        : `${-p.startVarianceDays} day${p.startVarianceDays === -1 ? '' : 's'} early`
-      : 'On plan'
+  const done = row.status === 'completed'
+  // A done task is read-only until it is reopened (lib/work-item-lock.ts).
+  const canEdit = canManage && !done
+  const editing = canEdit && editingId === row.id
+  const estimatedHours = dates.estimatedHours ? parseFloat(dates.estimatedHours) : null
+  const pastPlan = daysPastPlan(p.end, { done, assigned: !!assigneeName })
+  const late = lateness({
+    deadline: p.deadline,
+    pastPlanDays: pastPlan,
+    done: handedIn(row.status),
+  })
+  const rowBadge = rowStatusBadge(row.status)
+  const conflict = pinConflictSlip(
+    p,
+    predecessors.find((d) => d.predecessorId === p.pinConflictWith)?.predecessorTitle,
+  )
+  const canStaff = !!assignment && !done && (assignment.canAssign || assignment.canClaim)
 
-  const span = p.isMilestone
-    ? formatDateShort(p.start)
-    : `${formatDateShort(p.start)} – ${formatDateShort(p.end)}`
-
-  const taken = new Set(predecessors.map((d) => d.predecessorId))
-  const addable = siblings.filter((s) => !taken.has(s.id) && s.id !== row.id)
+  function save(next: DatesValue) {
+    setDraft(next)
+    onSaveDates(datesPayload(next))
+    setEditingId(null)
+  }
 
   return (
     <aside className="border-brand-border bg-surface rounded-lg border p-4">
-      <div className="mb-3 flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-2">
         <h3 className="m-0 text-base leading-snug">{row.label}</h3>
         <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close panel">
           ×
         </Button>
       </div>
 
-      {/* Chips carry the facts that are true of the whole item, so the table below stays dates. */}
-      <div className="mb-3 flex flex-wrap items-center gap-1.5 text-xs">
-        <span
-          className="rounded-full px-2 py-0.5"
-          style={{ background: barFill(row.status), color: 'var(--gantt-bar-text)' }}
-        >
-          {TONE_LABELS[barTone(row.status)]}
-        </span>
+      {/* The work item card's status and assignee, with the marks true of the whole item. */}
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+        <Badge variant={rowBadge.variant}>{rowBadge.label}</Badge>
+        <span className="text-text-light">{assigneeName || UNCLAIMED_LABEL}</span>
+        {helpers && <span className="text-text-light">· {helpers}</span>}
         {p.isMilestone && (
-          <span className="border-brand-border text-text-light rounded-full border px-2 py-0.5">
+          <span className="border-brand-border text-text-light rounded-full border px-2 py-0.5 text-xs">
             Milestone
           </span>
         )}
-        {canManage && p.isAnchor && (
+        {p.isAnchor && (
           <Tooltip content={ANCHOR_HINT}>
             <span
-              className="rounded-full px-2 py-0.5"
+              className="rounded-full px-2 py-0.5 text-xs"
               style={{ background: 'var(--gantt-anchor)', color: 'var(--gantt-bar-text)' }}
             >
-              ★ Anchor
+              ★ Key date
             </span>
           </Tooltip>
         )}
-        {canManage && p.isCritical && (
-          <Tooltip content={CRITICAL_HINT}>
-            <span
-              className="rounded-full px-2 py-0.5"
-              style={{ background: 'var(--gantt-critical)', color: 'var(--gantt-bar-text)' }}
-            >
-              Critical path
-            </span>
-          </Tooltip>
-        )}
-        {p.breachesDeadline && (
-          <span
-            className="rounded-full px-2 py-0.5"
-            style={{ background: 'var(--gantt-today)', color: 'var(--gantt-bar-text)' }}
-          >
-            Past deadline
-          </span>
+        {done && onReopen && (
+          <Button size="sm" variant="secondary" disabled={busy} onClick={onReopen}>
+            Reopen
+          </Button>
         )}
       </div>
 
       {description && (
-        <p className="mb-3 text-sm whitespace-pre-wrap">
+        <p className="mt-2 mb-0 text-sm whitespace-pre-wrap">
           <Linkify text={description} />
         </p>
       )}
 
-      {/* Derived facts only. Anything editable is stated once, by its own control below — the
-          panel should never print a value and then offer the field for it half a screen away. */}
-      <dl className="grid grid-cols-[5.5rem_1fr] gap-x-3 gap-y-1.5 text-sm">
-        <Fact label="Scheduled">{span}</Fact>
-        {deadline && <Fact label="Deadline">{formatDateShort(deadline)}</Fact>}
-        {estimatedHours !== null && estimatedHours !== undefined && (
-          <Fact label="Effort">
-            {estimatedHours} hour{estimatedHours === 1 ? '' : 's'} of work
-          </Fact>
-        )}
-        {p.baseline && (
-          <Fact label="Planned">
-            {formatDateShort(p.baseline.start)} – {formatDateShort(p.baseline.end)}
-          </Fact>
-        )}
-        {/* Variance only means something against a committed baseline. With none set there is
-            nothing to compare to, so the row is absent rather than reading a misleading
-            "On plan". */}
-        {p.baseline && (
-          <Fact label="Variance">
-            <span className={p.startVarianceDays ? 'text-warning-text' : undefined}>
-              {variance}
-            </span>
-          </Fact>
-        )}
-        {p.actual && (
-          <Fact label="Actual">
-            {formatDateShort(p.actual.start)}
-            {p.actual.end ? ` – ${formatDateShort(p.actual.end)}` : ' – in progress'}
-          </Fact>
-        )}
-      </dl>
+      <Section title="When">
+        <TaskDatesSummary
+          className="mb-0"
+          estimatedHours={estimatedHours}
+          deadline={p.deadline}
+          openStart={!dates.startDate && predecessors.length === 0}
+          placement={p}
+          handedIn={handedIn(row.status)}
+        />
 
-      {canManage && !p.baseline && (
-        <p className="text-text-light mt-2 mb-0 text-xs">No baseline set, so no variance yet.</p>
-      )}
+        {late && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+            <LatenessBadge
+              lateness={late}
+              viewer={{ isAssignee: viewerIsAssignee, canReview: canManage }}
+            />
+            {pastPlan !== null && onReplan && (
+              <Button size="sm" variant="secondary" disabled={busy} onClick={onReplan}>
+                Replan
+              </Button>
+            )}
+          </div>
+        )}
 
-      {p.pinnedBeforePredecessor && (
-        <p className="text-error mt-2 mb-0 text-sm">Pinned earlier than its dependencies allow.</p>
-      )}
-
-      {canManage && (
-        <Section title="Dates">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              onSaveDates({
-                startDate: fromDateInputValue(start),
-                durationDays: duration ? parseInt(duration, 10) : null,
-              })
-            }}
-          >
-            {/* A date needs room for ten characters; a duration needs two. Equal columns would
-                make the duration hint wrap. */}
-            <div className="mb-2 grid grid-cols-[1fr_auto] items-start gap-3">
-              <div>
-                <label htmlFor="panel-start">Start date</label>
-                <input
-                  id="panel-start"
-                  type="date"
-                  value={start}
-                  onChange={(e) => setStart(e.target.value)}
-                />
-              </div>
-              <div>
-                <label htmlFor="panel-duration">Duration</label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    id="panel-duration"
-                    type="number"
-                    min="0"
-                    step="1"
-                    className="w-16"
-                    value={duration}
-                    onChange={(e) => setDuration(e.target.value)}
-                    aria-describedby="panel-duration-hint"
-                  />
-                  <span className="text-text-light text-sm">days</span>
-                </div>
-              </div>
-            </div>
-            <p id="panel-duration-hint" className="text-text-light mt-0 mb-2 text-xs">
-              {start ? 'Pinned to this date.' : 'Following its dependencies — no fixed date.'} A
-              duration of 0 makes it a milestone.
-            </p>
-
-            {/* The anchor belongs with the dates it governs, not in a section of its own. */}
-            {onSetAnchor && (
-              <label className="mb-3 flex items-center gap-2 font-normal">
-                <input
-                  type="checkbox"
-                  className="w-auto"
-                  checked={p.isAnchor}
-                  disabled={busy}
-                  onChange={(e) => onSetAnchor(e.target.checked)}
-                />
-                <Tooltip content={ANCHOR_HINT}>
-                  <span className="text-sm decoration-dotted underline-offset-2 [text-decoration-line:underline]">
-                    Anchor — a fixed point the plan is built around
+        {/* The planner's view of this bar, folded away like the timeline's own Planning tools. */}
+        {canManage && (
+          <details className="border-brand-border mt-2 rounded-md border px-3 py-2 text-sm">
+            <summary className="cursor-pointer font-medium">
+              Planning tools
+              {conflict && <span className="text-error"> · starts too early</span>}
+            </summary>
+            <div className="mt-2 flex flex-col gap-2">
+              {p.isCritical && (
+                <Tooltip content={CRITICAL_HINT}>
+                  <span
+                    className="self-start rounded-full px-2 py-0.5 text-xs"
+                    style={{ background: 'var(--gantt-critical)', color: 'var(--gantt-bar-text)' }}
+                  >
+                    Critical path
                   </span>
                 </Tooltip>
-              </label>
-            )}
+              )}
+              <dl className="m-0 grid grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1.5">
+                {p.baseline && (
+                  <Fact label="Original plan">
+                    {formatDateShort(p.baseline.start)} – {formatDateShort(p.baseline.end)}
+                  </Fact>
+                )}
+                {/* Days moved only mean something against a saved original plan. With none there
+                    is nothing to compare to, so the row is absent rather than reading a misleading
+                    "On plan". */}
+                {p.baseline && (
+                  <Fact label="Moved">
+                    <span className={p.finishVarianceDays ? 'text-warning-text' : undefined}>
+                      {p.finishVarianceDays
+                        ? `${movedText(p.finishVarianceDays)} (${formatDateShort(p.baseline.end)} → ${formatDateShort(p.end)})`
+                        : 'On plan'}
+                    </span>
+                  </Fact>
+                )}
+                {p.actual && (
+                  <Fact label="Actual">
+                    {formatDateShort(p.actual.start)}
+                    {p.actual.end ? ` – ${formatDateShort(p.actual.end)}` : ' – in progress'}
+                  </Fact>
+                )}
+              </dl>
+              {!p.baseline && (
+                <p className="text-text-light m-0 text-xs">
+                  No original plan saved yet, so nothing to compare.
+                </p>
+              )}
+              {conflict && <p className="text-error m-0">{conflict}</p>}
+            </div>
+          </details>
+        )}
+
+        {canEdit && !editing && (
+          <Button
+            className="mt-2"
+            size="sm"
+            variant="secondary"
+            disabled={busy}
+            onClick={() => setEditingId(row.id)}
+          >
+            Edit dates
+          </Button>
+        )}
+
+        {editing && (
+          <form
+            className="mt-3"
+            onSubmit={(e) => {
+              e.preventDefault()
+              save(draft)
+            }}
+          >
+            <DatesBlock
+              id="panel"
+              value={draft}
+              onChange={setDraft}
+              followsTitle={predecessors[0]?.predecessorTitle ?? null}
+              derivedStart={draft.startDate ? null : p.start}
+              disabled={busy}
+            />
 
             <div className="flex flex-wrap items-center gap-2">
               <Button type="submit" size="sm" disabled={busy}>
                 Save
               </Button>
-              {start && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setDraft(dates)
+                  setEditingId(null)
+                }}
+              >
+                Cancel
+              </Button>
+              {draft.startDate && predecessors.length > 0 && (
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
                   disabled={busy}
-                  onClick={() => {
-                    setStart('')
-                    onSaveDates({
-                      startDate: null,
-                      durationDays: duration ? parseInt(duration, 10) : null,
-                    })
-                  }}
+                  title="Clear the start date so it begins when the work before it finishes"
+                  onClick={() => save({ ...draft, startDate: '' })}
                 >
-                  Unpin
+                  Start when “{predecessors[0].predecessorTitle}” is done
                 </Button>
               )}
-            </div>
-          </form>
-        </Section>
-      )}
-
-      <Section title="Depends on">
-        {predecessors.length === 0 ? (
-          <p className="text-text-light m-0 text-sm">Nothing — can start whenever.</p>
-        ) : (
-          <ul className="m-0 list-none space-y-2 p-0 text-sm">
-            {predecessors.map((d) => (
-              <li key={d.dependencyId} className="border-brand-border rounded-md border px-3 py-2">
-                <p className="m-0 leading-snug">{d.predecessorTitle}</p>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  {/* Lag is nearly always 0, so it gets a two-character box on one line. */}
-                  <label
-                    htmlFor={`panel-lag-${d.dependencyId}`}
-                    className="text-text-light m-0 flex items-center gap-1.5 text-xs font-normal"
-                  >
-                    Lag
-                    <input
-                      id={`panel-lag-${d.dependencyId}`}
-                      type="number"
-                      step="1"
-                      defaultValue={d.lagDays}
-                      disabled={!canManage || busy}
-                      className="w-14 !px-2 !py-1"
-                      onBlur={(e) => {
-                        const next = e.target.value ? parseInt(e.target.value, 10) : 0
-                        if (next !== d.lagDays) onUpdateLag(d.dependencyId, next)
-                      }}
-                    />
-                    days
-                  </label>
-                  {canManage && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => onRemoveDependency(d.dependencyId)}
-                      aria-label={`Remove dependency on ${d.predecessorTitle}`}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {canManage && addable.length > 0 && (
-          <form
-            className="mt-3"
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (!newPred) return
-              onAddDependency(parseInt(newPred, 10), newLag ? parseInt(newLag, 10) : 0)
-              setNewPred('')
-              setNewLag('')
-            }}
-          >
-            <label htmlFor="panel-add-pred">Add a dependency</label>
-            <select
-              id="panel-add-pred"
-              value={newPred}
-              onChange={(e) => setNewPred(e.target.value)}
-            >
-              <option value="">Select…</option>
-              {addable.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.title}
-                </option>
-              ))}
-            </select>
-            <div className="mt-2 flex items-center gap-2">
-              <label
-                htmlFor="panel-add-lag"
-                className="text-text-light m-0 flex items-center gap-1.5 text-xs font-normal"
-              >
-                Lag
-                <input
-                  id="panel-add-lag"
-                  type="number"
-                  step="1"
-                  value={newLag}
-                  onChange={(e) => setNewLag(e.target.value)}
-                  placeholder="0"
-                  className="w-14 !px-2 !py-1"
-                />
-                days
-              </label>
-              <Button type="submit" size="sm" disabled={!newPred || busy}>
-                Add
-              </Button>
             </div>
           </form>
         )}
       </Section>
 
-      {/* Who does the work comes after when it happens: this is the timeline's panel, and the
-          task's own page is where staffing is really managed. */}
-      <Section title="Assigned to">
-        <p className="m-0 text-sm">{assigneeName || 'Nobody yet'}</p>
+      <Section title="Waits on">
+        {predecessors.length === 0 ? (
+          <p className="text-text-light m-0 text-sm">Nothing — can start whenever.</p>
+        ) : (
+          <CardList items={predecessors.map((d) => d.item)} />
+        )}
+      </Section>
 
-        {assignment && (assignment.canAssign || assignment.canClaim) && (
-          <div className="mt-2 flex flex-wrap items-end gap-2">
+      {successors.length > 0 && (
+        <Section title="Unblocks">
+          <CardList items={successors} />
+        </Section>
+      )}
+
+      {assignment && canStaff && (
+        <Section title="Assigned to">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm">{assigneeName || UNCLAIMED_LABEL}</span>
             {assignment.canClaim && !assigneeName && (
               <Button size="sm" disabled={busy} onClick={assignment.onClaim}>
-                Assign to me
+                {claimLabel(assignment.claimViewer)}
               </Button>
             )}
             {assigneeName && assignment.canAssign && (
               <Button size="sm" variant="secondary" disabled={busy} onClick={assignment.onUnassign}>
-                Unassign
+                {UNASSIGN}
               </Button>
             )}
             {assignment.canAssign && (
@@ -454,21 +402,23 @@ export default function GanttItemPanel({
                     setPickedAssignee('')
                   }}
                 >
-                  Assign
+                  {ASSIGN_PICKED}
                 </Button>
               </>
             )}
           </div>
-        )}
-      </Section>
+        </Section>
+      )}
 
-      {/* Navigation last, where it does not interrupt the editing controls. */}
-      {row.href && (
-        <p className="mt-4 mb-0 text-sm">
-          <Link href={row.href} className="text-primary-text underline">
-            Open task →
-          </Link>
-        </p>
+      {(row.href || planMenu) && (
+        <div className="border-brand-border mt-3 flex items-center justify-between gap-2 border-t pt-3 text-sm">
+          {row.href && (
+            <Link href={row.href} className="text-primary-text underline">
+              Open task →
+            </Link>
+          )}
+          <div className="ml-auto">{planMenu}</div>
+        </div>
       )}
     </aside>
   )

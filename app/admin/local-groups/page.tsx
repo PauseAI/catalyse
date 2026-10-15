@@ -5,6 +5,8 @@ import { useRequireAdmin } from '@/lib/hooks/auth'
 import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import { Badge } from '@/components/Badge'
+import { suggestionStatusVariant } from '@/lib/status-labels'
 import Radio from '@/components/Radio'
 import FilterDropdown, { FilterOption, useFilterOptions } from '@/components/FilterDropdown'
 import { orpc } from '@/lib/orpc'
@@ -45,21 +47,14 @@ const STATUS_FILTER_OPTIONS: FilterOption<StatusFilter>[] = [
   { value: 'all', label: 'All statuses' },
   { value: 'active', label: 'Active' },
   { value: 'pending', label: 'Pending' },
-  { value: 'on_hold', label: 'On Hold' },
+  { value: 'on_hold', label: 'On hold' },
   { value: 'declined', label: 'Declined' },
 ]
-
-const STATUS_BADGE: Record<string, string> = {
-  active: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-  on_hold: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  declined: 'bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400',
-}
 
 const STATUS_LABEL: Record<string, string> = {
   active: 'Active',
   pending: 'Pending',
-  on_hold: 'On Hold',
+  on_hold: 'On hold',
   declined: 'Declined',
 }
 
@@ -336,9 +331,9 @@ export default function AdminLocalGroupsPage() {
     <>
       <main className="container py-5 pb-15">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="m-0">Local Groups</h1>
+          <h1 className="m-0">Local groups</h1>
           <Button size="sm" onClick={openAdd}>
-            Add Local Group
+            Add local group
           </Button>
         </div>
         <p className="text-text-light mb-6">
@@ -382,11 +377,9 @@ export default function AdminLocalGroupsPage() {
                       <span className="font-semibold">
                         {countryLabel(item.country)}, {item.name}
                       </span>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[status] ?? ''}`}
-                      >
+                      <Badge variant={suggestionStatusVariant(status)}>
                         {STATUS_LABEL[status] ?? status}
-                      </span>
+                      </Badge>
                     </div>
                     {item.kind === 'suggestion' && (
                       <p className="text-sm text-text-light m-0 mt-1">
@@ -440,7 +433,7 @@ export default function AdminLocalGroupsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Add Local Group</h2>
+              <h2 role="heading">Add local group</h2>
               <Button variant="ghost" icon onClick={() => setShowAdd(false)} aria-label="Close">
                 ×
               </Button>
@@ -459,7 +452,7 @@ export default function AdminLocalGroupsPage() {
                   />
                 </div>
                 <div className="mb-5">
-                  <label htmlFor="add-name">Group Name</label>
+                  <label htmlFor="add-name">Group name</label>
                   <input
                     id="add-name"
                     type="text"
@@ -473,7 +466,7 @@ export default function AdminLocalGroupsPage() {
                     Cancel
                   </Button>
                   <Button type="submit" disabled={addSubmitting || !addCountry || !addName.trim()}>
-                    {addSubmitting ? 'Saving…' : 'Add Group'}
+                    {addSubmitting ? 'Saving…' : 'Add group'}
                   </Button>
                 </div>
               </form>
@@ -492,7 +485,7 @@ export default function AdminLocalGroupsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Edit Local Group</h2>
+              <h2 role="heading">Edit local group</h2>
               <Button variant="ghost" icon onClick={() => setEditGroup(null)} aria-label="Close">
                 ×
               </Button>
@@ -511,7 +504,7 @@ export default function AdminLocalGroupsPage() {
                   />
                 </div>
                 <div className="mb-5">
-                  <label htmlFor="edit-name">Group Name</label>
+                  <label htmlFor="edit-name">Group name</label>
                   <input
                     id="edit-name"
                     type="text"
@@ -528,7 +521,7 @@ export default function AdminLocalGroupsPage() {
                     type="submit"
                     disabled={editSubmitting || !editCountry || !editName.trim()}
                   >
-                    {editSubmitting ? 'Saving…' : 'Save Changes'}
+                    {editSubmitting ? 'Saving…' : 'Save changes'}
                   </Button>
                 </div>
               </form>
@@ -547,7 +540,7 @@ export default function AdminLocalGroupsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Review Suggestion</h2>
+              <h2 role="heading">Review suggestion</h2>
               <Button
                 variant="ghost"
                 icon
@@ -574,7 +567,7 @@ export default function AdminLocalGroupsPage() {
                       [
                         { value: 'accept', label: 'Accept', desc: 'Add as a new local group' },
                         { value: 'merge', label: 'Merge', desc: 'Link to an existing local group' },
-                        { value: 'on_hold', label: 'On Hold', desc: 'Keep for later review' },
+                        { value: 'on_hold', label: 'On hold', desc: 'Keep for later review' },
                         { value: 'decline', label: 'Decline', desc: 'Not adding at this time' },
                       ] as { value: ReviewAction; label: string; desc: string }[]
                     ).map((opt) => (
@@ -596,7 +589,7 @@ export default function AdminLocalGroupsPage() {
                 {reviewAction === 'accept' && (
                   <>
                     <div className="mb-4">
-                      <label htmlFor="review-name">Group Name</label>
+                      <label htmlFor="review-name">Group name</label>
                       <input
                         id="review-name"
                         type="text"
@@ -698,7 +691,7 @@ export default function AdminLocalGroupsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-md w-full">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Confirm Delete</h2>
+              <h2 role="heading">Confirm delete</h2>
               <Button variant="ghost" icon onClick={() => setDeleteTarget(null)} aria-label="Close">
                 ×
               </Button>

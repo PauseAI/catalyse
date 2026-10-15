@@ -60,7 +60,7 @@ async function getProject(baseUrl: string, token: string, id: number) {
 }
 
 test.describe('Project ownership states', () => {
-  // Regression: removing the owner left the project In Progress with nobody on it and no
+  // Regression: removing the owner left the project In progress with nobody on it and no
   // "seeking owner" flag, so nothing browsing for a project to lead could ever find it.
   test('Removing the owner keeps the status and re-advertises the project for an owner', async ({
     adminPage,
@@ -75,36 +75,41 @@ test.describe('Project ownership states', () => {
     })
 
     await adminPage.goto(`${baseUrl}/projects/${id}`)
-    await expect(adminPage.getByLabel('project status')).toContainText('In Progress', {
+    await expect(adminPage.getByLabel('project status')).toContainText('In progress', {
       timeout: 10_000,
     })
 
     await removeProjectOwner(baseUrl, adminPage, id)
 
-    // The work is still where it was; a Seeking Owner badge says it needs a lead.
-    await expect(adminPage.getByText('Seeking Owner')).toBeVisible({ timeout: 10_000 })
-    await expect(adminPage.getByLabel('project status')).toContainText('In Progress')
+    // The work is still where it was; a Seeking owner flag says it needs a lead.
+    await expect(adminPage.getByText('• Seeking owner')).toBeVisible({ timeout: 10_000 })
+    await expect(adminPage.getByLabel('project status')).toContainText('In progress')
     const project = await getProject(baseUrl, adminToken, id)
     expect(project.ownerId).toBeNull()
     expect(project.isSeekingOwner).toBe(true)
 
     // And it is findable again by someone filtering for projects that need a lead.
     await adminPage.goto(`${baseUrl}/projects`)
-    await selectFilterDropdown(adminPage, 'Needs filter', 'Seeking Owner')
+    await selectFilterDropdown(adminPage, 'Needs filter', 'Seeking owner')
     await expect(adminPage.getByRole('link', { name: title })).toBeVisible({ timeout: 10_000 })
   })
 
   // An ownerless project still has someone behind it. Org-proposed ones are filed by an
   // admin on the organisation's behalf, so they are attributed to the org rather than to
   // that admin personally.
-  test('An ownerless project names its proposer to admins: the org, or the volunteer who proposed it', async ({
+  test('The People tab names the proposer: the org, or the volunteer who proposed it', async ({
     adminPage,
     baseUrl,
   }) => {
     const { id: orgProjectId } = await createOrgProject(baseUrl)
+    const proposedBy = () =>
+      adminPage
+        .getByRole('region', { name: 'People on this project' })
+        .locator('p')
+        .filter({ hasText: 'Proposed by' })
 
-    await adminPage.goto(`${baseUrl}/projects/${orgProjectId}`)
-    await expect(adminPage.getByText('Proposer: PauseAI')).toBeVisible({ timeout: 10_000 })
+    await adminPage.goto(`${baseUrl}/projects/${orgProjectId}#people`)
+    await expect(proposedBy()).toContainText('PauseAI', { timeout: 10_000 })
 
     // A volunteer proposal is attributed to the volunteer, linked to their profile.
     const volunteer = await createApprovedVolunteer(baseUrl)
@@ -126,17 +131,14 @@ test.describe('Project ownership states', () => {
     expect(proposed.status).toBe(200)
     const proposedId = (proposed.body as { id: number }).id
 
-    await adminPage.goto(`${baseUrl}/projects/${proposedId}`)
-    await expect(adminPage.getByText(`Proposer: ${volunteer.name}`)).toBeVisible({
-      timeout: 10_000,
-    })
+    await adminPage.goto(`${baseUrl}/projects/${proposedId}#people`)
     await expect(
-      adminPage.getByRole('link', { name: volunteer.name, exact: true }),
-    ).toHaveAttribute('href', `/volunteers/${volunteer.id}`)
+      proposedBy().getByRole('link', { name: volunteer.name, exact: true }),
+    ).toHaveAttribute('href', `/volunteers/${volunteer.id}`, { timeout: 10_000 })
   })
 
   // A card says who owns a project, or that it is seeking an owner; who filed it is on the
-  // project's own page for admins.
+  // project's People tab.
   test('Browse cards never name the proposer, for admins or volunteers', async ({
     adminPage,
     browser,
@@ -164,9 +166,11 @@ test.describe('Project ownership states', () => {
       await expect(volunteerCard).toContainText('Seeking owner')
       await expect(volunteerCard).not.toContainText('Proposer:')
 
-      // Same on the project's own page: the empty state, not a name.
+      // Same in the project page's header: the empty state, not a name.
       await volunteerPage.goto(`${baseUrl}/projects/${id}`)
-      await expect(volunteerPage.getByText('No owner yet.')).toBeVisible({ timeout: 10_000 })
+      await expect(volunteerPage.getByText('No owner yet', { exact: true })).toBeVisible({
+        timeout: 10_000,
+      })
       await expect(volunteerPage.getByText('Proposer:')).toBeHidden()
     } finally {
       await ctx.close()
@@ -176,7 +180,7 @@ test.describe('Project ownership states', () => {
   // Regression: an owned project used to be able to sit in the retired `seeking_owner`
   // status with the flag cleared, and the card suppressed the status badge for exactly
   // that status — so the card rendered no status at all.
-  test('An owned project shows its status and is excluded from the Seeking Owner filter', async ({
+  test('An owned project shows its status and is excluded from the Seeking owner filter', async ({
     adminPage,
     baseUrl,
   }) => {
@@ -188,19 +192,19 @@ test.describe('Project ownership states', () => {
     })
 
     await adminPage.goto(`${baseUrl}/projects`)
-    await selectFilterDropdown(adminPage, 'Needs filter', 'Seeking Owner')
+    await selectFilterDropdown(adminPage, 'Needs filter', 'Seeking owner')
     await expect(adminPage.getByRole('link', { name: title })).toBeHidden({ timeout: 10_000 })
 
     await adminPage.goto(`${baseUrl}/projects/${id}`)
-    await expect(adminPage.getByLabel('project status')).toContainText('In Progress', {
+    await expect(adminPage.getByLabel('project status')).toContainText('In progress', {
       timeout: 10_000,
     })
-    await expect(adminPage.getByText('Seeking Owner')).toBeHidden()
+    await expect(adminPage.getByText('Seeking owner')).toBeHidden()
   })
 
   // Regression: setOutcome completes a project directly, and used to do it without
   // clearing isSeekingHelp — unlike projects.update, the other route to `completed`. A
-  // finished project then kept its "Seeking Help" badge and its place in the "Looking for
+  // finished project then kept its "Seeking help" badge and its place in the "Looking for
   // People" group. Driven through the API because the UI's outcome panel only appears once
   // the project is already completed, which is the path that always cleared the flag.
   test('Recording an outcome stops the project advertising for help', async ({
@@ -226,7 +230,7 @@ test.describe('Project ownership states', () => {
     expect(project.isSeekingOwner).toBe(false)
 
     await adminPage.goto(`${baseUrl}/projects`)
-    await selectFilterDropdown(adminPage, 'Needs filter', 'Looking for People')
+    await selectFilterDropdown(adminPage, 'Needs filter', 'Looking for people')
     await expect(adminPage.getByRole('link', { name: title })).toBeHidden({ timeout: 10_000 })
   })
 

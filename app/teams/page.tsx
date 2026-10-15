@@ -41,7 +41,7 @@ export default function TeamsPage() {
         <h1 className="m-0">Teams</h1>
         <Link href="/suggest-team">
           <Button size="sm" variant="secondary">
-            Suggest a Team
+            Suggest a team
           </Button>
         </Link>
       </div>
@@ -58,7 +58,7 @@ export default function TeamsPage() {
         <EmptyState
           title="No teams yet."
           body="Suggest one for a group that collaborates on a kind of project."
-          action={<Button href="/suggest-team">Suggest a Team</Button>}
+          action={<Button href="/suggest-team">Suggest a team</Button>}
         />
       ) : (
         <div className="space-y-4">
@@ -120,7 +120,7 @@ export default function TeamsPage() {
                   {user.isAdmin || team.viewerRole === 'leader' ? (
                     <Link href={`/admin/teams/${team.id}`}>
                       <Button size="sm" variant="secondary">
-                        Manage Members
+                        Manage members
                       </Button>
                     </Link>
                   ) : isMember ? (
@@ -131,7 +131,7 @@ export default function TeamsPage() {
                     </Link>
                   ) : team.viewerRequestStatus === 'pending' ? (
                     <Button size="sm" variant="secondary" disabled>
-                      Application Pending
+                      Application pending
                     </Button>
                   ) : (
                     <Button
@@ -139,7 +139,7 @@ export default function TeamsPage() {
                       disabled={applyMutation.isPending}
                       onClick={() => applyMutation.mutate({ id: team.id })}
                     >
-                      Apply to Join
+                      Apply to join
                     </Button>
                   )}
                 </div>

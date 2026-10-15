@@ -19,8 +19,18 @@ export interface CommentItem {
   replies?: CommentItem[]
 }
 
+/** A recorded change, shown among the comments: no author line, no reply, edit or delete. */
+export interface EventLineItem {
+  type: 'event'
+  id: number
+  text: string
+  createdAt: Date | null
+}
+
+export type FeedItem = (CommentItem & { type?: 'comment' }) | EventLineItem
+
 interface CommentThreadViewProps {
-  comments: CommentItem[]
+  comments: FeedItem[]
   canPost: boolean
   isPending: boolean
   isSubmitting: boolean
@@ -60,11 +70,24 @@ function CommentBody({ content }: { content: string }) {
   )
 }
 
+function EventLine({ event }: { event: EventLineItem }) {
+  return (
+    <li
+      id={`event-${event.id}`}
+      className="py-2 border-b border-brand-border last:border-0 text-sm text-text-light"
+    >
+      {event.text}
+      {event.createdAt && ` · ${formatDateTime(event.createdAt)}`}
+    </li>
+  )
+}
+
 const linkButton = 'text-text-light hover:text-text cursor-pointer text-xs'
 
 /**
  * Presentational discussion: a list of comments with one level of replies, edit and
- * delete, and a post form. Shared by CommentThread (work items) and
+ * delete, and a post form; a work item's list also holds its event lines, in the order
+ * given. Shared by CommentThread (work items) and
  * BugReportCommentThread. Owns the #comment-{id} anchor/scroll behaviour so any
  * consumer gets permalinks for free.
  */
@@ -245,7 +268,7 @@ export default function CommentThreadView({
       {canPost && (
         <CommentComposer
           label="Add a comment"
-          submitLabel="Post Comment"
+          submitLabel="Post comment"
           busyLabel="Posting…"
           isSubmitting={isSubmitting}
           mentionable={mentionable}
@@ -259,7 +282,15 @@ export default function CommentThreadView({
       ) : comments.length === 0 ? (
         <p className="text-text-light">{emptyText}</p>
       ) : (
-        <ul className="list-none p-0 m-0">{comments.map((c) => renderComment(c, false))}</ul>
+        <ul className="list-none p-0 m-0">
+          {comments.map((c) =>
+            c.type === 'event' ? (
+              <EventLine key={`event-${c.id}`} event={c} />
+            ) : (
+              renderComment(c, false)
+            ),
+          )}
+        </ul>
       )}
 
       <ConfirmDialog

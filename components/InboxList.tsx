@@ -17,13 +17,7 @@ export function groupNotifications(items: InboxNotification[]): InboxNotificatio
   return [...groups.values()]
 }
 
-export default function InboxList({
-  items,
-  compact = false,
-}: {
-  items: InboxNotification[]
-  compact?: boolean
-}) {
+export default function InboxList({ items }: { items: InboxNotification[] }) {
   const [open, setOpen] = useState<Set<number>>(new Set())
   const toggle = (id: number) =>
     setOpen((prev) => {
@@ -34,12 +28,11 @@ export default function InboxList({
     })
 
   return (
-    <ul className={`list-none p-0 m-0 ${compact ? 'divide-y divide-brand-border' : ''}`}>
+    <ul className="list-none p-0 m-0">
       {groupNotifications(items).map(([first, ...rest]) => (
         <li key={first.id}>
           <InboxRow
             n={first}
-            compact={compact}
             extra={
               rest.length > 0 && (
                 <button
@@ -56,7 +49,7 @@ export default function InboxList({
           {open.has(first.id) && (
             <div className="ml-6">
               {rest.map((n) => (
-                <InboxRow key={n.id} n={n} compact={compact} />
+                <InboxRow key={n.id} n={n} />
               ))}
             </div>
           )}

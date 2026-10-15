@@ -16,7 +16,7 @@ import { emails } from '@/test/fakes/email'
 import ProjectsPage from './page'
 
 describe('projects directory', () => {
-  it('shows the grouped overview with summary badges, view-all links and a collapsible completed section', async () => {
+  it('shows the grouped overview with view-all links and a collapsible completed section', async () => {
     const skill = await createSkill()
     const me = await createVolunteer({ skills: { create: [{ skillId: skill.id }] } })
     const owner = await createVolunteer()
@@ -43,10 +43,12 @@ describe('projects directory', () => {
     await renderApp(<ProjectsPage />, { as: me, url: '/projects' })
     await screen.findByRole('heading', { name: 'Projects' })
     await screen.findByRole('link', { name: 'Seeking A' })
-    expect(screen.getByText('Looking for People: 2')).toBeInTheDocument()
-    expect(screen.getByText('In Progress: 1')).toBeInTheDocument()
-    expect(screen.getByText('Your Team Projects: 1 project')).toBeInTheDocument()
-    expect(screen.getByText('On Hold: 1 project')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Looking for people: 2 projects' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'In progress: 1 project' })).toBeInTheDocument()
+    expect(screen.getByText('Your team projects: 1 project')).toBeInTheDocument()
+    expect(screen.getByText('On hold: 1 project')).toBeInTheDocument()
     // Completed is collapsed until clicked (mouse or keyboard).
     const completedHeading = screen.getByRole('button', { name: /Completed: 1 project/ })
     expect(screen.queryByRole('link', { name: 'Finished' })).toBeNull()
@@ -97,7 +99,7 @@ describe('projects directory', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Status filter' }))
     await userEvent.click(screen.getByRole('option', { name: 'All' }))
     await userEvent.click(screen.getByRole('button', { name: 'Needs filter' }))
-    await userEvent.click(screen.getByRole('option', { name: 'Looking for People' }))
+    await userEvent.click(screen.getByRole('option', { name: 'Looking for people' }))
     await screen.findByRole('link', { name: 'Urgent UK' })
     // The URL updates on each keystroke; the query follows after a debounce.
     fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'Nothing' } })
@@ -106,12 +108,12 @@ describe('projects directory', () => {
     fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'Urgent' } })
     await screen.findByRole('link', { name: 'Urgent UK' })
     await userEvent.click(screen.getByRole('button', { name: 'Needs filter' }))
-    await userEvent.click(screen.getByRole('option', { name: 'Seeking Help' }))
+    await userEvent.click(screen.getByRole('option', { name: 'Seeking help' }))
     await userEvent.click(screen.getByRole('button', { name: 'Needs filter' }))
-    await userEvent.click(screen.getByRole('option', { name: 'Seeking Owner' }))
+    await userEvent.click(screen.getByRole('option', { name: 'Seeking owner' }))
     await screen.findByRole('link', { name: 'Urgent UK' })
     await userEvent.click(screen.getByRole('button', { name: 'Needs filter' }))
-    await userEvent.click(screen.getByRole('option', { name: 'Not Seeking' }))
+    await userEvent.click(screen.getByRole('option', { name: 'Not seeking' }))
     await userEvent.click(screen.getByRole('button', { name: 'Country/Group filter' }))
     await userEvent.click(screen.getByRole('option', { name: 'United Kingdom - London' }))
     await userEvent.click(screen.getByRole('button', { name: 'Team filter' }))
@@ -139,10 +141,10 @@ describe('projects directory', () => {
     await made('Sorted newer', 2)
     await renderApp(<ProjectsPage />, { as: me, url: '/projects?q=Sorted' })
     await screen.findByRole('link', { name: 'Sorted older' })
-    expect(screen.getByText('In Progress: 2 projects')).toBeInTheDocument()
+    expect(screen.getByText('In progress: 2 projects')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Sort filter' }))
     await userEvent.click(screen.getByRole('option', { name: 'Newest first' }))
-    await waitFor(() => expect(screen.queryByText('In Progress: 2 projects')).toBeNull())
+    await waitFor(() => expect(screen.queryByText('In progress: 2 projects')).toBeNull())
     const links = screen.getAllByRole('link', { name: /^Sorted/ }).map((l) => l.textContent)
     expect(links).toEqual(['Sorted newer', 'Sorted older'])
   })

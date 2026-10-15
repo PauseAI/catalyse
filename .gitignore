@@ -67,6 +67,8 @@ bug-reports*.md
 # Scratch
 tmp/
 
+# Personal working docs, not meant for the repo
+/local-docs/
 # Visual snapshots (npm run snapshots)
 /snapshots/
 orca.yaml

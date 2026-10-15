@@ -9,12 +9,13 @@ import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import {
   ProjectCard,
   type Project as CardProject,
-  statusBadgeClasses,
-  STATUS_LABELS,
   CARD_GRID_CLASSES,
 } from '@/components/ProjectCard'
 import Tabs from '@/components/Tabs'
-import { badgeClasses } from '@/components/Badge'
+import { Badge } from '@/components/Badge'
+import { ProjectStatusBadge } from '@/components/StatusBadges'
+import { projectStatusLabel } from '@/lib/project-status'
+import { INTEREST_STATUS_LABELS, interestStatusVariant } from '@/lib/status-labels'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
@@ -34,7 +35,7 @@ export default function TriagePage() {
     options: interestStatusOptions,
   } = useFilterOptions(
     [
-      { value: 'pending', label: 'Pending' },
+      { value: 'pending', label: 'Requests' },
       { value: 'accepted', label: 'Accepted' },
       { value: 'declined', label: 'Declined' },
       { value: 'withdrawn', label: 'Withdrawn' },
@@ -110,7 +111,7 @@ export default function TriagePage() {
   return (
     <>
       <main className="container py-5 pb-15">
-        <h1>Project Triage</h1>
+        <h1>Project triage</h1>
 
         <Tabs
           tabs={[
@@ -118,7 +119,7 @@ export default function TriagePage() {
               key: 'pending_review',
               label: (
                 <>
-                  {`Pending Review`}
+                  {projectStatusLabel(ProjectStatus.pending_review)}
                   {pending.length > 0 && (
                     <span className="bg-primary text-gray-900 text-xs px-2 py-0.5 rounded-full ml-2">
                       {pending.length}
@@ -131,7 +132,7 @@ export default function TriagePage() {
               key: 'needs_discussion',
               label: (
                 <>
-                  {`Needs Changes`}
+                  {projectStatusLabel(ProjectStatus.needs_discussion)}
                   {discussion.length > 0 && (
                     <span className="bg-primary text-gray-900 text-xs px-2 py-0.5 rounded-full ml-2">
                       {discussion.length}
@@ -144,7 +145,7 @@ export default function TriagePage() {
               key: 'stale_in_progress',
               label: (
                 <>
-                  {`No Open Tasks`}
+                  {`No open tasks`}
                   {stale.length > 0 && (
                     <span className="bg-primary text-gray-900 text-xs px-2 py-0.5 rounded-full ml-2">
                       {stale.length}
@@ -170,7 +171,7 @@ export default function TriagePage() {
               key: 'interests',
               label: (
                 <>
-                  Volunteer Interests
+                  Volunteer interests
                   {pendingInterests.length > 0 && (
                     <span className="bg-primary text-gray-900 text-xs px-2 py-0.5 rounded-full ml-2">
                       {pendingInterests.length}
@@ -200,7 +201,13 @@ export default function TriagePage() {
             {loadingInterests ? (
               <div className="text-center py-10 text-text-light">Loading…</div>
             ) : interests.length === 0 ? (
-              <p>No {interestStatusFilter || ''} interests found.</p>
+              <p>
+                {interestStatusFilter === 'pending' ? (
+                  'No requests right now.'
+                ) : (
+                  <>No {interestStatusFilter} interests found.</>
+                )}
+              </p>
             ) : (
               <div className={CARD_GRID_CLASSES}>
                 {interests.map((i) => (
@@ -219,8 +226,7 @@ export default function TriagePage() {
                           </Link>
                           <span className="font-normal text-sm text-text-light">
                             {' '}
-                            wants to{' '}
-                            {i.interestType === 'want_to_own' ? 'own' : 'contribute to'}{' '}
+                            wants to {i.interestType === 'want_to_own' ? 'lead' : 'help with'}{' '}
                           </span>
                           <Link
                             href={`/projects/${i.projectId}`}
@@ -233,22 +239,15 @@ export default function TriagePage() {
                           {i.createdAt ? formatDate(i.createdAt) : ''}
                           {' · '}Owner: {i.ownerName ?? 'None'}
                           {' · '}Project:{' '}
-                          <span className={statusBadgeClasses(i.projectStatus)}>
-                            {STATUS_LABELS[i.projectStatus] ?? i.projectStatus}
-                          </span>
+                          <ProjectStatusBadge status={i.projectStatus} viewerIsAdmin />
                         </p>
                       </div>
-                      <span
-                        className={badgeClasses(
-                          i.status === InterestStatus.pending
-                            ? 'caution'
-                            : i.status === InterestStatus.accepted
-                              ? 'success'
-                              : 'neutral',
-                        )}
-                      >
-                        {i.status}
-                      </span>
+                      {/* A request carries no badge: its Accept and Decline say it waits on you. */}
+                      {i.status !== InterestStatus.pending && (
+                        <Badge variant={interestStatusVariant(i.status)}>
+                          {INTEREST_STATUS_LABELS[i.status] ?? i.status}
+                        </Badge>
+                      )}
                     </div>
 
                     {i.message && (
@@ -300,7 +299,7 @@ export default function TriagePage() {
                           Decline
                         </Button>
                         <Button size="sm" variant="ghost" href={`/projects/${i.projectId}`}>
-                          View Project
+                          View project
                         </Button>
                       </div>
                     )}
@@ -335,6 +334,7 @@ export default function TriagePage() {
                   <ProjectCard
                     key={p.id}
                     project={p}
+                    viewerIsAdmin
                     action={
                       tab === 'drafts' ? (
                         <div className="flex gap-2">
@@ -346,7 +346,7 @@ export default function TriagePage() {
                             onClick={() => submitDraftMutation.mutate({ id: p.id })}
                             disabled={submitDraftMutation.isPending}
                           >
-                            Submit for Review
+                            Submit for review
                           </Button>
                         </div>
                       ) : (

@@ -6,6 +6,7 @@ import Button from '@/components/Button'
 import { useAuth } from '@/lib/auth-context'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import {
   TASK_FINAL_WARNING_AFTER_DAYS,
   TASK_RELEASE_AFTER_DAYS,
@@ -40,8 +41,8 @@ export default function PrivacyPage() {
   return (
     <>
       <main className="container py-5 pb-15">
-        <div className="max-w-[600px] mx-auto">
-          <h1>Privacy &amp; Data</h1>
+        <div className="sm:max-w-[600px] mx-auto">
+          <h1>Privacy &amp; data</h1>
           <p className="text-text-light mb-6">
             Manage your data and privacy settings. We&apos;re committed to respecting your rights
             under GDPR.
@@ -49,8 +50,8 @@ export default function PrivacyPage() {
 
           {user && (
             <>
-              <div className="bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word mb-6">
-                <h2>Export Your Data</h2>
+              <div className={`${SECTION_CARD} overflow-hidden wrap-break-word mb-6`}>
+                <h2>Export your data</h2>
                 <p className="text-text-light mb-4">
                   Download all your data in JSON format. This includes your profile, skills, project
                   interests, and messages.
@@ -60,14 +61,14 @@ export default function PrivacyPage() {
                   onClick={() => exportMutation.mutate({})}
                   disabled={exportMutation.isPending}
                 >
-                  {exportMutation.isPending ? 'Preparing…' : 'Download My Data'}
+                  {exportMutation.isPending ? 'Preparing…' : 'Download my data'}
                 </Button>
               </div>
             </>
           )}
 
-          <div className="bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word mb-6">
-            <h2>Our Data Practices</h2>
+          <div className={`${SECTION_CARD} overflow-hidden wrap-break-word mb-6`}>
+            <h2>Our data practices</h2>
 
             <h4>What we collect</h4>
             <ul className="list-disc text-text-light mb-4 pl-5">
@@ -223,8 +224,8 @@ export default function PrivacyPage() {
             </p>
           </div>
 
-          <div className="bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word mb-6">
-            <h2>Your GDPR Rights</h2>
+          <div className={`${SECTION_CARD} overflow-hidden wrap-break-word mb-6`}>
+            <h2>Your GDPR rights</h2>
             <p className="text-text-light mb-4">
               Under GDPR and the UK Data Protection Act 2018, you have the right to:
             </p>
@@ -277,7 +278,7 @@ export default function PrivacyPage() {
           </div>
 
           {!user && (
-            <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word text-center mb-6">
+            <div className={`${SECTION_CARD} overflow-hidden wrap-break-word text-center mb-6`}>
               <p className="text-text-light">
                 <Link href="/login">Log in</Link> to export your data or manage your account.
               </p>

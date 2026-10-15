@@ -131,7 +131,7 @@ test.describe('Project Discovery', () => {
     await expect(volunteer.page.getByRole('link', { name: title })).toBeVisible({ timeout: 5_000 })
   })
 
-  test('Volunteer filters projects by "Seeking Help" status', async ({ volunteer, baseUrl }) => {
+  test('Volunteer filters projects by "Seeking help" status', async ({ volunteer, baseUrl }) => {
     const title = fake.projectTitle()
     // Admin-created projects have is_seeking_help = true by default
     await adminCreateProjectViaApi(baseUrl, title, 'Project for seeking-filter discovery test')
@@ -142,7 +142,7 @@ test.describe('Project Discovery', () => {
     ).toBeVisible({ timeout: 10_000 })
 
     await volunteer.page.getByRole('button', { name: 'Needs filter' }).click()
-    await volunteer.page.getByRole('option', { name: 'Seeking Help' }).click()
+    await volunteer.page.getByRole('option', { name: 'Seeking help' }).click()
 
     await expect(volunteer.page.getByRole('link', { name: title })).toBeVisible({ timeout: 5_000 })
   })

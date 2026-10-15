@@ -3,6 +3,7 @@ import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { withProjectExtras, projectInclude, EnrichedProject } from '@/lib/work-item'
 import { notifyAdmins, notifyUser } from '@/lib/notify'
+import { updateWorkItem } from '@/lib/work-item-events'
 import { html } from '@/lib/email'
 import { adminProcedure } from '../../procedures'
 import { ProjectStatus, WorkItemType } from '@/generated/prisma/enums'
@@ -65,10 +66,11 @@ export const adminTriageRouter = {
         })
       }
 
-      await prisma.workItem.update({
-        where: { id: input.id },
-        data: { status: ProjectStatus.pending_review, updatedAt: new Date() },
-      })
+      await updateWorkItem(
+        project,
+        { status: ProjectStatus.pending_review, updatedAt: new Date() },
+        { actorId: admin.id, kind: 'status' },
+      )
 
       await notifyAdmins(
         'new_project_proposal',

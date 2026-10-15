@@ -13,6 +13,7 @@ import CommentComposer from './CommentComposer'
 import Footer from './Footer'
 import AiEditingHelp from './AiEditingHelp'
 import { ToastProvider } from '@/lib/toast'
+import { useMutation } from '@tanstack/react-query'
 
 describe('CommentThreadView', () => {
   const comments = [
@@ -74,7 +75,7 @@ describe('CommentThreadView', () => {
     )
     const box = screen.getByLabelText('Add a comment')
     expect(box).toHaveAttribute('placeholder', 'Say something')
-    expect(screen.getByRole('button', { name: 'Post Comment' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Post comment' })).toBeDisabled()
     fireEvent.change(box, { target: { value: '  hello  ' } })
     fireEvent.submit(box.closest('form')!)
     expect(onSubmit).toHaveBeenCalledWith('hello')
@@ -377,6 +378,16 @@ describe('CommentThreadView discussion actions', () => {
   })
 })
 
+/** A button that runs some write through react-query, as any page's mutation does. */
+function MutationButton({ run }: { run: () => Promise<unknown> }) {
+  const mutation = useMutation({ mutationFn: run })
+  return (
+    <button type="button" onClick={() => mutation.mutate()}>
+      Run
+    </button>
+  )
+}
+
 describe('CommentThread / BugReportCommentThread', () => {
   it('load and post work-item comments through the API', async () => {
     const owner = await createVolunteer()
@@ -386,10 +397,86 @@ describe('CommentThread / BugReportCommentThread', () => {
     expect(await screen.findByText('Quiet here')).toBeInTheDocument()
     const box = await screen.findByLabelText('Add a comment')
     await userEvent.type(box, 'A comment')
-    await userEvent.click(screen.getByRole('button', { name: 'Post Comment' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Post comment' }))
     expect(await screen.findByText('Comment added')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText('A comment')).toBeInTheDocument())
     expect(await prisma.workItemComment.count({ where: { workItemId: task.id } })).toBe(1)
+  })
+
+  it('lists the newest comment first, right under the comment box, with replies oldest first', async () => {
+    const owner = await createVolunteer()
+    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    const at = (day: number) => new Date(`2026-01-0${day}T10:00:00Z`)
+    const comment = (content: string, day: number, parentId?: number) =>
+      prisma.workItemComment.create({
+        data: { workItemId: project.id, authorId: owner.id, content, createdAt: at(day), parentId },
+      })
+    const older = await comment('Older', 1)
+    await comment('Newer', 2)
+    await comment('Late reply', 4, older.id)
+    await comment('Early reply', 3, older.id)
+    await renderApp(<CommentThread workItemId={project.id} />, { as: owner })
+    await screen.findByText('Older')
+    const texts = () => [...document.querySelectorAll('li > p')].map((p) => p.textContent)
+    expect(texts()).toEqual(['Newer', 'Older', 'Early reply', 'Late reply'])
+    const box = screen.getByLabelText('Add a comment')
+    const list = screen.getByText('Newer').closest('ul')!
+    expect(box.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    await userEvent.type(box, 'Newest')
+    await userEvent.click(screen.getByRole('button', { name: 'Post comment' }))
+    await waitFor(() => expect(texts()[0]).toBe('Newest'))
+  })
+
+  it('shows recorded changes as plain lines among the comments, in time order', async () => {
+    const owner = await createVolunteer({ name: 'Olive' })
+    const helper = await createVolunteer({ name: 'Hal' })
+    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    const task = await createTask(project.id)
+    await prisma.workItemComment.create({
+      data: {
+        workItemId: task.id,
+        authorId: owner.id,
+        content: 'Who can take this?',
+        createdAt: new Date('2026-10-09T13:00:00Z'),
+      },
+    })
+    await clientAs(owner).projects.assignTask({
+      projectId: project.id,
+      taskId: task.id,
+      assigneeId: helper.id,
+    })
+    // Seen by a helper who is not on the task: event lines are for everyone who can see it.
+    const reader = await createVolunteer()
+    await renderApp(<CommentThread workItemId={task.id} />, { as: reader })
+    const line = await screen.findByText(/^Olive assigned this to Hal · /)
+    const items = [...document.querySelectorAll('ul > li')].map((li) => li.textContent)
+    expect(items[0]).toMatch(/^Olive assigned this to Hal · /)
+    expect(items[1]).toMatch(/^Who can take this\?/)
+    expect(line.id).toMatch(/^event-\d+$/)
+    expect(within(line).queryByRole('button')).toBeNull()
+  })
+
+  it('refreshes an open Discussion after any successful write', async () => {
+    const owner = await createVolunteer({ name: 'Olive' })
+    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    const task = await createTask(project.id, { title: 'Banners' })
+    const rename = () =>
+      clientAs(owner).projects.updateTask({
+        projectId: project.id,
+        taskId: task.id,
+        data: { title: 'Flags' },
+      })
+    await renderApp(
+      <>
+        <MutationButton run={rename} />
+        <CommentThread workItemId={task.id} />
+      </>,
+      { as: owner },
+    )
+    await screen.findByLabelText('Add a comment')
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }))
+    expect(await screen.findByText(/^Olive renamed this 'Flags' · /)).toBeInTheDocument()
   })
 
   it('replies, edits and deletes work-item comments through the API', async () => {
@@ -457,7 +544,7 @@ describe('CommentThread / BugReportCommentThread', () => {
     const { createSession } = await import('@/lib/auth')
     localStorage.setItem('authToken', await createSession(stranger.id))
     await userEvent.type(box, 'Nope')
-    await userEvent.click(screen.getByRole('button', { name: 'Post Comment' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Post comment' }))
     expect(await screen.findByText('Not authorized to comment here')).toBeInTheDocument()
     expect(box).toHaveValue('Nope')
   })
@@ -473,14 +560,14 @@ describe('CommentThread / BugReportCommentThread', () => {
     })
     const box = await screen.findByPlaceholderText('Reply')
     await userEvent.type(box, 'Thanks')
-    await userEvent.click(await screen.findByRole('button', { name: 'Post Comment' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Post comment' }))
     await waitFor(() => expect(screen.getByText('Thanks')).toBeInTheDocument())
     // The submit resolves after the list refetch, clearing the box; let it finish first.
     await waitFor(() => expect(box).toHaveValue(''))
-    await screen.findByRole('button', { name: 'Post Comment' })
+    await screen.findByRole('button', { name: 'Post comment' })
     await userEvent.type(box, 'Again')
     localStorage.setItem('authToken', 'stale')
-    await userEvent.click(await screen.findByRole('button', { name: 'Post Comment' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Post comment' }))
     expect(await screen.findByText('Unauthorized')).toBeInTheDocument()
   })
 })

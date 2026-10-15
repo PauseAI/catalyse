@@ -1,4 +1,4 @@
-import { ORPCError } from '@orpc/server'
+import { ORPCError, type AnyRouter } from '@orpc/server'
 import { RPCHandler } from '@orpc/server/fetch'
 import { appRouter } from './router'
 
@@ -22,13 +22,16 @@ function withIssueMessage(error: unknown): unknown {
 }
 
 /** The one handler the route and the test harness both serve the router through. */
-export function createHandler(): RPCHandler<Record<never, never>> {
-  return new RPCHandler(appRouter, {
+export function createHandler(router: AnyRouter = appRouter): RPCHandler<Record<never, never>> {
+  return new RPCHandler(router, {
     clientInterceptors: [
       async (options) => {
         try {
           return await options.next()
         } catch (error) {
+          // A refusal the code meant to make reaches the client as it is; anything else is a
+          // bug the client sees only as a 500, so the server logs it.
+          if (!(error instanceof ORPCError)) console.error(error)
           throw withIssueMessage(error)
         }
       },

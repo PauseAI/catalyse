@@ -9,7 +9,7 @@ test.describe('Admin team management', () => {
   }) => {
     await navigateToAdminTeams(baseUrl, adminPage)
     await adminPage.getByRole('button', { name: 'Add Team' }).click()
-    await adminPage.getByLabel('Team Name').fill(fake.teamName())
+    await adminPage.getByLabel('Team name').fill(fake.teamName())
     await adminPage.getByLabel('Luma calendar URL').fill('not a url')
     await adminPage.getByRole('button', { name: /^Add/ }).last().click()
     await expect(getAlert(adminPage)).toContainText('Enter a full address', { timeout: 10_000 })
@@ -28,7 +28,7 @@ test.describe('Admin team management', () => {
     })
     const submit = dialog.getByRole('button', { name: /^Add/ }).last()
     await expect(submit).toBeDisabled()
-    await adminPage.getByLabel('Team Name').fill(name)
+    await adminPage.getByLabel('Team name').fill(name)
     await adminPage.getByLabel('Description').fill('Made in an e2e test.')
     await adminPage.getByLabel('Luma calendar URL').fill('https://luma.com/e2e-team')
     await snap(adminPage, 'add team dialog')
@@ -46,7 +46,7 @@ test.describe('Admin team management', () => {
     await expect(row.getByRole('link', { name: 'Manage' })).toBeVisible()
 
     await row.getByRole('button', { name: 'Delete' }).click()
-    await expect(adminPage.getByRole('heading', { name: 'Confirm Delete' })).toBeVisible()
+    await expect(adminPage.getByRole('heading', { name: 'Confirm delete' })).toBeVisible()
     await snap(adminPage, 'confirm delete')
     await adminPage.getByRole('button', { name: 'Delete', exact: true }).last().click()
     await expect(getAlert(adminPage)).toContainText('Deleted', { timeout: 10_000 })
@@ -57,7 +57,7 @@ test.describe('Admin team management', () => {
 test.describe('Edges', () => {
   test('An unknown page shows the not-found screen', async ({ volunteer, baseUrl, snap }) => {
     await volunteer.page.goto(`${baseUrl}/no-such-page`)
-    await expect(volunteer.page.getByRole('heading', { name: 'Page Not Found' })).toBeVisible({
+    await expect(volunteer.page.getByRole('heading', { name: 'Page not found' })).toBeVisible({
       timeout: 10_000,
     })
     await snap(volunteer.page, 'not found')

@@ -6,14 +6,14 @@ test.describe('Account Management', () => {
     const newPassword = 'newpassword1'
 
     await volunteer.page.goto(`${baseUrl}/settings?tab=account`)
-    await expect(volunteer.page.getByRole('heading', { name: 'Change Password' })).toBeVisible({
+    await expect(volunteer.page.getByRole('heading', { name: 'Change password' })).toBeVisible({
       timeout: 10_000,
     })
 
-    await volunteer.page.getByLabel('Current Password').fill(volunteer.password)
-    await volunteer.page.getByLabel('New Password', { exact: true }).fill(newPassword)
-    await volunteer.page.getByLabel('Confirm New Password').fill(newPassword)
-    await volunteer.page.getByRole('button', { name: 'Change Password' }).click()
+    await volunteer.page.getByLabel('Current password').fill(volunteer.password)
+    await volunteer.page.getByLabel('New password', { exact: true }).fill(newPassword)
+    await volunteer.page.getByLabel('Confirm new password').fill(newPassword)
+    await volunteer.page.getByRole('button', { name: 'Change password' }).click()
 
     await expect(getAlert(volunteer.page)).toBeVisible({ timeout: 10_000 })
     await expect(getAlert(volunteer.page)).toContainText('successfully')
@@ -31,14 +31,14 @@ test.describe('Account Management', () => {
 
   test('Change password fails with wrong current password', async ({ volunteer, baseUrl }) => {
     await volunteer.page.goto(`${baseUrl}/settings?tab=account`)
-    await expect(volunteer.page.getByRole('heading', { name: 'Change Password' })).toBeVisible({
+    await expect(volunteer.page.getByRole('heading', { name: 'Change password' })).toBeVisible({
       timeout: 10_000,
     })
 
-    await volunteer.page.getByLabel('Current Password').fill('wrongpassword123')
-    await volunteer.page.getByLabel('New Password', { exact: true }).fill('newpassword1')
-    await volunteer.page.getByLabel('Confirm New Password').fill('newpassword1')
-    await volunteer.page.getByRole('button', { name: 'Change Password' }).click()
+    await volunteer.page.getByLabel('Current password').fill('wrongpassword123')
+    await volunteer.page.getByLabel('New password', { exact: true }).fill('newpassword1')
+    await volunteer.page.getByLabel('Confirm new password').fill('newpassword1')
+    await volunteer.page.getByRole('button', { name: 'Change password' }).click()
 
     await expect(getAlert(volunteer.page)).toBeVisible({ timeout: 10_000 })
     await expect(getAlert(volunteer.page)).not.toContainText('successfully')
@@ -46,16 +46,16 @@ test.describe('Account Management', () => {
 
   test('Volunteer deletes their account', async ({ browser, volunteer, baseUrl }) => {
     await volunteer.page.goto(`${baseUrl}/settings?tab=account`)
-    await expect(volunteer.page.getByRole('button', { name: 'Delete My Account' })).toBeVisible({
+    await expect(volunteer.page.getByRole('button', { name: 'Delete my account' })).toBeVisible({
       timeout: 10_000,
     })
 
-    await volunteer.page.getByRole('button', { name: 'Delete My Account' }).click()
+    await volunteer.page.getByRole('button', { name: 'Delete my account' }).click()
     await expect(volunteer.page.locator('#deleteModal')).toBeVisible({ timeout: 10_000 })
 
     await volunteer.page.getByLabel('Enter your password').fill(volunteer.password)
     await volunteer.page.getByLabel('Confirm your password').fill(volunteer.password)
-    await volunteer.page.getByRole('button', { name: 'Permanently Delete Account' }).click()
+    await volunteer.page.getByRole('button', { name: 'Permanently delete account' }).click()
 
     await expect(getAlert(volunteer.page)).toBeVisible({ timeout: 10_000 })
 

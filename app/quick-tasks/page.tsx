@@ -5,7 +5,6 @@ import { useRequireApproved } from '@/lib/hooks/auth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Badge, type BadgeVariant } from '@/components/Badge'
 import Button from '@/components/Button'
 import CommentThread from '@/components/CommentThread'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
@@ -13,6 +12,11 @@ import VolunteerSelect from '@/components/VolunteerSelect'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import Linkify from '@/components/Linkify'
 import SubmitWorkButton from '@/components/SubmitWorkButton'
+import SubmissionAskFields, {
+  NEW_SUBMISSION_ASK,
+  submissionAskDraft,
+  submissionAskPayload,
+} from '@/components/SubmissionAskFields'
 import SubmittedWork, { type Submission } from '@/components/SubmittedWork'
 import RequestChangesButton from '@/components/RequestChangesButton'
 import QuickTaskReviewDialog from '@/components/QuickTaskReviewDialog'
@@ -21,15 +25,14 @@ import {
   QUICK_TASK_CLAIMED_MESSAGE,
   TASK_REQUESTED_MESSAGE,
 } from '@/lib/action-messages'
-import {
-  QUICK_TASK_STATUS_LABELS,
-  QUICK_TASK_STATUS_VARIANTS,
-  TASK_STATUS_LABELS,
-  TASK_STATUS_VARIANTS,
-} from '@/lib/status-labels'
+import { ASSIGN_PICKED, CLAIM_TASK, CLAIMING, UNASSIGN, claimLabel } from '@/lib/action-labels'
+import type { WorkViewer } from '@/lib/status-emphasis'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
-import { formatDate } from '@/lib/format-date'
+import { formatDate, fromDateInputValue, toDateInputValue } from '@/lib/format-date'
+import { DueChip, WorkStatusBadge } from '@/components/StatusBadges'
+import { handedIn } from '@/lib/overdue'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import { QuickTaskStatus, TaskStatus } from '@/generated/prisma/enums'
 import PageLoading from '@/components/PageLoading'
 import Skeleton from '@/components/Skeleton'
@@ -55,10 +58,13 @@ interface AdminQuickTask {
   reviewRating: string | null
   reviewNotes: string | null
   estimatedHours: number | null
+  deadline: string | Date | null
   createdAt: string
   submission: Submission | null
   changesRequested: string | null
   reviewedByName: string | null
+  submissionPrompt: string | null
+  submissionAsksLink: boolean
 }
 
 interface FeaturedProjectTask {
@@ -71,6 +77,7 @@ interface FeaturedProjectTask {
   assignedToId: number | null
   assignedToName: string | null
   estimatedHours: number | null
+  deadline: string | Date | null
   createdAt: string
 }
 
@@ -89,6 +96,10 @@ const RATING_LABELS: Record<string, string> = {
 const SKILL_CHIP_CLASSES =
   'inline-flex items-center px-3 py-1 bg-accent text-secondary-dark rounded-full text-sm font-medium dark:bg-gray-700 dark:text-gray-300'
 
+const ASSIGNEE: WorkViewer = { isAssignee: true, canReview: false }
+const ONLOOKER: WorkViewer = { isAssignee: false, canReview: false }
+const ADMIN: WorkViewer = { isAssignee: false, canReview: true }
+
 // One card shape shared by every quick-task list — volunteer or admin, standalone quick
 // task or featured project task. What differs between them is the meta/description
 // content and whichever role-specific controls get passed in as children, not the card
@@ -98,8 +109,9 @@ function QuickTaskCard({
   title,
   titleHref,
   status,
-  statusVariant,
-  statusLabel,
+  quick = false,
+  changesRequested = false,
+  viewer,
   meta,
   description,
   children,
@@ -107,9 +119,11 @@ function QuickTaskCard({
   anchorId?: string
   title: string
   titleHref?: string
+  /** A Quick Task's stored status (`quick`) or a project task's, badged by `workStatusBadge`. */
   status: string
-  statusVariant: BadgeVariant
-  statusLabel?: string
+  quick?: boolean
+  changesRequested?: boolean
+  viewer: WorkViewer
   meta?: React.ReactNode[]
   description?: string | null
   children?: React.ReactNode
@@ -118,13 +132,18 @@ function QuickTaskCard({
     <div
       id={anchorId}
       role="article"
-      className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word"
+      className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}
     >
       <div className="flex justify-between items-start gap-3 mb-2">
         <h3 className="m-0">{titleHref ? <Link href={titleHref}>{title}</Link> : title}</h3>
-        <Badge role="status" variant={statusVariant} className="whitespace-nowrap shrink-0">
-          {statusLabel ?? status}
-        </Badge>
+        <WorkStatusBadge
+          status={status}
+          quick={quick}
+          changesRequested={changesRequested}
+          viewer={viewer}
+          role="status"
+          className="whitespace-nowrap shrink-0"
+        />
       </div>
       {meta && meta.some(Boolean) && (
         <div className="flex gap-2 mb-3 flex-wrap items-center">{meta}</div>
@@ -199,7 +218,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
   return (
     <>
       <main className="container py-5 pb-15">
-        <h1>Quick Tasks</h1>
+        <h1>Quick tasks</h1>
         <p className="text-text-light mb-4">
           Small, self-contained tasks to help you get started and make an impact quickly.
         </p>
@@ -221,7 +240,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
         {tab === 'mine' && (
           <section aria-labelledby="my-quick-tasks">
             <h2 id="my-quick-tasks" className="mt-0">
-              My Quick Tasks
+              My quick tasks
             </h2>
 
             {loadingTasks ? (
@@ -244,8 +263,9 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                   title={task.title}
                   titleHref={`/quick-tasks/${task.id}`}
                   status={task.status}
-                  statusVariant={QUICK_TASK_STATUS_VARIANTS[task.status] ?? 'neutral'}
-                  statusLabel={QUICK_TASK_STATUS_LABELS[task.status] ?? task.status}
+                  quick
+                  changesRequested={task.changesRequested !== null}
+                  viewer={ASSIGNEE}
                   description={task.description}
                   meta={[
                     task.skillName && (
@@ -257,6 +277,15 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                       <span key="hours" className="text-text-light text-sm">
                         ~{task.estimatedHours}h
                       </span>
+                    ),
+                    task.deadline && (
+                      <DueChip
+                        key="deadline"
+                        deadline={task.deadline}
+                        done={handedIn(task.status)}
+                        viewer={ASSIGNEE}
+                        className="text-sm"
+                      />
                     ),
                     task.projectTitle && (
                       <span key="project" className="text-text-light text-sm">
@@ -274,6 +303,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                       )}
                       <SubmitWorkButton
                         target={{ kind: 'quick', taskId: task.id }}
+                        ask={task}
                         reviewer="An admin"
                       />
                     </>
@@ -287,7 +317,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
         {tab === 'open' && (
           <section aria-labelledby="browse-quick-tasks">
             <h2 id="browse-quick-tasks" className="mt-0">
-              Browse Quick Tasks
+              Browse quick tasks
             </h2>
             <p className="text-text-light mb-6">
               Open tasks to pick up right now, no need to browse projects first.
@@ -297,7 +327,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
               <Skeleton label="Loading tasks…" />
             ) : availableTasks.length === 0 ? (
               <EmptyState
-                title="No open Quick Tasks right now"
+                title="No open quick tasks right now"
                 body="Check back soon, or find a project that needs a hand."
                 action={
                   <Button href="/projects" variant="outline">
@@ -313,8 +343,8 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                     title={task.title}
                     titleHref={`/quick-tasks/${task.id}`}
                     status="open"
-                    statusVariant={QUICK_TASK_STATUS_VARIANTS.open}
-                    statusLabel={QUICK_TASK_STATUS_LABELS.open}
+                    quick
+                    viewer={ONLOOKER}
                     description={task.description}
                     meta={[
                       task.skillName && (
@@ -327,6 +357,15 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                           ~{task.estimatedHours}h
                         </span>
                       ),
+                      task.deadline && (
+                        <DueChip
+                          key="deadline"
+                          deadline={task.deadline}
+                          done={false}
+                          viewer={ONLOOKER}
+                          className="text-sm"
+                        />
+                      ),
                     ]}
                   >
                     <Button
@@ -336,8 +375,8 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                       }
                     >
                       {claimQuickMutation.isPending && claimQuickMutation.variables?.id === task.id
-                        ? 'Claiming…'
-                        : 'Claim'}
+                        ? CLAIMING
+                        : CLAIM_TASK}
                     </Button>
                   </QuickTaskCard>
                 ) : (
@@ -345,9 +384,8 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                     key={`project-task-${task.id}`}
                     title={task.title}
                     titleHref={`/projects/${task.projectId}/tasks/${task.id}`}
-                    status="open"
-                    statusVariant={TASK_STATUS_VARIANTS.open}
-                    statusLabel={TASK_STATUS_LABELS.open}
+                    status="not_started"
+                    viewer={ONLOOKER}
                     description={task.description}
                     meta={[
                       task.projectTitle && (
@@ -361,6 +399,15 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                           ~{task.estimatedHours}h
                         </span>
                       ),
+                      task.deadline && (
+                        <DueChip
+                          key="deadline"
+                          deadline={task.deadline}
+                          done={false}
+                          viewer={ONLOOKER}
+                          className="text-sm"
+                        />
+                      ),
                     ]}
                   >
                     <Button
@@ -368,7 +415,7 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                         claimProjectTaskMutation.mutate({
                           projectId: task.projectId,
                           taskId: task.id,
-                          data: { status: TaskStatus.in_progress, assigneeId: user.id },
+                          data: { assigneeId: user.id },
                         })
                       }
                       disabled={
@@ -378,8 +425,8 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                     >
                       {claimProjectTaskMutation.isPending &&
                       claimProjectTaskMutation.variables?.taskId === task.id
-                        ? 'Claiming…'
-                        : 'Claim'}
+                        ? CLAIMING
+                        : claimLabel(task.claimViewer)}
                     </Button>
                   </QuickTaskCard>
                 ),
@@ -418,6 +465,8 @@ function AdminQuickTasksView() {
   const [createDesc, setCreateDesc] = useState('')
   const [createSkillId, setCreateSkillId] = useState('')
   const [createHours, setCreateHours] = useState('')
+  const [createDeadline, setCreateDeadline] = useState('')
+  const [createAsk, setCreateAsk] = useState(NEW_SUBMISSION_ASK)
 
   // Edit modal
   const [editModal, setEditModal] = useState<AdminQuickTask | null>(null)
@@ -425,6 +474,8 @@ function AdminQuickTasksView() {
   const [editDesc, setEditDesc] = useState('')
   const [editSkillId, setEditSkillId] = useState('')
   const [editHours, setEditHours] = useState('')
+  const [editDeadline, setEditDeadline] = useState('')
+  const [editAsk, setEditAsk] = useState(NEW_SUBMISSION_ASK)
 
   // Assign — inline dropdown per task, matching the project-task assign pattern
   const [taskAssignSelections, setTaskAssignSelections] = useState<Record<number, string>>({})
@@ -490,6 +541,8 @@ function AdminQuickTasksView() {
       setCreateDesc('')
       setCreateSkillId('')
       setCreateHours('')
+      setCreateDeadline('')
+      setCreateAsk(NEW_SUBMISSION_ASK)
       void queryClient.invalidateQueries({ queryKey: orpc.quickTasks.list.key() })
     },
     onError: (err: unknown) =>
@@ -573,6 +626,8 @@ function AdminQuickTasksView() {
     setEditDesc(task.description)
     setEditSkillId(task.skillId ? String(task.skillId) : '')
     setEditHours(task.estimatedHours ? String(task.estimatedHours) : '')
+    setEditDeadline(toDateInputValue(task.deadline))
+    setEditAsk(submissionAskDraft(task))
   }
 
   function createTask(e: React.FormEvent) {
@@ -582,6 +637,8 @@ function AdminQuickTasksView() {
       description: createDesc.trim(),
       skillId: createSkillId ? parseInt(createSkillId) : null,
       estimatedHours: createHours ? parseFloat(createHours) : null,
+      deadline: fromDateInputValue(createDeadline),
+      ...submissionAskPayload(createAsk),
     })
   }
 
@@ -593,6 +650,8 @@ function AdminQuickTasksView() {
       description: editDesc.trim(),
       skillId: editSkillId ? parseInt(editSkillId) : null,
       estimatedHours: editHours ? parseFloat(editHours) : null,
+      deadline: fromDateInputValue(editDeadline),
+      ...submissionAskPayload(editAsk),
     })
   }
 
@@ -619,7 +678,7 @@ function AdminQuickTasksView() {
     unassignProjectTaskMutation.mutate({
       projectId: task.projectId,
       taskId: task.id,
-      data: { status: TaskStatus.open },
+      data: { status: TaskStatus.not_started },
     })
   }
 
@@ -637,8 +696,8 @@ function AdminQuickTasksView() {
     <>
       <main className="container py-5 pb-15">
         <div className="flex justify-between items-center mb-3">
-          <h1>Quick Tasks</h1>
-          <Button onClick={() => setShowCreate(true)}>Create Task</Button>
+          <h1>Quick tasks</h1>
+          <Button onClick={() => setShowCreate(true)}>Create task</Button>
         </div>
 
         <p className="text-text-light mb-6">
@@ -659,7 +718,7 @@ function AdminQuickTasksView() {
         {loadingData ? (
           <div className="text-center py-10 text-text-light">Loading…</div>
         ) : tasks.length === 0 ? (
-          <div className="bg-surface rounded-xl shadow p-6 text-center">
+          <div className={`${SECTION_CARD} text-center`}>
             <h3>No quick tasks</h3>
             <p className="text-text-light">
               Create one to verify a volunteer&apos;s skills before giving them a bigger project.
@@ -672,8 +731,9 @@ function AdminQuickTasksView() {
               anchorId={`task-${task.id}`}
               title={task.title}
               status={task.status}
-              statusVariant={QUICK_TASK_STATUS_VARIANTS[task.status] ?? 'neutral'}
-              statusLabel={QUICK_TASK_STATUS_LABELS[task.status] ?? task.status}
+              quick
+              changesRequested={task.changesRequested !== null}
+              viewer={ADMIN}
               description={task.description}
               meta={[
                 task.skillName && (
@@ -685,6 +745,15 @@ function AdminQuickTasksView() {
                   <span key="hours" className="text-text-light text-sm">
                     ~{task.estimatedHours}h
                   </span>
+                ),
+                task.deadline && (
+                  <DueChip
+                    key="deadline"
+                    deadline={task.deadline}
+                    done={handedIn(task.status)}
+                    viewer={ADMIN}
+                    className="text-sm"
+                  />
                 ),
                 task.assignedToId && task.assignedToName && (
                   <span key="assignee" className="text-text-light text-sm">
@@ -740,7 +809,7 @@ function AdminQuickTasksView() {
                     disabled={!taskAssignSelections[task.id] || assignTaskMutation.isPending}
                     onClick={() => handleAssignTask(task.id)}
                   >
-                    Assign
+                    {ASSIGN_PICKED}
                   </Button>
                 </div>
               )}
@@ -770,7 +839,7 @@ function AdminQuickTasksView() {
                       disabled={unassignTaskMutation.isPending}
                       onClick={() => handleUnassignTask(task.id)}
                     >
-                      Unassign
+                      {UNASSIGN}
                     </Button>
                   )}
                   {task.status === QuickTaskStatus.under_review && (
@@ -803,8 +872,7 @@ function AdminQuickTasksView() {
                 title={task.title}
                 titleHref={`/projects/${task.projectId}/tasks/${task.id}`}
                 status={task.status}
-                statusVariant={TASK_STATUS_VARIANTS[task.status] ?? 'neutral'}
-                statusLabel={TASK_STATUS_LABELS[task.status] ?? task.status}
+                viewer={ADMIN}
                 description={task.description}
                 meta={[
                   task.projectTitle && (
@@ -817,6 +885,15 @@ function AdminQuickTasksView() {
                       ~{task.estimatedHours}h
                     </span>
                   ),
+                  task.deadline && (
+                    <DueChip
+                      key="deadline"
+                      deadline={task.deadline}
+                      done={handedIn(task.status)}
+                      viewer={ADMIN}
+                      className="text-sm"
+                    />
+                  ),
                   task.assignedToId && task.assignedToName && (
                     <span key="assignee" className="text-text-light text-sm">
                       Assigned to:{' '}
@@ -827,7 +904,7 @@ function AdminQuickTasksView() {
                   ),
                 ]}
               >
-                {task.status === TaskStatus.open && (
+                {task.status === TaskStatus.not_started && task.assignedToId === null && (
                   <div className="flex gap-2 items-end mb-3">
                     <div className="flex-1 max-w-75">
                       <VolunteerSelect
@@ -850,7 +927,7 @@ function AdminQuickTasksView() {
                       }
                       onClick={() => handleAssignProjectTask(task)}
                     >
-                      Assign
+                      {ASSIGN_PICKED}
                     </Button>
                   </div>
                 )}
@@ -874,7 +951,7 @@ function AdminQuickTasksView() {
                         disabled={unassignProjectTaskMutation.isPending}
                         onClick={() => handleUnassignProjectTask(task)}
                       >
-                        Unassign
+                        {UNASSIGN}
                       </Button>
                     )}
                   </div>
@@ -899,7 +976,7 @@ function AdminQuickTasksView() {
             className="bg-surface rounded-xl shadow-lg max-w-150 w-full max-h-[90vh] overflow-y-auto"
           >
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 id="create-dialog-title">Create Quick Task</h2>
+              <h2 id="create-dialog-title">Create quick task</h2>
             </div>
             <div className="p-6">
               <form onSubmit={createTask}>
@@ -930,8 +1007,8 @@ function AdminQuickTasksView() {
                   <div>
                     <FilterDropdown
                       id="ct-skill"
-                      label="Skill Being Tested"
-                      ariaLabel="Skill Being Tested"
+                      label="Skill being tested"
+                      ariaLabel="Skill being tested"
                       value={createSkillId}
                       options={[
                         { value: '', label: 'None specific' },
@@ -945,7 +1022,7 @@ function AdminQuickTasksView() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="ct-hours">Estimated Hours</label>
+                    <label htmlFor="ct-hours">Estimated hours</label>
                     <input
                       id="ct-hours"
                       type="number"
@@ -957,13 +1034,23 @@ function AdminQuickTasksView() {
                       placeholder="e.g., 2"
                     />
                   </div>
+                  <div>
+                    <label htmlFor="ct-deadline">Deadline (optional)</label>
+                    <input
+                      id="ct-deadline"
+                      type="date"
+                      value={createDeadline}
+                      onChange={(e) => setCreateDeadline(e.target.value)}
+                    />
+                  </div>
                 </div>
+                <SubmissionAskFields id="ct" value={createAsk} onChange={setCreateAsk} />
                 <div className="px-0 py-4 border-t border-brand-border flex gap-3 justify-end">
                   <Button type="button" variant="secondary" onClick={() => setShowCreate(false)}>
                     Cancel
                   </Button>
                   <Button type="submit" disabled={createTaskMutation.isPending}>
-                    {createTaskMutation.isPending ? 'Creating…' : 'Create Task'}
+                    {createTaskMutation.isPending ? 'Creating…' : 'Create task'}
                   </Button>
                 </div>
               </form>
@@ -986,7 +1073,7 @@ function AdminQuickTasksView() {
             className="bg-surface rounded-xl shadow-lg max-w-150 w-full max-h-[90vh] overflow-y-auto"
           >
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 id="edit-dialog-title">Edit Quick Task</h2>
+              <h2 id="edit-dialog-title">Edit quick task</h2>
             </div>
             <div className="p-6">
               <form onSubmit={(e) => editTask(e, editModal)}>
@@ -1015,8 +1102,8 @@ function AdminQuickTasksView() {
                   <div>
                     <FilterDropdown
                       id="et-skill"
-                      label="Skill Being Tested"
-                      ariaLabel="Skill Being Tested"
+                      label="Skill being tested"
+                      ariaLabel="Skill being tested"
                       value={editSkillId}
                       options={[
                         { value: '', label: 'None specific' },
@@ -1030,7 +1117,7 @@ function AdminQuickTasksView() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="et-hours">Estimated Hours</label>
+                    <label htmlFor="et-hours">Estimated hours</label>
                     <input
                       id="et-hours"
                       type="number"
@@ -1041,13 +1128,23 @@ function AdminQuickTasksView() {
                       onChange={(e) => setEditHours(e.target.value)}
                     />
                   </div>
+                  <div>
+                    <label htmlFor="et-deadline">Deadline (optional)</label>
+                    <input
+                      id="et-deadline"
+                      type="date"
+                      value={editDeadline}
+                      onChange={(e) => setEditDeadline(e.target.value)}
+                    />
+                  </div>
                 </div>
+                <SubmissionAskFields id="et" value={editAsk} onChange={setEditAsk} />
                 <div className="px-0 py-4 border-t border-brand-border flex gap-3 justify-end">
                   <Button type="button" variant="secondary" onClick={() => setEditModal(null)}>
                     Cancel
                   </Button>
                   <Button type="submit" disabled={editTaskMutation.isPending}>
-                    {editTaskMutation.isPending ? 'Saving…' : 'Save Changes'}
+                    {editTaskMutation.isPending ? 'Saving…' : 'Save changes'}
                   </Button>
                 </div>
               </form>

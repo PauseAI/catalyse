@@ -5,6 +5,8 @@ import { useRequireAdmin } from '@/lib/hooks/auth'
 import Link from 'next/link'
 import { useMutation, useQuery, useQueryClient, useQueries } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import { Badge } from '@/components/Badge'
+import { suggestionStatusVariant } from '@/lib/status-labels'
 import Radio from '@/components/Radio'
 import FilterDropdown, { FilterOption, useFilterOptions } from '@/components/FilterDropdown'
 import { orpc } from '@/lib/orpc'
@@ -50,21 +52,14 @@ const STATUS_FILTER_OPTIONS: FilterOption<StatusFilter>[] = [
   { value: 'all', label: 'All statuses' },
   { value: 'active', label: 'Active' },
   { value: 'pending', label: 'Pending' },
-  { value: 'on_hold', label: 'On Hold' },
+  { value: 'on_hold', label: 'On hold' },
   { value: 'declined', label: 'Declined' },
 ]
-
-const STATUS_BADGE: Record<string, string> = {
-  active: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-  on_hold: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  declined: 'bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400',
-}
 
 const STATUS_LABEL: Record<string, string> = {
   active: 'Active',
   pending: 'Pending',
-  on_hold: 'On Hold',
+  on_hold: 'On hold',
   declined: 'Declined',
 }
 
@@ -313,7 +308,7 @@ export default function AdminTeamsPage() {
         <div className="flex items-center justify-between mb-2">
           <h1 className="m-0">Teams</h1>
           <Button size="sm" onClick={openAdd}>
-            Add Team
+            Add team
           </Button>
         </div>
         <p className="text-text-light mb-6">
@@ -347,11 +342,9 @@ export default function AdminTeamsPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold">{item.name}</span>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[status] ?? ''}`}
-                      >
+                      <Badge variant={suggestionStatusVariant(status)}>
                         {STATUS_LABEL[status] ?? status}
-                      </span>
+                      </Badge>
                       {item.kind === 'team' && (
                         <span className="text-xs text-text-light">
                           {item.members.length} member{item.members.length === 1 ? '' : 's'}
@@ -412,7 +405,7 @@ export default function AdminTeamsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Add Team</h2>
+              <h2 role="heading">Add team</h2>
               <Button variant="ghost" icon onClick={() => setShowAdd(false)} aria-label="Close">
                 ×
               </Button>
@@ -420,7 +413,7 @@ export default function AdminTeamsPage() {
             <div className="p-6">
               <form onSubmit={submitAdd}>
                 <div className="mb-5">
-                  <label htmlFor="add-name">Team Name</label>
+                  <label htmlFor="add-name">Team name</label>
                   <input
                     id="add-name"
                     type="text"
@@ -464,7 +457,7 @@ export default function AdminTeamsPage() {
                     Cancel
                   </Button>
                   <Button type="submit" disabled={addSubmitting || !addName.trim()}>
-                    {addSubmitting ? 'Saving…' : 'Add Team'}
+                    {addSubmitting ? 'Saving…' : 'Add team'}
                   </Button>
                 </div>
               </form>
@@ -483,7 +476,7 @@ export default function AdminTeamsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Review Suggestion</h2>
+              <h2 role="heading">Review suggestion</h2>
               <Button
                 variant="ghost"
                 icon
@@ -512,7 +505,7 @@ export default function AdminTeamsPage() {
                           desc: 'Add as a new team (suggester becomes leader)',
                         },
                         { value: 'merge', label: 'Merge', desc: 'Link to an existing team' },
-                        { value: 'on_hold', label: 'On Hold', desc: 'Keep for later review' },
+                        { value: 'on_hold', label: 'On hold', desc: 'Keep for later review' },
                         { value: 'decline', label: 'Decline', desc: 'Not adding at this time' },
                       ] as { value: ReviewAction; label: string; desc: string }[]
                     ).map((opt) => (
@@ -534,7 +527,7 @@ export default function AdminTeamsPage() {
                 {reviewAction === 'accept' && (
                   <>
                     <div className="mb-4">
-                      <label htmlFor="review-name">Team Name</label>
+                      <label htmlFor="review-name">Team name</label>
                       <input
                         id="review-name"
                         type="text"
@@ -556,7 +549,7 @@ export default function AdminTeamsPage() {
                     <div className="mb-5">
                       <FilterDropdown
                         id="review-leader"
-                        label="Team Leader"
+                        label="Team leader"
                         ariaLabel="Select team leader"
                         value={reviewLeaderId}
                         options={
@@ -650,7 +643,7 @@ export default function AdminTeamsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-md w-full">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Confirm Delete</h2>
+              <h2 role="heading">Confirm delete</h2>
               <Button variant="ghost" icon onClick={() => setDeleteTarget(null)} aria-label="Close">
                 ×
               </Button>

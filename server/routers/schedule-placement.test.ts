@@ -46,10 +46,13 @@ async function link(predecessorId: number, successorId: number, lagDays = 0) {
 }
 
 describe('task placement', () => {
-  it('places a dated task on its dates and a bare task at the project origin', async () => {
+  it('places a dated task on its dates, and one with only a deadline at the project origin', async () => {
     const project = await createProject({ startDate: day('2026-03-02') })
-    const pinned = await createTask(project.id, { startDate: day('2026-03-10'), durationDays: 5 })
-    const bare = await createTask(project.id, { durationDays: 3 })
+    const pinned = await createTask(project.id, {
+      startDate: day('2026-03-10'),
+      deadline: day('2026-03-14'),
+    })
+    const bare = await createTask(project.id, { deadline: day('2026-03-04') })
 
     const s = await schedule(project.id)
     expect(ymd(placed(s, pinned.id).start)).toBe('2026-03-10')
@@ -61,7 +64,10 @@ describe('task placement', () => {
 
   it('starts the scope at the earliest task, even before the project origin', async () => {
     const project = await createProject()
-    const past = await createTask(project.id, { startDate: day('2020-01-06'), durationDays: 4 })
+    const past = await createTask(project.id, {
+      startDate: day('2020-01-06'),
+      deadline: day('2020-01-09'),
+    })
 
     const s = await schedule(project.id)
     expect(ymd(placed(s, past.id).start)).toBe('2020-01-06')
@@ -70,22 +76,29 @@ describe('task placement', () => {
     )
   })
 
-  it('flags a task whose computed end runs past its deadline', async () => {
+  it('flags a task that cannot start until after its deadline', async () => {
     const project = await createProject({ startDate: day('2026-09-01') })
-    const tight = await createTask(project.id, {
+    const before = await createTask(project.id, {
       startDate: day('2026-09-01'),
-      durationDays: 10,
-      deadline: day('2026-09-05'),
+      deadline: day('2026-09-10'),
     })
-    expect(placed(await schedule(project.id), tight.id).breachesDeadline).toBe(true)
+    const tight = await createTask(project.id, { deadline: day('2026-09-05') })
+    await link(before.id, tight.id)
+
+    const s = await schedule(project.id)
+    expect(ymd(placed(s, tight.id).start)).toBe('2026-09-11')
+    expect(placed(s, tight.id).breachesDeadline).toBe(true)
   })
 })
 
 describe('dependencies and the schedule', () => {
-  it('shifts the successor, and a longer predecessor cascades', async () => {
+  it('shifts the successor, and moving the predecessor cascades', async () => {
     const project = await createProject({ startDate: day('2026-04-01') })
-    const a = await createTask(project.id, { startDate: day('2026-04-01'), durationDays: 5 })
-    const b = await createTask(project.id, { durationDays: 2 })
+    const a = await createTask(project.id, {
+      startDate: day('2026-04-01'),
+      deadline: day('2026-04-05'),
+    })
+    const b = await createTask(project.id)
     await link(a.id, b.id)
 
     let s = await schedule(project.id)
@@ -96,7 +109,7 @@ describe('dependencies and the schedule', () => {
     await clientAs(admin).projects.updateTask({
       projectId: project.id,
       taskId: a.id,
-      data: { durationDays: 7 },
+      data: { deadline: day('2026-04-07') },
     })
     s = await schedule(project.id)
     expect(ymd(placed(s, a.id).end)).toBe('2026-04-07')
@@ -105,16 +118,25 @@ describe('dependencies and the schedule', () => {
 
   it('adds the lag between predecessor and successor', async () => {
     const project = await createProject({ startDate: day('2026-05-01') })
-    const a = await createTask(project.id, { startDate: day('2026-05-01'), durationDays: 3 })
-    const b = await createTask(project.id, { durationDays: 2 })
+    const a = await createTask(project.id, {
+      startDate: day('2026-05-01'),
+      deadline: day('2026-05-03'),
+    })
+    const b = await createTask(project.id)
     await link(a.id, b.id, 2)
     expect(ymd(placed(await schedule(project.id), b.id).start)).toBe('2026-05-06')
   })
 
   it('leaves a pinned successor where it is and flags a pin before its predecessor', async () => {
     const project = await createProject({ startDate: day('2026-06-01') })
-    const a = await createTask(project.id, { startDate: day('2026-06-01'), durationDays: 10 })
-    const b = await createTask(project.id, { startDate: day('2026-06-05'), durationDays: 2 })
+    const a = await createTask(project.id, {
+      startDate: day('2026-06-01'),
+      deadline: day('2026-06-10'),
+    })
+    const b = await createTask(project.id, {
+      startDate: day('2026-06-05'),
+      deadline: day('2026-06-06'),
+    })
     await link(a.id, b.id)
 
     const s = await schedule(project.id)
@@ -125,9 +147,12 @@ describe('dependencies and the schedule', () => {
 
   it('lets an anchor, not the last bar, decide the critical path', async () => {
     const project = await createProject({ startDate: day('2026-06-01') })
-    const prep = await createTask(project.id, { startDate: day('2026-06-01'), durationDays: 5 })
-    const event = await createTask(project.id, { durationDays: 1 })
-    const followUp = await createTask(project.id, { durationDays: 10 })
+    const prep = await createTask(project.id, {
+      startDate: day('2026-06-01'),
+      deadline: day('2026-06-05'),
+    })
+    const event = await createTask(project.id)
+    const followUp = await createTask(project.id, { deadline: day('2026-06-20') })
     await link(prep.id, event.id)
     await link(event.id, followUp.id)
 
@@ -176,9 +201,12 @@ describe('dependencies and the schedule', () => {
 
   it('drops the dependency rows of a deleted task and reflows its successors', async () => {
     const project = await createProject({ startDate: day('2026-08-01') })
-    const a = await createTask(project.id, { startDate: day('2026-08-01'), durationDays: 4 })
-    const b = await createTask(project.id, { durationDays: 2 })
-    const c = await createTask(project.id, { durationDays: 2 })
+    const a = await createTask(project.id, {
+      startDate: day('2026-08-01'),
+      deadline: day('2026-08-04'),
+    })
+    const b = await createTask(project.id, { deadline: day('2026-08-06') })
+    const c = await createTask(project.id)
     await link(a.id, b.id)
     await link(b.id, c.id)
 
@@ -210,8 +238,11 @@ describe('dependencies and the schedule', () => {
 describe('rescheduleItems and the schedule', () => {
   it('pins a following task, and a null start unpins it back onto its predecessor', async () => {
     const project = await createProject({ startDate: day('2027-01-04') })
-    const a = await createTask(project.id, { startDate: day('2027-01-04'), durationDays: 3 })
-    const b = await createTask(project.id, { durationDays: 2 })
+    const a = await createTask(project.id, {
+      startDate: day('2027-01-04'),
+      deadline: day('2027-01-06'),
+    })
+    const b = await createTask(project.id)
     await link(a.id, b.id)
     const admin = await createAdmin()
 
@@ -219,7 +250,7 @@ describe('rescheduleItems and the schedule', () => {
     expect(ymd(placed(s, b.id).start)).toBe('2027-01-07')
 
     await clientAs(admin).schedule.rescheduleItems({
-      items: [{ id: b.id, startDate: day('2027-02-01'), durationDays: 2 }],
+      items: [{ id: b.id, startDate: day('2027-02-01'), deadline: day('2027-02-02') }],
     })
     s = await schedule(project.id)
     expect(ymd(placed(s, b.id).start)).toBe('2027-02-01')
@@ -235,7 +266,7 @@ describe('rescheduleItems and the schedule', () => {
 describe('ganttOverview', () => {
   it('places projects, and a project-to-project link pushes the successor out', async () => {
     const a = await createProject({ startDate: day('2027-05-01') })
-    await createTask(a.id, { durationDays: 5 })
+    await createTask(a.id, { startDate: day('2027-05-01'), deadline: day('2027-05-05') })
     const b = await createProject()
     await link(a.id, b.id)
 

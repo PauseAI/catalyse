@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import {
   DndContext,
@@ -36,8 +36,9 @@ import {
 import { RANGES, windowDays, windowFor, type RangeKey } from './range'
 import { formatDateShort } from '@/lib/format-date'
 import { plural } from '@/lib/plural'
+import { lateText } from '@/lib/slip'
 import { patchFromDrag, type DragData, type ReschedulePatch } from './useGanttDrag'
-import type { GanttEdge, GanttRow as GanttRowData } from './types'
+import type { GanttEdge, GanttRow as GanttRowData, GanttUndatedRow } from './types'
 
 const ZOOMS: { key: ZoomLevel; label: string }[] = [
   { key: 'fit', label: 'Fit' },
@@ -64,8 +65,22 @@ export const lockYForBarDrags: Modifier = ({ transform, active }) => {
   return transform
 }
 
+/**
+ * Planned start, then planned end, then the order given, so a chain of work cascades down and
+ * to the right.
+ */
+export function inStartOrder(rows: GanttRowData[]): GanttRowData[] {
+  return [...rows].sort(
+    (a, b) =>
+      a.placement.start.getTime() - b.placement.start.getTime() ||
+      a.placement.end.getTime() - b.placement.end.getTime(),
+  )
+}
+
 export default function GanttChart({
   rows,
+  undated = [],
+  onAddToTimeline,
   edges,
   rangeStart,
   rangeEnd,
@@ -76,8 +91,14 @@ export default function GanttChart({
   onLink,
   onUnlink,
   busy,
+  deadline,
+  highlightCritical = true,
+  selectedMenu,
 }: {
   rows: GanttRowData[]
+  undated?: GanttUndatedRow[]
+  /** Gives undated rows a way onto the chart; omit for a viewer who cannot place them. */
+  onAddToTimeline?: (ids: number[]) => void
   edges: GanttEdge[]
   rangeStart: Date
   rangeEnd: Date
@@ -89,6 +110,11 @@ export default function GanttChart({
   /** Omit to leave the arrows read-only; only edges carrying a row id can be removed. */
   onUnlink?: (dependencyId: number) => void
   busy?: boolean
+  /** The scope's own deadline (a project's), measured against where the plan ends. */
+  deadline?: Date | null
+  highlightCritical?: boolean
+  /** The selected bar's Plan menu (GanttPlanMenu), drawn beside it. */
+  selectedMenu?: ReactNode
 }) {
   const [zoom, setZoom] = useState<ZoomLevel>('fit')
   const [range, setRange] = useState<RangeKey>('all')
@@ -116,9 +142,19 @@ export default function GanttChart({
     useSensor(KeyboardSensor),
   )
 
+  // The scope runs to the last deadline as well as the last bar, so a marker for a date the
+  // plan has not reached yet is drawn rather than left off the right-hand edge.
+  const scopeEnd = useMemo(() => {
+    const ends = [
+      rangeEnd,
+      ...(deadline ? [deadline] : []),
+      ...rows.flatMap((r) => r.placement.deadline ?? []),
+    ]
+    return ends.reduce((a, b) => (b.getTime() > a.getTime() ? b : a))
+  }, [rangeEnd, deadline, rows])
   const visible = useMemo(
-    () => windowFor(range, rangeStart, rangeEnd, new Date()),
-    [range, rangeStart, rangeEnd],
+    () => windowFor(range, rangeStart, scopeEnd, new Date()),
+    [range, rangeStart, scopeEnd],
   )
   const origin = startOfUtcDay(visible.start)
   // Leave a sliver spare so "Fit" never rounds up into a horizontal scrollbar.
@@ -145,6 +181,8 @@ export default function GanttChart({
   const finishVisible = finishX >= 0 && finishX <= width
   const scopeDays = windowDays(startOfUtcDay(rangeStart), startOfUtcDay(rangeEnd))
   const daysToFinish = diffInDays(new Date(), rangeEnd)
+  const daysLate = deadline ? diffInDays(deadline, rangeEnd) : null
+  const labelById = useMemo(() => new Map(rows.map((r) => [r.id, r.label])), [rows])
 
   /** Hover wins over selection so pointing at a row always previews its links. */
   const focusedId = hoveredId ?? selectedId ?? null
@@ -223,7 +261,10 @@ export default function GanttChart({
   )
 
   const body = (
-    <div className="border-brand-border bg-surface overflow-hidden rounded-lg border">
+    <div
+      data-gantt-chart
+      className="border-brand-border bg-surface overflow-hidden rounded-lg border"
+    >
       {/* The date header sits outside the vertical scroller so it stays put on a tall chart —
           you cannot read a bar without knowing which day it is over. Its horizontal offset is
           driven by the body's scroll below. */}
@@ -375,6 +416,13 @@ export default function GanttChart({
                     dimmed={relatedIds !== null && !relatedIds.has(r.id)}
                     onSelect={onSelect}
                     onHover={setHoveredId}
+                    highlightCritical={highlightCritical}
+                    menu={selectedId === r.id ? selectedMenu : undefined}
+                    pinConflictLabel={
+                      r.placement.pinConflictWith === null
+                        ? undefined
+                        : labelById.get(r.placement.pinConflictWith)
+                    }
                   />
                 </div>
               ))}
@@ -407,6 +455,81 @@ export default function GanttChart({
             </div>
           </div>
         </div>
+
+        {undated.length > 0 && (
+          <div
+            role="group"
+            aria-label="Tasks with no dates"
+            className="border-brand-border border-t-2"
+            style={{ width: NAME_COL_WIDTH + width }}
+          >
+            <div
+              className="bg-surface sticky left-0 flex w-fit items-center gap-3 px-3 py-1"
+              style={{ borderBottom: '1px solid var(--gantt-grid)' }}
+            >
+              <span className="text-text-light text-xs font-semibold tracking-wide uppercase">
+                No dates ({undated.length})
+              </span>
+              {onAddToTimeline && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={busy}
+                  onClick={() => onAddToTimeline(undated.map((r) => r.id))}
+                  title="Adds a one-day bar for each task, all starting on the first day of the plan. Spread them out or link them afterwards."
+                >
+                  Add all to timeline
+                </Button>
+              )}
+            </div>
+            {undated.map((r) => (
+              <div
+                key={r.id}
+                className="flex items-center text-sm"
+                style={{ height: ROW_HEIGHT, borderBottom: '1px solid var(--gantt-grid)' }}
+              >
+                <div
+                  className="border-brand-border bg-surface sticky left-0 z-40 flex h-full shrink-0 items-center border-r px-3"
+                  style={{ width: NAME_COL_WIDTH }}
+                  title={r.label}
+                >
+                  <span className="line-clamp-2 leading-tight">
+                    {r.href ? (
+                      <Link href={r.href} className="text-primary-text hover:underline">
+                        {r.label}
+                      </Link>
+                    ) : (
+                      r.label
+                    )}
+                  </span>
+                </div>
+                {/* Pinned beside the names so it stays in view while the chart scrolls sideways. */}
+                <span
+                  className="text-text-light sticky px-3 whitespace-nowrap"
+                  style={{ left: NAME_COL_WIDTH }}
+                >
+                  {onAddToTimeline ? (
+                    <>
+                      No dates ·{' '}
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => onAddToTimeline([r.id])}
+                        aria-label={`Add ${r.label} to the timeline`}
+                        title="Adds a one-day bar starting on the first day of the plan; drag it or edit its dates to change that."
+                        className="text-primary-text cursor-pointer hover:underline disabled:cursor-default disabled:opacity-60"
+                      >
+                        Add to timeline
+                      </button>
+                    </>
+                  ) : (
+                    'No dates yet'
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -423,6 +546,20 @@ export default function GanttChart({
           <dt className="text-text-light">Ends</dt>
           <dd className="m-0 font-medium">{formatDateShort(rangeEnd)}</dd>
         </div>
+        {deadline && daysLate !== null && (
+          <>
+            <div className="flex items-baseline gap-2">
+              <dt className="text-text-light">Deadline</dt>
+              <dd className="m-0 font-medium">{formatDateShort(deadline)}</dd>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <dt className="sr-only">Against the deadline</dt>
+              <dd className={`m-0 ${daysLate > 0 ? 'text-error font-medium' : ''}`}>
+                {lateText(daysLate)}
+              </dd>
+            </div>
+          </>
+        )}
         <div className="flex items-baseline gap-2">
           <dt className="text-text-light">Span</dt>
           <dd className="m-0">{plural(scopeDays, 'day')}</dd>
@@ -482,7 +619,7 @@ export default function GanttChart({
         {body}
       </DndContext>
 
-      <GanttLegend editable={editable} />
+      <GanttLegend statuses={rows.map((r) => r.status)} />
     </div>
   )
 }

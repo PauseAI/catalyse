@@ -19,7 +19,12 @@ const NEEDS_ACTION_TYPES = [
   'quick_task_submitted',
   'task_submitted',
   'task_changes_requested',
+  'task_needs_decision',
+  'finish_by_today',
+  'finish_by_overdue',
+  'no_update_warning',
   'project_invite',
+  'project_ready_to_complete',
   'contact_request',
   // Admin-only (hidden from the Inbox, but their emails follow this category).
   'new_volunteer_signup',

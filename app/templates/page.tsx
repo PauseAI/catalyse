@@ -8,11 +8,12 @@ import { Badge } from '@/components/Badge'
 import { orpc } from '@/lib/orpc'
 import { formatDate } from '@/lib/format-date'
 import { useToast } from '@/lib/toast'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import PageLoading from '@/components/PageLoading'
 import Skeleton from '@/components/Skeleton'
 import EmptyState from '@/components/EmptyState'
 
-const card = 'bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word'
+const card = `${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`
 
 export default function TemplatesLibraryPage() {
   const { user, loading } = useRequireApproved()
@@ -44,7 +45,7 @@ export default function TemplatesLibraryPage() {
   if (loading || !user) return <PageLoading />
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
+    <div className="mx-auto max-w-4xl px-4 sm:px-6 py-8">
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
           <h1 className="m-0">Project templates</h1>

@@ -6,6 +6,7 @@ import Button from './Button'
 import { formatDateTime } from '@/lib/format-date'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
+import { SECTION_CARD } from '@/lib/ui-classes'
 
 export interface ReviewRequest {
   id: number
@@ -54,7 +55,7 @@ export default function ChangesRequestedBanner({
   return (
     <section
       aria-labelledby={headingId}
-      className="bg-surface rounded-xl shadow p-6 mb-4 border-l-4 border-warning"
+      className={`${SECTION_CARD} mb-4 border-l-4 border-warning`}
     >
       <h2 id={headingId} className="text-lg m-0 mb-2">
         Changes requested{open.requestedByName ? ` by ${open.requestedByName}` : ''}

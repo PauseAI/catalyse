@@ -8,11 +8,11 @@ import { PROJECT_STATUS_LABELS } from '../../lib/project-status'
 const OUTCOME_LABELS: Record<string, string> = {
   successful: 'Successful',
   partial: 'Partial',
-  not_completed: 'Not Completed',
+  not_completed: 'Not completed',
   ongoing: 'Ongoing',
 }
 
-// The new-project form is tucked behind a "New Project" button once the volunteer/admin
+// The new-project form is tucked behind a "New project" button once the volunteer/admin
 // already has drafts — click through it if present, otherwise the form is already showing
 // (either shown directly, or reached via an automatic redirect for a volunteer with no
 // drafts yet). The drafts query is still loading when the page first renders, so neither
@@ -23,7 +23,7 @@ export async function openNewProjectForm(page: Page): Promise<void> {
   const newProjectButton = page
     .getByRole('link', { name: 'Propose a project' })
     .or(page.getByRole('button', { name: 'Propose a project' }))
-  const titleField = page.getByLabel('Project Title')
+  const titleField = page.getByLabel('Project title')
   await Promise.race([
     newProjectButton.first().waitFor({ state: 'visible', timeout: 10_000 }),
     titleField.waitFor({ state: 'visible', timeout: 10_000 }),
@@ -45,7 +45,7 @@ export async function openNewProjectForm(page: Page): Promise<void> {
 // moves to the edit page without a navigation, so wait for it, and for the task to appear.
 async function addFirstTask(page: Page, taskTitle: string): Promise<number> {
   await page.locator('#new-task-title').fill(taskTitle)
-  await page.getByRole('button', { name: 'Add Task' }).click()
+  await page.getByRole('button', { name: 'Add task' }).click()
   await page.waitForURL(/\/projects\/\d+\/edit/, { timeout: 15_000 })
   await expect(page.locator(`input[id^="task-title-"][value="${taskTitle}"]`)).toBeVisible({
     timeout: 10_000,
@@ -79,7 +79,7 @@ export async function proposeProject(
   await page.goto(`${baseUrl}/suggest`)
   await openNewProjectForm(page)
 
-  await page.getByLabel('Project Title').fill(title)
+  await page.getByLabel('Project title').fill(title)
   await page.getByLabel('Description').fill(description)
   if (skillName) {
     await page
@@ -95,7 +95,7 @@ export async function proposeProject(
     timeout: 10_000,
   })
   await snap?.(page, 'submit for review dialog')
-  await page.getByRole('button', { name: 'Submit for Review' }).click()
+  await page.getByRole('button', { name: 'Submit for review' }).click()
   await page.waitForURL(`${baseUrl}/dashboard**`, { timeout: 15_000 })
   return id
 }
@@ -109,7 +109,7 @@ export async function adminCreateProject(
   await adminPage.goto(`${baseUrl}/admin/projects/new`)
   await openNewProjectForm(adminPage)
 
-  await adminPage.getByLabel('Project Title').fill(title)
+  await adminPage.getByLabel('Project title').fill(title)
   await adminPage.getByLabel('Description').fill(description)
   const id = await addFirstTask(adminPage, 'Initial task')
   await adminPage.getByRole('button', { name: 'Publish', exact: true }).click()
@@ -129,7 +129,7 @@ export async function adminCreateProject(
 // purely as setup for some other assertion and don't need to re-prove the create+publish UI
 // flow itself — that's already covered end-to-end by 06-project-lifecycle.spec.ts. Produces
 // the same resulting state (status ready, isSeekingHelp true, one task) without the form
-// fill / Add Task / Publish / confirm-dialog round trip.
+// fill / Add task / Publish / confirm-dialog round trip.
 export async function adminCreateProjectViaApi(
   baseUrl: string,
   title: string,
@@ -168,7 +168,7 @@ export async function adminSaveProjectDraft(
   await openNewProjectForm(adminPage)
 
   const saved = waitForAutosavedDraft(adminPage, '/api/rpc/admin/projects/create')
-  await adminPage.getByLabel('Project Title').fill(title)
+  await adminPage.getByLabel('Project title').fill(title)
   return saved
 }
 
@@ -181,7 +181,7 @@ export async function volunteerSaveProjectDraft(
   await openNewProjectForm(page)
 
   const saved = waitForAutosavedDraft(page, '/api/rpc/projects/create')
-  await page.getByLabel('Project Title').fill(title)
+  await page.getByLabel('Project title').fill(title)
   return saved
 }
 
@@ -199,7 +199,7 @@ export async function addTaskFromEditPage(
   })
   // Existing tasks are also labeled "Task title" — target the add-task form's stable id.
   await page.locator('#new-task-title').fill(taskTitle)
-  await page.getByRole('button', { name: 'Add Task' }).click()
+  await page.getByRole('button', { name: 'Add task' }).click()
   // Existing tasks render as editable inputs, so the title is a value, not a text node. The
   // add-task form still holds the title until the create succeeds, so exclude it.
   await expect(page.locator(`input[id^="task-title-"][value="${taskTitle}"]`)).toBeVisible({
@@ -220,7 +220,7 @@ export async function publishDraftFromEditPage(
   await expect(page.getByRole('heading', { name: 'Submit draft for review?' })).toBeVisible({
     timeout: 10_000,
   })
-  await page.getByRole('button', { name: 'Submit for Review' }).click()
+  await page.getByRole('button', { name: 'Submit for review' }).click()
 }
 
 // For an org-proposed draft: publishes it live, skipping review entirely.
@@ -247,11 +247,11 @@ export async function deleteDraftFromEditPage(
   if (!page.url().includes(`/projects/${projectId}/edit`)) {
     await page.goto(`${baseUrl}/projects/${projectId}/edit`)
   }
-  await page.getByRole('button', { name: 'Delete Draft', exact: true }).click()
+  await page.getByRole('button', { name: 'Delete draft', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Delete this draft?' })).toBeVisible({
     timeout: 10_000,
   })
-  await page.getByRole('dialog').getByRole('button', { name: 'Delete Draft' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete draft' }).click()
 }
 
 export async function adminApproveProject(
@@ -268,7 +268,7 @@ export async function adminApproveProject(
   await expect(adminPage.getByRole('heading', { level: 2, name: 'Review Project' })).toBeVisible({
     timeout: 10_000,
   })
-  await adminPage.getByRole('button', { name: 'Submit Review' }).click()
+  await adminPage.getByRole('button', { name: 'Submit review' }).click()
 
   await expect(
     adminPage.getByRole('heading', { level: 2, name: 'Review Project' }),
@@ -288,8 +288,8 @@ export async function adminRecordOutcome(
   ).toBeVisible({ timeout: 10_000 })
 
   await selectFilterDropdown(adminPage, 'Outcome', OUTCOME_LABELS[outcome] ?? outcome)
-  await adminPage.getByLabel('Outcome Notes').fill(notes)
-  await adminPage.getByRole('button', { name: 'Record Outcome' }).click()
+  await adminPage.getByLabel('Outcome notes').fill(notes)
+  await adminPage.getByRole('button', { name: 'Record outcome' }).click()
   await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 }
 
@@ -304,13 +304,20 @@ export async function transferProjectOwnership(
   if (!adminPage.url().includes(`/projects/${projectId}`)) {
     await adminPage.goto(`${baseUrl}/projects/${projectId}`)
   }
-  await adminPage.getByRole('button', { name: 'Ownership actions' }).click()
-  await expect(
-    adminPage.getByRole('heading', { level: 3, name: 'Transfer Ownership' }),
-  ).toBeVisible({ timeout: 10_000 })
-  await selectFilterDropdown(adminPage, 'Transfer to', volunteerName)
-  await adminPage.getByRole('menu').getByRole('button', { name: 'Transfer', exact: true }).click()
-  await adminPage.getByRole('dialog').getByRole('button', { name: 'Transfer', exact: true }).click()
+  // The pencil beside the Owner chip; replacing an owner asks for confirmation, assigning doesn't.
+  const pencil = adminPage.getByRole('button', { name: /^(Assign|Change) owner$/ })
+  await expect(pencil).toBeVisible({ timeout: 10_000 })
+  const replacing = (await pencil.getAttribute('aria-label')) === 'Change owner'
+  // The pencil opens the picker with its search already focused.
+  await pencil.click()
+  await adminPage.getByRole('searchbox', { name: 'New owner' }).fill(volunteerName)
+  await adminPage.getByRole('option', { name: volunteerName, exact: true }).click()
+  if (replacing) {
+    await adminPage
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Transfer', exact: true })
+      .click()
+  }
   await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 }
 
@@ -322,8 +329,8 @@ export async function removeProjectOwner(
   if (!adminPage.url().includes(`/projects/${projectId}`)) {
     await adminPage.goto(`${baseUrl}/projects/${projectId}`)
   }
-  await adminPage.getByRole('button', { name: 'Ownership actions' }).click()
-  await adminPage.getByRole('menuitem', { name: 'Remove ownership' }).click()
+  await adminPage.getByRole('button', { name: 'Change owner' }).click()
+  await adminPage.getByRole('button', { name: 'Remove ownership' }).click()
   await adminPage.getByRole('dialog').getByRole('button', { name: 'Remove ownership' }).click()
   await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 }
@@ -335,7 +342,7 @@ export async function setProjectStatus(
   status: string,
 ): Promise<void> {
   await page.goto(`${baseUrl}/projects/${projectId}`)
-  await expect(page.getByRole('heading', { name: 'Status', exact: true })).toBeVisible({
+  await expect(page.getByRole('button', { name: 'project status' })).toBeVisible({
     timeout: 10_000,
   })
 
@@ -357,4 +364,12 @@ export async function joinProject(
   if (opts.lead) await dialog.getByRole('radio', { name: 'Lead the project' }).click()
   if (opts.message) await dialog.getByLabel('Message (optional)').fill(opts.message)
   await dialog.getByRole('button', { name: 'Send request' }).click()
+}
+
+/** Opens the More menu in the bar beside the project page's tabs. */
+export async function openProjectMore(page: Page): Promise<void> {
+  await page
+    .getByRole('toolbar', { name: 'Status and actions' })
+    .locator('summary', { hasText: 'More' })
+    .click()
 }

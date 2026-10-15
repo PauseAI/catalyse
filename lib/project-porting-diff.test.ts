@@ -19,7 +19,7 @@ function task(id: number, over: Partial<CurrentTask> = {}): CurrentTask {
     id,
     title: `Task ${id}`,
     description: null,
-    status: 'open',
+    status: 'not_started',
     assigneeId: null,
     assigneeEmail: null,
     deadline: null,
@@ -28,6 +28,10 @@ function task(id: number, over: Partial<CurrentTask> = {}): CurrentTask {
     baselineSetAt: null,
     featuredAsQuickTask: false,
     isAnchor: false,
+    timing: 'flexible',
+    submissionPrompt: null,
+    submissionAsksLink: false,
+    helpersWanted: null,
     sortOrder: id,
     ...over,
   }
@@ -136,7 +140,17 @@ describe('computeProjectDiff', () => {
       state(),
       file({
         tasks: [
-          { id: 10, title: 'Renamed', description: 'd', status: 'completed', isAnchor: true },
+          {
+            id: 10,
+            title: 'Renamed',
+            description: 'd',
+            status: 'completed',
+            isAnchor: true,
+            timing: 'fixed',
+            submissionPrompt: 'How many?',
+            submissionAsksLink: true,
+            helpersWanted: 3,
+          },
           { ref: 'new', title: 'New one', durationDays: 2, assigneeEmail: 'a@b.c' },
         ],
       }),
@@ -150,8 +164,12 @@ describe('computeProjectDiff', () => {
     expect(diff.tasks[0].fieldChanges).toEqual(
       expect.arrayContaining([
         { field: 'title', from: 'Task 10', to: 'Renamed' },
-        { field: 'status', from: 'open', to: 'completed' },
+        { field: 'status', from: 'not_started', to: 'completed' },
         { field: 'isAnchor', from: false, to: true },
+        { field: 'timing', from: 'flexible', to: 'fixed' },
+        { field: 'submissionPrompt', from: null, to: 'How many?' },
+        { field: 'submissionAsksLink', from: false, to: true },
+        { field: 'helpersWanted', from: null, to: 3 },
       ]),
     )
     expect(diff.tasks[1].fieldChanges.map((c) => c.field)).toEqual([
@@ -297,6 +315,8 @@ describe('buildApplyPlan', () => {
             durationDays: 4,
             featuredAsQuickTask: true,
             isAnchor: true,
+            submissionPrompt: 'Count?',
+            submissionAsksLink: true,
             dependsOn: [{ on: 'n', lagDays: 2 }],
           },
           { ref: 'n', title: 'N' },
@@ -320,13 +340,22 @@ describe('buildApplyPlan', () => {
           durationDays: 4,
           featuredAsQuickTask: true,
           isAnchor: true,
+          submissionPrompt: 'Count?',
+          submissionAsksLink: true,
         },
       },
     ])
+    // Left out, a new task asks the defaults.
     expect(plan.taskCreates).toEqual([
       {
         ref: 'n',
-        fields: expect.objectContaining({ title: 'N', status: 'open', deadline: null }),
+        fields: expect.objectContaining({
+          title: 'N',
+          status: 'not_started',
+          deadline: null,
+          submissionPrompt: null,
+          submissionAsksLink: false,
+        }),
       },
       { ref: 'n2', fields: expect.objectContaining({ title: 'N2' }) },
     ])

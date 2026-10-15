@@ -10,6 +10,7 @@ import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { formatDate } from '@/lib/format-date'
 import { useToast } from '@/lib/toast'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import { Badge } from '@/components/Badge'
 import {
   BUG_STATUS_OPTIONS,
@@ -132,7 +133,7 @@ export default function AdminBugsPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Bug Reports &amp; Feedback</h1>
+      <h1>Bug reports &amp; feedback</h1>
 
       <div className="mb-6 flex gap-4 flex-wrap items-end">
         <FilterDropdown
@@ -263,7 +264,7 @@ function BugReportCard({
       onKeyDown={(e) => {
         if (e.key === 'Enter') onNavigate()
       }}
-      className="card block bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word w-full cursor-pointer"
+      className={`card block ${SECTION_CARD} mb-4 overflow-hidden wrap-break-word cursor-pointer`}
     >
       <div className="flex justify-between items-start mb-2">
         <div>
@@ -300,7 +301,7 @@ function BugReportCard({
             disabled={markInProgressPending}
             onClick={onMarkInProgress}
           >
-            Mark In Progress
+            Mark in progress
           </Button>
         )}
 

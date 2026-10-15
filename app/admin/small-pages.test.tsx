@@ -117,12 +117,12 @@ describe('email preview', () => {
     const admin = await createAdmin()
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     await renderApp(<EmailPreviewPage />, { as: admin })
-    await screen.findByRole('heading', { name: 'Email Previews' })
+    await screen.findByRole('heading', { name: 'Email previews' })
     expect(
-      screen.getByRole('heading', { name: 'Digest (Skill Match)' }).closest('section'),
+      screen.getByRole('heading', { name: 'Digest (skill match)' }).closest('section'),
     ).toHaveTextContent('is_matchtrue')
     expect(
-      screen.getByRole('heading', { name: 'Digest (General)' }).closest('section'),
+      screen.getByRole('heading', { name: 'Digest (general)' }).closest('section'),
     ).toHaveTextContent('is_matchfalse')
     // Every type the page lists must exist server-side, or its row never leaves "Loading…".
     await waitFor(() => expect(screen.queryAllByText('Loading…')).toHaveLength(0))
@@ -139,8 +139,8 @@ describe('admin projects', () => {
   it("lists the admin's drafts, untitled or not, above the new-project button", async () => {
     const admin = await createAdmin()
     await renderApp(<AdminProjectsPage />, { as: admin })
-    await screen.findByRole('link', { name: 'New Project' })
-    expect(screen.queryByText('My Drafts')).toBeNull()
+    await screen.findByRole('link', { name: 'New project' })
+    expect(screen.queryByText('My drafts')).toBeNull()
     cleanup()
     const draft = await createProject({
       creatorId: admin.id,
@@ -150,7 +150,7 @@ describe('admin projects', () => {
     })
     await createProject({ creatorId: admin.id, status: 'draft', title: '', isOrgProposed: true })
     await renderApp(<AdminProjectsPage />, { as: admin })
-    await screen.findByText('My Drafts')
+    await screen.findByText('My drafts')
     expect(screen.getByText('Untitled draft')).toBeInTheDocument()
     expect(
       screen.getAllByRole('link', { name: 'Manage' }).map((l) => l.getAttribute('href')),

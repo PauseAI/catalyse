@@ -1,14 +1,18 @@
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { adminProcedure } from '../../procedures'
-import { InterestStatus } from '@/generated/prisma/enums'
+import { InterestStatus, WorkItemType } from '@/generated/prisma/enums'
 
 export const adminInterestsRouter = {
   list: adminProcedure
     .input(z.object({ status: z.nativeEnum(InterestStatus).optional() }))
     .handler(async ({ input }) => {
       const interests = await prisma.workItemInterest.findMany({
-        where: input.status ? { status: input.status } : {},
+        // A project's applications and members; a task's helpers are the task's business.
+        where: {
+          workItem: { type: WorkItemType.PROJECT },
+          ...(input.status ? { status: input.status } : {}),
+        },
         include: {
           workItem: {
             select: {

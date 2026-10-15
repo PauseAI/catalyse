@@ -10,6 +10,7 @@ import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { ThemeToggle } from './ThemeToggle'
 import BugReportDialog from './BugReportDialog'
+import { PersonInitials } from './WorkItemHeader'
 
 function MobileNavLink({
   href,
@@ -40,6 +41,27 @@ function MobileNavSection({ children, admin }: { children: React.ReactNode; admi
   )
 }
 
+/** "Catalyse" from `sm` up; on a phone, its initial in a tile, to leave room for the buttons. */
+function Wordmark({ href }: { href: string }) {
+  return (
+    <Link
+      href={href}
+      aria-label="Catalyse"
+      className="font-display text-2xl font-black text-primary no-underline flex items-center"
+    >
+      <span
+        aria-hidden="true"
+        className="sm:hidden flex size-9 items-center justify-center rounded-lg bg-primary text-[#111827]"
+      >
+        C
+      </span>
+      <span aria-hidden="true" className="hidden sm:inline">
+        Catalyse
+      </span>
+    </Link>
+  )
+}
+
 /** `path` is `base` or a page below it. */
 const under = (path: string, base: string) => path === base || path.startsWith(`${base}/`)
 
@@ -61,8 +83,17 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/inbox', label: 'Inbox', active: (p) => under(p, '/inbox') },
 ]
 
-function WaitingBadge({ count }: { count: number }) {
-  if (count === 0) return null
+/** A number for what is waiting on the viewer; failing that, a dot for unread updates. */
+function WaitingBadge({ count, updates }: { count: number; updates: boolean }) {
+  if (count === 0) {
+    return updates ? (
+      <span
+        role="img"
+        aria-label="New updates"
+        className="inline-block w-2 h-2 rounded-full bg-primary ml-1"
+      />
+    ) : null
+  }
   return (
     <span className="bg-primary text-[#111827] text-xs px-2 py-0.5 rounded-full ml-1">
       <span className="sr-only">, waiting for you: </span>
@@ -91,9 +122,14 @@ export default function Header() {
   const { data: counts } = useQuery({
     ...orpc.notifications.counts.queryOptions(),
     enabled: !!user,
+    // Notifications caused by other people arrive without the viewer doing anything.
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   })
   // What is waiting on the viewer: things to act on and messages to read, not updates.
   const waiting = (counts?.needs_action ?? 0) + (counts?.message ?? 0)
+  const newUpdates = (counts?.update ?? 0) > 0
 
   // Acting on something (accepting work, answering an invite) can clear what the badge counts.
   useEffect(() => {
@@ -135,12 +171,7 @@ export default function Header() {
     <>
       <header className="bg-surface border-b border-brand-border py-4 sticky top-0 z-[100]">
         <div className="container flex justify-between items-center gap-2 flex-nowrap xl:gap-4">
-          <Link
-            href={homeHref}
-            className="font-display text-2xl font-black text-primary no-underline flex items-center gap-2"
-          >
-            Catalyse
-          </Link>
+          <Wordmark href={homeHref} />
 
           <nav aria-label="Main" className="hidden xl:flex gap-2 flex-wrap">
             {mounted &&
@@ -155,7 +186,7 @@ export default function Header() {
                   size="sm"
                 >
                   {label}
-                  {href === '/inbox' && <WaitingBadge count={waiting} />}
+                  {href === '/inbox' && <WaitingBadge count={waiting} updates={newUpdates} />}
                 </Button>
               ))}
           </nav>
@@ -175,19 +206,24 @@ export default function Header() {
                       Confirm your location
                     </Button>
                   )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="bg-accent border border-brand-border"
+                  <button
+                    type="button"
+                    aria-label={user.name}
+                    aria-expanded={userMenuOpen}
+                    title={user.name}
+                    className="rounded-full cursor-pointer border-0 bg-transparent p-0 hover:opacity-80"
                     onClick={() => setUserMenuOpen((o) => !o)}
                   >
-                    {user.name}
-                  </Button>
+                    <PersonInitials name={user.name} size="md" />
+                  </button>
                   {userMenuOpen && (
                     <div
                       className="absolute top-full right-0 mt-2 bg-surface rounded-lg border border-brand-border shadow-lg w-max z-[101]"
                       onClick={() => setUserMenuOpen(false)}
                     >
+                      <div className="px-4 py-3 border-b border-brand-border font-semibold text-brand-text">
+                        {user.name}
+                      </div>
                       <Link
                         href={`/volunteers/${user.id}`}
                         className="block px-4 py-3 text-brand-text no-underline"
@@ -211,13 +247,13 @@ export default function Header() {
                       <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-text-light border-t border-brand-border mt-1">
                         Session
                       </div>
-                      <Button
-                        variant="ghost"
+                      <button
+                        type="button"
                         onClick={logout}
-                        className="w-full justify-start px-4 py-3"
+                        className="block w-full text-left px-4 py-3 text-brand-text bg-transparent border-0 cursor-pointer hover:bg-accent"
                       >
-                        Sign Out
-                      </Button>
+                        Sign out
+                      </button>
                     </div>
                   )}
                 </div>
@@ -227,7 +263,7 @@ export default function Header() {
                     Login
                   </Button>
                   <Button href="/signup" size="sm">
-                    Sign Up
+                    Sign up
                   </Button>
                 </>
               ))}
@@ -268,12 +304,15 @@ export default function Header() {
               aria-label="Open menu"
               onClick={() => setMobileMenuOpen(true)}
             >
-              {mounted && !loading && user && (!user.locationConfirmedAt || waiting > 0) && (
-                <span
-                  className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-primary"
-                  aria-hidden="true"
-                />
-              )}
+              {mounted &&
+                !loading &&
+                user &&
+                (!user.locationConfirmedAt || waiting > 0 || newUpdates) && (
+                  <span
+                    className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-primary"
+                    aria-hidden="true"
+                  />
+                )}
               <svg
                 width="22"
                 height="22"
@@ -297,12 +336,7 @@ export default function Header() {
           {/* Panel header */}
           <div className="border-b border-brand-border bg-surface shrink-0">
             <div className="container flex items-center justify-between py-4">
-              <Link
-                href={homeHref}
-                className="font-display text-2xl font-black text-primary no-underline"
-              >
-                Catalyse
-              </Link>
+              <Wordmark href={homeHref} />
               <Button
                 variant="ghost"
                 size="md"
@@ -332,7 +366,7 @@ export default function Header() {
               NAV_ITEMS.map(({ href, label, active }) => (
                 <MobileNavLink key={href} href={href} active={active(pathname)}>
                   {label}
-                  {href === '/inbox' && <WaitingBadge count={waiting} />}
+                  {href === '/inbox' && <WaitingBadge count={waiting} updates={newUpdates} />}
                 </MobileNavLink>
               ))}
 
@@ -341,6 +375,10 @@ export default function Header() {
               (user ? (
                 <>
                   <MobileNavSection>Account</MobileNavSection>
+                  <div className="flex items-center gap-3 px-5 py-4 border-b border-brand-border font-semibold text-brand-text">
+                    <PersonInitials name={user.name} size="md" />
+                    {user.name}
+                  </div>
                   {!user.locationConfirmedAt && (
                     <button
                       onClick={() => {
@@ -358,7 +396,7 @@ export default function Header() {
                   {user.isAdmin && (
                     <>
                       <MobileNavSection admin>
-                        {user.isSuperAdmin ? 'Super Admin' : 'Admin'}
+                        {user.isSuperAdmin ? 'Super admin' : 'Admin'}
                       </MobileNavSection>
                       <MobileNavLink href="/admin">
                         {user.isSuperAdmin ? 'Superadmin panel' : 'Admin panel'}
@@ -374,14 +412,14 @@ export default function Header() {
                     }}
                     className="block w-full text-left px-5 py-4 text-brand-text font-medium text-base border-b border-brand-border hover:bg-brand-bg cursor-pointer bg-transparent"
                   >
-                    Sign Out
+                    Sign out
                   </button>
                 </>
               ) : (
                 <>
                   <MobileNavSection>Account</MobileNavSection>
                   <MobileNavLink href="/login">Login</MobileNavLink>
-                  <MobileNavLink href="/signup">Sign Up</MobileNavLink>
+                  <MobileNavLink href="/signup">Sign up</MobileNavLink>
                 </>
               ))}
           </div>

@@ -21,6 +21,7 @@ import { CSS } from '@dnd-kit/utilities'
 import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
+import { SECTION_CARD } from '@/lib/ui-classes'
 
 interface Skill {
   id: number
@@ -134,7 +135,7 @@ function SortableCategory({
   return (
     <div
       ref={setNodeRef}
-      className="category-card bg-surface rounded-xl shadow p-6 overflow-hidden wrap-break-word mb-6"
+      className={`category-card ${SECTION_CARD} overflow-hidden wrap-break-word mb-6`}
       style={{
         // dynamic: drag transform/transition/opacity
         transform: CSS.Transform.toString(transform),
@@ -186,7 +187,7 @@ function SortableCategory({
               onClick={onAddSkill}
               className="border-2 border-dashed border-brand-border bg-transparent rounded-lg px-4 py-3 text-text-light cursor-pointer text-center hover:border-primary hover:text-primary hover:bg-accent transition-all"
             >
-              + Add Skill
+              + Add skill
             </button>
           </div>
         </SortableContext>
@@ -359,8 +360,8 @@ export default function AdminSkillsPage() {
     <>
       <main className="container py-5 pb-15">
         <div className="flex justify-between items-center mb-3">
-          <h1>Manage Skills</h1>
-          <Button onClick={() => openModal({ type: 'add-category' })}>+ Add Category</Button>
+          <h1>Manage skills</h1>
+          <Button onClick={() => openModal({ type: 'add-category' })}>+ Add category</Button>
         </div>
 
         <p className="text-text-light mb-6">
@@ -420,16 +421,16 @@ export default function AdminSkillsPage() {
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
               <h2 role="heading">
-                {modal.type === 'edit-category' ? 'Edit Category' : 'Add Category'}
+                {modal.type === 'edit-category' ? 'Edit category' : 'Add category'}
               </h2>
             </div>
             <div className="p-6">
               <form onSubmit={(e) => handleSaveCategory(e, modal)}>
                 <div className="mb-5">
-                  <label htmlFor="cat-name">Category Name</label>
+                  <label htmlFor="cat-name">Category name</label>
                   <input
                     id="cat-name"
-                    aria-label="Category Name"
+                    aria-label="Category name"
                     type="text"
                     value={inputName}
                     onChange={(e) => setInputName(e.target.value)}
@@ -452,7 +453,7 @@ export default function AdminSkillsPage() {
                     Cancel
                   </Button>
                   <Button type="submit" disabled={submitting}>
-                    Save Category
+                    Save category
                   </Button>
                 </div>
               </form>
@@ -471,7 +472,7 @@ export default function AdminSkillsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">{modal.type === 'add-skill' ? 'Add Skill' : 'Edit Skill'}</h2>
+              <h2 role="heading">{modal.type === 'add-skill' ? 'Add skill' : 'Edit skill'}</h2>
             </div>
             <div className="p-6">
               {modal.type === 'add-skill' && (
@@ -479,10 +480,10 @@ export default function AdminSkillsPage() {
               )}
               <form onSubmit={(e) => handleSaveSkill(e, modal)}>
                 <div className="mb-5">
-                  <label htmlFor="skill-name">Skill Name</label>
+                  <label htmlFor="skill-name">Skill name</label>
                   <input
                     id="skill-name"
-                    aria-label="Skill Name"
+                    aria-label="Skill name"
                     type="text"
                     value={inputName}
                     onChange={(e) => setInputName(e.target.value)}
@@ -506,7 +507,7 @@ export default function AdminSkillsPage() {
                     Cancel
                   </Button>
                   <Button type="submit" disabled={submitting}>
-                    Save Skill
+                    Save skill
                   </Button>
                 </div>
               </form>
@@ -526,7 +527,7 @@ export default function AdminSkillsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Confirm Delete</h2>
+              <h2 role="heading">Confirm delete</h2>
             </div>
             <div className="p-6">
               <p className="text-text-light mb-6">

@@ -6,9 +6,9 @@ import { fake } from '../fake'
 
 const BUG_STATUS_LABELS: Record<string, string> = {
   open: 'Open',
-  in_progress: 'In Progress',
+  in_progress: 'In progress',
   resolved: 'Resolved',
-  wont_fix: "Won't Fix",
+  wont_fix: "Won't fix",
 }
 
 async function navigateToBugsPage(baseUrl: string, adminPage: Page): Promise<void> {
@@ -19,7 +19,7 @@ async function navigateToBugsPage(baseUrl: string, adminPage: Page): Promise<voi
   await expect(adminPage.getByText('Loading...')).not.toBeVisible({ timeout: 10_000 })
 }
 
-// The Resolved / Won't Fix sections are collapsed by default; expand before asserting on cards inside them.
+// The Resolved / Won't fix sections are collapsed by default; expand before asserting on cards inside them.
 async function expandBugSection(adminPage: Page, sectionLabel: string): Promise<void> {
   const header = adminPage.getByRole('button', { name: new RegExp(`^${sectionLabel}: \\d+`) })
   await expect(header).toBeVisible({ timeout: 10_000 })
@@ -40,15 +40,15 @@ async function updateReportStatus(
   })
   await selectFilterDropdown(adminPage, 'Status', BUG_STATUS_LABELS[status] ?? status)
   if (resolutionNotes) {
-    await adminPage.getByLabel('Resolution Notes').fill(resolutionNotes)
+    await adminPage.getByLabel('Resolution notes').fill(resolutionNotes)
   }
-  await adminPage.getByRole('button', { name: 'Update' }).click()
+  await adminPage.getByRole('button', { name: 'Update', exact: true }).click()
   await expect(getAlert(adminPage)).toContainText('Report updated!', { timeout: 10_000 })
 
   // The /bugs/[id] detail page (introduced alongside the comment threads) doesn't redirect
   // back to the list on save — admins land back on /admin/bugs via this link, same as a user
   // would.
-  await adminPage.getByRole('link', { name: 'Back to Bug Reports' }).click()
+  await adminPage.getByRole('link', { name: 'Back to bug reports' }).click()
   await expect(
     adminPage.getByRole('heading', { name: 'Bug Reports & Feedback', level: 1 }),
   ).toBeVisible({ timeout: 10_000 })
@@ -115,7 +115,7 @@ test.describe('Bug Report Management', () => {
 
     const card = adminPage.locator('.card').filter({ hasText: title })
     await expect(card).toBeVisible({ timeout: 10_000 })
-    await expect(card).toContainText('In Progress')
+    await expect(card).toContainText('In progress')
   })
 
   test('Admin resolves a bug report with resolution notes', async ({
@@ -145,7 +145,7 @@ test.describe('Bug Report Management', () => {
     await expect(adminPage.getByRole('heading', { name: title, level: 1 })).toBeVisible({
       timeout: 10_000,
     })
-    await expect(adminPage.getByLabel('Resolution Notes')).toHaveValue(notes)
+    await expect(adminPage.getByLabel('Resolution notes')).toHaveValue(notes)
   })
 
   test('Admin exports bug reports as markdown', async ({ adminPage, volunteer, baseUrl }) => {
@@ -188,9 +188,9 @@ test.describe('Bug Report Management', () => {
     await navigateToBugsPage(baseUrl, adminPage)
     await updateReportStatus(adminPage, title, 'wont_fix')
 
-    await expandBugSection(adminPage, "Won't Fix")
+    await expandBugSection(adminPage, "Won't fix")
     const card = adminPage.locator('.card').filter({ hasText: title })
     await expect(card).toBeVisible({ timeout: 10_000 })
-    await expect(card).toContainText("Won't Fix")
+    await expect(card).toContainText("Won't fix")
   })
 })

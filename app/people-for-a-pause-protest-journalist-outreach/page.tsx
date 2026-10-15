@@ -28,7 +28,7 @@ const PHONE_STORAGE_KEY = 'outreachPhone'
 type Task = NonNullable<Awaited<ReturnType<typeof client.journalistOutreach.claimNext>>>
 type Leaning = Task['leaning']
 
-const card = 'bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word'
+const card = 'bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word'
 
 function RequestLinkForm({ onSignIn }: { onSignIn: (token: string) => void }) {
   const { user } = useAuth()

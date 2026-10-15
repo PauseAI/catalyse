@@ -15,9 +15,12 @@ import { useToast } from '@/lib/toast'
 export default function SaveAsTemplateButton({
   projectId,
   defaultTitle,
+  className,
 }: {
   projectId: number
   defaultTitle: string
+  /** The trigger's look, e.g. a row of the menu it sits in. */
+  className?: string
 }) {
   const showToast = useToast()
   const [isOpen, setIsOpen] = useState(false)
@@ -36,9 +39,9 @@ export default function SaveAsTemplateButton({
 
   return (
     <>
-      <Button
-        variant="secondary"
-        size="sm"
+      <button
+        type="button"
+        className={className}
         onClick={() => {
           setTitle(defaultTitle)
           setDescription('')
@@ -46,7 +49,7 @@ export default function SaveAsTemplateButton({
         }}
       >
         Save as template
-      </Button>
+      </button>
 
       <Modal
         id="save-as-template"

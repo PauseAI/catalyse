@@ -60,8 +60,10 @@ export const adminStatsRouter = {
       prisma.workItem.count({
         where: { type: WorkItemType.PROJECT, status: ProjectStatus.completed },
       }),
-      prisma.workItemInterest.count(),
-      prisma.workItemInterest.count({ where: { status: InterestStatus.pending } }),
+      prisma.workItemInterest.count({ where: { workItem: { type: WorkItemType.PROJECT } } }),
+      prisma.workItemInterest.count({
+        where: { status: InterestStatus.pending, workItem: { type: WorkItemType.PROJECT } },
+      }),
     ])
 
     const countFor = (status: ApprovalStatus) =>

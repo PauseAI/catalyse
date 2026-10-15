@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Anonymises PII in the database at DATABASE_URL and seeds the dev accounts. Destructive and
- * irreversible, so it refuses to touch the production environment.
+ * irreversible, so it refuses the production environment and any database not marked
+ * disposable (see disposable-db.ts).
  *
  * Usage:
  *   npx tsx scripts/anonymise-db.ts
@@ -14,6 +15,7 @@ import { libpqUrl } from '../jobs/backup'
 import { resolveDbUrl } from '../lib/db-url'
 import { makePasswordHash, seedDevAccounts } from './seed-dev-accounts'
 import { COLUMN_TREATMENT, REDACTED } from './anonymise-columns'
+import { assertDisposable } from './disposable-db'
 
 // ── Anonymisation ─────────────────────────────────────────────────────────────
 
@@ -50,6 +52,7 @@ function fakeVolunteerData(id: number): {
 }
 
 export async function anonymise(db: Client): Promise<void> {
+  await assertDisposable(db, 'anonymise it')
   // One known password for every account, admin flags kept, so a developer can sign in as
   // anyone. An anonymised copy must therefore never sit behind a public URL.
   const anonPasswordHash = makePasswordHash('volunteerpass1')

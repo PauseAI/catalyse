@@ -9,6 +9,7 @@ import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
 import { countryLabel } from '@/lib/filter-options'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import { InferRouterOutputs } from '@orpc/server'
 import { AppRouter } from '@/server/router'
 import { ApprovalStatus } from '@/generated/prisma/enums'
@@ -16,11 +17,11 @@ import { ApprovalStatus } from '@/generated/prisma/enums'
 type Filter = 'mine' | 'others' | 'approved' | 'needs_info' | 'rejected'
 
 const SECTIONS: { key: Filter; label: string; color: string; collapsedByDefault?: boolean }[] = [
-  { key: 'mine', label: 'Pending & Under Review by Me', color: 'text-primary' },
-  { key: 'others', label: 'Under Review by Others', color: 'text-text-light' },
+  { key: 'mine', label: 'Pending & under review by me', color: 'text-primary' },
+  { key: 'others', label: 'Under review by others', color: 'text-text-light' },
   {
     key: 'needs_info',
-    label: 'Needs Info',
+    label: 'Needs info',
     color: 'text-amber-600 dark:text-amber-400',
   },
   { key: 'rejected', label: 'Rejected', color: 'text-red-600 dark:text-red-400' },
@@ -183,7 +184,7 @@ export default function ApplicationsPage() {
                 tabIndex={0}
                 onKeyDown={(e) => e.key === 'Enter' && setAnonymisedOpen((o) => !o)}
               >
-                Rejected – Anonymised: {anonymised.data?.length ?? 0}
+                Rejected – anonymised: {anonymised.data?.length ?? 0}
                 <svg
                   className={`text-text-light shrink-0 transition-transform ${anonymisedOpen ? 'rotate-180' : 'rotate-0'}`}
                   width="32"
@@ -247,7 +248,7 @@ function ApplicationCard({
   ].filter(Boolean)
 
   return (
-    <div role="article" className="bg-surface rounded-xl shadow p-6">
+    <div role="article" className={SECTION_CARD}>
       <h3 className="m-0 mb-1">{app.name}</h3>
       <p className="text-sm text-text-light mb-4">{meta.join(' · ')}</p>
 
@@ -381,10 +382,10 @@ function ApplicationCard({
       <div className="flex gap-2 justify-end border-t border-brand-border pt-4 mt-2">
         {app.approvalStatus === ApprovalStatus.pending ? (
           <Button onClick={() => onStartReview(app.id)} disabled={startingReview === app.id}>
-            Start Review
+            Start review
           </Button>
         ) : app.approvalStatus === ApprovalStatus.under_review ? (
-          <Button onClick={() => onNavigate(app.id)}>Continue Review</Button>
+          <Button onClick={() => onNavigate(app.id)}>Continue review</Button>
         ) : (
           <Button variant="secondary" onClick={() => onNavigate(app.id)}>
             View
@@ -414,7 +415,7 @@ function AnonymisedCard({ app }: { app: AnonymisedApplication }) {
   })
 
   return (
-    <div role="article" className="bg-surface rounded-xl shadow p-6 opacity-75">
+    <div role="article" className={`${SECTION_CARD} opacity-75`}>
       <p className="text-sm text-text-light mb-4">
         [Identity anonymised] · Rejected {formatDate(app.rejectedAt)}
       </p>
@@ -444,7 +445,7 @@ function AnonymisedCard({ app }: { app: AnonymisedApplication }) {
             onClick={() => allowReapplyMutation.mutate({ emailHash: app.emailHash })}
             disabled={allowReapplyMutation.isPending}
           >
-            Allow Reapply
+            Allow reapply
           </Button>
         )}
       </div>

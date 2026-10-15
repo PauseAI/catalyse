@@ -40,7 +40,7 @@
   --gantt-row-alt: rgba(45, 55, 72, 0.02);
   --gantt-row-hover: rgba(255, 148, 22, 0.08);
   --gantt-bar-todo: #64748b;
-  --gantt-bar-progress: #ff9416;
+  --gantt-bar-progress: #3b82f6;
   --gantt-bar-done: #38a169;
   --gantt-bar-hold: #a0aec0;
   --gantt-bar-text: #ffffff;
@@ -102,7 +102,7 @@
   --gantt-row-alt: rgba(255, 255, 255, 0.02);
   --gantt-row-hover: rgba(255, 166, 51, 0.1);
   --gantt-bar-todo: #7b8aa3;
-  --gantt-bar-progress: #ffa633;
+  --gantt-bar-progress: #60a5fa;
   --gantt-bar-done: #4ade80;
   --gantt-bar-hold: #4b5563;
   --gantt-bar-text: #111827;
@@ -118,16 +118,22 @@
 
 @utility container {
   margin-inline: auto;
-  padding-inline: 1.5rem;
+  padding-inline: 1rem;
   max-width: 1280px;
+  @media (width >= 40rem) {
+    padding-inline: 1.5rem;
+  }
 }
 
-/* For pages whose whole point is a wide canvas — the roadmap timeline — where the reading
-   measure that justifies `container` does not apply. */
+/* For visual views — timelines, dashboards — where the reading measure that justifies
+   `container` does not apply. Text blocks inside one keep it with `max-w-3xl`. */
 @utility container-wide {
   margin-inline: auto;
-  padding-inline: 1.5rem;
+  padding-inline: 1rem;
   max-width: 100%;
+  @media (width >= 40rem) {
+    padding-inline: 1.5rem;
+  }
 }
 
 * {
@@ -154,8 +160,6 @@ h3 {
 h1 {
   font-size: 2rem;
   margin-bottom: 16px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 h2 {
@@ -203,6 +207,7 @@ input[type='number'],
 input[type='url'],
 input[type='password'],
 input[type='search'],
+input[type='date'],
 textarea,
 select {
   width: 100%;
@@ -262,17 +267,13 @@ textarea {
 }
 
 /* Dark mode overrides for base form elements */
-[data-theme='dark'] header {
-  background: #1f2937;
-  border-color: #374151;
-}
-
 [data-theme='dark'] input[type='text'],
 [data-theme='dark'] input[type='email'],
 [data-theme='dark'] input[type='number'],
 [data-theme='dark'] input[type='url'],
 [data-theme='dark'] input[type='password'],
 [data-theme='dark'] input[type='search'],
+[data-theme='dark'] input[type='date'],
 [data-theme='dark'] textarea,
 [data-theme='dark'] select {
   background: #1f2937;

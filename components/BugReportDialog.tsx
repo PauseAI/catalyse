@@ -96,11 +96,11 @@ export default function BugReportDialog({ isOpen, onClose }: BugReportDialogProp
         ref={trapRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Report an Issue"
+        aria-label="Report an issue"
         className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto"
       >
         <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-          <h2 className="mb-0">Report an Issue</h2>
+          <h2 className="mb-0">Report an issue</h2>
           <Button variant="ghost" icon onClick={handleClose} aria-label="Close">
             ×
           </Button>
@@ -201,7 +201,7 @@ export default function BugReportDialog({ isOpen, onClose }: BugReportDialogProp
                   Cancel
                 </Button>
                 <Button type="submit" disabled={submitting}>
-                  {submitting ? 'Sending…' : 'Submit Report'}
+                  {submitting ? 'Sending…' : 'Submit report'}
                 </Button>
               </div>
             </form>

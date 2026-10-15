@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import Skeleton from './Skeleton'
 import { friendlyDate } from '@/lib/format-date'
 import { orpc } from '@/lib/orpc'
+import { BLEED } from '@/lib/ui-classes'
 
 /** My message conversations, newest first; unread ones stand out. */
 export default function ConversationList() {
@@ -19,7 +20,7 @@ export default function ConversationList() {
     )
   }
   return (
-    <ul className="list-none p-0 m-0 bg-surface rounded-xl shadow">
+    <ul className={`list-none p-0 my-0 bg-surface shadow ${BLEED}`}>
       {threads.map((t) => (
         <li key={t.id} className="border-b border-brand-border last:border-0">
           <Link

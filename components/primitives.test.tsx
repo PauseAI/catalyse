@@ -2,14 +2,14 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, act, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Button from './Button'
-import { Badge, badgeClasses, badgeColorClasses } from './Badge'
+import { Badge, StatusFlag, badgeClasses, badgeColorClasses } from './Badge'
 import Toggle from './Toggle'
 import Radio from './Radio'
 import Checkbox from './Checkbox'
 import Alert from './ui/Alert'
 import ConfirmDialog from './ui/ConfirmDialog'
 import DescriptionTips from './DescriptionTips'
-import Tooltip from './Tooltip'
+import Tooltip, { placeTip } from './Tooltip'
 import Tabs from './Tabs'
 import Skeleton from './Skeleton'
 import EmptyState from './EmptyState'
@@ -48,10 +48,29 @@ describe('Badge', () => {
       </Badge>,
     )
     expect(screen.getByRole('status')).toHaveClass('status-badge', 'bg-emerald-100', 'm-1')
+    expect(screen.getByRole('status')).toHaveAttribute('data-emphasis', 'filled')
     expect(badgeClasses('neutral')).toContain('bg-gray-100')
-    expect(badgeColorClasses('danger')).toBe(
-      'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+    expect(badgeColorClasses('danger')).toContain('bg-red-100')
+  })
+
+  it('outlines a badge the viewer is waiting on, at the same size', () => {
+    render(
+      <>
+        <Badge variant="info" outline>
+          In review
+        </Badge>
+        <Badge variant="info">Mine</Badge>
+      </>,
     )
+    const outline = screen.getByText('In review')
+    expect(outline).toHaveAttribute('data-emphasis', 'outline')
+    expect(outline).toHaveClass('bg-transparent', 'border-2', 'border-blue-400')
+    expect(screen.getByText('Mine')).toHaveClass('border-2', 'border-blue-100')
+  })
+
+  it('shows a flag as muted text with a dot', () => {
+    render(<StatusFlag>Seeking help</StatusFlag>)
+    expect(screen.getByText('• Seeking help')).toHaveClass('text-text-light')
   })
 })
 
@@ -135,12 +154,51 @@ describe('DescriptionTips / Tooltip', () => {
         </Tooltip>
       </>,
     )
-    expect(screen.getByText('Goal & Impact')).toBeInTheDocument()
+    expect(screen.getByText('Goal & impact')).toBeInTheDocument()
     expect(screen.queryByRole('tooltip')).toBeNull()
     await userEvent.hover(screen.getByText('hover me'))
     expect(screen.getByRole('tooltip')).toHaveTextContent('More info')
     await userEvent.unhover(screen.getByText('hover me'))
     expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('shows on keyboard focus, hides on Escape or blur, and shows nothing without content', () => {
+    render(
+      <div data-chart>
+        <Tooltip content="Beside" side="right" within="[data-chart]">
+          <button type="button">Bar</button>
+        </Tooltip>
+        <Tooltip content={null} within="[data-missing]">
+          <button type="button">Bare</button>
+        </Tooltip>
+      </div>,
+    )
+    const bar = screen.getByRole('button', { name: 'Bar' })
+    act(() => bar.focus())
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Beside')
+    fireEvent.keyDown(bar, { key: 'Enter' })
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
+    fireEvent.keyDown(bar, { key: 'Escape' })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    act(() => bar.blur())
+    act(() => screen.getByRole('button', { name: 'Bare' }).focus())
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('places the tip beside or above its trigger, and keeps it inside its bounds', () => {
+    const bounds = { left: 0, top: 0, right: 500, bottom: 300 }
+    const size = { width: 100, height: 40 }
+    const at = (left: number, right: number, top = 100) => ({
+      rect: { left, right, top, bottom: top + 20 },
+      bounds,
+    })
+    // Room on the right: just past the trigger, centred on it.
+    expect(placeTip('right', at(50, 150), size)).toEqual({ left: 156, top: 90 })
+    // None on the right: to its left instead.
+    expect(placeTip('right', at(380, 450), size)).toEqual({ left: 274, top: 90 })
+    // Above and centred, pushed down and in when it would leave the top or the side.
+    expect(placeTip('top', at(200, 300), size)).toEqual({ left: 200, top: 54 })
+    expect(placeTip('top', at(0, 20, 10), size)).toEqual({ left: 6, top: 6 })
   })
 })
 

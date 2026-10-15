@@ -10,47 +10,47 @@ type Param = string | number | boolean
 const EMAIL_TYPES: { value: string; label: string; params: Record<string, Param> }[] = [
   {
     value: 'welcome-and-confirm',
-    label: 'Welcome and Confirm Email',
+    label: 'Welcome and confirm email',
     params: { name: 'Alex', confirm_token: 'sample-token-abc123' },
   },
   {
     value: 'application-received',
-    label: 'Application Received',
+    label: 'Application received',
     params: { name: 'Alex' },
   },
   {
     value: 'application-approved',
-    label: 'Application Approved',
+    label: 'Application approved',
     params: { name: 'Alex' },
   },
   {
     value: 'application-rejected',
-    label: 'Application Rejected',
+    label: 'Application rejected',
     params: { name: 'Alex' },
   },
   {
     value: 'pending-applications-summary',
-    label: 'Pending Applications Summary',
+    label: 'Pending applications summary',
     params: { count: 3 },
   },
   {
     value: 'password-reset',
-    label: 'Password Reset',
+    label: 'Password reset',
     params: { name: 'Alex', reset_token: 'sample-token-abc123' },
   },
   {
     value: 'admin-invite',
-    label: 'Admin Invite',
+    label: 'Admin invite',
     params: { invited_by: 'Jamie Smith', invite_token: 'sample-token-abc123' },
   },
   {
     value: 'welcome-google',
-    label: 'Welcome (Google Sign-up)',
+    label: 'Welcome (Google sign-up)',
     params: { name: 'Alex' },
   },
   {
     value: 'project-notification',
-    label: 'Project Notification',
+    label: 'Project notification',
     params: {
       name: 'Alex',
       subject: 'Your project has been approved',
@@ -61,12 +61,12 @@ const EMAIL_TYPES: { value: string; label: string; params: Record<string, Param>
   },
   {
     value: 'local-group-suggestion-accepted',
-    label: 'Local Group Suggestion (Accepted)',
+    label: 'Local group suggestion (accepted)',
     params: { name: 'Alex', action: 'accepted', groupName: 'London' },
   },
   {
     value: 'local-group-suggestion-merge',
-    label: 'Local Group Suggestion (Merge)',
+    label: 'Local group suggestion (merge)',
     params: {
       name: 'Alex',
       action: 'merge',
@@ -76,7 +76,7 @@ const EMAIL_TYPES: { value: string; label: string; params: Record<string, Param>
   },
   {
     value: 'local-group-suggestion-on-hold',
-    label: 'Local Group Suggestion (On Hold)',
+    label: 'Local group suggestion (on hold)',
     params: {
       name: 'Alex',
       action: 'on_hold',
@@ -86,7 +86,7 @@ const EMAIL_TYPES: { value: string; label: string; params: Record<string, Param>
   },
   {
     value: 'local-group-suggestion-declined',
-    label: 'Local Group Suggestion (Declined)',
+    label: 'Local group suggestion (declined)',
     params: {
       name: 'Alex',
       action: 'declined',
@@ -96,7 +96,7 @@ const EMAIL_TYPES: { value: string; label: string; params: Record<string, Param>
   },
   {
     value: 'relay-message',
-    label: 'Relay Message',
+    label: 'Relay message',
     params: {
       to_name: 'Alex',
       from_name: 'Jamie Smith',
@@ -106,17 +106,17 @@ const EMAIL_TYPES: { value: string; label: string; params: Record<string, Param>
   },
   {
     value: 'digest-match',
-    label: 'Digest (Skill Match)',
+    label: 'Digest (skill match)',
     params: { name: 'Alex', is_match: true, projects: '3 sample projects' },
   },
   {
     value: 'digest-general',
-    label: 'Digest (General)',
+    label: 'Digest (general)',
     params: { name: 'Alex', is_match: false, projects: '3 sample projects' },
   },
   {
     value: 'task-nudge',
-    label: 'Task Nudge',
+    label: 'Task nudge',
     params: {
       name: 'Alex',
       task_title: 'Write fundraising copy',
@@ -128,7 +128,7 @@ const EMAIL_TYPES: { value: string; label: string; params: Record<string, Param>
   },
   {
     value: 'task-final-warning',
-    label: 'Task Final Warning',
+    label: 'Task final warning',
     params: {
       name: 'Alex',
       task_title: 'Write fundraising copy',
@@ -141,7 +141,7 @@ const EMAIL_TYPES: { value: string; label: string; params: Record<string, Param>
   },
   {
     value: 'task-surrendered-owner',
-    label: 'Task Surrendered (Owner)',
+    label: 'Task surrendered (owner)',
     params: {
       owner_name: 'Jordan',
       volunteer_name: 'Alex Johnson',
@@ -150,8 +150,13 @@ const EMAIL_TYPES: { value: string; label: string; params: Record<string, Param>
     },
   },
   {
+    value: 'daily-summary',
+    label: 'Daily summary',
+    params: { name: 'Alex' },
+  },
+  {
     value: 'task-surrendered-assignee',
-    label: 'Task Surrendered (Assignee)',
+    label: 'Task surrendered (assignee)',
     params: {
       name: 'Alex',
       task_title: 'Write fundraising copy',
@@ -259,7 +264,7 @@ export default function EmailPreviewPage() {
   return (
     <>
       <main className="container pt-8 pb-16">
-        <h1 className="mb-1">Email Previews</h1>
+        <h1 className="mb-1">Email previews</h1>
         <p className="text-gray-500 mb-0">All transactional emails rendered with sample data.</p>
         {EMAIL_TYPES.map((t, i) => (
           <EmailRow key={t.value} type={t} preview={results[i].data} />

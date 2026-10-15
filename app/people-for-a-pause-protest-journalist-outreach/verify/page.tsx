@@ -26,7 +26,7 @@ function Verify() {
 
   if (!error) return <p className="text-center py-10 text-text-light">Signing you in…</p>
   return (
-    <div className="bg-surface rounded-xl shadow p-6 text-center">
+    <div className="bg-surface rounded-xl shadow p-4 sm:p-6 text-center">
       <h3 className="text-error">Link not valid</h3>
       <p className="text-text-light my-4">{error}</p>
       <Button href={OUTREACH_PATH} variant="outline">

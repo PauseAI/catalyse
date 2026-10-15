@@ -1,3 +1,4 @@
+import { openProjectMore } from '../actions/projects'
 import { test, expect, readAdminToken } from '../fixtures'
 import { fake } from '../fake'
 import { createApiClient } from '../client'
@@ -35,14 +36,14 @@ async function makeProject(api: Api, opts: { startDate?: Date } = {}): Promise<n
 async function addTask(
   api: Api,
   projectId: number,
-  opts: { title?: string; startDate?: Date | null; durationDays?: number | null } = {},
+  opts: { title?: string; startDate?: Date | null; deadline?: Date | null } = {},
 ): Promise<number> {
   const res = await api.projects.createTask({
     body: {
       projectId,
       title: opts.title ?? fake.quickTaskTitle(),
       startDate: opts.startDate ?? null,
-      durationDays: opts.durationDays ?? null,
+      deadline: opts.deadline ?? null,
     },
   })
   expect(res.status, JSON.stringify(res.body)).toBe(200)
@@ -77,7 +78,7 @@ async function listTasks(api: Api, projectId: number) {
   const res = await api.projects.listTasks({ body: { projectId } })
   expect(res.status, JSON.stringify(res.body)).toBe(200)
   return res.body as {
-    tasks: { id: number; title: string; durationDays: number | null }[]
+    tasks: { id: number; title: string; deadline: string | Date | null }[]
     dependencies: { predecessorId: number; successorId: number; lagDays: number }[]
   }
 }
@@ -195,6 +196,7 @@ test.describe('Project import / export', () => {
     const projectId = await makeProject(api, { startDate: day('2027-04-01') })
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await openProjectMore(adminPage)
     await adminPage.getByRole('button', { name: 'Export / Import' }).click()
 
     const modal = adminPage.getByRole('dialog')
@@ -229,6 +231,7 @@ test.describe('Project import / export', () => {
     })
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await openProjectMore(adminPage)
     await adminPage.getByRole('button', { name: 'Export / Import' }).click()
 
     const modal = adminPage.getByRole('dialog')

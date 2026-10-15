@@ -4,12 +4,13 @@ import { useState } from 'react'
 import Button from '@/components/Button'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import Tabs from '@/components/Tabs'
+import { SECTION_CARD } from '@/lib/ui-classes'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mb-10">
       <h2 className="mb-1">{title}</h2>
-      <div className="bg-surface rounded-xl shadow p-6">{children}</div>
+      <div className={SECTION_CARD}>{children}</div>
     </section>
   )
 }
@@ -30,7 +31,7 @@ export default function ComponentPreviewPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Component Preview</h1>
+      <h1>Component preview</h1>
       <p className="text-text-light mb-8">All button variants and patterns used across the app.</p>
 
       {/* ── Button component ─────────────────────────────────────── */}
@@ -191,7 +192,7 @@ export default function ComponentPreviewPage() {
         </p>
         <Row label="modal header">
           <div className="bg-surface border border-brand-border rounded-lg px-4 py-3 flex items-center gap-4 min-w-[280px]">
-            <span className="font-medium flex-1">Modal Header</span>
+            <span className="font-medium flex-1">Modal header</span>
             <Button variant="ghost" icon aria-label="Close">
               ×
             </Button>

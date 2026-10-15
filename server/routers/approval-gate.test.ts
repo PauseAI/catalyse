@@ -55,7 +55,7 @@ describe('a pending volunteer', () => {
       clientAs(me).projects.updateTask({
         projectId: project.id,
         taskId: task.id,
-        data: { status: 'in_progress', assigneeId: me.id },
+        data: { assigneeId: me.id },
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' })
   })

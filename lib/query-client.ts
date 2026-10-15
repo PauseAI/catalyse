@@ -1,5 +1,6 @@
-import { QueryClient } from '@tanstack/react-query'
+import { MutationCache, QueryClient } from '@tanstack/react-query'
 import { ORPCError } from '@orpc/client'
+import { orpc } from './orpc'
 
 /**
  * Whether a failed query is worth another attempt. A client error (a missing row, a forbidden
@@ -11,6 +12,12 @@ export function shouldRetry(failureCount: number, error: unknown): boolean {
   return failureCount < 3
 }
 
-export const queryClient = new QueryClient({
+export const queryClient: QueryClient = new QueryClient({
   defaultOptions: { queries: { retry: shouldRetry } },
+  // Most writes add a line to a Discussion (lib/work-item-events.ts), so an open one refetches.
+  mutationCache: new MutationCache({
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: orpc.workItemComments.list.key() })
+    },
+  }),
 })

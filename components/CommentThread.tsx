@@ -41,7 +41,7 @@ export default function CommentThread({ workItemId, emptyText, placeholder }: Co
 
   return (
     <CommentThreadView
-      comments={data?.comments ?? []}
+      comments={data?.feed ?? []}
       canPost={data?.canPost ?? false}
       canReply
       mentionable={data?.mentionable}

@@ -1,10 +1,11 @@
 import React from 'react'
 import Link from 'next/link'
 import Button from '@/components/Button'
-import { Badge, badgeClasses, type BadgeVariant } from '@/components/Badge'
+import { StatusFlag } from '@/components/Badge'
+import { LatenessBadge, ProjectStatusBadge } from '@/components/StatusBadges'
+import { lateness } from '@/lib/lateness'
 import { matchGradeLabel } from '@/lib/matching'
 import { projectLocationParts } from '@/lib/filter-options'
-import { PROJECT_STATUS_CONFIG as PROJECT_LIFECYCLE_CONFIG } from '@/lib/project-status'
 
 export interface Project {
   id: number
@@ -18,6 +19,13 @@ export interface Project {
   isSeekingOwner?: boolean | null
   /** Derived server-side: owned, but no open tasks. */
   needsTasks?: boolean | null
+  /** Derived server-side: days the plan runs past the project's deadline, when it does. */
+  daysLate?: number | null
+  /**
+   * Derived server-side: the viewer owns the project or is an admin, so its lateness is theirs
+   * to act on. Lists that do not say show it filled.
+   */
+  viewerLeads?: boolean
   isOrgProposed?: boolean | null
   projectType?: string | null
   country?: string | null
@@ -39,21 +47,6 @@ export interface Project {
   } | null
 }
 
-// Project lifecycle statuses come from lib/project-status.ts (shared with the server and
-// e2e helpers); the interest statuses below are badged by the same helpers, so they're
-// merged in here rather than kept in the lifecycle map.
-export const PROJECT_STATUS_CONFIG: Record<string, { label: string; variant: BadgeVariant }> = {
-  ...PROJECT_LIFECYCLE_CONFIG,
-  accepted: { label: 'Accepted', variant: 'success' },
-  declined: { label: 'Declined', variant: 'neutral' },
-  withdrawn: { label: 'Withdrawn', variant: 'neutral' },
-  removed: { label: 'Removed', variant: 'neutral' },
-}
-
-export const STATUS_LABELS: Record<string, string> = Object.fromEntries(
-  Object.entries(PROJECT_STATUS_CONFIG).map(([k, v]) => [k, v.label]),
-)
-
 const PROJECT_TYPE_LABELS: Record<string, string> = {
   sprint: 'Sprint',
   container: 'Time-boxed',
@@ -61,25 +54,20 @@ const PROJECT_TYPE_LABELS: Record<string, string> = {
   one_off: 'One-off',
 }
 
-export function projectStatusVariant(status: string): BadgeVariant {
-  return PROJECT_STATUS_CONFIG[status]?.variant ?? 'neutral'
-}
-
-export function statusBadgeClasses(status: string) {
-  return badgeClasses(projectStatusVariant(status))
-}
-
 export function ProjectCard({
   project: p,
   userSkillIds = new Set(),
   action,
   badge,
+  viewerIsAdmin = false,
 }: {
   project: Project
   userSkillIds?: Set<number>
   action?: React.ReactNode
   /** An extra badge beside the status, such as where the viewer's application stands. */
   badge?: React.ReactNode
+  /** An admin answers a proposal in review, so for them it is filled. */
+  viewerIsAdmin?: boolean
 }) {
   // The grade says how well the viewer fits; these say why.
   const matchedRequired = (p.skills ?? [])
@@ -99,16 +87,18 @@ export function ProjectCard({
           {p.title}
         </Link>
       </div>
-      {/* Status is the lifecycle position; Seeking Owner/Help/Tasks are separate,
-          independently-derived facts and can co-occur with any status, including Ready. */}
-      <div className="row-start-2 flex gap-1 flex-wrap self-start">
-        <Badge variant={projectStatusVariant(p.status)}>
-          {STATUS_LABELS[p.status] ?? p.status.replace(/_/g, ' ')}
-        </Badge>
-        {p.isSeekingOwner && <Badge variant="caution">Seeking Owner</Badge>}
-        {p.isSeekingHelp && <Badge variant="caution">Seeking Help</Badge>}
-        {p.needsTasks && <Badge variant="warning">Needs Tasks</Badge>}
+      {/* Status is the lifecycle position; Seeking owner/help and Needs tasks are separate,
+          independently-derived facts and can co-occur with any status. */}
+      <div className="row-start-2 flex gap-x-2 gap-y-1 flex-wrap items-center self-start">
+        <ProjectStatusBadge status={p.status} viewerIsAdmin={viewerIsAdmin} />
+        <LatenessBadge
+          lateness={lateness({ deadline: null, pastPlanDays: p.daysLate, done: false })}
+          viewer={{ isAssignee: false, canReview: p.viewerLeads !== false }}
+        />
         {badge}
+        {p.isSeekingOwner && <StatusFlag>Seeking owner</StatusFlag>}
+        {p.isSeekingHelp && <StatusFlag>Seeking help</StatusFlag>}
+        {p.needsTasks && <StatusFlag>Needs tasks</StatusFlag>}
       </div>
       <div className="row-start-3 flex items-center gap-3 flex-wrap text-xs text-text-light self-start">
         <span title="Owner">👤 {p.owner ? p.owner.name : 'Seeking owner'}</span>
@@ -174,7 +164,7 @@ export function ProjectCard({
         {action ?? (
           <Link href={`/projects/${p.id}`}>
             <Button variant="secondary" size="sm">
-              View Details
+              View details
             </Button>
           </Link>
         )}
@@ -191,16 +181,24 @@ export function ProjectList<P extends Project>({
   userSkillIds = new Set(),
   single = false,
   badgeFor,
+  viewerIsAdmin = false,
 }: {
   projects: P[]
   userSkillIds?: Set<number>
   single?: boolean
   badgeFor?: (project: P) => React.ReactNode
+  viewerIsAdmin?: boolean
 }) {
   return (
     <div className={single ? CARD_GRID_SINGLE_CLASSES : CARD_GRID_CLASSES}>
       {projects.map((p) => (
-        <ProjectCard key={p.id} project={p} userSkillIds={userSkillIds} badge={badgeFor?.(p)} />
+        <ProjectCard
+          key={p.id}
+          project={p}
+          userSkillIds={userSkillIds}
+          badge={badgeFor?.(p)}
+          viewerIsAdmin={viewerIsAdmin}
+        />
       ))}
     </div>
   )

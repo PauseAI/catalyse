@@ -63,7 +63,7 @@ describe('country-scoped projects', () => {
       uk.projects.updateTask({
         projectId: swedish.id,
         taskId: task.id,
-        data: { assigneeId: inUk.id, status: 'in_progress' },
+        data: { assigneeId: inUk.id },
       }),
     ).rejects.toMatchObject(notFound)
     const suggested = titles((await uk.dashboard.get()).find?.matches.items ?? [])

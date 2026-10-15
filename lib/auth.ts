@@ -166,6 +166,7 @@ export function redactVolunteer(
     contactPreference: showContact ? vol.contactPreference : undefined,
     contactNotes: showContact ? vol.contactNotes : undefined,
     emailMutedCategories: showContact ? vol.emailMutedCategories : undefined,
+    dailySummary: showContact ? vol.dailySummary : undefined,
     skills,
     endorsements,
   }

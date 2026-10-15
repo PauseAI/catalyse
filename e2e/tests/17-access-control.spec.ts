@@ -36,7 +36,7 @@ test.describe('Access Control', () => {
       'You do not have permission to edit this project.',
       { timeout: 10_000 },
     )
-    await expect(volunteer.page.getByLabel('Project Title')).toBeDisabled()
+    await expect(volunteer.page.getByLabel('Project title')).toBeDisabled()
   })
 
   test("Non-owner cannot delete another volunteer's project", async ({ volunteer, baseUrl }) => {
@@ -51,7 +51,7 @@ test.describe('Access Control', () => {
       'You do not have permission to edit this project.',
       { timeout: 10_000 },
     )
-    await expect(volunteer.page.getByRole('button', { name: 'Delete Project' })).not.toBeVisible()
+    await expect(volunteer.page.getByRole('button', { name: 'Delete project' })).not.toBeVisible()
   })
 
   test('Admin can update any project', async ({ adminPage, volunteer, baseUrl }) => {
@@ -70,7 +70,7 @@ test.describe('Access Control', () => {
       timeout: 10_000,
     })
 
-    const titleField = adminPage.getByLabel('Project Title')
+    const titleField = adminPage.getByLabel('Project title')
     await titleField.fill(newTitle)
     await Promise.all([
       adminPage.waitForResponse((resp) => resp.url().includes('/api/rpc/projects/update')),

@@ -55,7 +55,7 @@ test.describe('Admin project drafts', () => {
 
     await expect(getAlert(adminPage)).toContainText('Project published', { timeout: 10_000 })
     await adminPage.waitForURL(`${baseUrl}/projects/${projectId}`, { timeout: 10_000 })
-    await expect(adminPage.getByLabel('project status')).toContainText('Ready', {
+    await expect(adminPage.getByLabel('project status')).toContainText('To do', {
       timeout: 10_000,
     })
 
@@ -65,7 +65,8 @@ test.describe('Admin project drafts', () => {
       timeout: 5_000,
     })
 
-    await volunteer.page.goto(`${baseUrl}/projects`)
+    // Searched for: projects other specs create can push it off the overview's groups.
+    await volunteer.page.goto(`${baseUrl}/projects?q=${encodeURIComponent(title)}`)
     await expect(volunteer.page.getByRole('link', { name: title })).toBeVisible({
       timeout: 10_000,
     })
@@ -148,20 +149,24 @@ test.describe('Volunteer project drafts', () => {
     await expect(volunteer.page).toHaveURL(/\/suggest/)
   })
 
-  test('Publishing a draft with no tasks is rejected', async ({ volunteer, baseUrl }) => {
+  test('Publishing a draft with no tasks is allowed for a volunteer', async ({
+    volunteer,
+    baseUrl,
+  }) => {
     const title = fake.projectTitle()
     const projectId = await volunteerSaveProjectDraft(baseUrl, volunteer.page, title)
 
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}/edit`)
     await volunteer.page.getByRole('button', { name: 'Submit', exact: true }).click()
 
-    // Refused before the confirm dialog opens.
-    await expect(volunteer.page.getByText('Add at least one task before submitting.')).toBeVisible({
+    // A volunteer's own proposal needs no task up front — tasks come later, once approved.
+    await volunteer.page
+      .getByRole('heading', { name: 'Submit draft for review?' })
+      .waitFor({ timeout: 10_000 })
+    await volunteer.page.getByRole('button', { name: 'Submit for review' }).click()
+    await expect(getAlert(volunteer.page)).toContainText('Draft submitted for review!', {
       timeout: 10_000,
     })
-    await expect(
-      volunteer.page.getByRole('heading', { name: 'Submit draft for review?' }),
-    ).toHaveCount(0)
   })
 
   test('A volunteer is blocked from saving a third draft', async ({ volunteer, baseUrl }) => {
@@ -177,7 +182,7 @@ test.describe('Volunteer project drafts', () => {
 
     // Going to the form directly, the server still refuses the save.
     await volunteer.page.goto(`${baseUrl}/suggest/new`)
-    await volunteer.page.getByLabel('Project Title').fill(fake.projectTitle())
+    await volunteer.page.getByLabel('Project title').fill(fake.projectTitle())
     await expect(getAlert(volunteer.page)).toContainText('You already have 2 drafts', {
       timeout: 10_000,
     })

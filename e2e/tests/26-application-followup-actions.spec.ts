@@ -61,20 +61,20 @@ test.describe('Application follow-up actions', () => {
       await expect(
         page.getByText('We need a bit more information before we can review your application.'),
       ).toBeVisible({ timeout: 10_000 })
-      await page.getByRole('link', { name: 'Update Application' }).click()
+      await page.getByRole('link', { name: 'Update application' }).click()
       await page.waitForURL(/\/settings/, { timeout: 10_000 })
 
       await expect(page.getByText('Could you tell us more about your availability?')).toBeVisible({
         timeout: 10_000,
       })
-      await page.getByLabel('Your Application').fill('Updated: I can commit 10 hours per week.')
-      await page.getByRole('button', { name: 'Resubmit for Review' }).click()
+      await page.getByLabel('Your application').fill('Updated: I can commit 10 hours per week.')
+      await page.getByRole('button', { name: 'Resubmit for review' }).click()
       await expect(getAlert(page)).toContainText('Application resubmitted for review', {
         timeout: 10_000,
       })
 
       // Once resubmitted, the editable application panel is gone (locked pending admin review)
-      await expect(page.getByLabel('Your Application')).not.toBeVisible({ timeout: 5_000 })
+      await expect(page.getByLabel('Your application')).not.toBeVisible({ timeout: 5_000 })
       await expect(page.getByText(/awaiting review/i)).toBeVisible()
     } finally {
       await context.close()
@@ -145,7 +145,7 @@ test.describe('Application follow-up actions', () => {
       await expect(
         page.getByText('We would love to hear more about your recent experience.'),
       ).toBeVisible({ timeout: 10_000 })
-      await page.getByRole('button', { name: 'Resubmit for Review' }).click()
+      await page.getByRole('button', { name: 'Resubmit for review' }).click()
       await expect(getAlert(page)).toContainText('Application resubmitted for review', {
         timeout: 10_000,
       })
@@ -159,7 +159,7 @@ test.describe('Application follow-up actions', () => {
     })
   })
 
-  test('Admin UI: Request More Info and Reopen buttons drive the same flow', async ({
+  test('Admin UI: Request more info and Reopen buttons drive the same flow', async ({
     adminPage,
     baseUrl,
   }) => {
@@ -184,10 +184,10 @@ test.describe('Application follow-up actions', () => {
       timeout: 10_000,
     })
 
-    await adminPage.getByRole('button', { name: 'Request More Info' }).click()
+    await adminPage.getByRole('button', { name: 'Request more info' }).click()
     const requestInfoModal = adminPage.getByRole('dialog')
     await expect(requestInfoModal).toBeVisible({ timeout: 5_000 })
-    await requestInfoModal.getByRole('button', { name: 'Request Info' }).click()
+    await requestInfoModal.getByRole('button', { name: 'Request info' }).click()
     await expect(getAlert(adminPage)).toContainText('More information requested', {
       timeout: 10_000,
     })
@@ -196,7 +196,7 @@ test.describe('Application follow-up actions', () => {
     // needs_info doesn't block approve/reject — admin can still act if the applicant never responds
     await rejectVolunteer(baseUrl, volunteerId, 'Rejected for this test')
     await adminPage.goto(`${baseUrl}/admin/applications/${volunteerId}`)
-    await adminPage.getByRole('button', { name: 'Reopen Application' }).click()
+    await adminPage.getByRole('button', { name: 'Reopen application' }).click()
     const reopenModal = adminPage.getByRole('dialog')
     await expect(reopenModal).toBeVisible({ timeout: 5_000 })
     await reopenModal.getByRole('button', { name: 'Reopen' }).click()
@@ -269,16 +269,16 @@ test.describe('Application follow-up actions', () => {
 
     // The admin finds it under the anonymised rejections and allows a reapplication.
     await adminPage.goto(`${baseUrl}/admin/applications`)
-    await adminPage.getByRole('button', { name: /Rejected – Anonymised: [1-9]/ }).click()
+    await adminPage.getByRole('button', { name: /Rejected – anonymised: [1-9]/ }).click()
     const row = adminPage
       .locator('article, li, div')
       .filter({ hasText: adminNotes })
       .filter({
-        has: adminPage.getByRole('button', { name: 'Allow Reapply' }),
+        has: adminPage.getByRole('button', { name: 'Allow reapply' }),
       })
     await expect(row.first()).toBeVisible({ timeout: 10_000 })
     await snap(adminPage, 'anonymised rejection')
-    await row.first().getByRole('button', { name: 'Allow Reapply' }).click()
+    await row.first().getByRole('button', { name: 'Allow reapply' }).click()
     await expect(adminPage.getByText(/Reapplication allowed since/)).toBeVisible({
       timeout: 10_000,
     })

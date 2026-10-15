@@ -34,10 +34,11 @@ const projectBody = (extra: Record<string, unknown> = {}) => ({
 })
 
 describe('creating a project', () => {
-  it('refuses a proposal with no tasks', async () => {
-    await expect(
-      clientAs(await createVolunteer()).projects.create(projectBody({ tasks: [] })),
-    ).rejects.toMatchObject({ message: expect.stringContaining('At least one task is required') })
+  it('accepts a volunteer proposal with no tasks', async () => {
+    const created = await clientAs(await createVolunteer()).projects.create(
+      projectBody({ tasks: [] }),
+    )
+    expect(created.id).toEqual(expect.any(Number))
   })
 
   it('refuses an org project with no tasks', async () => {
@@ -147,7 +148,7 @@ describe('withdrawing from a project', () => {
     await c.projects.updateTask({
       projectId: project.id,
       taskId: task.id,
-      data: { status: 'in_progress', assigneeId: me.id },
+      data: { assigneeId: me.id },
     })
     await c.projects.withdrawInterest({ projectId: project.id })
 
@@ -155,13 +156,13 @@ describe('withdrawing from a project', () => {
       projectId: project.id,
       taskId: task.id,
     })) as { status: string; assignedToId: number | null }
-    expect(after.status).toBe('open')
+    expect(after.status).toBe('not_started')
     expect(after.assignedToId).toBeNull()
     await expect(
       c.projects.updateTask({
         projectId: project.id,
         taskId: task.id,
-        data: { status: 'in_progress', assigneeId: me.id },
+        data: { assigneeId: me.id },
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' })
   })

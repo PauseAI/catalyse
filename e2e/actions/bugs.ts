@@ -11,7 +11,7 @@ const SEVERITY_LABELS: Record<string, string> = {
 
 export async function openBugReportForm(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Report a bug or give feedback' }).click()
-  await expect(page.getByRole('dialog', { name: 'Report an Issue' })).toBeVisible({
+  await expect(page.getByRole('dialog', { name: 'Report an issue' })).toBeVisible({
     timeout: 10_000,
   })
 }
@@ -25,7 +25,7 @@ export async function fillAndSubmitBugReport(
     severity?: string
   },
 ): Promise<void> {
-  const dialog = page.getByRole('dialog', { name: 'Report an Issue' })
+  const dialog = page.getByRole('dialog', { name: 'Report an issue' })
   if (opts.category) {
     await dialog.locator('.category-btn', { hasText: opts.category }).click()
   }
@@ -39,7 +39,7 @@ export async function fillAndSubmitBugReport(
       dialog,
     )
   }
-  await dialog.getByRole('button', { name: 'Submit Report' }).click()
+  await dialog.getByRole('button', { name: 'Submit report' }).click()
 }
 
 export async function submitBugReport(
@@ -49,14 +49,14 @@ export async function submitBugReport(
   description: string,
 ): Promise<void> {
   await page.goto(`${baseUrl}/dashboard`)
-  await expect(page.getByRole('heading', { level: 1, name: /^Hi / })).toBeVisible({
+  await expect(page.getByRole('heading', { level: 1, name: 'Home', exact: true })).toBeVisible({
     timeout: 10_000,
   })
   await openBugReportForm(page)
   await fillAndSubmitBugReport(page, { title, description })
   await expect(
     page
-      .getByRole('dialog', { name: 'Report an Issue' })
+      .getByRole('dialog', { name: 'Report an issue' })
       .getByRole('heading', { name: 'Thank you!' }),
   ).toBeVisible({ timeout: 10_000 })
 }

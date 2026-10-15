@@ -8,15 +8,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRequireAuth } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
 import Button from '@/components/Button'
-import { Badge, type BadgeVariant } from '@/components/Badge'
+import { DueChip, ProjectStatusBadge, WorkStatusBadge } from '@/components/StatusBadges'
+import { handedIn } from '@/lib/overdue'
+import WorkRow, { PersonAvatar, STRETCHED_LINK } from '@/components/WorkRow'
 import Modal from '@/components/ui/Modal'
 import Skeleton from '@/components/Skeleton'
-import { ApprovalStatus } from '@/generated/prisma/enums'
+import { BLEED } from '@/lib/ui-classes'
+import { ApprovalStatus, WorkItemType } from '@/generated/prisma/enums'
 import type { AppRouter } from '@/server/router'
 import type { InferRouterOutputs } from '@orpc/server'
 
 type Home = InferRouterOutputs<AppRouter>['dashboard']['get']
-type WorkRow = Home['work'][number]
 type FindRow = NonNullable<Home['find']>['quickTasks']
 
 const WORK_FILTERS = [
@@ -27,14 +29,13 @@ const WORK_FILTERS = [
 ] as const
 type WorkFilter = (typeof WORK_FILTERS)[number]['key']
 
-const ROLE_VARIANTS: Record<WorkRow['role'], BadgeVariant> = {
-  Lead: 'success',
-  Deputy: 'success',
-  Helper: 'info',
-  Proposed: 'warning',
-  Task: 'caution',
-  Member: 'neutral',
-}
+// My work's buckets are small grey labels, so they never read as a section like "Needs your
+// attention" above them.
+const SUB_HEADING = 'text-sm font-semibold text-text-light mb-2'
+// The whole row is its title link, so it highlights as one.
+const ROW_CLASSES =
+  'p-4 wrap-break-word transition-colors hover:bg-accent/40 dark:hover:bg-white/[0.06]'
+const ROW_META_CLASSES = 'text-sm text-text-light mt-1 flex flex-wrap items-center gap-x-2 gap-y-1'
 
 // Links into the old tabbed dashboard still land somewhere sensible.
 const PROJECT_HASHES = ['#tab-projects', '#tab-owned', '#tab-interests', '#tab-proposed']
@@ -83,7 +84,7 @@ function GettingStarted({
   return (
     <section
       aria-labelledby="getting-started"
-      className="bg-surface rounded-xl shadow p-5 mb-6 wrap-break-word"
+      className={`bg-surface shadow p-4 sm:p-5 mb-6 wrap-break-word ${BLEED}`}
     >
       <h2 id="getting-started" className="text-lg mt-0 mb-3">
         Getting started
@@ -228,26 +229,83 @@ export default function HomePage() {
   // Discovery waits until someone has nothing of their own to get on with.
   const showFind = findOpen ?? current.length === 0
 
-  const workList = (rows: typeof work) => (
-    <ul className="list-none p-0 m-0 bg-surface rounded-xl shadow">
-      {rows.map((w) => (
-        <li
+  const urgent = work.filter((w) => w.needsAttention)
+  const rest = work.filter((w) => !w.needsAttention)
+
+  const today = new Date()
+  // `[status] Title … person`, the whole row one link.
+  const workRow = (w: (typeof work)[number]) => {
+    const title = (
+      <Link href={w.href} className={`font-semibold ${STRETCHED_LINK}`}>
+        {w.title}
+      </Link>
+    )
+    if (w.item) {
+      const item = w.item
+      return (
+        <WorkRow
           key={w.key}
-          className="flex flex-wrap items-center justify-between gap-2 p-4 border-b border-brand-border last:border-0 wrap-break-word"
-        >
-          <div className="min-w-0">
-            <Link href={w.href} className="font-semibold">
-              {w.title}
-            </Link>
-            {w.context && <span className="text-sm text-text-light"> in {w.context}</span>}
+          className={ROW_CLASSES}
+          status={
+            <WorkStatusBadge
+              status={item.displayStatus}
+              quick={item.type === WorkItemType.QUICK_TASK}
+              viewer={item.viewer}
+            />
+          }
+          title={title}
+          below={
+            <>
+              <div className={ROW_META_CLASSES}>
+                <DueChip
+                  deadline={item.deadline}
+                  done={handedIn(item.displayStatus)}
+                  viewer={item.viewer}
+                  pastPlanDays={w.pastPlanDays}
+                  noDeadline="No deadline"
+                  today={today}
+                />
+                {w.context && <span>in {w.context}</span>}
+              </div>
+              {w.attention && <div className="text-sm font-semibold mt-1">{w.attention}</div>}
+            </>
+          }
+          person={<PersonAvatar name={item.assigneeName} />}
+        />
+      )
+    }
+    return (
+      <WorkRow
+        key={w.key}
+        className={ROW_CLASSES}
+        status={
+          w.statusKey && (
+            <ProjectStatusBadge status={w.statusKey} viewerIsAdmin={Boolean(user.isAdmin)} />
+          )
+        }
+        title={title}
+        below={
+          <div className={ROW_META_CLASSES}>
+            <span>{w.role}</span>
+            <DueChip
+              deadline={w.deadline}
+              done={w.done}
+              viewer={{ isAssignee: false, canReview: Boolean(w.leads) }}
+              pastPlanDays={w.daysLate}
+              today={today}
+            />
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant={ROLE_VARIANTS[w.role]}>{w.role}</Badge>
-            {w.status && <span className="text-sm text-text-light">{w.status}</span>}
-          </div>
-        </li>
-      ))}
-    </ul>
+        }
+        person={
+          w.kind === 'project' && (
+            <PersonAvatar name={w.ownerName ?? null} label="Owner" emptyLabel="No owner yet" />
+          )
+        }
+      />
+    )
+  }
+  const workList = (rows: typeof work) => (
+    <ul className={`list-none p-0 my-0 bg-surface shadow ${BLEED}`}>{rows.map(workRow)}</ul>
   )
 
   function dismissWelcome(notificationId: number) {
@@ -271,7 +329,7 @@ export default function HomePage() {
         >
           <p>
             {welcome.emailConfirmed
-              ? 'Your application has been approved. Browse projects to find something you can help with, or pick up a Quick Task to get started.'
+              ? 'Your application has been approved. Browse projects to find something you can help with, or pick up a quick task to get started.'
               : 'Your application has been approved. One last step: confirm your email address, then you can browse projects and pick a first task.'}
           </p>
           <div className="mt-4 flex justify-end gap-2">
@@ -288,8 +346,10 @@ export default function HomePage() {
         </Modal>
       )}
       <main className="container py-5 pb-15">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 role="heading">Hi {user.name}</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <h1 role="heading" className="mb-0">
+            Home
+          </h1>
           {isMember && <Button href="/suggest">Propose a project</Button>}
         </div>
 
@@ -297,7 +357,7 @@ export default function HomePage() {
           <div className="flex items-center justify-between gap-3 p-4 rounded-lg mb-5 bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
             <span>We need a bit more information before we can review your application.</span>
             <Button href="/settings" size="sm">
-              Update Application
+              Update application
             </Button>
           </div>
         )}
@@ -335,7 +395,7 @@ export default function HomePage() {
             {data.attention.length === 0 ? (
               <p className="text-text-light">Nothing is waiting on you right now.</p>
             ) : (
-              <ul className="list-none p-0 m-0 bg-surface rounded-xl shadow">
+              <ul className={`list-none p-0 my-0 bg-surface shadow ${BLEED}`}>
                 {data.attention.map((a) => (
                   <li
                     key={a.key}
@@ -397,15 +457,26 @@ export default function HomePage() {
                     {finished.length > 0
                       ? 'Nothing on the go right now.'
                       : "You're not working on anything yet."}{' '}
-                    <Link href="/quick-tasks">Pick up a Quick Task</Link> or{' '}
+                    <Link href="/quick-tasks">Pick up a quick task</Link> or{' '}
                     <Link href="/projects">browse projects</Link>.
                   </>
                 ) : (
                   'Nothing here. Try another filter.'
                 )}
               </p>
+            ) : urgent.length === 0 ? (
+              workList(rest)
             ) : (
-              workList(work)
+              <>
+                <h3 className={`${SUB_HEADING} mt-0`}>Needs attention now</h3>
+                {workList(urgent)}
+                {rest.length > 0 && (
+                  <>
+                    <h3 className={`${SUB_HEADING} mt-5`}>Everything else</h3>
+                    {workList(rest)}
+                  </>
+                )}
+              </>
             )}
           </section>
         )}
@@ -427,12 +498,12 @@ export default function HomePage() {
               </button>
             </h2>
             {showFind && (
-              <div id="find-body" className="bg-surface rounded-xl shadow px-5 py-2">
+              <div id="find-body" className={`bg-surface shadow px-4 sm:px-5 py-2 ${BLEED}`}>
                 <FindRowView
-                  label="Quick Tasks"
+                  label="Quick tasks"
                   row={data.find.quickTasks}
                   seeAll="/quick-tasks"
-                  empty="No open Quick Tasks right now."
+                  empty="No open quick tasks right now."
                 />
                 <FindRowView
                   label="Matches your skills"

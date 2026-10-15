@@ -72,17 +72,17 @@ test.describe('Authentication: Signup & Login', () => {
     const page = await context.newPage()
     try {
       await page.goto(`${baseUrl}/signup`)
-      await page.getByLabel('Your Name').fill('Duplicate User')
+      await page.getByLabel('Your name').fill('Duplicate User')
       await page.getByLabel('Email', { exact: true }).fill(volunteer.email)
       await page.getByLabel('Password', { exact: true }).fill('testpassword1')
-      await page.getByLabel('Confirm Password').fill('testpassword1')
+      await page.getByLabel('Confirm password').fill('testpassword1')
       await page.getByRole('button', { name: 'Next: About you' }).click()
-      await page.getByLabel('Your Application').fill('e2e test application message')
-      await page.getByLabel('About You').fill('e2e test bio, at least twenty characters long')
-      await page.getByLabel('Hours per Week').fill('5')
+      await page.getByLabel('Your application').fill('e2e test application message')
+      await page.getByLabel('About you').fill('e2e test bio, at least twenty characters long')
+      await page.getByLabel('Hours per week').fill('5')
       await selectFilterDropdown(page, 'Select country', 'United Kingdom')
       await page.getByRole('button', { name: 'Next: Skills and privacy' }).click()
-      await page.getByRole('button', { name: 'Submit Application' }).click()
+      await page.getByRole('button', { name: 'Submit application' }).click()
       await expect(getAlert(page)).toContainText('Email already registered', { timeout: 10_000 })
     } finally {
       await context.close()
@@ -96,7 +96,7 @@ test.describe('Authentication: Signup & Login', () => {
     try {
       await page.goto(`${baseUrl}/signup`)
       const person = fake.person()
-      await page.getByLabel('Your Name').fill(person.name)
+      await page.getByLabel('Your name').fill(person.name)
       await page.getByLabel('Email', { exact: true }).fill(person.email)
       // Remove HTML minlength so the browser doesn't intercept before the JS handler runs
       await page.evaluate(() => {
@@ -104,7 +104,7 @@ test.describe('Authentication: Signup & Login', () => {
         document.querySelector('#password_confirm')?.removeAttribute('minlength')
       })
       await page.getByLabel('Password', { exact: true }).fill('abc')
-      await page.getByLabel('Confirm Password').fill('abc')
+      await page.getByLabel('Confirm password').fill('abc')
       // The account step checks the password before moving on.
       await page.getByRole('button', { name: 'Next: About you' }).click()
       await expect(getAlert(page)).toContainText('at least 8 characters', { timeout: 10_000 })
@@ -150,7 +150,7 @@ test.describe('Authentication: Signup & Login', () => {
 
     const card = adminPage.getByRole('article').filter({ hasText: person.name })
     await expect(card).toBeVisible({ timeout: 20_000 })
-    await card.getByRole('button', { name: 'Start Review' }).click()
+    await card.getByRole('button', { name: 'Start review' }).click()
     await expect(adminPage).toHaveURL(/\/admin\/applications\/\d+/, { timeout: 10_000 })
     await adminPage.getByRole('button', { name: 'Approve' }).click()
     await expect(adminPage.getByRole('dialog')).toBeVisible({ timeout: 5_000 })
@@ -178,7 +178,7 @@ test.describe('Authentication: Signup & Login', () => {
       await expect(welcome).not.toBeVisible()
       await markedRead
       await page.reload()
-      await expect(page.getByRole('heading', { level: 1, name: /^Hi / })).toBeVisible({
+      await expect(page.getByRole('heading', { level: 1, name: 'Home', exact: true })).toBeVisible({
         timeout: 10_000,
       })
       await expect(welcome).not.toBeVisible()
@@ -240,7 +240,7 @@ test.describe('Authentication: Signup & Login', () => {
 
     const card = adminPage.getByRole('article').filter({ hasText: person.name })
     await expect(card).toBeVisible({ timeout: 20_000 })
-    await card.getByRole('button', { name: 'Start Review' }).click()
+    await card.getByRole('button', { name: 'Start review' }).click()
     await expect(adminPage).toHaveURL(/\/admin\/applications\/\d+/, { timeout: 10_000 })
     await adminPage.goto(`${baseUrl}/admin/applications`)
     await expect(adminPage.getByRole('heading', { name: 'Applications' })).toBeVisible({
@@ -249,7 +249,7 @@ test.describe('Authentication: Signup & Login', () => {
 
     // Card stays visible in "mine" filter (UNDER_REVIEW by me is still "mine")
     const mineCard = adminPage.getByRole('article').filter({ hasText: person.name })
-    await expect(mineCard.getByRole('button', { name: 'Continue Review' })).toBeVisible({
+    await expect(mineCard.getByRole('button', { name: 'Continue review' })).toBeVisible({
       timeout: 5_000,
     })
     await expect(mineCard.getByText(/Reviewer:/)).toBeVisible()
@@ -289,7 +289,7 @@ test.describe('Authentication: Signup & Login', () => {
 
     const card = adminPage.getByRole('article').filter({ hasText: person.name })
     await expect(card).toBeVisible({ timeout: 20_000 })
-    await card.getByRole('button', { name: 'Start Review' }).click()
+    await card.getByRole('button', { name: 'Start review' }).click()
     await expect(adminPage).toHaveURL(/\/admin\/applications\/\d+/, { timeout: 10_000 })
 
     await adminPage.getByPlaceholder('Notes visible only to admins…').fill('Spam account')
@@ -374,16 +374,16 @@ test.describe('Authentication: Signup & Login', () => {
       await page.getByRole('button', { name: /Sign up with Google/ }).click()
 
       // Google identity verified (no account created yet); application form appears
-      await expect(page.getByLabel('Your Application')).toBeVisible({ timeout: 10_000 })
-      await expect(page.getByLabel('Your Name')).toHaveValue(googleName)
-      await expect(page.getByLabel('Your Name')).toBeDisabled()
+      await expect(page.getByLabel('Your application')).toBeVisible({ timeout: 10_000 })
+      await expect(page.getByLabel('Your name')).toHaveValue(googleName)
+      await expect(page.getByLabel('Your name')).toBeDisabled()
 
-      await page.getByLabel('Your Application').fill(applicationMessage)
-      await page.getByLabel('About You').fill('e2e test bio, at least twenty characters long')
-      await page.getByLabel('Hours per Week').fill('5')
+      await page.getByLabel('Your application').fill(applicationMessage)
+      await page.getByLabel('About you').fill('e2e test bio, at least twenty characters long')
+      await page.getByLabel('Hours per week').fill('5')
       await selectFilterDropdown(page, 'Select country', 'United Kingdom')
       await page.getByRole('button', { name: 'Next: Skills and privacy' }).click()
-      await page.getByRole('button', { name: 'Submit Application' }).click()
+      await page.getByRole('button', { name: 'Submit application' }).click()
 
       await expect(page.getByRole('heading', { name: 'Application received' })).toBeVisible({
         timeout: 10_000,

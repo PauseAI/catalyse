@@ -1,13 +1,17 @@
 import { prisma } from '@/lib/prisma'
-import { projectScopeWhere, type ProjectViewer } from '@/lib/work-item'
+import { loadTaskStatusViews, projectScopeWhere, type ProjectViewer } from '@/lib/work-item'
+import type { TaskDisplayStatus, TaskRef } from '@/lib/task-status'
 import { authedProcedure } from '../procedures'
 import { ADVERTISABLE_STATUSES, TERMINAL_STATUSES, projectStatusLabel } from '@/lib/project-status'
-import {
-  INTEREST_STATUS_LABELS,
-  QUICK_TASK_STATUS_LABELS,
-  TASK_STATUS_LABELS,
-} from '@/lib/status-labels'
+import { QUICK_TASK_STATUS_LABELS, TASK_STATUS_LABELS } from '@/lib/status-labels'
 import { daysQuiet } from '@/lib/staleness'
+import { lateProjects, pastPlanTasks } from '@/lib/project-schedule'
+import { pastPlanDetail } from '@/lib/replan'
+import { plural } from '@/lib/plural'
+import { handedIn } from '@/lib/overdue'
+import { attentionReason, needsAttentionNow } from '@/lib/work-urgency'
+import { toWorkItemSummary, type WorkItemSummary } from '@/lib/work-item-summary'
+import { HELPER_COUNT } from '@/lib/task-helpers'
 import {
   ApprovalStatus,
   ContactRequestStatus,
@@ -26,10 +30,12 @@ export type AttentionKind =
   | 'applicants'
   | 'changes_requested'
   | 'quiet_task'
+  | 'past_plan'
   | 'mention'
   | 'submission'
   | 'invite'
   | 'contact_request'
+  | 'ready_to_complete'
 
 export type AttentionItem = {
   key: string
@@ -50,18 +56,58 @@ export type WorkRow = {
   kind: WorkKind
   title: string
   href: string
-  role: 'Lead' | 'Deputy' | 'Helper' | 'Proposed' | 'Task' | 'Member'
+  role:
+    | 'Lead'
+    | 'Deputy'
+    | 'Helper'
+    | 'Proposed'
+    | 'Task'
+    | 'Member'
+    | 'Asked to lead'
+    | 'Asked to help'
   status: string | null
+  /** A project's stored status, for its badge's colour. */
+  statusKey?: string
+  /** Who holds a project: its owner. */
+  ownerName?: string | null
   /** The project a task belongs to. */
   context: string | null
   /** Finished or archived work, listed after the rest. */
   done: boolean
+  /** A project whose plan runs past its deadline, by this many days. */
+  daysLate?: number
+  /** A project the viewer leads or deputises on: its lateness is theirs to act on. */
+  leads?: boolean
+  /** A task's or project's deadline. */
+  deadline?: Date | null
+  /** A task of mine whose plan ended this many days ago while it is not done. */
+  pastPlanDays?: number
+  /** A project task's shown status (lib/task-status.ts); `status` is its label. */
+  displayStatus?: TaskDisplayStatus
+  blockedBy?: TaskRef[]
+  /** A task as `WorkItemCard` draws it. */
+  item?: WorkItemSummary
+  estimatedHours?: number | null
+  /** Whether the task belongs in Home's "Needs attention now" (`needsAttentionNow`). */
+  needsAttention?: boolean
+  /** Why, beyond its own due date (`attentionReason`); null when the due date is reason enough. */
+  attention?: string | null
+}
+
+/** Earliest deadline first, rows without one last; otherwise the order they came in. */
+function byDeadline(a: WorkRow, b: WorkRow): number {
+  const at = (r: WorkRow) => (r.deadline ? new Date(r.deadline).getTime() : Infinity)
+  // Two rows without a deadline give Infinity - Infinity, NaN: treat them as equal.
+  return at(a) - at(b) || 0
 }
 
 export type FindItem = { id: number; title: string; href: string; reason: string | null }
 export type FindRow = { count: number; items: FindItem[] }
 
 const FIND_ROW_SIZE = 3
+
+/** A project task someone holds and has not handed in: claimed, whether or not started. */
+const HELD_TASK_STATUSES: TaskStatus[] = [TaskStatus.not_started, TaskStatus.in_progress]
 
 type Viewer = ProjectViewer & { id: number }
 
@@ -101,7 +147,7 @@ async function attentionFor(viewer: Viewer): Promise<AttentionItem[]> {
           assigneeId: viewer.id,
           changesRequestedNote: null,
           OR: [
-            { type: WorkItemType.TASK, status: TaskStatus.in_progress },
+            { type: WorkItemType.TASK, status: { in: HELD_TASK_STATUSES } },
             { type: WorkItemType.QUICK_TASK, status: QuickTaskStatus.in_progress },
           ],
         },
@@ -235,6 +281,41 @@ async function attentionFor(viewer: Viewer): Promise<AttentionItem[]> {
     })
   }
 
+  // Running projects I own whose every task is done, waiting on me to complete them.
+  const allDone = await prisma.workItem.findMany({
+    where: {
+      type: WorkItemType.PROJECT,
+      assigneeId: viewer.id,
+      status: ProjectStatus.in_progress,
+      children: {
+        some: { type: WorkItemType.TASK },
+        none: { type: WorkItemType.TASK, status: { not: TaskStatus.completed } },
+      },
+    },
+    select: {
+      id: true,
+      title: true,
+      children: {
+        where: { type: WorkItemType.TASK },
+        select: { completedAt: true },
+        orderBy: { completedAt: { sort: 'desc', nulls: 'last' } },
+        take: 1,
+      },
+    },
+  })
+  for (const p of allDone) {
+    items.push({
+      key: `ready-${p.id}`,
+      kind: 'ready_to_complete',
+      title: `"${p.title}": every task is done`,
+      detail: 'Ready to complete the project?',
+      href: `/projects/${p.id}`,
+      action: 'Complete',
+      notificationId: null,
+      at: p.children[0].completedAt,
+    })
+  }
+
   for (const t of quietTasks) {
     const days = daysQuiet(t.updatedAt)
     if (days === null) continue
@@ -276,11 +357,38 @@ async function attentionFor(viewer: Viewer): Promise<AttentionItem[]> {
     })
   }
 
-  return items.sort((a, b) => (b.at?.getTime() ?? 0) - (a.at?.getTime() ?? 0))
+  // A task past its plan waits on the owner's decision, so it goes above everything else.
+  const led = await prisma.workItem.findMany({
+    where: {
+      type: WorkItemType.PROJECT,
+      OR: [{ assigneeId: viewer.id }, { deputies: { some: { volunteerId: viewer.id } } }],
+    },
+    select: { id: true },
+  })
+  const decisions: AttentionItem[] = (await pastPlanTasks(led.map((p) => p.id))).map((t) => ({
+    key: `past-plan-${t.id}`,
+    kind: 'past_plan',
+    title: `"${t.title}" in ${t.projectTitle} is ${plural(t.daysPast, 'day')} past plan`,
+    detail: pastPlanDetail(t),
+    href: `/projects/${t.projectId}/tasks/${t.id}`,
+    action: 'Decide',
+    notificationId: null,
+    at: null,
+  }))
+
+  return [...decisions, ...items.sort((a, b) => (b.at?.getTime() ?? 0) - (a.at?.getTime() ?? 0))]
 }
 
 async function workFor(viewer: Viewer): Promise<WorkRow[]> {
-  const projectSelect = { id: true, title: true, status: true, updatedAt: true } as const
+  const projectSelect = {
+    id: true,
+    title: true,
+    status: true,
+    updatedAt: true,
+    startDate: true,
+    deadline: true,
+    assignee: { select: { name: true } },
+  } as const
   const [owned, interests, proposed, tasks, memberships, deputyRows] = await Promise.all([
     prisma.workItem.findMany({
       where: { type: WorkItemType.PROJECT, assigneeId: viewer.id },
@@ -304,19 +412,30 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
     }),
     prisma.workItem.findMany({
       where: {
-        assigneeId: viewer.id,
         OR: [
           {
+            assigneeId: viewer.id,
             type: WorkItemType.TASK,
-            status: { in: [TaskStatus.in_progress, TaskStatus.under_review] },
+            status: { in: [...HELD_TASK_STATUSES, TaskStatus.under_review] },
           },
           {
+            assigneeId: viewer.id,
             type: WorkItemType.QUICK_TASK,
             status: { in: [QuickTaskStatus.in_progress, QuickTaskStatus.under_review] },
           },
+          // Tasks I help on beside their lead.
+          {
+            type: WorkItemType.TASK,
+            status: { in: [...HELD_TASK_STATUSES, TaskStatus.under_review] },
+            interests: { some: { volunteerId: viewer.id, status: InterestStatus.accepted } },
+          },
         ],
       },
-      include: { parent: { select: { title: true } } },
+      include: {
+        parent: { select: { title: true } },
+        assignee: { select: { name: true } },
+        ...HELPER_COUNT,
+      },
       orderBy: { updatedAt: 'desc' },
     }),
     prisma.teamMembership.findMany({
@@ -330,43 +449,44 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
     }),
   ])
   const deputyOf = new Set(deputyRows.map((d) => d.projectId))
+  const ownedIds = new Set(owned.map((p) => p.id))
 
   // A project appears once, under the closest tie: leading, deputising, helping, proposing,
   // applying.
   const projects = new Map<number, WorkRow & { updatedAt: Date | null }>()
-  const addProject = (
-    p: { id: number; title: string; status: string; updatedAt: Date | null },
-    role: WorkRow['role'],
-    status: string,
-  ) => {
+  const projectRowsById = new Map<number, (typeof owned)[number]>()
+  const addProject = (p: (typeof owned)[number], role: WorkRow['role']) => {
     if (projects.has(p.id)) return
+    projectRowsById.set(p.id, p)
     projects.set(p.id, {
       key: `project-${p.id}`,
       kind: 'project',
       title: p.title,
       href: p.status === ProjectStatus.draft ? `/projects/${p.id}/edit` : `/projects/${p.id}`,
       role,
-      status,
+      status: projectStatusLabel(p.status),
+      statusKey: p.status,
+      ownerName: p.assignee?.name ?? null,
       context: null,
       done: TERMINAL_STATUSES.includes(p.status),
+      deadline: p.deadline,
+      leads: (role === 'Lead' && ownedIds.has(p.id)) || role === 'Deputy',
       updatedAt: p.updatedAt,
     })
   }
-  for (const p of owned) addProject(p, 'Lead', projectStatusLabel(p.status))
+  for (const p of owned) addProject(p, 'Lead')
   for (const i of interests.filter((i) => i.status === InterestStatus.accepted)) {
-    addProject(
-      i.workItem,
-      deputyOf.has(i.workItem.id) ? 'Deputy' : 'Helper',
-      projectStatusLabel(i.workItem.status),
-    )
+    addProject(i.workItem, deputyOf.has(i.workItem.id) ? 'Deputy' : 'Helper')
   }
-  for (const p of proposed) addProject(p, 'Proposed', projectStatusLabel(p.status))
+  for (const p of proposed) addProject(p, 'Proposed')
   for (const i of interests.filter((i) => i.status === InterestStatus.pending)) {
-    addProject(
-      i.workItem,
-      i.interestType === 'want_to_own' ? 'Lead' : 'Helper',
-      INTEREST_STATUS_LABELS[i.status],
-    )
+    addProject(i.workItem, i.interestType === 'want_to_own' ? 'Asked to lead' : 'Asked to help')
+  }
+
+  const late = await lateProjects([...projectRowsById.values()])
+  for (const [id, row] of projects) {
+    const days = late.get(id)
+    if (days) row.daysLate = days
   }
 
   const projectRows = [...projects.values()]
@@ -377,19 +497,60 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
     )
     .map(({ updatedAt: _updatedAt, ...row }) => row)
 
-  const taskRows: WorkRow[] = tasks.map((t) => ({
-    key: `task-${t.id}`,
-    kind: 'task',
-    title: t.title,
-    href: taskHref(t),
-    role: 'Task',
-    status:
-      t.type === WorkItemType.QUICK_TASK
-        ? QUICK_TASK_STATUS_LABELS[t.status]
-        : TASK_STATUS_LABELS[t.status],
-    context: t.parent?.title ?? null,
-    done: false,
-  }))
+  const pastPlan = new Map(
+    (
+      await pastPlanTasks([
+        ...new Set(
+          tasks.flatMap((t) => (t.type === WorkItemType.TASK && t.parentId ? [t.parentId] : [])),
+        ),
+      ])
+    ).map((p) => [p.id, p.daysPast]),
+  )
+  const projectTasks = tasks.filter((t) => t.type === WorkItemType.TASK)
+  const loaded = await loadTaskStatusViews(projectTasks)
+  const views = new Map(projectTasks.map((t, i) => [t.id, loaded[i]]))
+  const today = new Date()
+  const taskRows: WorkRow[] = tasks.map((t) => {
+    const view = views.get(t.id)
+    const shown = view?.displayStatus ?? t.status
+    const row: WorkRow = {
+      key: `task-${t.id}`,
+      kind: 'task',
+      title: t.title,
+      href: taskHref(t),
+      role: t.assigneeId === viewer.id ? 'Task' : 'Helper',
+      status: QUICK_TASK_STATUS_LABELS[t.status],
+      context: t.parent?.title ?? null,
+      done: false,
+      deadline: t.deadline,
+      pastPlanDays: pastPlan.get(t.id),
+      item: {
+        ...toWorkItemSummary(t, shown, {
+          id: viewer.id,
+          canReview:
+            Boolean(viewer.isAdmin) ||
+            (t.parentId !== null && (ownedIds.has(t.parentId) || deputyOf.has(t.parentId))),
+        }),
+        href: taskHref(t),
+      },
+      estimatedHours: t.estimatedHours,
+      needsAttention: needsAttentionNow(
+        { deadline: t.deadline, estimatedHours: t.estimatedHours, done: handedIn(shown) },
+        today,
+      ),
+      attention: attentionReason(
+        { deadline: t.deadline, estimatedHours: t.estimatedHours, done: handedIn(shown) },
+        today,
+      ),
+    }
+    if (!view) return row
+    return {
+      ...row,
+      status: TASK_STATUS_LABELS[view.displayStatus],
+      displayStatus: view.displayStatus,
+      blockedBy: view.blockedBy,
+    }
+  })
 
   const teamRows: WorkRow[] = memberships.map((m) => ({
     key: `team-${m.team.id}`,
@@ -402,9 +563,13 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
     done: false,
   }))
 
-  return [...taskRows, ...projectRows.filter((r) => !r.done), ...teamRows].concat(
-    projectRows.filter((r) => r.done),
-  )
+  // "Needs attention now" first, then everything else, each by deadline; finished work last.
+  const current = [...taskRows, ...projectRows.filter((r) => !r.done), ...teamRows]
+  return [
+    ...current.filter((r) => r.needsAttention).sort(byDeadline),
+    ...current.filter((r) => !r.needsAttention).sort(byDeadline),
+    ...projectRows.filter((r) => r.done),
+  ]
 }
 
 async function findFor(

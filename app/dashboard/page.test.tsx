@@ -29,7 +29,7 @@ describe('home', () => {
       emailDigest: null,
     })
     await renderApp(<HomePage />, { as: pending, url: '/dashboard' })
-    await screen.findByRole('heading', { name: `Hi ${pending.name}` })
+    await screen.findByRole('heading', { name: 'Home' })
     expect(document.title).toBe('Catalyse | Home')
     const checklist = screen.getByRole('region', { name: 'Getting started' })
     expect(within(checklist).getByText('Application under review')).toBeInTheDocument()
@@ -58,7 +58,7 @@ describe('home', () => {
 
     const needsInfo = await createVolunteer({ approvalStatus: 'needs_info' })
     await renderApp(<HomePage />, { as: needsInfo, url: '/dashboard' })
-    expect(await screen.findByRole('link', { name: 'Update Application' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Update application' })).toBeInTheDocument()
   })
 
   it('opens discovery for someone with nothing of their own yet', async () => {
@@ -212,6 +212,152 @@ describe('home', () => {
     expect(within(finished).queryByRole('link', { name: 'Shelved' })).toBeNull()
   })
 
+  it('flags a project whose plan runs past its deadline', async () => {
+    const me = await createVolunteer()
+    const project = await createProject({
+      title: 'Behind',
+      assigneeId: me.id,
+      status: 'in_progress',
+      startDate: new Date('2026-09-20T00:00:00Z'),
+      deadline: new Date('2026-09-28T00:00:00Z'),
+    })
+    await createTask(project.id, { durationDays: 12 })
+    await renderApp(<HomePage />, { as: me, url: '/dashboard' })
+    const work = await screen.findByRole('region', { name: 'My work' })
+    const row = within(work).getByRole('link', { name: 'Behind' }).closest('li')!
+    // The deadline has passed, so the row counts from it rather than from the plan's forecast.
+    expect(within(row).getByText(/^\d+ days late$/)).toHaveAttribute('data-emphasis', 'filled')
+  })
+
+  it('words a request as what it asks, with the project status as the badge', async () => {
+    const me = await createVolunteer()
+    const project = await createProject({ title: 'Unowned', status: 'ready' })
+    await prisma.workItemInterest.create({
+      data: { workItemId: project.id, volunteerId: me.id, interestType: 'want_to_own' },
+    })
+    const team = await createTeam({ name: 'Crew' })
+    await prisma.teamMembership.create({ data: { teamId: team.id, volunteerId: me.id } })
+    await renderApp(<HomePage />, { as: me, url: '/dashboard' })
+    const work = await screen.findByRole('region', { name: 'My work' })
+    const row = (name: string) => within(work).getByRole('link', { name }).closest('li')!
+    expect(within(row('Unowned')).getByText('Asked to lead')).not.toHaveClass('status-badge')
+    expect(within(row('Unowned')).getByText('To do')).toHaveClass('status-badge')
+    expect(within(row('Unowned')).getByLabelText('No owner yet')).toBeInTheDocument()
+    // A team has neither a status nor one person holding it.
+    expect(within(row('Crew')).getByText('Member')).toBeInTheDocument()
+    expect(row('Crew').querySelector('.status-badge')).toBeNull()
+    expect(within(row('Crew')).queryByLabelText(/^Owner|No owner yet/)).toBeNull()
+  })
+
+  it('lists what needs attention now first, saying why, then everything else', async () => {
+    const me = await createVolunteer()
+    const project = await createProject({
+      title: 'Leafleting',
+      assigneeId: me.id,
+      status: 'in_progress',
+      deadline: new Date('2099-03-04T00:00:00Z'),
+    })
+    const mine = { assigneeId: me.id, status: 'in_progress' as const }
+    const due = (days: number) => new Date(Date.now() + days * DAY)
+    await createTask(project.id, { ...mine, title: 'Undated' })
+    await createTask(project.id, {
+      ...mine,
+      title: 'Far off',
+      deadline: due(20),
+      estimatedHours: 2,
+    })
+    await createTask(project.id, {
+      ...mine,
+      title: 'Big job',
+      deadline: due(6),
+      estimatedHours: 12,
+    })
+    await createTask(project.id, { ...mine, title: 'Soon', deadline: due(2) })
+    await createQuickTask({
+      ...mine,
+      title: 'Late quick',
+      deadline: new Date('2020-01-02T00:00:00Z'),
+    })
+    await renderApp(<HomePage />, { as: me, url: '/dashboard' })
+    const work = await screen.findByRole('region', { name: 'My work' })
+
+    // Sub-headings inside My work, not sections of their own.
+    const now = within(work).getByRole('heading', { level: 3, name: 'Needs attention now' })
+    const rest = within(work).getByRole('heading', { level: 3, name: 'Everything else' })
+    const [urgentList, restList] = within(work).getAllByRole('list')
+    expect(before(now, urgentList) && before(urgentList, rest) && before(rest, restList)).toBe(true)
+    const titles = (list: HTMLElement) =>
+      within(list)
+        .getAllByRole('listitem')
+        .map((li) => within(li).getAllByRole('link')[0].textContent)
+    expect(titles(urgentList)).toEqual(['Late quick', 'Soon', 'Big job'])
+    expect(titles(restList)).toEqual(['Far off', 'Leafleting', 'Undated'])
+
+    const row = (name: string) => within(work).getByRole('link', { name }).closest('li')!
+    expect(within(row('Late quick')).getByText(/^\d+ days late$/)).toHaveClass('status-badge')
+    // Already late or merely due soon reads as a badge, and no plain date repeats it.
+    expect(row('Late quick')).not.toHaveTextContent('Due 2 Jan 2020')
+    expect(within(row('Soon')).getByText('Due in 2 days')).toBeInTheDocument()
+    expect(row('Soon')).not.toHaveTextContent(/Due \d/)
+    expect(within(row('Far off')).getByText(/^Due \d+ \w+/)).toBeInTheDocument()
+    expect(
+      within(row('Big job')).getByText('About 12 hours of work, due in 6 days: start now'),
+    ).toBeInTheDocument()
+    expect(within(row('Big job')).getByText('In progress')).toBeInTheDocument()
+    expect(within(row('Undated')).getByText('No deadline')).toBeInTheDocument()
+    expect(within(row('Leafleting')).getByText('Due 4 Mar 2099')).toBeInTheDocument()
+    // A project row: its status is the badge, the viewer's role plain text, its owner on the right.
+    expect(within(row('Leafleting')).getByText('In progress')).toHaveClass('status-badge')
+    expect(within(row('Leafleting')).getByText('Lead')).not.toHaveClass('status-badge')
+    expect(within(row('Leafleting')).getByLabelText(`Owner ${me.name}`)).toBeInTheDocument()
+    expect(within(row('Undated')).getByLabelText(`Assigned to ${me.name}`)).toBeInTheDocument()
+    // Each row is one link, stretched over the whole row.
+    for (const li of within(work).getAllByRole('listitem')) {
+      expect(li).toHaveClass('relative')
+      expect(within(li).getAllByRole('link')).toHaveLength(1)
+      expect(within(li).getByRole('link')).toHaveClass('after:inset-0')
+    }
+
+    // A filter can leave only one part, which then needs no sub-heading of its own.
+    await userEvent.click(within(work).getByRole('button', { name: 'Projects' }))
+    expect(within(work).queryByRole('heading', { level: 3 })).toBeNull()
+    expect(within(work).getByRole('link', { name: 'Leafleting' })).toBeInTheDocument()
+  })
+
+  it('puts a task past its plan at the top for its owner, and flags it for the assignee', async () => {
+    const owner = await createVolunteer()
+    const sam = await createVolunteer({ name: 'Sam Late' })
+    const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
+    // Listed first in the database, but less overdue, so it comes second on Home.
+    await createTask(project.id, {
+      title: 'Slipped a little',
+      status: 'in_progress',
+      assigneeId: sam.id,
+      startDate: new Date(Date.now() - 5 * DAY),
+      durationDays: 3,
+    })
+    await createTask(project.id, {
+      title: 'Slipped',
+      status: 'in_progress',
+      assigneeId: sam.id,
+      startDate: new Date(Date.now() - 10 * DAY),
+      durationDays: 3,
+    })
+    await renderApp(<HomePage />, { as: owner, url: '/dashboard' })
+    const attention = await screen.findByRole('region', { name: /Needs your attention/ })
+    const [first, second] = within(attention).getAllByRole('listitem')
+    expect(first).toHaveTextContent(/"Slipped" in .* is \d+ days past plan/)
+    expect(second).toHaveTextContent(/"Slipped a little" in .* is \d+ days past plan/)
+    expect(first).toHaveTextContent('Assignee: Sam Late, no update yet.')
+    expect(within(first).getByRole('link', { name: /^Decide/ })).toBeInTheDocument()
+    cleanup()
+
+    await renderApp(<HomePage />, { as: sam, url: '/dashboard' })
+    const work = await screen.findByRole('region', { name: 'My work' })
+    const row = (await within(work).findByRole('link', { name: 'Slipped' })).closest('li')!
+    expect(within(row).getByText(/^\d+ days late$/)).toHaveAttribute('data-emphasis', 'filled')
+  })
+
   it('says so when a filter leaves nothing, and when nothing matches', async () => {
     const skill = await createSkill()
     const me = await createVolunteer({
@@ -293,7 +439,7 @@ describe('home', () => {
     // Read, so a later visit does not show it again.
     cleanup()
     await renderApp(<HomePage />, { as: me, url: '/dashboard' })
-    await screen.findByRole('heading', { name: `Hi ${me.name}` })
+    await screen.findByRole('heading', { name: 'Home' })
     expect(screen.queryByRole('dialog')).toBeNull()
 
     // A confirmed volunteer is sent to the projects, and following the link dismisses it.

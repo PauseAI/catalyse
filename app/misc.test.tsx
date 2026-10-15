@@ -21,14 +21,14 @@ describe('static pages', () => {
     const reset = vi.fn()
     render(<ErrorPage error={new Error('boom')} reset={reset} />)
     expect(error).toHaveBeenCalled()
-    await userEvent.click(screen.getByRole('button', { name: 'Try Again' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(reset).toHaveBeenCalled()
-    expect(screen.getByRole('link', { name: 'Go Home' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: 'Go home' })).toHaveAttribute('href', '/')
   })
 
   it('not-found and landing pages render', async () => {
     render(<NotFound />)
-    expect(screen.getByText('Page Not Found')).toBeInTheDocument()
+    expect(screen.getByText('Page not found')).toBeInTheDocument()
     await renderApp(<Landing />)
     expect(screen.getAllByRole('link', { name: 'Apply to join' }).length).toBeGreaterThan(0)
   })
@@ -51,7 +51,7 @@ describe('editor host pages', () => {
     await renderApp(<EditProjectPage params={Promise.resolve({ id: String(project.id) })} />, {
       as: me,
     })
-    await waitFor(() => expect(document.body.textContent).toContain('Edit Project'))
+    await waitFor(() => expect(document.body.textContent).toContain('Edit project'))
     expect(await screen.findByDisplayValue('Hosted')).toBeInTheDocument()
 
     await renderApp(<SuggestNewProjectPage />, { as: me })
@@ -68,7 +68,7 @@ describe('editor host pages', () => {
 
     const admin = await createAdmin()
     await renderApp(<AdminCreateProjectPage />, { as: admin })
-    expect(await screen.findByRole('heading', { name: 'Org Projects' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Org projects' })).toBeInTheDocument()
     await userEvent.click(screen.getAllByRole('button', { name: 'Cancel' }).at(-1)!)
     await waitFor(() => expect(navigation.push).toHaveBeenCalledWith('/admin/projects'))
   })

@@ -18,6 +18,7 @@ import { libpqUrl } from '../jobs/backup'
 import { resolveDbUrl } from '../lib/db-url'
 import { anonymise } from './anonymise-db'
 import { seedDevAccounts } from './seed-dev-accounts'
+import { claimDisposable } from './disposable-db'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
@@ -117,6 +118,7 @@ async function emptyDatabase(dbUrl: string): Promise<void> {
   const client = new Client({ connectionString: dbUrl })
   await client.connect()
   try {
+    await claimDisposable(client, 'restore over it')
     await client.query('DROP SCHEMA IF EXISTS public CASCADE')
     await client.query('CREATE SCHEMA public')
   } finally {

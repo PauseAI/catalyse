@@ -10,6 +10,7 @@ import {
   adminRecordOutcome,
   transferProjectOwnership,
 } from '../actions/projects'
+import { postComment } from '../actions/ui'
 
 test.describe('Project Lifecycle', () => {
   test('Volunteer proposes a project with tasks; admin approves; project moves to Ready', async ({
@@ -31,7 +32,7 @@ test.describe('Project Lifecycle', () => {
 
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
-    await expect(volunteer.page.getByLabel('project status')).toContainText('Ready', {
+    await expect(volunteer.page.getByLabel('project status')).toContainText('To do', {
       timeout: 10_000,
     })
   })
@@ -59,13 +60,13 @@ test.describe('Project Lifecycle', () => {
     })
 
     await adminPage.getByRole('radio', { name: /Ask for changes/ }).click()
-    await adminPage.getByLabel('Message to Proposer').fill(feedbackText)
-    await adminPage.getByRole('button', { name: 'Submit Review' }).click()
+    await adminPage.getByLabel('Message to proposer').fill(feedbackText)
+    await adminPage.getByRole('button', { name: 'Submit review' }).click()
     await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 
-    // Project status becomes needs_discussion — visible in the triage "Needs Changes" tab
+    // Project status becomes needs_discussion — visible in the triage "Needs changes" tab
     await adminPage.goto(`${baseUrl}/admin/triage`)
-    await adminPage.getByRole('tab', { name: 'Needs Changes' }).click()
+    await adminPage.getByRole('tab', { name: 'Needs changes' }).click()
     await expect(adminPage.locator('.card').filter({ hasText: title })).toBeVisible({
       timeout: 10_000,
     })
@@ -94,7 +95,7 @@ test.describe('Project Lifecycle', () => {
     await expect(banner).toHaveCount(0)
 
     await adminPage.goto(`${baseUrl}/admin/triage`)
-    await adminPage.getByRole('tab', { name: /^Pending Review/ }).click()
+    await adminPage.getByRole('tab', { name: /^In review/ }).click()
     await expect(adminPage.locator('.card').filter({ hasText: title })).toBeVisible({
       timeout: 10_000,
     })
@@ -118,8 +119,8 @@ test.describe('Project Lifecycle', () => {
       timeout: 10_000,
     })
     await adminPage.getByRole('radio', { name: /Ask for changes/ }).click()
-    await adminPage.getByLabel('Message to Proposer').fill(feedbackText)
-    await adminPage.getByRole('button', { name: 'Submit Review' }).click()
+    await adminPage.getByLabel('Message to proposer').fill(feedbackText)
+    await adminPage.getByRole('button', { name: 'Submit review' }).click()
     await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 
     // Proposer sees the review message as a comment on their project
@@ -132,16 +133,15 @@ test.describe('Project Lifecycle', () => {
     // Admin posts a follow-up reply via the triage modal thread
     const followUp = fake.feedbackText()
     await adminPage.goto(`${baseUrl}/admin/triage`)
-    await adminPage.getByRole('tab', { name: 'Needs Changes' }).click()
+    await adminPage.getByRole('tab', { name: 'Needs changes' }).click()
     const discussionCard = adminPage.locator('.card').filter({ hasText: title })
     await expect(discussionCard).toBeVisible({ timeout: 10_000 })
     await discussionCard.getByRole('link', { name: 'Review' }).click()
     await expect(adminPage.getByRole('heading', { name: 'Review Project' })).toBeVisible({
       timeout: 10_000,
     })
-    await adminPage.getByRole('tab', { name: 'Discussion' }).click()
-    await adminPage.getByLabel('Add a comment').fill(followUp)
-    await adminPage.getByRole('button', { name: 'Post Comment' }).click()
+    // The Discussion is on the Overview, under the review form.
+    await postComment(adminPage, followUp)
     await expect(getAlert(adminPage)).toContainText('Comment added', { timeout: 10_000 })
 
     // Proposer sees the follow-up too (the page is already at this address, so reload it)
@@ -154,8 +154,8 @@ test.describe('Project Lifecycle', () => {
     await adminCreateProject(baseUrl, adminPage, title, 'Admin-created project description')
 
     // Org projects skip review, so this one is live immediately — but the admin didn't
-    // claim it, so it goes live as Ready rather than In Progress.
-    await expect(adminPage.getByLabel('project status')).toContainText('Ready', {
+    // claim it, so it goes live as Ready rather than In progress.
+    await expect(adminPage.getByLabel('project status')).toContainText('To do', {
       timeout: 10_000,
     })
 
@@ -180,7 +180,7 @@ test.describe('Project Lifecycle', () => {
     )
     await adminApproveProject(baseUrl, adminPage, title)
 
-    // Admin assigns volunteer as owner via the Transfer Ownership UI
+    // Admin assigns volunteer as owner from the Owner chip's picker
     await transferProjectOwnership(baseUrl, adminPage, projectId, volunteer.name)
 
     // Owner (volunteer) changes status to completed via the dropdown
@@ -210,7 +210,7 @@ test.describe('Project Lifecycle', () => {
     )
     await adminApproveProject(baseUrl, adminPage, title)
 
-    // Admin assigns volunteer as owner via the Transfer Ownership UI
+    // Admin assigns volunteer as owner from the Owner chip's picker
     await transferProjectOwnership(baseUrl, adminPage, projectId, volunteer.name)
 
     // Set project to completed
@@ -231,7 +231,7 @@ test.describe('Project Lifecycle', () => {
   })
 })
 
-test.describe('Project Creation Requires At Least One Task', () => {
+test.describe('Task requirements at project creation', () => {
   // The volunteer equivalent of this — saving a draft with no tasks, then trying to
   // publish it — is covered by "Publishing a draft with no tasks is rejected" in
   // 34-project-drafts.spec.ts.

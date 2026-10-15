@@ -4,13 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import { createVolunteer } from '@/test/factories'
 import { renderApp } from '@/test/render'
-import {
-  ProjectCard,
-  ProjectList,
-  statusBadgeClasses,
-  projectStatusVariant,
-  type Project,
-} from './ProjectCard'
+import { ProjectCard, ProjectList, type Project } from './ProjectCard'
 import BugReportDialog from './BugReportDialog'
 
 const base: Project = {
@@ -36,6 +30,7 @@ describe('ProjectCard', () => {
           ...base,
           isSeekingHelp: true,
           needsTasks: true,
+          daysLate: 2,
           country: 'UK',
           localGroup: 'Leeds',
           remoteEligibility: 'GLOBAL',
@@ -55,9 +50,11 @@ describe('ProjectCard', () => {
       />,
     )
     expect(screen.getByRole('link', { name: 'Rally' })).toHaveAttribute('href', '/projects/1')
-    expect(screen.getByText('In Progress')).toBeInTheDocument()
-    expect(screen.getByText('Seeking Help')).toBeInTheDocument()
-    expect(screen.getByText('Needs Tasks')).toBeInTheDocument()
+    expect(screen.getByText('In progress')).toBeInTheDocument()
+    expect(screen.getByText('• Seeking help')).toBeInTheDocument()
+    expect(screen.getByText('• Needs tasks')).toBeInTheDocument()
+    // A list that does not say whether the viewer leads it shows the lateness filled.
+    expect(screen.getByText('2 days late')).toHaveAttribute('data-emphasis', 'filled')
     expect(screen.getByText('👤 Owen')).toBeInTheDocument()
     expect(screen.getByText('📍 Remote · Global · United Kingdom · Leeds')).toBeInTheDocument()
     expect(screen.getByText('🧑‍🤝‍🧑 Ops')).toBeInTheDocument()
@@ -70,7 +67,7 @@ describe('ProjectCard', () => {
     expect(screen.getByText('👤 Owen')).toHaveAttribute('title', 'Owner')
     expect(screen.getByText('⚡ high priority')).toHaveAttribute('title', 'Priority')
     expect(screen.getByText(/x{150}…/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'View Details' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'View details' })).toBeInTheDocument()
   })
 
   it('handles the ownerless card, proposer display, custom action, and unknown status/type', () => {
@@ -90,7 +87,7 @@ describe('ProjectCard', () => {
       />,
     )
     expect(screen.getByText('weird state')).toBeInTheDocument()
-    expect(screen.getByText('Seeking Owner')).toBeInTheDocument()
+    expect(screen.getByText('• Seeking owner')).toBeInTheDocument()
     expect(screen.getByText('👤 Seeking owner')).toBeInTheDocument()
     expect(screen.getByText('📋 other')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Act' })).toBeInTheDocument()
@@ -104,8 +101,24 @@ describe('ProjectCard', () => {
     // Skills the viewer lacks are hidden when they have any skills at all.
     rerender(<ProjectCard project={base} userSkillIds={new Set([99])} />)
     expect(screen.queryByText('A')).toBeNull()
-    expect(statusBadgeClasses('completed')).toContain('bg-emerald-100')
-    expect(projectStatusVariant('nope')).toBe('neutral')
+  })
+
+  it('outlines what the viewer waits on, and fills what is theirs to act on', () => {
+    const { rerender } = render(
+      <ProjectCard
+        project={{ ...base, status: 'pending_review', daysLate: 2, viewerLeads: false }}
+      />,
+    )
+    expect(screen.getByText('In review')).toHaveAttribute('data-emphasis', 'outline')
+    expect(screen.getByText('2 days late')).toHaveAttribute('data-emphasis', 'outline')
+    rerender(
+      <ProjectCard
+        project={{ ...base, status: 'pending_review', daysLate: 2, viewerLeads: true }}
+        viewerIsAdmin
+      />,
+    )
+    expect(screen.getByText('In review')).toHaveAttribute('data-emphasis', 'filled')
+    expect(screen.getByText('2 days late')).toHaveAttribute('data-emphasis', 'filled')
   })
 
   it('ProjectList lays cards out in a grid or a single column', () => {
@@ -141,7 +154,7 @@ describe('BugReportDialog', () => {
     await userEvent.click(screen.getByRole('button', { name: 'How urgent is this?' }))
     await userEvent.click(screen.getByRole('option', { name: 'High: blocking' }))
     await waitFor(() => expect(localStorage.getItem('authToken')).toBeTruthy())
-    await userEvent.click(screen.getByRole('button', { name: 'Submit Report' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Submit report' }))
     expect(await screen.findByText('Thank you!')).toBeInTheDocument()
     const report = await prisma.bugReport.findFirstOrThrow({ where: { reporterId: me.id } })
     expect(report).toMatchObject({ category: 'ux', severity: 'high', title: 'Confusing' })
@@ -159,7 +172,7 @@ describe('BugReportDialog', () => {
     await renderApp(<BugReportDialog isOpen onClose={onClose} />)
     await userEvent.type(screen.getByLabelText('Title'), 'T')
     await userEvent.type(screen.getByLabelText('Details'), 'Long enough description')
-    await userEvent.click(screen.getByRole('button', { name: 'Submit Report' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Submit report' }))
     expect(await screen.findByText('Unauthorized')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     await userEvent.click(screen.getByLabelText('Close'))

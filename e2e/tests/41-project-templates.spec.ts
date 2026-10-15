@@ -1,3 +1,4 @@
+import { openProjectMore } from '../actions/projects'
 import { test, expect, getAlert, readAdminToken } from '../fixtures'
 import { createApiClient } from '../client'
 import { fake } from '../fake'
@@ -87,6 +88,7 @@ test.describe('Project templates', () => {
     const source = await adminCreateCountryProjectViaApi(baseUrl, sourceTitle)
 
     await adminPage.goto(`${baseUrl}/projects/${source.id}`)
+    await openProjectMore(adminPage)
     await adminPage.getByRole('button', { name: 'Save as template' }).click()
     const templateTitle = `${sourceTitle} template`
     const dialog = adminPage.getByRole('dialog')
@@ -126,7 +128,7 @@ test.describe('Project templates', () => {
       timeout: 10_000,
     })
     // Title defaults to the template's own title, with a hint to make it group-specific.
-    await expect(adminPage.getByLabel('Project Title')).toHaveValue(templateTitle)
+    await expect(adminPage.getByLabel('Project title')).toHaveValue(templateTitle)
     await expect(adminPage.getByText(/adjust the title/i)).toBeVisible()
 
     const adminApi = createApiClient(baseUrl, readAdminToken(baseUrl))
@@ -179,8 +181,8 @@ test.describe('Project templates', () => {
 
     await expect(getAlert(adminPage)).toContainText('Project published', { timeout: 10_000 })
     await adminPage.waitForURL(`${baseUrl}/projects/${newProjectId}`, { timeout: 10_000 })
-    // Instantiating a template makes the admin its owner, so it goes live as In Progress.
-    await expect(adminPage.getByLabel('project status')).toContainText('In Progress', {
+    // Instantiating a template makes the admin its owner, so it goes live as In progress.
+    await expect(adminPage.getByLabel('project status')).toContainText('In progress', {
       timeout: 10_000,
     })
   })

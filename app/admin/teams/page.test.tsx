@@ -46,7 +46,7 @@ describe('admin teams', () => {
       'href',
       `/admin/teams/${team.id}`,
     )
-    expect(article('Gamma Idea')).toHaveTextContent('On Hold')
+    expect(article('Gamma Idea')).toHaveTextContent('On hold')
     expect(article('Gamma Idea')).toHaveTextContent('Waiting on budget')
     expect(
       within(article('Gamma Idea')).getByRole('button', { name: 'Re-review' }),
@@ -58,7 +58,7 @@ describe('admin teams', () => {
     for (const [label, present, absent] of [
       ['Active', 'Alpha Team', 'Beta Idea'],
       ['Pending', 'Beta Idea', 'Alpha Team'],
-      ['On Hold', 'Gamma Idea', 'Beta Idea'],
+      ['On hold', 'Gamma Idea', 'Beta Idea'],
       ['Declined', 'Delta Idea', 'Gamma Idea'],
       ['All statuses', 'Alpha Team', ''],
     ] as const) {
@@ -69,20 +69,20 @@ describe('admin teams', () => {
     }
 
     // Add a team: backdrop and × close it; the submit needs a name.
-    await userEvent.click(screen.getByRole('button', { name: 'Add Team' }))
-    await userEvent.click(screen.getByRole('heading', { name: 'Add Team' }).closest('.fixed')!)
-    expect(screen.queryByRole('heading', { name: 'Add Team' })).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Add Team' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add team' }))
+    await userEvent.click(screen.getByRole('heading', { name: 'Add team' }).closest('.fixed')!)
+    expect(screen.queryByRole('heading', { name: 'Add team' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Add team' }))
     await userEvent.click(screen.getByRole('button', { name: 'Close' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Add Team' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add team' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Add Team' }))
-    expect(screen.getAllByRole('button', { name: 'Add Team' }).at(-1)).toBeDisabled()
-    await userEvent.type(screen.getByLabelText('Team Name'), 'Omega Team')
+    await userEvent.click(screen.getByRole('button', { name: 'Add team' }))
+    expect(screen.getAllByRole('button', { name: 'Add team' }).at(-1)).toBeDisabled()
+    await userEvent.type(screen.getByLabelText('Team name'), 'Omega Team')
     await userEvent.type(screen.getByLabelText('Description'), 'The end')
     await userEvent.type(screen.getByLabelText('Luma calendar URL'), 'https://luma.example')
     await userEvent.type(screen.getByLabelText('Team doc URL'), 'https://doc.example')
-    await userEvent.click(screen.getAllByRole('button', { name: 'Add Team' }).at(-1)!)
+    await userEvent.click(screen.getAllByRole('button', { name: 'Add team' }).at(-1)!)
     await screen.findByText('Team added')
     await screen.findByText('Omega Team', { selector: 'span' })
     expect(await prisma.team.findFirst({ where: { name: 'Omega Team' } })).toMatchObject({
@@ -95,16 +95,16 @@ describe('admin teams', () => {
     await userEvent.click(within(article('Beta Idea')).getByRole('button', { name: 'Review' }))
     expect(screen.getByText('Suggested by Sue Suggester')).toBeInTheDocument()
     await userEvent.click(
-      screen.getByRole('heading', { name: 'Review Suggestion' }).closest('.fixed')!,
+      screen.getByRole('heading', { name: 'Review suggestion' }).closest('.fixed')!,
     )
     await userEvent.click(within(article('Beta Idea')).getByRole('button', { name: 'Review' }))
     await userEvent.click(screen.getByRole('button', { name: 'Close' }))
     await userEvent.click(within(article('Beta Idea')).getByRole('button', { name: 'Review' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     await userEvent.click(within(article('Beta Idea')).getByRole('button', { name: 'Review' }))
-    expect(screen.getByLabelText('Team Name')).toHaveValue('Beta Idea')
+    expect(screen.getByLabelText('Team name')).toHaveValue('Beta Idea')
     expect(screen.getByLabelText('Description')).toHaveValue('A beta')
-    await userEvent.type(screen.getByLabelText('Team Name'), ' Team')
+    await userEvent.type(screen.getByLabelText('Team name'), ' Team')
     await userEvent.type(screen.getByLabelText('Description'), ' indeed')
     await userEvent.click(screen.getByRole('button', { name: 'Select team leader' }))
     await userEvent.type(screen.getByPlaceholderText('Search…'), 'Lee')
@@ -137,7 +137,7 @@ describe('admin teams', () => {
 
     // On hold with a note, then decline with a note.
     await userEvent.click(within(article('Zeta Idea')).getByRole('button', { name: 'Review' }))
-    await userEvent.click(screen.getByRole('radio', { name: /On Hold/ }))
+    await userEvent.click(screen.getByRole('radio', { name: /On hold/ }))
     await userEvent.type(screen.getByLabelText(/Note for volunteer/), 'Ask again in spring')
     await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
     await screen.findByText('Suggestion put on hold')
@@ -154,10 +154,10 @@ describe('admin teams', () => {
     // Delete a suggestion and a team; the confirm dialog closes by backdrop, ×, and Cancel.
     await userEvent.click(within(article('Delta Idea')).getByRole('button', { name: 'Delete' }))
     expect(
-      screen.getByRole('heading', { name: 'Confirm Delete' }).parentElement!.parentElement,
+      screen.getByRole('heading', { name: 'Confirm delete' }).parentElement!.parentElement,
     ).toHaveTextContent('Delete Delta Idea?')
     await userEvent.click(
-      screen.getByRole('heading', { name: 'Confirm Delete' }).closest('.fixed')!,
+      screen.getByRole('heading', { name: 'Confirm delete' }).closest('.fixed')!,
     )
     await userEvent.click(within(article('Delta Idea')).getByRole('button', { name: 'Delete' }))
     await userEvent.click(screen.getByRole('button', { name: 'Close' }))
@@ -182,10 +182,10 @@ describe('admin teams', () => {
     const sug = await prisma.teamSuggestion.create({
       data: { name: 'Doomed Idea', suggestedById: admin.id },
     })
-    await userEvent.click(screen.getByRole('button', { name: 'Add Team' }))
-    await userEvent.type(screen.getByLabelText('Team Name'), 'x')
+    await userEvent.click(screen.getByRole('button', { name: 'Add team' }))
+    await userEvent.type(screen.getByLabelText('Team name'), 'x')
     localStorage.setItem('authToken', 'stale')
-    await userEvent.click(screen.getAllByRole('button', { name: 'Add Team' }).at(-1)!)
+    await userEvent.click(screen.getAllByRole('button', { name: 'Add team' }).at(-1)!)
     await screen.findByText('Unauthorized')
     void sug
   })
@@ -208,6 +208,6 @@ describe('admin teams', () => {
     await userEvent.click(screen.getAllByRole('button', { name: 'Delete' }).at(-1)!)
     // The review's toast is still showing, so wait for the delete's own.
     await waitFor(() => expect(screen.getAllByText('Not found')).toHaveLength(2))
-    expect(screen.queryByRole('heading', { name: 'Confirm Delete' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Confirm delete' })).toBeNull()
   })
 })

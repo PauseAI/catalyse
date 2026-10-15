@@ -26,7 +26,7 @@ test.describe('Search and filter UX', () => {
       await adminPage.getByLabel('Search').fill(volunteer.name)
       const card = adminPage.locator('.card').filter({ hasText: volunteer.name }).first()
       await expect(card).toBeVisible({ timeout: 10_000 })
-      await card.getByRole('link', { name: 'View Profile' }).click()
+      await card.getByRole('link', { name: 'View profile' }).click()
       await expect(adminPage).toHaveURL(/\/volunteers\/\d+$/, { timeout: 3_000 })
     }).toPass({ timeout: 30_000 })
 
@@ -83,7 +83,7 @@ test.describe('Search and filter UX', () => {
     })
 
     await adminPage.getByRole('button', { name: 'Needs filter' }).click()
-    await adminPage.getByRole('option', { name: 'Seeking Help' }).click()
+    await adminPage.getByRole('option', { name: 'Seeking help' }).click()
 
     // Checked immediately, and again partway through the artificial delay — the old
     // results (including our just-created project) must never disappear behind a spinner.

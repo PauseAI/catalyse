@@ -60,8 +60,8 @@ describe('teams list', () => {
     const ledCard = screen.getByRole('link', { name: 'Led Team' }).closest('article')!
     expect(ledCard).toHaveTextContent('Leader')
     expect(ledCard.querySelector(`a[href="/admin/teams/${led.id}"]`)).not.toBeNull()
-    expect(screen.getByRole('button', { name: 'Application Pending' })).toBeDisabled()
-    await userEvent.click(within(openCard).getByRole('button', { name: 'Apply to Join' }))
+    expect(screen.getByRole('button', { name: 'Application pending' })).toBeDisabled()
+    await userEvent.click(within(openCard).getByRole('button', { name: 'Apply to join' }))
     await screen.findByText(
       /Sent to the leader of .+\. You'll get a notification when they reply\./,
     )
@@ -74,12 +74,12 @@ describe('teams list', () => {
       'href',
       `/teams/${mine.id}`,
     )
-    expect(within(mineCard).queryByRole('button', { name: /Apply to Join|Leave/ })).toBeNull()
+    expect(within(mineCard).queryByRole('button', { name: /Apply to join|Leave/ })).toBeNull()
     expect(within(openCard).queryByRole('link', { name: 'View team' })).toBeNull()
     // Failed actions are reported.
     localStorage.setItem('authToken', 'stale')
     const failing = screen.getByRole('link', { name: 'Failing Team' }).closest('article')!
-    await userEvent.click(within(failing).getByRole('button', { name: 'Apply to Join' }))
+    await userEvent.click(within(failing).getByRole('button', { name: 'Apply to join' }))
     await screen.findByText('Unauthorized')
   })
 
@@ -93,7 +93,7 @@ describe('teams list', () => {
     await createTeam({ name: 'Admin Sees' })
     await renderApp(<TeamsPage />, { as: admin })
     await screen.findByRole('link', { name: 'Admin Sees' })
-    expect(screen.getByRole('button', { name: 'Manage Members' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Manage members' })).toBeInTheDocument()
   })
 })
 
@@ -109,7 +109,7 @@ describe('team detail', () => {
     await screen.findByText('Left team')
     await waitFor(
       async () =>
-        expect(await screen.findByRole('button', { name: 'Apply to Join' })).toBeEnabled(),
+        expect(await screen.findByRole('button', { name: 'Apply to join' })).toBeEnabled(),
       { timeout: 5000 },
     )
     cleanup()
@@ -118,15 +118,15 @@ describe('team detail', () => {
     })
     await screen.findByRole('heading', { name: 'Open Team' })
     expect(screen.queryByRole('link', { name: 'Meeting calendar' })).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Apply to Join' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Apply to join' }))
     await screen.findByText(
       /Sent to the leader of .+\. You'll get a notification when they reply\./,
     )
-    await screen.findByRole('button', { name: 'Application Pending' })
+    await screen.findByRole('button', { name: 'Application pending' })
     cleanup()
     await renderApp(<TeamDetailPage params={Promise.resolve({ id: String(led.id) })} />, { as: me })
     await screen.findByRole('heading', { name: /Led Team/ })
-    expect(screen.getByRole('button', { name: 'Manage Members' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Manage members' })).toBeInTheDocument()
     cleanup()
     await prisma.teamMembership.create({ data: { teamId: pending.id, volunteerId: me.id } })
     await prisma.team.update({
@@ -164,7 +164,7 @@ describe('team detail', () => {
     })
     await screen.findByRole('heading', { name: 'Open Team' })
     await prisma.teamMembership.create({ data: { teamId: open.id, volunteerId: me.id } })
-    await userEvent.click(screen.getByRole('button', { name: 'Apply to Join' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Apply to join' }))
     await screen.findByText('Already a member of this team')
   })
 })

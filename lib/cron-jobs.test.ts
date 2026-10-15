@@ -14,6 +14,7 @@ describe('CRON_JOBS', () => {
       'applications-summary': 'summary-ran',
       'applications-anonymisation': 'anon-ran',
       'csp-summary': 'csp-ran',
+      'deadline-reminders': 'reminders-ran',
     }
     for (const name of CRON_JOB_NAMES) cronJobs.returns(name, expected[name])
     for (const name of CRON_JOB_NAMES) {

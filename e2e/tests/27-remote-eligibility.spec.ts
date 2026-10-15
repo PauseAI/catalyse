@@ -13,7 +13,7 @@ test.describe('Project form & settings: remote eligibility', () => {
     await adminPage.goto(`${baseUrl}/admin/projects/new`)
     await openNewProjectForm(adminPage)
 
-    await adminPage.getByLabel('Project Title').fill(title)
+    await adminPage.getByLabel('Project title').fill(title)
     await adminPage.getByLabel('Description').fill('e2e test project description')
     await selectFilterDropdown(
       adminPage,
@@ -21,7 +21,7 @@ test.describe('Project form & settings: remote eligibility', () => {
       'Yes - remote OK, from any country',
     )
     await adminPage.locator('#new-task-title').fill('Initial task')
-    await adminPage.getByRole('button', { name: 'Add Task' }).click()
+    await adminPage.getByRole('button', { name: 'Add task' }).click()
     await adminPage.waitForURL(/\/projects\/\d+\/edit/, { timeout: 15_000 })
     const id = Number(new URL(adminPage.url()).pathname.split('/')[2])
     await expect(adminPage.locator('input[id^="task-title-"][value="Initial task"]')).toBeVisible({
@@ -58,7 +58,7 @@ test.describe('Project form & settings: remote eligibility', () => {
     // (see components/Checkbox.tsx), so click the wrapping label instead of the input.
     await volunteer.page.locator('label:has(#notify_remote_projects)').click()
     await expect(checkbox).toBeChecked()
-    await volunteer.page.getByRole('button', { name: 'Save Changes' }).click()
+    await volunteer.page.getByRole('button', { name: 'Save changes' }).click()
     await expect(getAlert(volunteer.page)).toBeVisible({ timeout: 10_000 })
 
     await volunteer.page.reload()

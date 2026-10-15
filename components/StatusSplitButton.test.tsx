@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event'
 import StatusSplitButton from './StatusSplitButton'
 
 const options = [
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'on_hold', label: 'On Hold' },
+  { value: 'in_progress', label: 'In progress' },
+  { value: 'on_hold', label: 'On hold' },
 ]
 
 describe('StatusSplitButton', () => {
@@ -13,22 +13,22 @@ describe('StatusSplitButton', () => {
     const onSelect = vi.fn()
     render(<StatusSplitButton value="in_progress" options={options} onSelect={onSelect} />)
     const caret = screen.getByRole('button', { name: 'project status' })
-    expect(caret).toHaveTextContent('In Progress')
+    expect(caret).toHaveTextContent('In progress')
     expect(caret).toHaveAttribute('aria-expanded', 'false')
 
     await userEvent.click(caret)
-    expect(screen.getByRole('option', { name: 'In Progress' })).toHaveAttribute(
+    expect(screen.getByRole('option', { name: 'In progress' })).toHaveAttribute(
       'aria-selected',
       'true',
     )
-    await userEvent.click(screen.getByRole('option', { name: 'On Hold' }))
+    await userEvent.click(screen.getByRole('option', { name: 'On hold' }))
     expect(onSelect).toHaveBeenLastCalledWith('on_hold')
     expect(screen.queryByRole('listbox')).toBeNull()
 
     await userEvent.click(caret)
-    fireEvent.keyDown(screen.getByRole('option', { name: 'On Hold' }), { key: 'x' })
+    fireEvent.keyDown(screen.getByRole('option', { name: 'On hold' }), { key: 'x' })
     expect(screen.getByRole('listbox')).toBeInTheDocument()
-    fireEvent.keyDown(screen.getByRole('option', { name: 'On Hold' }), { key: 'Enter' })
+    fireEvent.keyDown(screen.getByRole('option', { name: 'On hold' }), { key: 'Enter' })
     expect(onSelect).toHaveBeenCalledTimes(2)
     expect(screen.queryByRole('listbox')).toBeNull()
   })

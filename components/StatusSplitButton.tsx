@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { badgeClasses, badgeColorClasses } from './Badge'
-import { projectStatusVariant } from './ProjectCard'
+import { projectStatusVariant } from '@/lib/project-status'
 import { projectStatusLabel } from '@/lib/project-status'
 
 /**
@@ -49,7 +49,7 @@ export default function StatusSplitButton({
         aria-expanded={open}
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
-        className={`inline-flex items-stretch rounded-full text-sm font-semibold cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 ${colors}`}
+        className={`inline-flex items-stretch rounded-full text-sm font-semibold uppercase tracking-wide cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 ${colors}`}
       >
         <span className="px-3 py-1.5">{projectStatusLabel(value)}</span>
         <span className="flex items-center px-2 border-l border-current/20" aria-hidden="true">

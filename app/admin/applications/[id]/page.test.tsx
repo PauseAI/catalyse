@@ -64,7 +64,7 @@ describe('application review', () => {
 
     await userEvent.type(screen.getByLabelText(/Internal admin notes/), ' plus more')
     await userEvent.type(screen.getByLabelText(/Message to applicant/), ' too')
-    await userEvent.click(screen.getByRole('button', { name: 'Save Notes' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save notes' }))
     await screen.findByText('Notes saved')
     await waitFor(async () =>
       expect(
@@ -85,7 +85,7 @@ describe('application review', () => {
     )
     await userEvent.click(screen.getByRole('dialog').parentElement!)
     expect(screen.queryByRole('dialog')).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Request More Info' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Request more info' }))
     expect(screen.getByRole('dialog')).toHaveTextContent(
       'resubmit their application, along with your message.',
     )
@@ -135,16 +135,16 @@ describe('application review', () => {
     const needsInfo = await createVolunteer({ name: 'Needs Info', approvalStatus: 'needs_info' })
     await mount(needsInfo.id)
     await screen.findByText('Waiting on the applicant — more info was requested.')
-    await userEvent.click(screen.getByRole('button', { name: 'Request More Info' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Request more info' }))
     expect(screen.getByRole('dialog')).toHaveTextContent('resubmit their application.')
-    await userEvent.click(screen.getByRole('button', { name: 'Request Info' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Request info' }))
     await screen.findByText('Cannot request info on a needs_info application')
 
     const pendingInfo = await createVolunteer({ name: 'Pending Info', approvalStatus: 'pending' })
     await mount(pendingInfo.id)
     await screen.findByRole('heading', { name: 'Pending Info' })
-    await userEvent.click(screen.getByRole('button', { name: 'Request More Info' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Request Info' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Request more info' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Request info' }))
     await screen.findByText('More information requested')
 
     const theirs = await createVolunteer({
@@ -164,7 +164,7 @@ describe('application review', () => {
     await mount(rejected.id)
     await screen.findByText(`Already rejected by ${other.name}.`)
     expect(screen.getByRole('main')).toHaveTextContent(/anonymised on .* \(1 day\)/)
-    await userEvent.click(screen.getByRole('button', { name: 'Reopen Application' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Reopen application' }))
     expect(screen.getByRole('dialog')).toHaveTextContent(
       "Was Rejected's application will be reset to pending",
     )
@@ -192,7 +192,7 @@ describe('application review', () => {
     await mount(pending.id)
     await screen.findByRole('heading', { name: 'Pending One' })
     await prisma.volunteer.delete({ where: { id: pending.id } })
-    await userEvent.click(screen.getByRole('button', { name: 'Save Notes' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save notes' }))
     await screen.findByText('Volunteer not found')
     await userEvent.click(screen.getByRole('button', { name: 'Reject' }))
     await userEvent.click(screen.getByRole('dialog').querySelector('button:last-child')!)

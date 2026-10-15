@@ -12,23 +12,23 @@ test.describe('Admin Landing Page Stats', () => {
     await expect(adminPage.getByRole('heading', { name: 'Volunteers' })).toBeVisible({
       timeout: 10_000,
     })
-    await expect(adminPage.getByText('Total Registered')).toBeVisible()
+    await expect(adminPage.getByText('Total registered')).toBeVisible()
     await expect(adminPage.getByText('Joined last 30 days')).toBeVisible()
     await expect(adminPage.getByText('Approved')).toBeVisible()
-    await expect(adminPage.getByText('Under Review')).toBeVisible()
-    await expect(adminPage.getByText('Needs Info')).toBeVisible()
+    await expect(adminPage.getByText('Under review')).toBeVisible()
+    await expect(adminPage.getByText('Needs info')).toBeVisible()
 
-    await expect(adminPage.getByText('Seeking Help')).toBeVisible()
-    await expect(adminPage.getByText('In Progress')).toBeVisible()
+    await expect(adminPage.getByText('Seeking help')).toBeVisible()
+    await expect(adminPage.getByText('In progress')).toBeVisible()
     await expect(adminPage.getByText('Completed')).toBeVisible()
 
-    await expect(adminPage.getByRole('heading', { name: 'Volunteer Interest' })).toBeVisible()
-    await expect(adminPage.getByText('Total Interests')).toBeVisible()
-    await expect(adminPage.getByText('Pending Response')).toBeVisible()
+    await expect(adminPage.getByRole('heading', { name: 'Volunteer interest' })).toBeVisible()
+    await expect(adminPage.getByText('Total interests')).toBeVisible()
+    await expect(adminPage.getByText('Pending response')).toBeVisible()
 
-    await expect(adminPage.getByRole('link', { name: 'Manage Applications' })).toBeVisible()
-    await expect(adminPage.getByRole('link', { name: 'Triage Queue' })).toBeVisible()
-    await expect(adminPage.getByRole('link', { name: 'Platform Settings' })).toBeVisible()
+    await expect(adminPage.getByRole('link', { name: 'Manage applications' })).toBeVisible()
+    await expect(adminPage.getByRole('link', { name: 'Triage queue' })).toBeVisible()
+    await expect(adminPage.getByRole('link', { name: 'Platform settings' })).toBeVisible()
   })
 
   test('A non-admin visiting /admin is redirected away', async ({ volunteer, baseUrl }) => {
@@ -43,7 +43,7 @@ test.describe('Admin Platform Settings', () => {
     baseUrl,
   }) => {
     await adminPage.goto(`${baseUrl}/admin/platform-settings`)
-    await expect(adminPage.getByRole('heading', { name: 'Platform Settings' })).toBeVisible({
+    await expect(adminPage.getByRole('heading', { name: 'Platform settings' })).toBeVisible({
       timeout: 10_000,
     })
 

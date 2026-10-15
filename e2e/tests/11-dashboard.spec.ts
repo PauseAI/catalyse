@@ -103,7 +103,7 @@ test.describe('Home', () => {
     await ownerApi.projects.invite({ body: { projectId, volunteerId: helper.id } })
     await helperApi.projects.respondToInvite({ body: { projectId, accept: true } })
     await helperApi.projects.updateTask({
-      body: { projectId, taskId, data: { status: 'in_progress', assigneeId: helper.id } },
+      body: { projectId, taskId, data: { assigneeId: helper.id } },
     })
     const submitted = await helperApi.projects.submitTask({
       body: { projectId, taskId, note: 'First draft', url: 'https://example.org/draft' },

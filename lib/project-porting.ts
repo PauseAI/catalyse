@@ -8,173 +8,23 @@
  * router runs in a single transaction.
  *
  * This module is pure — no Prisma, no oRPC. The router loads a `CurrentState` and passes it
- * in. `node:crypto` is the only import with a runtime, and nothing here is bundled for the
- * browser (the import page reads the diff type off the router's inferred output).
+ * in. It hashes with `node:crypto`, so it is server-only; the file's shape, which the browser
+ * also needs, lives in `project-porting-file.ts`.
  */
 
 import { createHash } from 'node:crypto'
-import { z } from 'zod'
+import {
+  fromYmd,
+  toYmd,
+  ProjectImportFileSchema,
+  type CurrentState,
+  type CurrentTask,
+  type ImportTask,
+  type ProjectExportPayload,
+  type ProjectImportFile,
+} from './project-porting-file'
 
-// ── Live state the router hands in ────────────────────────────────────────────
-
-export type CurrentProject = {
-  id: number
-  title: string
-  description: string | null
-  status: string
-}
-
-export type CurrentTask = {
-  id: number
-  title: string
-  description: string | null
-  status: string
-  assigneeId: number | null
-  assigneeEmail: string | null
-  deadline: Date | null
-  startDate: Date | null
-  durationDays: number | null
-  /** Read by applyScheduleWrite in the router; not part of the diff or the hash. */
-  baselineSetAt: Date | null
-  featuredAsQuickTask: boolean
-  isAnchor: boolean
-  sortOrder: number | null
-}
-
-export type CurrentDependency = {
-  predecessorId: number
-  successorId: number
-  lagDays: number
-}
-
-export type CurrentState = {
-  project: CurrentProject
-  tasks: CurrentTask[]
-  dependencies: CurrentDependency[]
-}
-
-// ── File schema ──────────────────────────────────────────────────────────────
-
-const PROJECT_STATUSES = [
-  'draft',
-  'pending_review',
-  'needs_discussion',
-  'ready',
-  'in_progress',
-  'on_hold',
-  'completed',
-  'archived',
-] as const
-
-const TASK_STATUSES = ['open', 'in_progress', 'completed'] as const
-
-/**
- * Bounds on how much one file may ask for. The byte cap on the upload alone would allow tens
- * of thousands of tasks, each of which becomes a row written inside a single transaction — so
- * the count is capped here, where it is refused before any of that work begins. The largest
- * real project has 38 tasks.
- */
-const MAX_TASKS_PER_IMPORT = 1000
-const MAX_DEPENDENCIES_PER_TASK = 100
-
-const ymd = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Dates must be written as YYYY-MM-DD')
-  .nullable()
-
-const DependsOnSchema = z.object({
-  /** A `ref` of another task in the file, or the numeric `id` of an existing task. */
-  on: z.union([z.string().min(1).max(64), z.number().int().positive()]),
-  lagDays: z.number().int().min(-365).max(365).optional(),
-})
-
-/**
- * Fields left out (`undefined`) mean "not specified": on an existing row they are untouched,
- * on a new row the system default applies. `null` is an explicit clear. `dependsOn` omitted
- * leaves a row's existing links alone; `dependsOn: []` clears them.
- */
-const ImportTaskSchema = z.object({
-  id: z.number().int().positive().optional(),
-  ref: z.string().min(1).max(64).optional(),
-  title: z.string().min(1).max(300),
-  description: z.string().max(20_000).nullable().optional(),
-  status: z.enum(TASK_STATUSES).optional(),
-  assigneeEmail: z.string().email().nullable().optional(),
-  deadline: ymd.optional(),
-  startDate: ymd.optional(),
-  durationDays: z.number().int().min(0).max(3650).nullable().optional(),
-  featuredAsQuickTask: z.boolean().optional(),
-  isAnchor: z.boolean().optional(),
-  dependsOn: z.array(DependsOnSchema).max(MAX_DEPENDENCIES_PER_TASK).optional(),
-})
-
-const ImportProjectSchema = z.object({
-  id: z.number().int().positive().optional(),
-  title: z.string().min(1).max(300),
-  description: z.string().max(20_000).nullable().optional(),
-  status: z.enum(PROJECT_STATUSES).optional(),
-})
-
-export const ProjectImportFileSchema = z.object({
-  _meta: z
-    .object({
-      format: z.string().optional(),
-      version: z.number().int().optional(),
-      projectId: z.number().int().optional(),
-      exportedAt: z.string().optional(),
-      baseHash: z.string().nullable().optional(),
-    })
-    .optional(),
-  project: ImportProjectSchema,
-  tasks: z.array(ImportTaskSchema).max(MAX_TASKS_PER_IMPORT),
-})
-
-export type ProjectImportFile = z.infer<typeof ProjectImportFileSchema>
-export type ImportTask = z.infer<typeof ImportTaskSchema>
-
-// ── Export payload ───────────────────────────────────────────────────────────
-
-export type ProjectExportPayload = {
-  /**
-   * Editors validate a JSON file against whatever URL this points at, so a bad hand-edit is
-   * flagged in the editor before anyone tries to upload it. The importer ignores the key —
-   * unknown top-level fields are stripped — so it is purely a hint to tooling.
-   */
-  $schema?: string
-  _meta: {
-    format: 'catalyse-project-export'
-    version: 1
-    projectId: number
-    exportedAt: string
-    baseHash: string
-    /** Where the rules for editing this file live, so a file pasted alone still explains itself. */
-    docs?: string
-    /** Machine-readable counterpart of `docs`, for editors and assistants that fetch schemas. */
-    schema?: string
-  }
-  project: { id: number; title: string; description: string | null; status: string }
-  tasks: Array<{
-    id: number
-    title: string
-    description: string | null
-    status: string
-    assigneeEmail: string | null
-    deadline: string | null
-    startDate: string | null
-    durationDays: number | null
-    featuredAsQuickTask: boolean
-    isAnchor: boolean
-    dependsOn: Array<{ on: number; lagDays: number }>
-  }>
-}
-
-function toYmd(d: Date | null): string | null {
-  return d ? d.toISOString().slice(0, 10) : null
-}
-
-export function fromYmd(value: string | null | undefined): Date | null {
-  return value ? new Date(`${value}T00:00:00.000Z`) : null
-}
+export * from './project-porting-file'
 
 function sortedTasks(state: CurrentState): CurrentTask[] {
   return [...state.tasks].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.id - b.id)
@@ -216,6 +66,10 @@ export function serializeProjectExport(state: CurrentState, appUrl?: string): Pr
       durationDays: t.durationDays,
       featuredAsQuickTask: t.featuredAsQuickTask,
       isAnchor: t.isAnchor,
+      timing: t.timing,
+      submissionPrompt: t.submissionPrompt,
+      submissionAsksLink: t.submissionAsksLink,
+      helpersWanted: t.helpersWanted,
       dependsOn: state.dependencies
         .filter((d) => d.successorId === t.id)
         .sort((a, b) => a.predecessorId - b.predecessorId)
@@ -249,6 +103,10 @@ function canonicalise(state: CurrentState): string {
       durationDays: t.durationDays ?? null,
       featuredAsQuickTask: t.featuredAsQuickTask,
       isAnchor: t.isAnchor,
+      timing: t.timing,
+      submissionPrompt: t.submissionPrompt,
+      submissionAsksLink: t.submissionAsksLink,
+      helpersWanted: t.helpersWanted,
     }))
     .sort((a, b) => a.id - b.id)
   const dependencies = [...state.dependencies]
@@ -342,6 +200,10 @@ const TASK_FIELDS = [
   'durationDays',
   'featuredAsQuickTask',
   'isAnchor',
+  'timing',
+  'submissionPrompt',
+  'submissionAsksLink',
+  'helpersWanted',
 ] as const
 
 type NormalisedTask = {
@@ -354,6 +216,10 @@ type NormalisedTask = {
   durationDays: number | null
   featuredAsQuickTask: boolean
   isAnchor: boolean
+  timing: 'flexible' | 'fixed'
+  submissionPrompt: string | null
+  submissionAsksLink: boolean
+  helpersWanted: number | null
 }
 
 function normaliseCurrent(t: CurrentTask): NormalisedTask {
@@ -367,6 +233,10 @@ function normaliseCurrent(t: CurrentTask): NormalisedTask {
     durationDays: t.durationDays ?? null,
     featuredAsQuickTask: t.featuredAsQuickTask,
     isAnchor: t.isAnchor,
+    timing: t.timing,
+    submissionPrompt: t.submissionPrompt,
+    submissionAsksLink: t.submissionAsksLink,
+    helpersWanted: t.helpersWanted,
   }
 }
 
@@ -627,19 +497,25 @@ function createTaskFieldList(ft: ImportTask): FieldChange[] {
   const effective: NormalisedTask = {
     title: ft.title,
     description: ft.description ?? null,
-    status: ft.status ?? 'open',
+    status: ft.status ?? 'not_started',
     assigneeEmail: ft.assigneeEmail ?? null,
     deadline: ft.deadline ?? null,
     startDate: ft.startDate ?? null,
     durationDays: ft.durationDays ?? null,
     featuredAsQuickTask: ft.featuredAsQuickTask ?? false,
     isAnchor: ft.isAnchor ?? false,
+    timing: ft.timing ?? 'flexible',
+    submissionPrompt: ft.submissionPrompt ?? null,
+    submissionAsksLink: ft.submissionAsksLink ?? false,
+    helpersWanted: ft.helpersWanted ?? null,
   }
   const rec = effective as unknown as Record<string, unknown>
   const out: FieldChange[] = []
   for (const field of TASK_FIELDS) {
     const v = rec[field]
-    if (v !== null && v !== false && v !== '') out.push({ field, from: null, to: v })
+    // Only what differs from a blank task is worth listing; `flexible` is the timing default.
+    if (v !== null && v !== false && v !== '' && v !== 'flexible')
+      out.push({ field, from: null, to: v })
   }
   return out
 }
@@ -784,6 +660,10 @@ export type TaskWriteFields = {
   durationDays?: number | null
   featuredAsQuickTask?: boolean
   isAnchor?: boolean
+  timing?: 'flexible' | 'fixed'
+  submissionPrompt?: string | null
+  submissionAsksLink?: boolean
+  helpersWanted?: number | null
 }
 
 export type LocalRef = { kind: 'existing'; id: number } | { kind: 'created'; ref: string }
@@ -817,6 +697,10 @@ function writeFieldsForUpdate(node: TaskNode): TaskWriteFields {
   if (changed.has('durationDays')) fields.durationDays = ft.durationDays ?? null
   if (changed.has('featuredAsQuickTask')) fields.featuredAsQuickTask = ft.featuredAsQuickTask
   if (changed.has('isAnchor')) fields.isAnchor = ft.isAnchor
+  if (changed.has('timing')) fields.timing = ft.timing
+  if (changed.has('submissionPrompt')) fields.submissionPrompt = ft.submissionPrompt ?? null
+  if (changed.has('submissionAsksLink')) fields.submissionAsksLink = ft.submissionAsksLink
+  if (changed.has('helpersWanted')) fields.helpersWanted = ft.helpersWanted ?? null
   return fields
 }
 
@@ -824,13 +708,17 @@ function writeFieldsForCreate(ft: ImportTask): TaskWriteFields {
   return {
     title: ft.title,
     description: ft.description ?? null,
-    status: ft.status ?? 'open',
+    status: ft.status ?? 'not_started',
     assigneeEmail: ft.assigneeEmail ?? null,
     deadline: fromYmd(ft.deadline ?? null),
     startDate: fromYmd(ft.startDate ?? null),
     durationDays: ft.durationDays ?? null,
     featuredAsQuickTask: ft.featuredAsQuickTask ?? false,
     isAnchor: ft.isAnchor ?? false,
+    timing: ft.timing ?? 'flexible',
+    submissionPrompt: ft.submissionPrompt ?? null,
+    submissionAsksLink: ft.submissionAsksLink ?? false,
+    helpersWanted: ft.helpersWanted ?? null,
   }
 }
 

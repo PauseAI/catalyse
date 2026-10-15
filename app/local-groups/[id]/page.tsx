@@ -9,6 +9,7 @@ import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import Button from '@/components/Button'
 import { countryLabel } from '@/lib/filter-options'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import PageLoading from '@/components/PageLoading'
 
 export default function LocalGroupAdoptPage({ params }: { params: Promise<{ id: string }> }) {
@@ -54,7 +55,7 @@ export default function LocalGroupAdoptPage({ params }: { params: Promise<{ id: 
 
   return (
     <main className="container py-5 pb-15">
-      <div className="bg-surface rounded-xl shadow p-6 max-w-125">
+      <div className={`${SECTION_CARD} sm:max-w-125`}>
         <h1 className="mt-0 mb-1">{group.name}</h1>
         <p className="text-text-light mb-5">{countryLabel(group.country)}</p>
         <p className="mb-5">

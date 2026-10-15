@@ -18,6 +18,7 @@ import { buildLocationOptions, type LocalGroupOption } from '@/lib/filter-option
 import { useToast } from '@/lib/toast'
 import { toDateInputValue, fromDateInputValue } from '@/lib/format-date'
 import { orpc } from '@/lib/orpc'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import type { AppRouter } from '@/server/router'
 
 // A new proposal starts saving itself once the title or the description has this much in it.
@@ -118,6 +119,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
   // Set by a Submit with no tasks; the error under Tasks shows until one is added.
   const [submitWithoutTasks, setSubmitWithoutTasks] = useState(false)
   const [durationDays, setDurationDays] = useState('')
+  const [projectDeadline, setProjectDeadline] = useState('')
   const [collaborationLink, setCollaborationLink] = useState('')
   const [skills, setSkills] = useState<SelectedSkill[]>([])
   const [seekingHelp, setSeekingHelp] = useState(true)
@@ -165,6 +167,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
     setDuration(data.estimatedDuration ?? '')
     setStartDate(toDateInputValue(data.startDate))
     setDurationDays(data.durationDays !== null ? String(data.durationDays) : '')
+    setProjectDeadline(toDateInputValue(data.deadline))
     setSeekingHelp(data.isSeekingHelp ?? false)
     setAutoAccept(data.autoAcceptTasks)
     setWantToOwn(data.ownerId === user?.id)
@@ -334,7 +337,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
   // only moves the address to the edit page, so nothing jumps under the volunteer's cursor.
   async function ensureProjectExists(): Promise<number | null> {
     if (projectId !== undefined) return projectId
-    // The timer and an Add Task click can both reach here before the first create lands.
+    // The timer and an Add task click can both reach here before the first create lands.
     if (creation.current) return creation.current
     setCreatingDraft(true)
     setAutosaveError(null)
@@ -386,9 +389,11 @@ export default function ProjectEditor(props: ProjectEditorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [readyToAutosave, creatingDraft, autosaveError, autosavePayloadKey])
 
-  // Checked before any draft is created, since the server refuses to publish a project with
-  // no tasks. The count is read fresh: just after a first task is added, the cached project
-  // can still be the copy loaded before it existed.
+  // An org-proposed (or template-originated) draft still needs at least one task before it
+  // publishes straight live — see the self-publish gate in server/routers/projects.ts. A
+  // volunteer's own proposal has no such gate: tasks come later, once it's approved. The count
+  // is read fresh: just after a first task is added, the cached project can still be the copy
+  // loaded before it existed.
   async function handleOpenPublishModal() {
     if (projectId === undefined && !title.trim()) {
       toast('A title is required, even for a draft.', 'error')
@@ -407,9 +412,13 @@ export default function ProjectEditor(props: ProjectEditorProps) {
         return
       }
     }
-    if (tasks === 0) {
+    if (tasks === 0 && isOrgDraft) {
       setSubmitWithoutTasks(true)
       return
+    }
+    if (projectId === undefined) {
+      const id = await ensureProjectExists()
+      if (id === null) return
     }
     setShowPublishModal(true)
   }
@@ -536,10 +545,10 @@ export default function ProjectEditor(props: ProjectEditorProps) {
         </div>
       )}
 
-      <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word">
+      <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
         <div className="mb-5">
           <label htmlFor="project-title" className="required">
-            Project Title
+            Project title
           </label>
           <input
             id="project-title"
@@ -595,7 +604,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
         <div className="mb-5">
           <FilterDropdown
             id="project-type"
-            label="Project Type"
+            label="Project type"
             ariaLabel="Select project type"
             value={projectType}
             options={PROJECT_TYPES}
@@ -611,7 +620,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
 
         <div className="grid grid-cols-2 gap-5 mb-5 max-[600px]:grid-cols-1">
           <div>
-            <label htmlFor="hours-per-week">Hours per Week</label>
+            <label htmlFor="hours-per-week">Hours per week</label>
             <input
               id="hours-per-week"
               type="number"
@@ -651,7 +660,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
 
         {['sprint', 'container'].includes(projectType) && (
           <div className="mb-5">
-            <label htmlFor="duration">Estimated Duration</label>
+            <label htmlFor="duration">Estimated duration</label>
             <input
               id="duration"
               type="text"
@@ -769,14 +778,35 @@ export default function ProjectEditor(props: ProjectEditorProps) {
               className="w-30"
             />
           </div>
+          {/* The deadline is the owner's promise, so it waits until the project exists and is
+              set by its owner or an admin; the server holds the same line. */}
+          {projectId !== undefined && (
+            <div>
+              <label htmlFor="project-deadline">Deadline (optional)</label>
+              <input
+                id="project-deadline"
+                type="date"
+                value={projectDeadline}
+                onChange={(e) => setProjectDeadline(e.target.value)}
+                onBlur={() => {
+                  if (toDateInputValue(projectData?.deadline) === projectDeadline) return
+                  commitField({ deadline: fromDateInputValue(projectDeadline) })
+                }}
+                disabled={
+                  !canEdit || !(user?.isAdmin || projectData?.ownerId === user?.id || isDraft)
+                }
+              />
+            </div>
+          )}
           <p className="text-text-light basis-full text-sm">
             Used by the timeline view. Leave the duration empty to have the project span its own
-            tasks.
+            tasks. The deadline is the date the whole project should be done by; the timeline shows
+            how far the plan lands from it.
           </p>
         </div>
 
         <div className="mb-5">
-          <label htmlFor="collaboration-link">Collaboration Doc / Link (optional)</label>
+          <label htmlFor="collaboration-link">Collaboration doc / link (optional)</label>
           <input
             id="collaboration-link"
             type="url"
@@ -798,7 +828,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
         </div>
 
         <div className="mb-5">
-          <label>Skills Needed</label>
+          <label>Skills needed</label>
           <p className="text-sm text-text-light mt-0 mb-2">
             What skills would be helpful for this project?
           </p>
@@ -891,12 +921,12 @@ export default function ProjectEditor(props: ProjectEditorProps) {
 
         {isDraft && canEdit && (
           <div className="mb-5">
-            <label>
-              Tasks <span className="text-error">*</span>
-            </label>
+            <label>Tasks {isOrgDraft && <span className="text-error">*</span>}</label>
             <p className="text-sm text-text-light mt-0 mb-2">
               Break the project into concrete tasks. This helps contributors understand the scope
-              and gives them something to pick up.
+              and gives them something to pick up.{' '}
+              {!isOrgDraft &&
+                'Optional at this stage — add some now or once the project is approved.'}
             </p>
             {submitWithoutTasks && taskCount === 0 && (
               <p role="alert" className="text-sm text-error mt-0 mb-2">
@@ -995,7 +1025,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
                 onClick={handleAddTask}
                 disabled={creatingDraft || createTaskMutation.isPending || !newTaskTitle.trim()}
               >
-                {creatingDraft || createTaskMutation.isPending ? 'Adding…' : 'Add Task'}
+                {creatingDraft || createTaskMutation.isPending ? 'Adding…' : 'Add task'}
               </Button>
             </div>
           </div>
@@ -1027,7 +1057,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
 
           {projectId !== undefined && !isDraft && (
             <Button href={`/projects/${projectId}`} variant="secondary">
-              View Project
+              View project
             </Button>
           )}
 
@@ -1048,7 +1078,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
               onClick={() => setShowDeleteDraftModal(true)}
               disabled={deleteDraftMutation.isPending}
             >
-              Delete Draft
+              Delete draft
             </Button>
           )}
 
@@ -1059,13 +1089,14 @@ export default function ProjectEditor(props: ProjectEditorProps) {
               onClick={() => setShowDeleteProjectModal(true)}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? 'Deleting…' : 'Delete Project'}
+              {deleteMutation.isPending ? 'Deleting…' : 'Delete project'}
             </Button>
           )}
         </div>
       </div>
 
-      {/* Opens only once a task exists, so the draft does too. */}
+      {/* An org/template draft only opens this once it has a task, so the draft does too; a
+          volunteer's own proposal has a draft by the time this can open regardless. */}
       {projectId !== undefined && (
         <Modal
           id="confirm-publish-draft"
@@ -1100,7 +1131,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
                   : 'Publish'
                 : publishMutation.isPending
                   ? 'Submitting…'
-                  : 'Submit for Review'}
+                  : 'Submit for review'}
             </Button>
           </div>
         </Modal>
@@ -1119,7 +1150,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
                 comments, and interest history. This cannot be undone.
               </p>
             }
-            confirmLabel="Delete Project"
+            confirmLabel="Delete project"
             busyLabel="Deleting…"
             danger
             busy={deleteMutation.isPending}
@@ -1138,7 +1169,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
                 you&apos;ve added. This cannot be undone.
               </p>
             }
-            confirmLabel="Delete Draft"
+            confirmLabel="Delete draft"
             busyLabel="Deleting…"
             danger
             busy={deleteDraftMutation.isPending}

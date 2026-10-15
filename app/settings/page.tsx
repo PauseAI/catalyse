@@ -6,12 +6,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import Button from '@/components/Button'
 import Checkbox from '@/components/Checkbox'
+import Radio from '@/components/Radio'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import SkillPicker from '@/components/SkillPicker'
 import Tabs from '@/components/Tabs'
 import { Badge } from '@/components/Badge'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import { useUrlParam } from '@/lib/hooks/url-filters'
 import { formatDate } from '@/lib/format-date'
 import { BUG_STATUS_VARIANT, bugStatusLabel } from '@/lib/bug-report-labels'
@@ -29,12 +31,20 @@ import {
 
 type TabKey = 'profile' | 'account' | 'notifications' | 'privacy' | 'bug-reports'
 
+type DailySummaryChoice = 'email_and_in_app' | 'in_app_only' | 'off'
+
+const DAILY_SUMMARY_CHOICES: { value: DailySummaryChoice; label: string }[] = [
+  { value: 'email_and_in_app', label: 'Email and in-app' },
+  { value: 'in_app_only', label: 'In-app only' },
+  { value: 'off', label: 'Off' },
+]
+
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'profile', label: 'Profile' },
   { key: 'account', label: 'Account' },
   { key: 'notifications', label: 'Notifications' },
-  { key: 'privacy', label: 'Privacy & Data' },
-  { key: 'bug-reports', label: 'My Bug Reports' },
+  { key: 'privacy', label: 'Privacy & data' },
+  { key: 'bug-reports', label: 'My bug reports' },
 ]
 
 const VALID_TABS = new Set<string>(TABS.map((t) => t.key))
@@ -101,6 +111,7 @@ function SettingsPageContent() {
   )
   const [notifyRemoteProjects, setNotifyRemoteProjects] = useState(false)
   const [emailMutedCategories, setEmailMutedCategories] = useState<MutableEmailCategory[]>([])
+  const [dailySummary, setDailySummary] = useState<DailySummaryChoice>('email_and_in_app')
   const [consentMakeProfileVisibleInDirectory, setConsentMakeProfileVisibleInDirectory] =
     useState(true)
   const [consentAnalytics, setConsentAnalytics] = useState(false)
@@ -192,6 +203,7 @@ function SettingsPageContent() {
     setEmailMutedCategories(
       MUTABLE_EMAIL_CATEGORIES.filter((c) => me.emailMutedCategories?.includes(c)),
     )
+    setDailySummary(me.dailySummary ?? 'email_and_in_app')
     setOtherSkills(me.otherSkills ?? '')
     setConsentMakeProfileVisibleInDirectory(!!me.consentMakeProfileVisibleInDirectory)
     setConsentAnalytics(me.cookieConsentAnalytics !== false)
@@ -312,6 +324,7 @@ function SettingsPageContent() {
       emailDigest,
       notifyRemoteProjects,
       emailMutedCategories,
+      dailySummary,
       otherSkills: otherSkills.trim() || null,
       skillIds: skills.map((s) => s.skillId),
       consentMakeProfileVisibleInDirectory,
@@ -366,7 +379,7 @@ function SettingsPageContent() {
 
   const saveButton = (
     <Button type="submit" disabled={updateMutation.isPending}>
-      {updateMutation.isPending ? 'Saving…' : 'Save Changes'}
+      {updateMutation.isPending ? 'Saving…' : 'Save changes'}
     </Button>
   )
 
@@ -377,8 +390,10 @@ function SettingsPageContent() {
       <Tabs tabs={TABS} activeTab={activeTab} onChange={setTab} />
 
       {activeTab === 'profile' && user.approvalStatus === 'needs_info' && (
-        <div className="bg-surface rounded-xl shadow p-6 mb-4 max-w-4xl border-2 border-amber-300 dark:border-amber-700">
-          <h2 className="mt-0">Your Application</h2>
+        <div
+          className={`${SECTION_CARD} mb-4 max-w-4xl border-2 border-amber-300 dark:border-amber-700`}
+        >
+          <h2 className="mt-0">Your application</h2>
           {myApplication?.applicationApplicantNotes && (
             <>
               <p className="text-sm font-semibold text-text-light mb-1">Message from the team</p>
@@ -388,7 +403,7 @@ function SettingsPageContent() {
             </>
           )}
           <div className="mb-4">
-            <label htmlFor="applicationMessage">Your Application</label>
+            <label htmlFor="applicationMessage">Your application</label>
             <textarea
               id="applicationMessage"
               rows={5}
@@ -410,7 +425,7 @@ function SettingsPageContent() {
           >
             {updateApplicationMutation.isPending || resubmitMutation.isPending
               ? 'Resubmitting…'
-              : 'Resubmit for Review'}
+              : 'Resubmit for review'}
           </Button>
           <p className="text-sm text-text-light mt-3">
             Update your skills, contact details, or availability below, then resubmit when
@@ -420,7 +435,7 @@ function SettingsPageContent() {
       )}
 
       {activeTab === 'profile' && user.approvalStatus === 'under_review' && (
-        <div className="bg-surface rounded-xl shadow p-6 mb-4 max-w-4xl">
+        <div className={`${SECTION_CARD} mb-4 max-w-4xl`}>
           <p className="text-text-light m-0">
             Your application has been resubmitted and is awaiting review. You can still update your
             profile below, but your application won&apos;t need resubmitting again unless an admin
@@ -431,12 +446,12 @@ function SettingsPageContent() {
 
       {activeTab === 'profile' && (
         <form
-          className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word max-w-4xl"
+          className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word max-w-4xl`}
           onSubmit={handleSave}
         >
           <div className="mb-5">
             <label htmlFor="name" className="required">
-              Your Name
+              Your name
             </label>
             <input
               type="text"
@@ -447,10 +462,10 @@ function SettingsPageContent() {
             />
           </div>
           <div className="mb-5">
-            <label htmlFor="bio">About You</label>
+            <label htmlFor="bio">About you</label>
             <aside className="bg-brand-bg border border-brand-border rounded-lg px-4 py-3 mb-2 text-sm text-text-light">
               Shown to other volunteers in the directory if you choose to make your profile visible
-              in the Privacy &amp; Data tab.
+              in the Privacy &amp; data tab.
             </aside>
             <textarea
               id="bio"
@@ -461,14 +476,14 @@ function SettingsPageContent() {
             />
           </div>
 
-          <h3 className="mt-6 mb-4">Contact Information</h3>
+          <h3 className="mt-6 mb-4">Contact information</h3>
           <aside className="bg-brand-bg border border-brand-border rounded-lg px-4 py-3 mb-4 text-sm text-text-light">
             Always visible to you and admins. Shared with the people you work with on a project, and
             with anyone whose contact request you accept.
           </aside>
           <div className="grid grid-cols-2 gap-5 mb-5 max-sm:grid-cols-1">
             <div>
-              <label htmlFor="discord_handle">Discord Handle</label>
+              <label htmlFor="discord_handle">Discord handle</label>
               <input
                 type="text"
                 id="discord_handle"
@@ -500,8 +515,8 @@ function SettingsPageContent() {
             <div>
               <FilterDropdown
                 id="contact_preference"
-                label="Preferred Contact Method"
-                ariaLabel="Preferred Contact Method"
+                label="Preferred contact method"
+                ariaLabel="Preferred contact method"
                 value={contactPreference}
                 options={contactPrefOptions}
                 onChange={setContactPreference}
@@ -509,7 +524,7 @@ function SettingsPageContent() {
             </div>
           </div>
           <div className="mb-5">
-            <label htmlFor="contact_notes">Contact Notes</label>
+            <label htmlFor="contact_notes">Contact notes</label>
             <input
               type="text"
               id="contact_notes"
@@ -521,7 +536,7 @@ function SettingsPageContent() {
 
           <h3 className="mt-6 mb-4">Availability</h3>
           <div className="mb-5">
-            <label htmlFor="hours">Hours per Week</label>
+            <label htmlFor="hours">Hours per week</label>
             <input
               type="number"
               id="hours"
@@ -546,7 +561,7 @@ function SettingsPageContent() {
             <div className="mb-5">
               <FilterDropdown
                 id="locationGroup"
-                label="Local Group"
+                label="Local group"
                 ariaLabel="Select local group"
                 value={localGroupValue}
                 options={localGroupOptions}
@@ -557,7 +572,7 @@ function SettingsPageContent() {
           )}
           {showCityInput && (
             <div className="mb-5">
-              <label htmlFor="location">City / Area</label>
+              <label htmlFor="location">City / area</label>
               <input
                 type="text"
                 id="location"
@@ -567,12 +582,12 @@ function SettingsPageContent() {
             </div>
           )}
 
-          <h3 className="mt-6 mb-4">Your Skills</h3>
+          <h3 className="mt-6 mb-4">Your skills</h3>
           <div className="mb-5">
             <SkillPicker value={skills} onChange={setSkills} />
           </div>
           <div className="mb-5">
-            <label htmlFor="other_skills">Other Skills</label>
+            <label htmlFor="other_skills">Other skills</label>
             <input
               type="text"
               id="other_skills"
@@ -587,27 +602,27 @@ function SettingsPageContent() {
       )}
 
       {activeTab === 'profile' && (
-        <div className="bg-surface rounded-xl shadow p-6 mb-4 border-2 border-brand-border max-w-4xl">
-          <h3>Local Groups</h3>
+        <div className={`${SECTION_CARD} mb-4 border-2 border-brand-border max-w-4xl`}>
+          <h3>Local groups</h3>
           <p className="text-text-light mb-4">
             Don&apos;t see your local group listed? Suggest a new one.
           </p>
           <Button href="/suggest-local-group" variant="outline">
-            Suggest a Local Group
+            Suggest a local group
           </Button>
         </div>
       )}
 
       {activeTab === 'account' && (
         <div className="max-w-4xl">
-          <div className="bg-surface rounded-xl shadow p-6 mb-6 overflow-hidden wrap-break-word">
-            <h2>Change Email</h2>
+          <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
+            <h2>Change email</h2>
             <p className="text-sm text-text-light mb-4">
               Current email: <strong>{user.email}</strong>
             </p>
             <form method="post" onSubmit={handleChangeEmail}>
               <div className="mb-5">
-                <label htmlFor="newEmail">New Email Address</label>
+                <label htmlFor="newEmail">New email address</label>
                 <input
                   type="email"
                   id="newEmail"
@@ -617,7 +632,7 @@ function SettingsPageContent() {
                 />
               </div>
               <div className="mb-5">
-                <label htmlFor="email_password">Your Password</label>
+                <label htmlFor="email_password">Your password</label>
                 <input
                   type="password"
                   id="email_password"
@@ -627,16 +642,16 @@ function SettingsPageContent() {
                 />
               </div>
               <Button type="submit" disabled={changeEmailMutation.isPending}>
-                {changeEmailMutation.isPending ? 'Changing…' : 'Change Email'}
+                {changeEmailMutation.isPending ? 'Changing…' : 'Change email'}
               </Button>
             </form>
           </div>
 
-          <div className="bg-surface rounded-xl shadow p-6 mb-6 overflow-hidden wrap-break-word">
-            <h2>Change Password</h2>
+          <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
+            <h2>Change password</h2>
             <form method="post" onSubmit={handleChangePassword}>
               <div className="mb-5">
-                <label htmlFor="currentPassword">Current Password</label>
+                <label htmlFor="currentPassword">Current password</label>
                 <input
                   type="password"
                   id="currentPassword"
@@ -646,7 +661,7 @@ function SettingsPageContent() {
                 />
               </div>
               <div className="mb-5">
-                <label htmlFor="newPassword">New Password</label>
+                <label htmlFor="newPassword">New password</label>
                 <input
                   type="password"
                   id="newPassword"
@@ -656,7 +671,7 @@ function SettingsPageContent() {
                 />
               </div>
               <div className="mb-5">
-                <label htmlFor="confirm_password">Confirm New Password</label>
+                <label htmlFor="confirm_password">Confirm new password</label>
                 <input
                   type="password"
                   id="confirm_password"
@@ -666,12 +681,12 @@ function SettingsPageContent() {
                 />
               </div>
               <Button type="submit" disabled={changePasswordMutation.isPending}>
-                {changePasswordMutation.isPending ? 'Changing…' : 'Change Password'}
+                {changePasswordMutation.isPending ? 'Changing…' : 'Change password'}
               </Button>
             </form>
           </div>
 
-          <div className="bg-surface rounded-xl shadow p-6 mb-6 overflow-hidden wrap-break-word">
+          <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
             <h2>Sessions</h2>
             <p className="text-text-light mb-4">
               Sign out everywhere except this device — use this if you signed in somewhere you no
@@ -688,13 +703,13 @@ function SettingsPageContent() {
             </Button>
           </div>
 
-          <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word">
-            <h2>Danger Zone</h2>
+          <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
+            <h2>Danger zone</h2>
             <p className="text-text-light mb-4">
               Permanently delete your account and all associated data. This cannot be undone.
             </p>
             <Button variant="danger" onClick={() => setShowDeleteModal(true)}>
-              Delete My Account
+              Delete my account
             </Button>
           </div>
         </div>
@@ -702,7 +717,7 @@ function SettingsPageContent() {
 
       {activeTab === 'notifications' && (
         <form
-          className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word max-w-4xl"
+          className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word max-w-4xl`}
           onSubmit={handleSave}
         >
           <div className="mb-5">
@@ -751,6 +766,26 @@ function SettingsPageContent() {
               emailed as well.
             </p>
           </fieldset>
+          <fieldset className="mb-5 border-0 p-0">
+            <legend className="font-medium mb-2">Daily summary</legend>
+            <div className="flex flex-col gap-2">
+              {DAILY_SUMMARY_CHOICES.map((c) => (
+                <Radio
+                  key={c.value}
+                  name="daily_summary"
+                  checked={dailySummary === c.value}
+                  onChange={() => setDailySummary(c.value)}
+                >
+                  {c.label}
+                </Radio>
+              ))}
+            </div>
+            <p className="text-sm text-text-light mt-1 ml-7">
+              One message a day, only when something needs you: deadlines coming up, work past its
+              plan, and news on projects you lead. Turning it off never hides the Overdue flag or
+              what is waiting on your Home page.
+            </p>
+          </fieldset>
           {saveButton}
         </form>
       )}
@@ -758,10 +793,10 @@ function SettingsPageContent() {
       {activeTab === 'privacy' && (
         <div className="max-w-4xl">
           <form
-            className="bg-surface rounded-xl shadow p-6 mb-6 overflow-hidden wrap-break-word"
+            className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}
             onSubmit={handleSave}
           >
-            <h2 className="mt-0">Privacy Settings</h2>
+            <h2 className="mt-0">Privacy settings</h2>
             <div className="mb-5 flex flex-col gap-3">
               <Checkbox
                 id="consent_make_profile_visible_in_directory"
@@ -796,8 +831,8 @@ function SettingsPageContent() {
             {saveButton}
           </form>
 
-          <div className="bg-surface rounded-xl shadow p-6 mb-6 overflow-hidden wrap-break-word">
-            <h2 className="mt-0">Your Data</h2>
+          <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
+            <h2 className="mt-0">Your data</h2>
             <p className="text-text-light mb-4">
               Download all your data in JSON format. This includes your profile, skills, project
               interests, and messages.
@@ -807,17 +842,17 @@ function SettingsPageContent() {
               onClick={() => exportMutation.mutate({})}
               disabled={exportMutation.isPending}
             >
-              {exportMutation.isPending ? 'Preparing…' : 'Download My Data'}
+              {exportMutation.isPending ? 'Preparing…' : 'Download my data'}
             </Button>
           </div>
 
-          <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word">
-            <h2 className="mt-0">Privacy Policy</h2>
+          <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
+            <h2 className="mt-0">Privacy policy</h2>
             <p className="text-text-light mb-4">
               Read our full data practices, GDPR rights, and third-party processor information.
             </p>
             <Link href="/privacy" className="underline font-medium">
-              Read Privacy Policy
+              Read privacy policy
             </Link>
           </div>
         </div>
@@ -865,12 +900,12 @@ function SettingsPageContent() {
           id="deleteModal"
           role="dialog"
           aria-modal="true"
-          aria-label="Delete Account"
+          aria-label="Delete account"
           className="fixed inset-0 bg-[rgba(29,53,87,0.5)] flex items-center justify-center z-1000 p-5"
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 className="m-0 text-xl">Delete Your Account</h2>
+              <h2 className="m-0 text-xl">Delete your account</h2>
             </div>
             <div className="p-6">
               {user.hasPassword && (
@@ -924,7 +959,7 @@ function SettingsPageContent() {
                 )}
                 <div className="flex gap-2">
                   <Button type="submit" variant="danger" disabled={deleteAccountMutation.isPending}>
-                    {deleteAccountMutation.isPending ? 'Deleting…' : 'Permanently Delete Account'}
+                    {deleteAccountMutation.isPending ? 'Deleting…' : 'Permanently delete account'}
                   </Button>
                   <Button
                     type="button"

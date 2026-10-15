@@ -156,7 +156,7 @@ export default function ApplicationReviewPage() {
   }
 
   return (
-    <main className="w-full max-w-2xl mx-auto px-6 py-5 pb-15">
+    <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-5 pb-15">
       <div className="mb-6">
         <Button variant="ghost" size="sm" onClick={() => router.push('/admin/applications')}>
           ← Back to applications
@@ -330,7 +330,7 @@ export default function ApplicationReviewPage() {
 
         <div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={() => handleSaveNotes(app.id)} disabled={submitting}>
-            Save Notes
+            Save notes
           </Button>
           {canAction && (
             <>
@@ -339,7 +339,7 @@ export default function ApplicationReviewPage() {
                 onClick={() => setConfirmAction('request_info')}
                 disabled={submitting}
               >
-                Request More Info
+                Request more info
               </Button>
               <Button
                 variant="danger"
@@ -355,7 +355,7 @@ export default function ApplicationReviewPage() {
           )}
           {canReopen && (
             <Button onClick={() => setConfirmAction('reopen')} disabled={submitting}>
-              Reopen Application
+              Reopen application
             </Button>
           )}
         </div>
@@ -405,7 +405,7 @@ export default function ApplicationReviewPage() {
                   {
                     approve: 'Approve',
                     reject: 'Reject',
-                    request_info: 'Request Info',
+                    request_info: 'Request info',
                     reopen: 'Reopen',
                   }[confirmAction]
                 }

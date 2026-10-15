@@ -8,9 +8,12 @@ import {
   createTeam,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
+import { startOfUtcDay } from '@/lib/schedule'
 import { emails } from '@/test/fakes/email'
 
 const task = (id: number) => prisma.workItem.findUniqueOrThrow({ where: { id } })
+
+const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`)
 
 describe('projects.listTasks / getTask', () => {
   it('lists tasks with schedule, dependencies and manage rights, gated on project visibility', async () => {
@@ -43,6 +46,13 @@ describe('projects.listTasks / getTask', () => {
     const res = await clientAs(me).projects.listTasks({ projectId: project.id })
     expect(res.tasks.map((t) => t.id)).toEqual([a.id, tie.id, b.id, done.id])
     expect(res.tasks[0]).toMatchObject({ assignedToName: me.name, createdByName: owner.name })
+    expect(res.tasks.map((t) => t.displayStatus)).toEqual([
+      'ready',
+      'ready',
+      'blocked',
+      'completed',
+    ])
+    expect(res.tasks[2].blockedBy).toEqual([{ id: a.id, title: a.title }])
     expect(res.dependencies).toEqual([
       expect.objectContaining({ predecessorId: a.id, successorId: b.id, lagDays: 1 }),
     ])
@@ -50,6 +60,8 @@ describe('projects.listTasks / getTask', () => {
       new Date('2026-04-04T00:00:00Z'),
     )
     expect(res.scopeOrigin).toEqual(new Date('2026-04-01T00:00:00Z'))
+    // The plan ended long ago; the axis still reaches today.
+    expect(res.scopeEnd.getTime()).toBeGreaterThanOrEqual(startOfUtcDay(new Date()).getTime())
     expect(res.canManageTasks).toBe(false)
     expect(
       (await clientAs(owner).projects.listTasks({ projectId: project.id })).canManageTasks,
@@ -92,28 +104,38 @@ describe('projects.listTasks / getTask', () => {
       featuredAsQuickTask: true,
       assignedToName: null,
       createdByName: null,
-      assigneeHasPosted: false,
+      displayStatus: 'blocked',
+      blockedBy: [{ id: a.id, title: a.title }],
+      waitingOn: [],
     })
-    // Only the assignee's own comments count as an update.
+    const shown = async () => clientAs(me).projects.getTask({ projectId: project.id, taskId: b.id })
+
+    // Claimed, it is still Blocked; finishing what it waits on makes it Ready with no write to it.
     await prisma.workItem.update({ where: { id: b.id }, data: { assigneeId: me.id } })
-    await prisma.workItemComment.create({
-      data: { workItemId: b.id, authorId: owner.id, content: 'How is it going?' },
+    expect(await shown()).toMatchObject({ displayStatus: 'blocked', assignedToId: me.id })
+    const before = (await task(b.id)).updatedAt
+    await prisma.workItem.update({ where: { id: a.id }, data: { status: 'completed' } })
+    expect(await shown()).toMatchObject({ displayStatus: 'ready', blockedBy: [] })
+    expect((await task(b.id)).updatedAt).toEqual(before)
+
+    // Started work stays In progress when what it waits on opens again, and says so.
+    await prisma.workItem.update({ where: { id: b.id }, data: { status: 'in_progress' } })
+    await prisma.workItem.update({ where: { id: a.id }, data: { status: 'not_started' } })
+    expect(await shown()).toMatchObject({
+      displayStatus: 'in_progress',
+      blockedBy: [],
+      waitingOn: [{ id: a.id, title: a.title }],
     })
-    expect(
-      (await clientAs(me).projects.getTask({ projectId: project.id, taskId: b.id }))
-        .assigneeHasPosted,
-    ).toBe(false)
-    await prisma.workItemComment.create({
-      data: { workItemId: b.id, authorId: me.id, content: 'Started on it' },
-    })
-    expect(
-      (await clientAs(me).projects.getTask({ projectId: project.id, taskId: b.id }))
-        .assigneeHasPosted,
-    ).toBe(true)
-    expect(view.predecessors).toEqual([
-      expect.objectContaining({ predecessorId: a.id, predecessorTitle: a.title, lagDays: 0 }),
+    expect(view.waitsOn).toEqual([
+      expect.objectContaining({ id: a.id, href: `/projects/${project.id}/tasks/${a.id}` }),
     ])
-    expect(view.siblingTasks).toEqual([{ id: a.id, title: a.title }])
+    expect(view.unblocks).toEqual([])
+    // From the other end, `a` unblocks `b`, with `b`'s own shown status.
+    const fromA = await clientAs(me).projects.getTask({ projectId: project.id, taskId: a.id })
+    expect(fromA.waitsOn).toEqual([])
+    expect(fromA.unblocks).toEqual([
+      expect.objectContaining({ id: b.id, title: b.title, displayStatus: 'in_progress' }),
+    ])
     expect(
       (await clientAs(owner).projects.getTask({ projectId: project.id, taskId: b.id })).canManage,
     ).toBe(true)
@@ -148,15 +170,35 @@ describe('projects.createTask / reorderTasks / deleteTask', () => {
       deadline: new Date('2026-09-01T00:00:00Z'),
       featuredAsQuickTask: true,
       startDate: new Date('2026-08-01T00:00:00Z'),
-      durationDays: 3,
+      submissionPrompt: '  How many went out?  ',
+      submissionAsksLink: true,
     })
-    expect((await task(t1.id)).sortOrder).toBe(1)
+    // A new task asks "What did you do?" and no link unless it says otherwise.
+    expect(await task(t1.id)).toMatchObject({
+      sortOrder: 1,
+      submissionPrompt: null,
+      submissionAsksLink: false,
+    })
     expect(await task(t2.id)).toMatchObject({
       sortOrder: 2,
+      submissionPrompt: 'How many went out?',
+      submissionAsksLink: true,
       estimatedHours: 2,
       featuredAsQuickTask: true,
-      durationDays: 3,
+      deadline: new Date('2026-09-01T00:00:00Z'),
+      durationDays: null,
     })
+    // A task ends on its deadline, so it takes no length but a milestone's zero.
+    await expect(
+      c.projects.createTask({ projectId: project.id, title: 'Long', durationDays: 3 as 0 }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    const moment = await c.projects.createTask({
+      projectId: project.id,
+      title: 'Moment',
+      startDate: new Date('2026-08-05T00:00:00Z'),
+      durationDays: 0,
+    })
+    expect((await task(moment.id)).durationDays).toBe(0)
 
     await expect(
       clientAs(other).projects.reorderTasks({ projectId: project.id, items: [] }),
@@ -262,6 +304,15 @@ describe('projects.ganttOverview', () => {
     expect(idsSeen).not.toContain(done.id)
     expect(res.projects.find((p) => p.id === b.id)).toMatchObject({ taskCount: 2 })
     expect(res.projects.find((p) => p.id === a.id)!.placement).not.toBeNull()
+
+    // A project with no length of its own spans its dated tasks; an undated one does not count.
+    const spanned = await createProject({ title: 'gantt c', startDate: day('2027-05-01') })
+    await createTask(spanned.id)
+    await createTask(spanned.id, { startDate: day('2027-05-01'), deadline: day('2027-05-05') })
+    const placed = (await clientAs(me).projects.ganttOverview({})).projects.find(
+      (p) => p.id === spanned.id,
+    )!.placement!
+    expect([placed.start, placed.end]).toEqual([day('2027-05-01'), day('2027-05-05')])
     expect(res.dependencies).toEqual([
       expect.objectContaining({ predecessorId: a.id, successorId: b.id }),
     ])
@@ -307,21 +358,45 @@ describe('projects.updateTask', () => {
         featuredAsQuickTask: true,
         isAnchor: true,
         startDate: new Date('2026-09-01T00:00:00Z'),
-        durationDays: 2,
         assigneeId: helper.id,
         status: 'in_progress',
+        submissionPrompt: 'Photos?',
+        submissionAsksLink: true,
       },
     })
     const after = await task(t.id)
     expect(after).toMatchObject({
+      submissionPrompt: 'Photos?',
+      submissionAsksLink: true,
       title: 'T2',
       assigneeId: helper.id,
       status: 'in_progress',
       isAnchor: true,
-      durationDays: 2,
+      deadline: new Date('2026-10-01T00:00:00Z'),
     })
+    // The deadline is where the bar ends, so moving it is a change to the schedule.
+    expect(after.scheduleUpdatedAt).not.toBeNull()
     expect(after.startedAt).not.toBeNull()
+    expect(after.claimedAt).not.toBeNull()
     const started = after.startedAt
+    // Keeping the same assignee keeps their claim time; handing it on restarts it; nobody clears it.
+    await c.projects.updateTask({
+      projectId: project.id,
+      taskId: t.id,
+      data: { assigneeId: helper.id },
+    })
+    expect((await task(t.id)).claimedAt).toEqual(after.claimedAt)
+    await c.projects.updateTask({
+      projectId: project.id,
+      taskId: t.id,
+      data: { assigneeId: null },
+    })
+    expect((await task(t.id)).claimedAt).toBeNull()
+    await c.projects.updateTask({
+      projectId: project.id,
+      taskId: t.id,
+      data: { assigneeId: helper.id },
+    })
     await c.projects.updateTask({
       projectId: project.id,
       taskId: t.id,
@@ -336,11 +411,22 @@ describe('projects.updateTask', () => {
     expect((await task(t.id)).completedAt).not.toBeNull()
     await prisma.workItem.update({
       where: { id: t.id },
-      data: { submissionNote: 'Did it', submittedAt: new Date(), changesRequestedNote: 'More' },
+      data: {
+        status: 'in_progress',
+        submissionNote: 'Did it',
+        submittedAt: new Date(),
+        changesRequestedNote: 'More',
+      },
     })
-    await c.projects.updateTask({ projectId: project.id, taskId: t.id, data: { status: 'open' } })
+    await c.projects.updateTask({
+      projectId: project.id,
+      taskId: t.id,
+      data: { status: 'not_started' },
+    })
     expect(await task(t.id)).toMatchObject({
+      status: 'not_started',
       assigneeId: null,
+      claimedAt: null,
       completedAt: null,
       startedAt: null,
       submissionNote: null,
@@ -366,32 +452,48 @@ describe('projects.updateTask', () => {
     await expect(
       c.projects.updateTask({ projectId: project.id, taskId: t.id, data: { title: 'x' } }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    for (const sneaky of [
+      { title: 'sneaky' },
+      { submissionPrompt: 'sneaky' },
+      { submissionAsksLink: true },
+    ]) {
+      await expect(
+        c.projects.updateTask({
+          projectId: project.id,
+          taskId: t.id,
+          data: { assigneeId: me.id, ...sneaky },
+        }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    }
+    // Claiming does not start the work, so a claim that also starts it is not a claim.
     await expect(
       c.projects.updateTask({
         projectId: project.id,
         taskId: t.id,
-        data: { status: 'in_progress', assigneeId: me.id, title: 'sneaky' },
+        data: { status: 'in_progress', assigneeId: me.id },
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' })
     expect(
       await c.projects.updateTask({
         projectId: project.id,
         taskId: t.id,
-        data: { status: 'in_progress', assigneeId: me.id },
+        data: { assigneeId: me.id },
       }),
     ).toEqual({ message: 'Task updated', requested: false })
-    expect(await task(t.id)).toMatchObject({ assigneeId: me.id, status: 'in_progress' })
+    const claimed = await task(t.id)
+    expect(claimed).toMatchObject({ assigneeId: me.id, status: 'not_started', startedAt: null })
+    expect(claimed.claimedAt).not.toBeNull()
     expect(
       await prisma.workItemInterest.findFirst({
         where: { workItemId: project.id, volunteerId: me.id },
       }),
     ).toMatchObject({ status: 'accepted', message: `${me.name} has claimed '${t.title}' task` })
-    // Rival cannot claim an already-claimed task (status is no longer open → not a self-claim).
+    // Rival cannot claim an already-claimed task (it has an assignee → not a self-claim).
     await expect(
       clientAs(rival).projects.updateTask({
         projectId: project.id,
         taskId: t.id,
-        data: { status: 'in_progress', assigneeId: rival.id },
+        data: { assigneeId: rival.id },
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' })
     // The assignee finishes by submitting their work (projects.submitTask), not by setting it.
@@ -404,7 +506,7 @@ describe('projects.updateTask', () => {
     await c.projects.updateTask({
       projectId: project.id,
       taskId: t2.id,
-      data: { status: 'in_progress', assigneeId: me.id },
+      data: { assigneeId: me.id },
     })
     expect(
       await prisma.workItemInterest.count({
@@ -422,7 +524,7 @@ describe('projects.updateTask', () => {
       c.projects.updateTask({
         projectId: project.id,
         taskId: t3.id,
-        data: { status: 'in_progress', assigneeId: me.id },
+        data: { assigneeId: me.id },
       }),
     ).rejects.toMatchObject({ message: expect.stringContaining('no longer contributing') })
     const team = await createTeam()
@@ -436,22 +538,22 @@ describe('projects.updateTask', () => {
       clientAs(rival).projects.updateTask({
         projectId: teamP.id,
         taskId: tt.id,
-        data: { status: 'in_progress', assigneeId: rival.id },
+        data: { assigneeId: rival.id },
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
 
-    // Claim race: the guarded hold finds the task already taken.
+    // Claim race: the guarded hold finds the task already held for someone else, and records
+    // nothing.
     const open = await createProject({ assigneeId: owner.id, status: 'in_progress' })
-    const t4 = await createTask(open.id)
-    const spy = vi.spyOn(prisma.workItem, 'updateMany').mockResolvedValueOnce({ count: 0 })
+    const t4 = await createTask(open.id, { requestedById: owner.id })
     await expect(
       clientAs(rival).projects.updateTask({
         projectId: open.id,
         taskId: t4.id,
-        data: { status: 'in_progress', assigneeId: rival.id },
+        data: { assigneeId: rival.id },
       }),
     ).rejects.toMatchObject({ message: 'This task has already been claimed' })
-    spy.mockRestore()
+    expect(await prisma.workItemEvent.count({ where: { workItemId: t4.id } })).toBe(0)
 
     // The creator of a draft may edit its tasks.
     const draft = await createProject({ status: 'draft', creatorId: me.id })
@@ -489,8 +591,10 @@ describe('projects.assignTask', () => {
     expect(
       await c.projects.assignTask({ projectId: project.id, taskId: t.id, assigneeId: vol.id }),
     ).toEqual({ message: 'Task assigned' })
+    // Assigning sets who holds it; the work has not started.
     const first = await task(t.id)
-    expect(first).toMatchObject({ assigneeId: vol.id, status: 'in_progress' })
+    expect(first).toMatchObject({ assigneeId: vol.id, status: 'not_started', startedAt: null })
+    expect(first.claimedAt).not.toBeNull()
     await vi.waitFor(async () =>
       expect(
         await prisma.notification.findMany({
@@ -503,12 +607,188 @@ describe('projects.assignTask', () => {
         }),
       ]),
     )
+    // Work in flight stays started when it changes hands; the new holder's claim starts now.
+    const started = new Date('2026-01-05T00:00:00Z')
+    await prisma.workItem.update({
+      where: { id: t.id },
+      data: { status: 'in_progress', startedAt: started },
+    })
+    await c.projects.assignTask({ projectId: project.id, taskId: t.id, assigneeId: vol.id })
+    expect((await task(t.id)).claimedAt).toEqual(first.claimedAt)
     await c.projects.assignTask({ projectId: project.id, taskId: t.id, assigneeId: other.id })
-    expect((await task(t.id)).startedAt).toEqual(first.startedAt)
+    const handedOn = await task(t.id)
+    expect(handedOn).toMatchObject({ status: 'in_progress', startedAt: started })
+    expect(handedOn.claimedAt!.getTime()).toBeGreaterThan(first.claimedAt!.getTime())
     await prisma.workItem.update({ where: { id: t.id }, data: { status: 'completed' } })
     await expect(
       c.projects.assignTask({ projectId: project.id, taskId: t.id, assigneeId: vol.id }),
-    ).rejects.toMatchObject({ message: 'Cannot assign a completed task' })
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', message: 'Reopen the task to change it' })
+  })
+})
+
+describe('projects.reopenTask', () => {
+  const notes = (volunteerId: number, type: string) =>
+    prisma.notification.findMany({ where: { volunteerId, type } })
+  const events = (workItemId: number) =>
+    prisma.workItemEvent.findMany({ where: { workItemId }, select: { kind: true, after: true } })
+
+  async function doneTaskSetup() {
+    const owner = await createVolunteer({ name: 'Olive' })
+    const sam = await createVolunteer({ name: 'Sam' })
+    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    const t = await createTask(project.id, {
+      status: 'completed',
+      assigneeId: sam.id,
+      startedAt: day('2026-09-01'),
+      completedAt: day('2026-09-03'),
+      submissionNote: 'Booked it',
+      submittedAt: day('2026-09-03'),
+      reviewedById: owner.id,
+      reviewedAt: day('2026-09-03'),
+    })
+    return { owner, sam, project, t }
+  }
+
+  it('takes a done task back to In progress for its assignee, says so and tells them', async () => {
+    const { owner, sam, project, t } = await doneTaskSetup()
+    const next = await createTask(project.id)
+    await prisma.workItemDependency.create({ data: { predecessorId: t.id, successorId: next.id } })
+    const nextStatus = async () =>
+      (await clientAs(owner).projects.getTask({ projectId: project.id, taskId: next.id }))
+        .displayStatus
+    expect(await nextStatus()).toBe('ready')
+
+    expect(
+      await clientAs(owner).projects.reopenTask({ projectId: project.id, taskId: t.id }),
+    ).toEqual({ message: 'Task reopened', status: 'in_progress' })
+    expect(await task(t.id)).toMatchObject({
+      status: 'in_progress',
+      completedAt: null,
+      reviewedById: null,
+      reviewedAt: null,
+      startedAt: day('2026-09-01'),
+      submissionNote: 'Booked it',
+    })
+    expect(await events(t.id)).toEqual([
+      { kind: 'reopened', after: { status: 'in_progress', completedAt: null } },
+    ])
+    expect(await notes(sam.id, 'task_reopened')).toEqual([
+      expect.objectContaining({
+        title: `Reopened: '${t.title}'`,
+        body: 'Olive reopened it, so it is back on your list.',
+        link: `/projects/${project.id}/tasks/${t.id}`,
+      }),
+    ])
+    // The task that waited on it is waiting again.
+    expect(await nextStatus()).toBe('blocked')
+    // It is no longer done, so there is nothing to reopen.
+    await expect(
+      clientAs(owner).projects.reopenTask({ projectId: project.id, taskId: t.id }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'This task is not done' })
+  })
+
+  it('lets a deputy or an admin reopen, but not a helper', async () => {
+    const { owner, sam, project, t } = await doneTaskSetup()
+    await expect(
+      clientAs(sam).projects.reopenTask({ projectId: project.id, taskId: t.id }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    await expect(
+      clientAs(owner).projects.reopenTask({ projectId: project.id, taskId: 999_999 }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+
+    // A deputy reopens a done task nobody holds: back to Not started, its hand-in forgotten.
+    const deputy = await createVolunteer({ name: 'Dee' })
+    await prisma.workItemInterest.create({
+      data: {
+        volunteerId: deputy.id,
+        workItemId: project.id,
+        interestType: 'want_to_contribute',
+        status: 'accepted',
+      },
+    })
+    await prisma.projectDeputy.create({ data: { projectId: project.id, volunteerId: deputy.id } })
+    const unheld = await createTask(project.id, {
+      status: 'completed',
+      completedAt: new Date(),
+      startedAt: new Date(),
+      submissionNote: 'Done',
+      submittedAt: new Date(),
+    })
+    expect(
+      await clientAs(deputy).projects.reopenTask({ projectId: project.id, taskId: unheld.id }),
+    ).toMatchObject({ status: 'not_started' })
+    expect(await task(unheld.id)).toMatchObject({
+      status: 'not_started',
+      completedAt: null,
+      startedAt: null,
+      submissionNote: null,
+      submittedAt: null,
+    })
+    expect(await events(unheld.id)).toMatchObject([
+      { kind: 'reopened', after: { status: 'not_started', asDeputy: true } },
+    ])
+
+    // An admin takes back work waiting for review; the reviewers' prompt goes with it.
+    const admin = await createAdmin()
+    await prisma.workItem.update({
+      where: { id: t.id },
+      data: { status: 'under_review', completedAt: null, startedAt: null },
+    })
+    await prisma.notification.create({
+      data: { volunteerId: owner.id, type: 'task_submitted', title: 'Review', entityId: t.id },
+    })
+    await clientAs(admin).projects.reopenTask({ projectId: project.id, taskId: t.id })
+    const back = await task(t.id)
+    expect(back.status).toBe('in_progress')
+    expect(back.startedAt).not.toBeNull()
+    expect(await notes(owner.id, 'task_submitted')).toHaveLength(0)
+  })
+
+  it('keeps a done task read-only until it is reopened', async () => {
+    const { owner, sam, project, t } = await doneTaskSetup()
+    const c = clientAs(owner)
+    const locked = { code: 'FORBIDDEN', message: 'Reopen the task to change it' }
+    await expect(
+      c.projects.updateTask({
+        projectId: project.id,
+        taskId: t.id,
+        data: { deadline: day('2026-12-01') },
+      }),
+    ).rejects.toMatchObject(locked)
+    await expect(
+      c.projects.updateTask({
+        projectId: project.id,
+        taskId: t.id,
+        data: { status: 'not_started' },
+      }),
+    ).rejects.toMatchObject(locked)
+    await expect(
+      c.projects.replanTask({
+        projectId: project.id,
+        taskId: t.id,
+        newEnd: day('2026-12-01'),
+        reason: 'Later',
+      }),
+    ).rejects.toMatchObject(locked)
+    await expect(
+      c.schedule.rescheduleItems({ items: [{ id: t.id, startDate: day('2026-11-01') }] }),
+    ).rejects.toMatchObject(locked)
+    // Someone who cannot manage the task is told that first.
+    await expect(
+      clientAs(sam).projects.updateTask({
+        projectId: project.id,
+        taskId: t.id,
+        data: { title: 'x' },
+      }),
+    ).rejects.toMatchObject({ message: 'Not authorized to update this task' })
+
+    await c.projects.reopenTask({ projectId: project.id, taskId: t.id })
+    await c.projects.updateTask({
+      projectId: project.id,
+      taskId: t.id,
+      data: { deadline: day('2026-12-01') },
+    })
+    expect((await task(t.id)).deadline).toEqual(day('2026-12-01'))
   })
 })
 
@@ -563,7 +843,7 @@ describe('projects.submitTask / acceptTask / requestTaskChanges', () => {
 
     await expect(
       c.projects.submitTask({ projectId: project.id, taskId: t.id, note: 'again' }),
-    ).rejects.toMatchObject({ message: 'Only a task in progress can be submitted' })
+    ).rejects.toMatchObject({ message: 'This task has already been submitted' })
 
     // The owner finishing their own task, or a task on a project with no owner, is not queued.
     const own = await createTask(project.id, { assigneeId: owner.id, status: 'in_progress' })
@@ -576,10 +856,40 @@ describe('projects.submitTask / acceptTask / requestTaskChanges', () => {
       }),
     ).toMatchObject({ status: 'completed' })
     const orphan = await createProject({ status: 'ready', autoAcceptTasks: false })
-    const ot = await createTask(orphan.id, { assigneeId: me.id, status: 'in_progress' })
+    // Claimed but never started: handing it in records when the work began.
+    const ot = await createTask(orphan.id, { assigneeId: me.id })
     expect(
       await c.projects.submitTask({ projectId: orphan.id, taskId: ot.id, url: 'https://x.org' }),
     ).toMatchObject({ status: 'completed' })
+    const handedIn = await task(ot.id)
+    expect(handedIn.startedAt).toEqual(handedIn.submittedAt)
+  })
+
+  it('starts the work when its assignee presses Start, and only then', async () => {
+    const owner = await createVolunteer()
+    const me = await createVolunteer()
+    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    const before = await createTask(project.id)
+    const t = await createTask(project.id, { assigneeId: me.id, claimedAt: new Date() })
+    // Blocked does not stop someone starting prep early.
+    await prisma.workItemDependency.create({
+      data: { predecessorId: before.id, successorId: t.id },
+    })
+    const ids = { projectId: project.id, taskId: t.id }
+
+    await expect(clientAs(owner).projects.startTask(ids)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    })
+    expect(await clientAs(me).projects.startTask(ids)).toEqual({ message: 'Task started' })
+    const started = await task(t.id)
+    expect(started.status).toBe('in_progress')
+    expect(started.startedAt).not.toBeNull()
+    await expect(clientAs(me).projects.startTask(ids)).rejects.toMatchObject({
+      message: 'This task has already started',
+    })
+    expect((await clientAs(me).projects.getTask(ids)).waitingOn).toEqual([
+      { id: before.id, title: before.title },
+    ])
   })
 
   it('queues work for the owner, who accepts it or asks for changes', async () => {
@@ -721,8 +1031,10 @@ describe('projects.submitTask / acceptTask / requestTaskChanges', () => {
     await clientAs(me).projects.submitTask({ projectId: project.id, taskId: t.id, note: 'Half' })
     await clientAs(me).projects.withdrawInterest({ projectId: project.id })
     expect(await task(t.id)).toMatchObject({
-      status: 'open',
+      status: 'not_started',
       assigneeId: null,
+      claimedAt: null,
+      startedAt: null,
       submissionNote: null,
       submittedAt: null,
     })
@@ -738,7 +1050,7 @@ describe('claiming before joining', () => {
     clientAs(who).projects.updateTask({
       projectId,
       taskId,
-      data: { status: 'in_progress', assigneeId: who.id },
+      data: { assigneeId: who.id },
     })
 
   it('holds the task and asks the owner, who hands it over by accepting', async () => {
@@ -763,7 +1075,7 @@ describe('claiming before joining', () => {
     expect(await task(t.id)).toMatchObject({
       requestedById: me.id,
       assigneeId: null,
-      status: 'open',
+      status: 'not_started',
     })
     const interest = await prisma.workItemInterest.findFirstOrThrow({
       where: { workItemId: project.id, volunteerId: me.id },
@@ -800,8 +1112,13 @@ describe('claiming before joining', () => {
     })
     for (const id of [t.id, t2.id]) {
       const after = await task(id)
-      expect(after).toMatchObject({ assigneeId: me.id, status: 'in_progress', requestedById: null })
-      expect(after.startedAt).not.toBeNull()
+      expect(after).toMatchObject({
+        assigneeId: me.id,
+        status: 'not_started',
+        requestedById: null,
+        startedAt: null,
+      })
+      expect(after.claimedAt).not.toBeNull()
     }
     // Once on the project, claiming is immediate.
     const t3 = await createTask(project.id)
@@ -842,7 +1159,7 @@ describe('claiming before joining', () => {
     await clientAs(owner).projects.updateTask({
       projectId: project.id,
       taskId: c.id,
-      data: { status: 'open' },
+      data: { status: 'not_started' },
     })
     expect(await task(c.id)).toMatchObject({ assigneeId: null, requestedById: null })
   })
@@ -855,7 +1172,7 @@ describe('claiming before joining', () => {
     await clientAs(owner).projects.invite({ projectId: project.id, volunteerId: invitee.id })
     const t = await createTask(project.id)
     expect(await claim(invitee, project.id, t.id)).toMatchObject({ requested: false })
-    expect(await task(t.id)).toMatchObject({ assigneeId: invitee.id, status: 'in_progress' })
+    expect(await task(t.id)).toMatchObject({ assigneeId: invitee.id, status: 'not_started' })
     expect(
       await prisma.workItemInterest.findFirstOrThrow({ where: { volunteerId: invitee.id } }),
     ).toMatchObject({ status: 'accepted' })

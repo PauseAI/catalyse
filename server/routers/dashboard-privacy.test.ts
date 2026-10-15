@@ -60,6 +60,12 @@ describe('dashboard.get', () => {
     })
     const qt = await createQuickTask({ assigneeId: me.id, status: 'under_review', title: 'QT1' })
     await createTask(lead.id, { assigneeId: me.id, status: 'under_review', title: 'T2' })
+    // Claimed but not started is still my work, shown with what it waits on.
+    const first = await createTask(lead.id, { title: 'Emergency thing' })
+    const blocked = await createTask(lead.id, { assigneeId: me.id, title: 'T3' })
+    await prisma.workItemDependency.create({
+      data: { predecessorId: first.id, successorId: blocked.id },
+    })
     const team = await createTeam({ name: 'Comms' })
     const ledTeam = await createTeam({ name: 'Leads' })
     await prisma.teamMembership.createMany({
@@ -74,13 +80,23 @@ describe('dashboard.get', () => {
     expect(work.filter((w) => w.kind === 'project').map((w) => w.title)).toHaveLength(7)
     expect(byTitle['Lead P']).toMatchObject({
       role: 'Lead',
-      status: 'In Progress',
+      status: 'In progress',
       href: `/projects/${lead.id}`,
     })
     expect(byTitle['Helping P']).toMatchObject({ role: 'Helper' })
     expect(byTitle['Both P']).toMatchObject({ role: 'Helper' })
-    expect(byTitle['Applied P']).toMatchObject({ role: 'Helper', status: 'Applied' })
-    expect(byTitle['Lead app P']).toMatchObject({ role: 'Lead', status: 'Applied' })
+    // A request names what it asks, and the row's status is the project's.
+    expect(byTitle['Applied P']).toMatchObject({
+      role: 'Asked to help',
+      status: 'To do',
+      statusKey: 'ready',
+      ownerName: other.name,
+    })
+    expect(byTitle['Lead app P']).toMatchObject({
+      role: 'Asked to lead',
+      statusKey: 'ready',
+      ownerName: null,
+    })
     expect(byTitle['Draft P']).toMatchObject({
       role: 'Proposed',
       href: `/projects/${draft.id}/edit`,
@@ -91,14 +107,21 @@ describe('dashboard.get', () => {
       context: 'Lead P',
       href: `/projects/${lead.id}/tasks/${task.id}`,
     })
-    expect(byTitle['T2']).toMatchObject({ status: 'Submitted for review' })
+    expect(byTitle['T1']).toMatchObject({ status: 'In progress', displayStatus: 'in_progress' })
+    expect(byTitle['T2']).toMatchObject({ status: 'In review' })
+    expect(byTitle['T3']).toMatchObject({
+      status: 'To do',
+      displayStatus: 'blocked',
+      blockedBy: [{ id: first.id, title: 'Emergency thing' }],
+    })
+    expect(byTitle['Emergency thing']).toBeUndefined()
     expect(byTitle['Loose']).toMatchObject({
       context: null,
       href: '/dashboard',
     })
     expect(byTitle['QT1']).toMatchObject({
       href: `/quick-tasks/${qt.id}`,
-      status: 'Submitted for review',
+      status: 'In review',
     })
     expect(byTitle['Comms']).toMatchObject({
       kind: 'team',
@@ -108,6 +131,71 @@ describe('dashboard.get', () => {
     expect(byTitle['Leads']).toMatchObject({ role: 'Lead' })
     // Finished work comes last.
     expect(work.at(-1)).toMatchObject({ title: 'Done P', done: true, href: `/projects/${done.id}` })
+  })
+
+  it('puts work that needs attention now first, with why, each part by deadline', async () => {
+    const me = await createVolunteer()
+    const project = await createProject({
+      assigneeId: me.id,
+      status: 'in_progress',
+      title: 'Due P',
+      deadline: new Date(Date.now() + 10 * DAY),
+    })
+    const mine = { assigneeId: me.id, status: 'in_progress' as const }
+    await createTask(project.id, { ...mine, title: 'Someday' })
+    await createTask(project.id, {
+      ...mine,
+      title: 'Far',
+      deadline: new Date(Date.now() + 20 * DAY),
+      estimatedHours: 2,
+    })
+    await createTask(project.id, {
+      ...mine,
+      title: 'Big',
+      deadline: new Date(Date.now() + 6 * DAY),
+      estimatedHours: 12,
+    })
+    await createTask(project.id, {
+      ...mine,
+      title: 'Soon',
+      deadline: new Date(Date.now() + 2 * DAY),
+    })
+    await createTask(project.id, {
+      ...mine,
+      title: 'Late',
+      deadline: new Date(Date.now() - 3 * DAY),
+    })
+    // Handed in, so off my clock however close its deadline.
+    await createTask(project.id, {
+      assigneeId: me.id,
+      status: 'under_review',
+      title: 'Handed in',
+      deadline: new Date(Date.now() + DAY),
+    })
+    const team = await createTeam({ name: 'Crew' })
+    await prisma.teamMembership.create({ data: { teamId: team.id, volunteerId: me.id } })
+
+    const { work } = await clientAs(me).dashboard.get()
+    expect(work.map((w) => [w.title, w.attention ?? null])).toEqual([
+      ['Late', null],
+      ['Soon', null],
+      ['Big', 'About 12 hours of work, due in 6 days: start now'],
+      ['Handed in', null],
+      ['Due P', null],
+      ['Far', null],
+      ['Someday', null],
+      ['Crew', null],
+    ])
+    const big = work.find((w) => w.title === 'Big')!
+    expect(big).toMatchObject({ estimatedHours: 12, displayStatus: 'in_progress' })
+    expect(big.item).toMatchObject({
+      title: 'Big',
+      type: 'TASK',
+      displayStatus: 'in_progress',
+      assigneeName: me.name,
+      href: `/projects/${project.id}/tasks/${big.item!.id}`,
+    })
+    expect(work.find((w) => w.title === 'Due P')!.deadline).toEqual(project.deadline)
   })
 
   it('collects what is waiting on me, and nothing of anyone else’s', async () => {
@@ -303,6 +391,47 @@ describe('dashboard.get', () => {
     expect(adminNow.filter((a) => a.kind === 'submission').map((a) => a.href)).toContain(
       `/quick-tasks/${unset.id}`,
     )
+  })
+
+  it('asks only the owner to complete a running project whose every task is done', async () => {
+    const [me, helper, admin] = await Promise.all([
+      createVolunteer(),
+      createVolunteer(),
+      createAdmin(),
+    ])
+    const lastDone = new Date(Date.now() - DAY)
+    const ready = await createProject({ assigneeId: me.id, status: 'in_progress', title: 'Ready' })
+    await createTask(ready.id, { status: 'completed', completedAt: new Date(Date.now() - 3 * DAY) })
+    await createTask(ready.id, { status: 'completed', completedAt: lastDone })
+    await createTask(ready.id, { status: 'completed', completedAt: null })
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: ready.id,
+        volunteerId: helper.id,
+        interestType: 'want_to_contribute',
+        status: 'accepted',
+      },
+    })
+    // Not yet: a task still open, no tasks at all, or not running.
+    const open = await createProject({ assigneeId: me.id, status: 'in_progress', title: 'Open' })
+    await createTask(open.id, { status: 'completed' })
+    await createTask(open.id, { status: 'under_review' })
+    await createProject({ assigneeId: me.id, status: 'in_progress', title: 'Empty' })
+    const held = await createProject({ assigneeId: me.id, status: 'on_hold', title: 'Held' })
+    await createTask(held.id, { status: 'completed' })
+
+    const kindOf = async (v: Parameters<typeof clientAs>[0]) =>
+      (await clientAs(v).dashboard.get()).attention.filter((a) => a.kind === 'ready_to_complete')
+    expect(await kindOf(me)).toEqual([
+      expect.objectContaining({
+        title: '"Ready": every task is done',
+        href: `/projects/${ready.id}`,
+        action: 'Complete',
+        at: lastDone,
+      }),
+    ])
+    expect(await kindOf(helper)).toEqual([])
+    expect(await kindOf(admin)).toEqual([])
   })
 
   it('offers discovery by skill, country and Quick Tasks, skipping my own', async () => {

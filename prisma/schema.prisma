@@ -52,11 +52,25 @@ enum RemoteEligibility {
   GLOBAL
 }
 
+// The work's own progress, apart from who holds it (`assigneeId`). Blocked and Ready are not
+// stored: they are worked out from dependencies (lib/task-status.ts).
 enum TaskStatus {
-  open
+  not_started
   in_progress
   under_review
   completed
+}
+
+enum DailySummaryPreference {
+  email_and_in_app
+  in_app_only
+  off
+}
+
+/// How a task's dates are read: any time within the window, or on exactly those dates.
+enum TaskTiming {
+  flexible
+  fixed
 }
 
 enum QuickTaskStatus {
@@ -321,6 +335,13 @@ model WorkItem {
   submissionUrl        String?   @map("submission_url")
   submittedAt          DateTime? @map("submitted_at")
   changesRequestedNote String?   @map("changes_requested_note")
+  // What the submit box asks for: its label (null reads as "What did you do?"), and whether
+  // it offers a link field.
+  submissionPrompt     String?   @map("submission_prompt")
+  submissionAsksLink   Boolean   @default(false) @map("submission_asks_link")
+  // How many helpers a TASK seeks beside its assignee, the lead; null seeks none. Helpers are
+  // accepted WorkItemInterest rows on the task (interestType `want_to_help_task`).
+  helpersWanted        Int?      @map("helpers_wanted")
 
   // Project-specific (nullable for TASK/QUICK_TASK)
   projectType                String?   @map("project_type") // TODO: enum — sprint, container, ongoing, one_off
@@ -350,21 +371,27 @@ model WorkItem {
   // block above. QUICK_TASK does not participate. See lib/schedule.ts.
   // `startDate` null + predecessors => start is derived from them; set => pinned to that date.
   // `durationDays` null is read as 1 day; a PROJECT with none rolls its span up from its tasks.
-  startDate            DateTime? @map("start_date")
-  durationDays         Int?      @map("duration_days")
+  startDate            DateTime?  @map("start_date")
+  durationDays         Int?       @map("duration_days")
   // The plan as committed. Captured the first time an item is scheduled, then moved only by an
   // explicit re-baseline — never by an ordinary edit or a dependency cascade.
-  baselineStartDate    DateTime? @map("baseline_start_date")
-  baselineDurationDays Int?      @map("baseline_duration_days")
-  baselineSetAt        DateTime? @map("baseline_set_at")
+  baselineStartDate    DateTime?  @map("baseline_start_date")
+  baselineDurationDays Int?       @map("baseline_duration_days")
+  baselineSetAt        DateTime?  @map("baseline_set_at")
   // The fixed point the plan is built around — a protest date, a launch, a hearing. The
   // critical path is measured towards anchors when any exist, rather than towards whatever
   // simply finishes last, so follow-up work trailing an anchor is correctly slack.
-  isAnchor             Boolean   @default(false) @map("is_anchor")
+  isAnchor             Boolean    @default(false) @map("is_anchor")
+  // `flexible`: the work happens any time within start..start+duration (effort may be far less).
+  // `fixed`: it happens on exactly those dates — a shift, a stall, the event itself.
+  timing               TaskTiming @default(flexible)
   // Last change to startDate/durationDays or to this item's dependency edges.
-  scheduleUpdatedAt    DateTime? @map("schedule_updated_at")
+  scheduleUpdatedAt    DateTime?  @map("schedule_updated_at")
   // Actual start. `completedAt` above is the actual finish.
-  startedAt            DateTime? @map("started_at")
+  startedAt            DateTime?  @map("started_at")
+  // When the current assignee took it (TASK). Claiming does not start the work, so the reminder
+  // and inactivity clocks count from here rather than from `startedAt`.
+  claimedAt            DateTime?  @map("claimed_at")
 
   country           String?
   localGroup        String?           @map("local_group")
@@ -388,6 +415,8 @@ model WorkItem {
   skill                Skill?                 @relation(fields: [skillId], references: [id], onUpdate: NoAction)
   team                 Team?                  @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   comments             WorkItemComment[]
+  events               WorkItemEvent[]
+  finishByReminders    FinishByReminder[]
   reviewRequests       ProjectReviewRequest[]
   skills               WorkItemSkill[]
   interests            WorkItemInterest[]
@@ -451,6 +480,25 @@ model WorkItemComment {
   @@map("work_item_comments")
 }
 
+/// One change to a work item: who made it, what kind, and the changed values before and after.
+/// Shown as a line in the item's Discussion. Written only by recordEvent in
+/// lib/work-item-events.ts.
+model WorkItemEvent {
+  id         Int        @id @default(autoincrement())
+  workItemId Int        @map("work_item_id")
+  /// Null for a change the system made, such as releasing a task nobody updated.
+  actorId    Int?       @map("actor_id")
+  kind       String
+  before     Json
+  after      Json
+  createdAt  DateTime   @default(now()) @map("created_at")
+  workItem   WorkItem   @relation(fields: [workItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  actor      Volunteer? @relation("WorkItemEventActor", fields: [actorId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([workItemId, createdAt], map: "idx_work_item_events_thread")
+  @@map("work_item_events")
+}
+
 /// Finish-to-start dependency between two WorkItems in the same scheduling scope — that is,
 /// sharing both `type` and `parentId`. That one rule yields exactly the two graphs we want:
 /// TASKs within a single project, and PROJECTs across the portfolio. QUICK_TASK is excluded.
@@ -506,7 +554,9 @@ model WorkItemInterest {
   id              Int            @id @default(autoincrement())
   volunteerId     Int            @map("volunteer_id")
   workItemId      Int            @map("work_item_id")
-  interestType    String         @map("interest_type") // TODO: enum — want_to_contribute, want_to_own
+  // A row on a PROJECT is an application, invite or membership; on a TASK, a helper beside the
+  // assignee (see lib/task-helpers.ts).
+  interestType    String         @map("interest_type") // TODO: enum — want_to_contribute, want_to_own (PROJECT); want_to_help_task (TASK)
   /// The applicant's message, or the inviter's note on an invite.
   message         String?
   status          InterestStatus @default(pending)
@@ -709,6 +759,25 @@ model ApplicationsSummaryRun {
   @@map("applications_summary_runs")
 }
 
+/// One reminder or summary line already given to one person on one day, so a rerun of the
+/// daily job never repeats it. `finishBy` is the expected finish the line was about: changing it
+/// starts a fresh sequence.
+model FinishByReminder {
+  id          Int       @id @default(autoincrement())
+  workItemId  Int       @map("work_item_id")
+  stage       String
+  finishBy    DateTime  @map("finish_by")
+  recipientId Int       @map("recipient_id")
+  sentOn      DateTime  @map("sent_on")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  workItem    WorkItem  @relation(fields: [workItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  recipient   Volunteer @relation(fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([workItemId, stage, finishBy, recipientId, sentOn], map: "uq_finish_by_reminders")
+  @@index([recipientId, sentOn], map: "idx_finish_by_reminders_recipient")
+  @@map("finish_by_reminders")
+}
+
 model CronJobRun {
   id          Int       @id @default(autoincrement())
   jobName     String    @map("job_name")
@@ -852,6 +921,8 @@ model Volunteer {
   emailDigest                             String?                  @default("none") @map("email_digest") // TODO: enum — none, daily, weekly
   /// Inbox categories (lib/notification-categories.ts) whose notifications are not also emailed.
   emailMutedCategories                    String[]                 @default([]) @map("email_muted_categories")
+  /// How the daily summary of reminders and project activity reaches this person.
+  dailySummary                            DailySummaryPreference   @default(email_and_in_app) @map("daily_summary")
   notifyRemoteProjects                    Boolean                  @default(false) @map("notify_remote_projects")
   localGroup                              String?                  @map("local_group")
   locationConfirmedAt                     DateTime?                @map("location_confirmed_at")
@@ -877,6 +948,7 @@ model Volunteer {
   contactRequestsReceived                 ContactRequest[]         @relation("ContactRequestTo")
   messagesReceived                        Message[]                @relation("MessageTo")
   notifications                           Notification[]
+  finishByReminders                       FinishByReminder[]
   emailVerificationTokens                 EmailVerificationToken[]
   passwordResetTokens                     PasswordResetToken[]
   workItemInterests                       WorkItemInterest[]       @relation("InterestVolunteer")
@@ -884,6 +956,7 @@ model Volunteer {
   deputyRoles                             ProjectDeputy[]          @relation("DeputyVolunteer")
   deputiesAppointed                       ProjectDeputy[]          @relation("DeputyAppointedBy")
   workItemComments                        WorkItemComment[]        @relation("WorkItemCommentAuthor")
+  workItemEvents                          WorkItemEvent[]          @relation("WorkItemEventActor")
   projectReviewRequests                   ProjectReviewRequest[]
   workItemsCreated                        WorkItem[]               @relation("WorkItemCreator")
   workItemsAssigned                       WorkItem[]               @relation("WorkItemAssignee")

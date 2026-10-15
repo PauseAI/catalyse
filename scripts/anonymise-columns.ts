@@ -34,6 +34,7 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
   contact_requests: { message: 'redact' },
   cron_job_runs: { job_name: 'keep', triggered_by: 'keep', status: 'keep', summary: 'null' },
   deletion_requests: { volunteer_email: 'null', status: 'keep' },
+  finish_by_reminders: { stage: 'keep' },
   digest_runs: { type: 'keep' },
   email_verification_tokens: { token: 'rows-deleted' },
   experimental_journalists: {
@@ -93,6 +94,8 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
     application_applicant_notes: 'redact',
   },
   work_item_comments: { content: 'redact' },
+  // before/after can hold submission notes and replan reasons, and jsonb takes no marker.
+  work_item_events: { kind: 'keep', before: 'rows-deleted', after: 'rows-deleted' },
   work_item_interests: { interest_type: 'keep', message: 'redact', response_message: 'redact' },
   work_items: {
     type: 'keep',
@@ -103,6 +106,7 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
     review_rating: 'keep',
     submission_note: 'redact',
     submission_url: 'redact',
+    submission_prompt: 'keep',
     changes_requested_note: 'redact',
     project_type: 'keep',
     urgency: 'keep',

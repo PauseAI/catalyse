@@ -4,6 +4,7 @@ import { useState, FormEvent } from 'react'
 import Link from 'next/link'
 import { useMutation } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import Button from '@/components/Button'
 
 export default function ForgotPasswordPage() {
@@ -25,8 +26,8 @@ export default function ForgotPasswordPage() {
   return (
     <>
       <main className="container py-5 pb-15">
-        <div className="max-w-[400px] my-15 mx-auto">
-          <h1 className="text-center">Reset Password</h1>
+        <div className="sm:max-w-[400px] my-15 mx-auto">
+          <h1 className="text-center">Reset password</h1>
           <p className="text-center text-text-light mb-8">
             Enter your email and we&apos;ll send you a reset link.
           </p>
@@ -42,7 +43,7 @@ export default function ForgotPasswordPage() {
 
           {!mutation.isSuccess ? (
             <form
-              className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word"
+              className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}
               onSubmit={handleSubmit}
             >
               <div className="mb-5">
@@ -62,7 +63,7 @@ export default function ForgotPasswordPage() {
               </div>
 
               <Button type="submit" className="w-full" disabled={mutation.isPending}>
-                {mutation.isPending ? 'Sending…' : 'Send Reset Link'}
+                {mutation.isPending ? 'Sending…' : 'Send reset link'}
               </Button>
 
               <p className="text-center text-text-light mt-5">
@@ -70,15 +71,15 @@ export default function ForgotPasswordPage() {
               </p>
             </form>
           ) : (
-            <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word">
+            <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
               <div className="text-center">
-                <h3 className="text-success">Check Your Email</h3>
+                <h3 className="text-success">Check your email</h3>
                 <p className="text-text-light my-4">
                   If an account exists with that email, you&apos;ll receive a password reset link
                   shortly.
                 </p>
                 <Button href="/login" variant="outline">
-                  Back to Login
+                  Back to login
                 </Button>
                 <p className="text-sm text-text-light mt-4">
                   Not receiving the email? Check your spam folder, or{' '}

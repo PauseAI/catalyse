@@ -8,6 +8,7 @@ import {
   applyScheduleWrite,
 } from '@/lib/work-item'
 import { notifyUser, notifyTeamOfProject, clearNotifications } from '@/lib/notify'
+import { updateWorkItem } from '@/lib/work-item-events'
 import { html } from '@/lib/email'
 import { notifyMatchingVolunteers } from '@/lib/project-match-notify'
 import { AdminCreateProjectSchema, ReviewProjectSchema, OutcomeProjectSchema } from '@/lib/schemas'
@@ -90,7 +91,7 @@ export const adminProjectsRouter = {
       await tx.workItem.createMany({
         data: tasks.map((t) => ({
           type: WorkItemType.TASK,
-          status: TaskStatus.open,
+          status: TaskStatus.not_started,
           parentId: newProject.id,
           title: t.title,
           description: t.description ?? null,
@@ -126,16 +127,14 @@ export const adminProjectsRouter = {
       const { status, reviewNotes = null, comment = null } = input
 
       if (status === 'approved') {
-        // A proposer who offered to lead it owns it from the moment it's approved;
-        // otherwise it goes live as `ready` for someone to pick up. Whether it also wants
-        // contributors is the proposer's call — approval no longer overrides an explicit
-        // "no thanks" by force-setting isSeekingHelp on every unowned project.
-        const newStatus =
-          project.assigneeId === null ? ProjectStatus.ready : ProjectStatus.in_progress
+        // Approval always goes live as `ready`, whether or not a proposer already owns it —
+        // an owner who isn't actively starting the work yet still reads as ready, not in
+        // progress. The owner moves it to in-progress themselves from the project page.
+        const newStatus = ProjectStatus.ready
 
-        await prisma.workItem.update({
-          where: { id: input.id },
-          data: {
+        await updateWorkItem(
+          project,
+          {
             status: newStatus,
             reviewNotes,
             stakeholderId: admin.id,
@@ -143,7 +142,8 @@ export const adminProjectsRouter = {
             reviewedAt: new Date(),
             updatedAt: new Date(),
           },
-        })
+          { actorId: admin.id, kind: 'status' },
+        )
 
         if (comment && comment.trim()) {
           await prisma.workItemComment.create({
@@ -181,9 +181,9 @@ export const adminProjectsRouter = {
           )
         }
       } else {
-        await prisma.workItem.update({
-          where: { id: input.id },
-          data: {
+        await updateWorkItem(
+          project,
+          {
             status: ProjectStatus.needs_discussion,
             reviewNotes,
             stakeholderId: admin.id,
@@ -191,7 +191,8 @@ export const adminProjectsRouter = {
             reviewedAt: new Date(),
             updatedAt: new Date(),
           },
-        })
+          { actorId: admin.id, kind: 'status' },
+        )
 
         if (comment && comment.trim()) {
           await prisma.workItemComment.create({
@@ -250,9 +251,9 @@ export const adminProjectsRouter = {
       const { outcome, outcomeNotes = null } = input
       const isCompleted = ['successful', 'partial', 'not_completed'].includes(outcome)
 
-      await prisma.workItem.update({
-        where: { id: input.id },
-        data: {
+      await updateWorkItem(
+        project,
+        {
           outcome,
           outcomeNotes,
           completedAt: isCompleted ? new Date() : null,
@@ -262,7 +263,8 @@ export const adminProjectsRouter = {
           ...(isCompleted ? { status: ProjectStatus.completed, isSeekingHelp: false } : {}),
           updatedAt: new Date(),
         },
-      })
+        { actorId: admin.id },
+      )
 
       if (project.assigneeId && outcomeNotes) {
         await prisma.adminNote.create({

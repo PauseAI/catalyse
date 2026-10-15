@@ -10,6 +10,7 @@ import { fake } from '../fake'
 import { createApiClient } from '../client'
 import type { RouterClient } from '@orpc/server'
 import type { appRouter } from '@/server/router'
+import { postComment } from '../actions/ui'
 
 async function createAdminProject(
   adminApi: RouterClient<typeof appRouter>,
@@ -82,7 +83,9 @@ test.describe('Task Detail Page', () => {
     ).toBeVisible({ timeout: 10_000 })
 
     // Not on the project yet: the claim asks the owner and holds the task meanwhile.
-    await volunteer.page.getByRole('button', { name: 'Claim' }).click()
+    await volunteer.page.getByRole('button', { name: 'Ask to take this' }).click()
+    const askDialog = volunteer.page.getByRole('dialog', { name: /^Ask to take '/ })
+    await askDialog.getByRole('button', { name: 'Ask to take this' }).click()
     await expect(getAlert(volunteer.page)).toContainText('Requested. The task is held for you', {
       timeout: 10_000,
     })
@@ -91,7 +94,85 @@ test.describe('Task Detail Page', () => {
         exact: true,
       }),
     ).toBeVisible({ timeout: 10_000 })
-    await expect(volunteer.page.getByRole('button', { name: 'Claim' })).not.toBeVisible()
+    await expect(volunteer.page.getByRole('button', { name: 'Ask to take this' })).not.toBeVisible()
+  })
+
+  test('A claimed task waiting on another reads Blocked, and In progress once its assignee starts', async ({
+    adminPage,
+    baseUrl,
+  }) => {
+    const adminApi = createApiClient(baseUrl, readAdminToken(baseUrl))
+    const projectId = await createAdminProject(adminApi, 'Task status test')
+    const first = await adminApi.projects.createTask({
+      body: { projectId, title: 'Do this first' },
+    })
+    const then = await adminApi.projects.createTask({ body: { projectId, title: 'Then this' } })
+    const firstId = (first.body as { id: number }).id
+    const taskId = (then.body as { id: number }).id
+    await adminApi.dependencies.add({ body: { predecessorId: firstId, successorId: taskId } })
+    const assignee = await signupApprovedVolunteer(baseUrl)
+    await adminApi.projects.assignTask({ body: { projectId, taskId, assigneeId: assignee.id } })
+
+    await adminPage.goto(`${baseUrl}/projects/${projectId}/tasks/${taskId}`)
+    await expect(adminPage.getByText("Blocked by 'Do this first'")).toBeVisible({
+      timeout: 10_000,
+    })
+    const waitsOn = adminPage.getByRole('region', { name: 'Waits on' })
+    await expect(waitsOn.getByText('Waiting on 1 of 1.')).toBeVisible()
+    await expect(waitsOn.getByRole('link', { name: 'Do this first' })).toBeVisible()
+
+    await adminPage.goto(`${baseUrl}/projects/${projectId}/tasks/${firstId}`)
+    await expect(
+      adminPage.getByRole('region', { name: 'Unblocks' }).getByRole('link', { name: 'Then this' }),
+    ).toBeVisible({ timeout: 10_000 })
+    await expect(adminPage.getByRole('region', { name: 'Waits on' })).toHaveCount(0)
+
+    await adminPage.goto(`${baseUrl}/projects/${projectId}/tasks/${taskId}`)
+    const started = await createApiClient(baseUrl, assignee.token).projects.startTask({
+      body: { projectId, taskId },
+    })
+    expect(started.status).toBe(200)
+    await adminPage.reload()
+    await expect(adminPage.getByText("Still waiting on 'Do this first'.")).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(adminPage.getByText('In progress', { exact: true })).toBeVisible()
+  })
+
+  test('The assignee sees the submit box on the task page and hands in from it', async ({
+    browser,
+    baseUrl,
+  }) => {
+    const adminApi = createApiClient(baseUrl, readAdminToken(baseUrl))
+    const projectId = await createAdminProject(adminApi, 'Task submit box test')
+    const created = await adminApi.projects.createTask({
+      body: { projectId, title: 'Hand me in' },
+    })
+    const taskId = (created.body as { id: number }).id
+    const assignee = await signupApprovedVolunteer(baseUrl)
+    await adminApi.projects.assignTask({ body: { projectId, taskId, assigneeId: assignee.id } })
+
+    const context = await browser.newContext()
+    await context.addInitScript((token: string) => {
+      localStorage.setItem('authToken', token)
+      localStorage.setItem('cookieConsent', 'false')
+    }, assignee.token)
+    const page = await context.newPage()
+    await page.goto(`${baseUrl}/projects/${projectId}/tasks/${taskId}`)
+
+    await expect(page.getByText('Assigned to').locator('..')).toContainText(assignee.name, {
+      timeout: 10_000,
+    })
+    const box = page.getByRole('region', { name: 'Submit your work' })
+    const submit = box.getByRole('button', { name: 'Submit and mark done' })
+    await expect(submit).toBeDisabled()
+    await expect(box.getByText('Say what you did.')).toBeVisible()
+    await box.getByLabel('What did you do?').fill('Handed in from the page')
+    await submit.click()
+    await expect(getAlert(page)).toContainText('Task done.', { timeout: 10_000 })
+    await expect(box).toHaveCount(0)
+    await expect(page.getByText('Handed in from the page')).toBeVisible()
+    await context.close()
   })
 
   test('Owner edits a task’s title, description, hours, and deadline from its detail page', async ({
@@ -113,16 +194,16 @@ test.describe('Task Detail Page', () => {
     await adminPage.getByRole('button', { name: 'Edit', exact: true }).click()
     await adminPage.getByLabel('Task title').fill('Edited title')
     await adminPage.getByLabel('Description').fill('Edited description')
-    await adminPage.getByLabel('Estimated hours').fill('4')
-    await adminPage.getByLabel('Deadline').fill('2099-01-01')
-    await adminPage.getByRole('button', { name: 'Save Changes' }).click()
+    await adminPage.getByLabel('Effort: about').fill('4')
+    await adminPage.getByLabel('Deadline', { exact: true }).fill('2099-01-01')
+    await adminPage.getByRole('button', { name: 'Save changes' }).click()
 
     await expect(getAlert(adminPage)).toContainText('Task updated!', { timeout: 10_000 })
     await expect(adminPage.getByRole('heading', { name: 'Edited title', level: 1 })).toBeVisible({
       timeout: 10_000,
     })
-    await expect(adminPage.locator('p').filter({ hasText: 'Edited description' })).toBeVisible()
-    await expect(adminPage.getByText('~4h estimated')).toBeVisible()
+    await expect(adminPage.getByText('Edited description', { exact: true })).toBeVisible()
+    await expect(adminPage.getByText('Effort: about 4 hours')).toBeVisible()
   })
 
   test('Admin unassigns a volunteer from an in-progress task via the task menu', async ({
@@ -170,8 +251,7 @@ test.describe('Task Detail Page', () => {
       adminPage.getByRole('heading', { name: 'Task with a comment', level: 1 }),
     ).toBeVisible({ timeout: 10_000 })
 
-    await adminPage.getByLabel('Add a comment').fill('This is a permalink test comment')
-    await adminPage.getByRole('button', { name: 'Post Comment' }).click()
+    await postComment(adminPage, 'This is a permalink test comment')
 
     const commentItem = adminPage
       .locator('li')

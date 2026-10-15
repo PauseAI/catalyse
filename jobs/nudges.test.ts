@@ -20,14 +20,16 @@ const subjects = {
   releasedAssignee: (task: string) => `Update on your task: ${task}`,
 }
 
-async function claimedTask(title: string, quietDays: number) {
+async function claimedTask(title: string, quietDays: number, status = 'in_progress') {
   const owner = await createVolunteer({ email: `owner-${title}@example.org` })
   const assignee = await createVolunteer({ email: `assignee-${title}@example.org` })
   const project = await createProject({ assigneeId: owner.id })
   const task = await createTask(project.id, {
     title,
-    status: 'in_progress',
+    status,
     assigneeId: assignee.id,
+    claimedAt: daysAgo(quietDays),
+    startedAt: status === 'in_progress' ? daysAgo(quietDays) : null,
     updatedAt: daysAgo(quietDays),
   })
   return { owner, assignee, project, task }
@@ -45,7 +47,8 @@ describe('runNudgesJob', () => {
 
   it('reminds, warns and releases on the shared day counts', async () => {
     const fresh = await claimedTask('fresh', TASK_REMINDER_AFTER_DAYS - 1)
-    const quiet = await claimedTask('quiet', TASK_REMINDER_AFTER_DAYS)
+    // Claimed and never started still counts as held.
+    const quiet = await claimedTask('quiet', TASK_REMINDER_AFTER_DAYS, 'not_started')
     const warned = await claimedTask('warned', TASK_FINAL_WARNING_AFTER_DAYS)
     const gone = await claimedTask('gone', TASK_RELEASE_AFTER_DAYS)
 
@@ -57,7 +60,15 @@ describe('runNudgesJob', () => {
     expect(emails.lastTo(warned.assignee.email!)?.subject).toBe(subjects.finalWarning('warned'))
     expect((await row(warned.task.id)).finalWarningSentAt).not.toBeNull()
 
-    expect(await row(gone.task.id)).toMatchObject({ status: 'open', assigneeId: null })
+    expect(await row(gone.task.id)).toMatchObject({
+      status: 'not_started',
+      assigneeId: null,
+      claimedAt: null,
+      startedAt: null,
+    })
+    expect(
+      await prisma.workItemEvent.findMany({ where: { workItemId: gone.task.id } }),
+    ).toMatchObject([{ actorId: null, kind: 'released', before: { assigneeId: gone.assignee.id } }])
     expect(emails.lastTo(gone.assignee.email!)?.subject).toBe(subjects.releasedAssignee('gone'))
     expect(emails.lastTo(gone.owner.email!)?.subject).toBe(subjects.releasedOwner('gone'))
 
@@ -84,8 +95,8 @@ describe('runNudgesJob', () => {
   })
 
   it("restarts the clock when the assignee comments, but not for anyone else's comment", async () => {
-    const mine = await claimedTask('commented', TASK_REMINDER_AFTER_DAYS + 1)
-    const theirs = await claimedTask('owner-commented', TASK_REMINDER_AFTER_DAYS + 1)
+    const mine = await claimedTask('commented', TASK_REMINDER_AFTER_DAYS + 1, 'not_started')
+    const theirs = await claimedTask('owner-commented', TASK_REMINDER_AFTER_DAYS + 1, 'not_started')
     await clientAs(mine.assignee).workItemComments.add({
       workItemId: mine.task.id,
       content: 'Halfway there',
@@ -94,6 +105,11 @@ describe('runNudgesJob', () => {
       workItemId: theirs.task.id,
       content: 'How is it going?',
     })
+    // The assignee's first update also starts the work; anyone else's does not.
+    const started = await row(mine.task.id)
+    expect(started.status).toBe('in_progress')
+    expect(started.startedAt).not.toBeNull()
+    expect((await row(theirs.task.id)).status).toBe('not_started')
     expect(await runNudgesJob()).toMatchObject({ nudgesSent: 1 })
     expect(emails.to(mine.assignee.email!)).toEqual([])
     expect(emails.lastTo(theirs.assignee.email!)?.subject).toBe(

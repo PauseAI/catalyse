@@ -56,7 +56,7 @@ export default function QuickTaskReviewDialog({
   }
 
   return (
-    <Modal id={`review-task-${task.id}`} title="Review Task" isOpen onClose={onClose}>
+    <Modal id={`review-task-${task.id}`} title="Review task" isOpen onClose={onClose}>
       <h3 className="mb-1">{task.title}</h3>
       {task.assignedToName && (
         <p className="text-text-light mb-4">Submitted by: {task.assignedToName}</p>
@@ -82,7 +82,7 @@ export default function QuickTaskReviewDialog({
           </div>
         </fieldset>
         <div className="mb-5">
-          <label htmlFor={`rv-notes-${task.id}`}>Internal Notes (admin only)</label>
+          <label htmlFor={`rv-notes-${task.id}`}>Internal notes (admin only)</label>
           <textarea
             id={`rv-notes-${task.id}`}
             rows={2}
@@ -93,7 +93,7 @@ export default function QuickTaskReviewDialog({
         </div>
         <div className="mb-5">
           <label htmlFor={`rv-feedback-${task.id}`}>
-            {"Feedback to Volunteer (they'll see this)"}
+            {"Feedback to volunteer (they'll see this)"}
           </label>
           <textarea
             id={`rv-feedback-${task.id}`}

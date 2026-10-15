@@ -6,6 +6,7 @@ import { emails } from '@/test/fakes/email'
 import {
   createNotification,
   clearNotifications,
+  refreshNotification,
   notifyUser,
   notifyTeamOfProject,
   notifyAdmins,
@@ -26,6 +27,19 @@ describe('createNotification / clearNotifications', () => {
     const left = await prisma.notification.findMany({ where: { volunteerId: vol.id } })
     expect(left).toHaveLength(1)
     expect(left[0]).toMatchObject({ body: null, link: null, entityId: null })
+  })
+
+  it('refreshes one notification per person, type and thing in place', async () => {
+    const vol = await createVolunteer()
+    await refreshNotification(vol.id, 'late', 'Day 1', null, '/t', 7)
+    await prisma.notification.updateMany({
+      where: { volunteerId: vol.id },
+      data: { readAt: new Date() },
+    })
+    await refreshNotification(vol.id, 'late', 'Day 2', 'b', '/t', 7)
+    const rows = await prisma.notification.findMany({ where: { volunteerId: vol.id } })
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ title: 'Day 2', body: 'b', readAt: null, entityId: 7 })
   })
 
   it('logs rather than throws when the clear fails', async () => {

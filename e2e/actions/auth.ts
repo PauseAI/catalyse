@@ -9,17 +9,17 @@ export async function signup(
   password: string,
 ): Promise<void> {
   await page.goto(`${baseUrl}/signup`)
-  await page.getByLabel('Your Name').fill(name)
+  await page.getByLabel('Your name').fill(name)
   await page.getByLabel('Email', { exact: true }).fill(email)
   await page.getByLabel('Password', { exact: true }).fill(password)
-  await page.getByLabel('Confirm Password').fill(password)
+  await page.getByLabel('Confirm password').fill(password)
   await page.getByRole('button', { name: 'Next: About you' }).click()
-  await page.getByLabel('Your Application').fill('e2e test application message')
-  await page.getByLabel('About You').fill('e2e test bio, at least twenty characters long')
-  await page.getByLabel('Hours per Week').fill('5')
+  await page.getByLabel('Your application').fill('e2e test application message')
+  await page.getByLabel('About you').fill('e2e test bio, at least twenty characters long')
+  await page.getByLabel('Hours per week').fill('5')
   await selectFilterDropdown(page, 'Select country', 'United Kingdom')
   await page.getByRole('button', { name: 'Next: Skills and privacy' }).click()
-  await page.getByRole('button', { name: 'Submit Application' }).click()
+  await page.getByRole('button', { name: 'Submit application' }).click()
 }
 
 export async function login(

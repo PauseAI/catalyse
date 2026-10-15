@@ -3,6 +3,7 @@ import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { env } from '@/lib/env'
 import { applyScheduleWrite, canManageProject } from '@/lib/work-item'
+import { assertProjectEditable } from '@/lib/work-item-lock'
 import { findDependencyCycle } from '@/lib/schedule'
 import { loadTaskEdges } from '@/lib/project-schedule'
 import {
@@ -64,6 +65,10 @@ async function loadState(
       baselineSetAt: t.baselineSetAt,
       featuredAsQuickTask: t.featuredAsQuickTask ?? false,
       isAnchor: t.isAnchor ?? false,
+      timing: t.timing ?? 'flexible',
+      submissionPrompt: t.submissionPrompt,
+      submissionAsksLink: t.submissionAsksLink,
+      helpersWanted: t.helpersWanted,
       sortOrder: t.sortOrder,
     })),
     dependencies,
@@ -137,6 +142,7 @@ export const projectPortingRouter = {
       const loaded = await loadState(input.projectId)
       if (!loaded) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
       assertCanManage(loaded.project, volunteer)
+      assertProjectEditable(loaded.project)
 
       if (hashState(loaded.state) !== input.expectedHash) {
         throw new ORPCError('CONFLICT', {
@@ -219,9 +225,14 @@ export const projectPortingRouter = {
           if (f.deadline !== undefined) data.deadline = f.deadline
           if (f.featuredAsQuickTask !== undefined) data.featuredAsQuickTask = f.featuredAsQuickTask
           if (f.isAnchor !== undefined) data.isAnchor = f.isAnchor
+          if (f.timing !== undefined) data.timing = f.timing
+          if (f.submissionPrompt !== undefined) data.submissionPrompt = f.submissionPrompt
+          if (f.submissionAsksLink !== undefined) data.submissionAsksLink = f.submissionAsksLink
+          if (f.helpersWanted !== undefined) data.helpersWanted = f.helpersWanted
           if (f.status !== undefined) data.status = f.status
           if (f.assigneeEmail !== undefined) {
             data.assigneeId = f.assigneeEmail === null ? null : idForEmail(f.assigneeEmail)
+            data.claimedAt = f.assigneeEmail === null ? null : now
           }
           applyScheduleWrite(data, { startDate: f.startDate, durationDays: f.durationDays }, now)
           await tx.workItem.update({ where: { id: upd.id }, data })
@@ -240,14 +251,19 @@ export const projectPortingRouter = {
           const created = await tx.workItem.create({
             data: {
               type: WorkItemType.TASK,
-              status: f.status ?? TaskStatus.open,
+              status: f.status ?? TaskStatus.not_started,
               parentId: input.projectId,
               title: f.title ?? 'Untitled task',
               description: f.description ?? null,
               deadline: f.deadline ?? null,
               featuredAsQuickTask: f.featuredAsQuickTask ?? false,
               isAnchor: f.isAnchor ?? false,
+              timing: f.timing ?? 'flexible',
+              submissionPrompt: f.submissionPrompt ?? null,
+              submissionAsksLink: f.submissionAsksLink ?? false,
+              helpersWanted: f.helpersWanted ?? null,
               assigneeId: f.assigneeEmail ? idForEmail(f.assigneeEmail) : null,
+              claimedAt: f.assigneeEmail ? now : null,
               creatorId: volunteer.id,
               sortOrder: ++sortOrder,
               ...scheduleData,

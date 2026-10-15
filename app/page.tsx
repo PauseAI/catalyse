@@ -153,7 +153,10 @@ export default function LandingPage() {
           </div>
           <ul className="grid grid-cols-1 md:grid-cols-3 gap-5 list-none p-0 m-0">
             {TRACK_RECORD.map((item) => (
-              <li key={item.when} className="bg-brand-bg border border-brand-border rounded-xl p-6">
+              <li
+                key={item.when}
+                className="bg-brand-bg border border-brand-border rounded-xl p-4 sm:p-6"
+              >
                 <p className="font-heading text-xs font-bold uppercase tracking-widest text-primary-dark mb-2">
                   {item.when}
                 </p>
@@ -171,7 +174,10 @@ export default function LandingPage() {
         </div>
         <ol className="grid grid-cols-1 md:grid-cols-3 gap-5 list-none p-0 m-0">
           {STEPS.map((step, i) => (
-            <li key={step.title} className="bg-brand-bg border border-brand-border rounded-xl p-6">
+            <li
+              key={step.title}
+              className="bg-brand-bg border border-brand-border rounded-xl p-4 sm:p-6"
+            >
               <span
                 className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-[#111827] font-bold mb-3"
                 aria-hidden="true"

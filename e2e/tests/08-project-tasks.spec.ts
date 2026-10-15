@@ -18,7 +18,7 @@ async function setupInProgressProject(
 }
 
 test.describe('Project Tasks', () => {
-  // An owned project with an empty backlog is still owned, so it stays In Progress and
+  // An owned project with an empty backlog is still owned, so it stays In progress and
   // shows a derived "Needs Tasks" badge rather than moving to a status of its own. Get
   // there via the API (every project requires a task up front, so the only route is
   // deleting the last one), then check the badge clears as soon as a task is added.
@@ -70,18 +70,18 @@ test.describe('Project Tasks', () => {
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     // Accepting the owner started the work, empty backlog or not.
-    await expect(adminPage.getByLabel('project status')).toContainText('In Progress', {
+    await expect(adminPage.getByLabel('project status')).toContainText('In progress', {
       timeout: 10_000,
     })
     await expect(adminPage.getByText('Needs Tasks')).toBeVisible({ timeout: 10_000 })
 
-    await adminPage.getByRole('button', { name: 'Add Task' }).click()
+    await adminPage.getByRole('button', { name: 'Add task' }).click()
     await adminPage.getByLabel('Task title').fill('First task')
-    await adminPage.getByRole('button', { name: 'Create Task' }).click()
+    await adminPage.getByRole('button', { name: 'Create task' }).click()
     await expect(getAlert(adminPage)).toContainText('Task added!', { timeout: 10_000 })
 
     await expect(adminPage.getByText('Needs Tasks')).toBeHidden({ timeout: 10_000 })
-    await expect(adminPage.getByLabel('project status')).toContainText('In Progress')
+    await expect(adminPage.getByLabel('project status')).toContainText('In progress')
   })
 
   test('A volunteer can claim an open task', async ({ adminPage, volunteer, baseUrl }) => {
@@ -91,7 +91,7 @@ test.describe('Project Tasks', () => {
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
 
     // Not on the project yet: claiming asks to join and holds the task meanwhile.
-    await volunteer.page.getByRole('button', { name: 'Join and claim' }).click()
+    await volunteer.page.getByRole('button', { name: 'Ask to take this' }).click()
     await expect(getAlert(volunteer.page)).toContainText('Requested. The task is held for you', {
       timeout: 10_000,
     })
@@ -130,7 +130,7 @@ test.describe('Project Tasks', () => {
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
 
-    await volunteer.page.getByRole('button', { name: 'Claim' }).click()
+    await volunteer.page.getByRole('button', { name: 'Claim task' }).click()
     await expect(getAlert(volunteer.page)).toContainText('Task claimed. Post an update', {
       timeout: 10_000,
     })
@@ -144,6 +144,8 @@ test.describe('Project Tasks', () => {
     await expect(volunteer.page.getByRole('button', { name: 'Submit work' })).not.toBeVisible({
       timeout: 10_000,
     })
+    // A finished task is folded under Done.
+    await volunteer.page.getByText(/^Done \(\d+\)$/).click()
     await expect(volunteer.page.getByText('done', { exact: true })).toBeVisible({ timeout: 10_000 })
   })
 
@@ -200,8 +202,8 @@ test.describe('Project Tasks', () => {
     const volList = await volApi.workItemComments.list({ body: { workItemId: taskId } })
     expect(volList.status).toBe(200)
     expect(
-      (volList.body as { comments: { content: string }[] }).comments.some(
-        (c) => c.content === adminComment,
+      (volList.body as { feed: { type: string; content?: string }[] }).feed.some(
+        (c) => c.type === 'comment' && c.content === adminComment,
       ),
     ).toBe(true)
 
@@ -215,7 +217,9 @@ test.describe('Project Tasks', () => {
     // Admin reads the thread and sees both messages
     const adminList = await adminApi.workItemComments.list({ body: { workItemId: taskId } })
     expect(adminList.status).toBe(200)
-    const finalComments = (adminList.body as { comments: { content: string }[] }).comments
+    const finalComments = (
+      adminList.body as { feed: { type: string; content?: string }[] }
+    ).feed.filter((c) => c.type === 'comment')
     expect(finalComments.some((c) => c.content === adminComment)).toBe(true)
     expect(finalComments.some((c) => c.content === volunteerReply)).toBe(true)
   })
@@ -230,9 +234,9 @@ test.describe('Project Tasks', () => {
     await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(adminPage.locator('#projectContent')).toBeVisible({ timeout: 10_000 })
 
-    await adminPage.getByRole('button', { name: 'Add Task' }).click()
+    await adminPage.getByRole('button', { name: 'Add task' }).click()
     await adminPage.getByLabel('Task title').fill('Task to delete')
-    await adminPage.getByRole('button', { name: 'Create Task' }).click()
+    await adminPage.getByRole('button', { name: 'Create task' }).click()
     await expect(getAlert(adminPage)).toContainText('Task added!', { timeout: 10_000 })
 
     await adminPage.getByRole('button', { name: 'Task actions for Task to delete' }).click()

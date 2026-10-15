@@ -11,7 +11,12 @@
  * exactly as it will on the server.
  */
 
-import { computeSchedule, type ScheduleEdge, type ScheduledItem } from '@/lib/schedule'
+import {
+  computeSchedule,
+  type ScheduleEdge,
+  type ScheduleInput,
+  type ScheduledItem,
+} from '@/lib/schedule'
 
 /** The stored columns the scheduler reads, as they arrive on the client. */
 export type ClientSchedulable = {
@@ -24,6 +29,7 @@ export type ClientSchedulable = {
   startedAt: Date | string | null
   completedAt: Date | string | null
   isAnchor?: boolean
+  timing: 'flexible' | 'fixed'
 }
 
 /** One item's pending schedule change, in the shape the reschedule mutation sends. */
@@ -31,10 +37,29 @@ export type PendingPatch = {
   id: number
   startDate: Date | string | null
   durationDays?: number | null
+  /** Tasks only: where the bar ends. */
+  deadline?: Date | string | null
 }
 
 function asDate(value: Date | string | null): Date | null {
   return value === null ? null : value instanceof Date ? value : new Date(value)
+}
+
+/** A task as it arrives on the client, in the shape the scheduler reads. */
+export function toClientScheduleInput(t: ClientSchedulable): ScheduleInput {
+  return {
+    id: t.id,
+    startDate: asDate(t.startDate),
+    durationDays: t.durationDays,
+    deadline: asDate(t.deadline),
+    baselineStartDate: asDate(t.baselineStartDate),
+    baselineDurationDays: t.baselineDurationDays,
+    startedAt: asDate(t.startedAt),
+    completedAt: asDate(t.completedAt),
+    isAnchor: t.isAnchor ?? false,
+    fixed: t.timing === 'fixed',
+    endsOnDeadline: true,
+  }
 }
 
 /**
@@ -52,16 +77,12 @@ export function scheduleWithPatches(
 
   const items = tasks.map((t) => {
     const patch = patchById.get(t.id)
+    const item = toClientScheduleInput(t)
     return {
-      id: t.id,
-      startDate: patch ? asDate(patch.startDate) : asDate(t.startDate),
+      ...item,
+      startDate: patch ? asDate(patch.startDate) : item.startDate,
       durationDays: patch && patch.durationDays !== undefined ? patch.durationDays : t.durationDays,
-      deadline: asDate(t.deadline),
-      baselineStartDate: asDate(t.baselineStartDate),
-      baselineDurationDays: t.baselineDurationDays,
-      startedAt: asDate(t.startedAt),
-      completedAt: asDate(t.completedAt),
-      isAnchor: t.isAnchor ?? false,
+      deadline: patch && patch.deadline !== undefined ? asDate(patch.deadline) : item.deadline,
     }
   })
 

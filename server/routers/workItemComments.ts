@@ -2,8 +2,15 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { notifyUser } from '@/lib/notify'
-import { canViewWorkItem, canPostComment, resolveProjectPrivy } from '@/lib/work-item'
+import {
+  canViewWorkItem,
+  canPostComment,
+  resolveProjectPrivy,
+  startWorkData,
+} from '@/lib/work-item'
 import { mentionedIds, mentionsToPlain, type MentionMember } from '@/lib/mentions'
+import { describeEvent, eventPersonIds, updateWorkItem } from '@/lib/work-item-events'
+import { taskHelperIds } from '@/lib/task-helpers'
 import { authedProcedure } from '../procedures'
 import { ApprovalStatus, InterestStatus, WorkItemType } from '@/generated/prisma/enums'
 
@@ -168,6 +175,42 @@ async function loadComment(id: number) {
   return { comment, loaded: await withParent(comment.workItem as LoadedWorkItem) }
 }
 
+/** The item's recorded changes as Discussion lines, worded for everyone who can see it. */
+async function eventLines(item: LoadedWorkItem) {
+  const events = await prisma.workItemEvent.findMany({
+    where: { workItemId: item.id },
+    include: { actor: { select: { name: true } } },
+  })
+  const people = await prisma.volunteer.findMany({
+    where: { id: { in: eventPersonIds(events) } },
+    select: { id: true, name: true },
+  })
+  const names = new Map(people.map((p) => [p.id, p.name]))
+  const nameOf = (id: number) => names.get(id) ?? 'someone'
+  return events.map((e) => ({
+    type: 'event' as const,
+    id: e.id,
+    text: describeEvent({ ...e, actorName: e.actor?.name ?? null }, item.type, nameOf),
+    createdAt: e.createdAt,
+  }))
+}
+
+/**
+ * Newest first. At the same moment an event goes above a comment, since a comment can cause one
+ * (the assignee's first starts the work); then the later row of one type first.
+ */
+function newestFirst<T extends { type: string; id: number; createdAt: Date | null }>(
+  items: T[],
+): T[] {
+  const rank = (i: T) => (i.type === 'event' ? 1 : 0)
+  return items.sort(
+    (a, b) =>
+      (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0) ||
+      rank(b) - rank(a) ||
+      b.id - a.id,
+  )
+}
+
 export const workItemCommentsRouter = {
   list: authedProcedure
     .input(z.object({ workItemId: z.number().int() }))
@@ -225,14 +268,14 @@ export const workItemCommentsRouter = {
       }
       const comments = rows
         .filter((c) => c.parentId === null)
-        .map((c) => ({ ...shape(c), replies: replies.get(c.id) ?? [] }))
+        .map((c) => ({ type: 'comment' as const, ...shape(c), replies: replies.get(c.id) ?? [] }))
 
       return {
         canPost,
         mentionable: canPost
           ? (await mentionableMembers(loaded.item, loaded.parent)).filter((m) => m.id !== viewer.id)
           : [],
-        comments,
+        feed: newestFirst([...comments, ...(await eventLines(loaded.item))]),
       }
     }),
 
@@ -278,12 +321,19 @@ export const workItemCommentsRouter = {
       })
 
       // The assignee's comment on their project task is the update the inactivity job
-      // waits for, so it restarts the clock.
+      // waits for, so it restarts the clock; their first one starts the work.
       if (loaded.item.type === WorkItemType.TASK && loaded.item.assigneeId === volunteer.id) {
-        await prisma.workItem.update({
-          where: { id: loaded.item.id },
-          data: { updatedAt: new Date(), nudgeSentAt: null, finalWarningSentAt: null },
-        })
+        const now = new Date()
+        await updateWorkItem(
+          loaded.item,
+          {
+            ...startWorkData(loaded.item, now),
+            updatedAt: now,
+            nudgeSentAt: null,
+            finalWarningSentAt: null,
+          },
+          { actorId: volunteer.id, kind: 'started' },
+        )
       }
 
       const mentioned = await notifyMentions(loaded, volunteer, comment.id, content)
@@ -295,6 +345,7 @@ export const workItemCommentsRouter = {
         loaded.item.assigneeId,
         loaded.parent?.assigneeId ?? null,
         parent?.authorId ?? null,
+        ...(loaded.item.type === WorkItemType.TASK ? await taskHelperIds(loaded.item.id) : []),
       ]) {
         if (id && id !== volunteer.id && !mentioned.has(id)) recipientIds.add(id)
       }

@@ -27,14 +27,14 @@ describe('MaintenanceGate', () => {
     await act(async () => {
       await expect(client.skills.list()).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' })
     })
-    expect(await screen.findByRole('heading', { name: 'Down for Maintenance' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Down for maintenance' })).toBeInTheDocument()
     expect(screen.queryByText('the app')).not.toBeInTheDocument()
   })
 
   it('shows visitors the down page with a way for admins to sign in', async () => {
     await setMaintenance(true)
     await mount(null)
-    expect(await screen.findByRole('heading', { name: 'Down for Maintenance' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Down for maintenance' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Admin login' })).toHaveAttribute('href', '/login')
   })
 
@@ -43,14 +43,14 @@ describe('MaintenanceGate', () => {
     await mount(null, '/login')
     expect(await screen.findByText('the app')).toBeInTheDocument()
     await act(async () => {})
-    expect(screen.queryByRole('heading', { name: 'Down for Maintenance' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Down for maintenance' })).not.toBeInTheDocument()
   })
 
   it('shows signed-in volunteers the down page, with a way to sign out', async () => {
     await setMaintenance(true)
     const volunteer = await createVolunteer()
     await mount(volunteer)
-    expect(await screen.findByRole('heading', { name: 'Down for Maintenance' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Down for maintenance' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Admin login' })).not.toBeInTheDocument()
 
     // Signing out lands on the login page, which the gate leaves reachable.
@@ -70,6 +70,6 @@ describe('MaintenanceGate', () => {
       'href',
       '/admin/platform-settings',
     )
-    expect(screen.queryByRole('heading', { name: 'Down for Maintenance' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Down for maintenance' })).not.toBeInTheDocument()
   })
 })

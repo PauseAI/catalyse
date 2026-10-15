@@ -8,7 +8,7 @@ import {
   transferProjectOwnership,
   joinProject,
 } from '../actions/projects'
-import { selectFilterDropdown } from '../actions/ui'
+import { selectFilterDropdown, postComment } from '../actions/ui'
 
 // Creates an org project that immediately accepts interest (is_seeking_help = true by default)
 async function setupSeekingProject(baseUrl: string): Promise<number> {
@@ -51,9 +51,9 @@ test.describe('Project Interests and Assignment', () => {
       "You'll get a notification when they reply",
       { timeout: 10_000 },
     )
-    await expect(volunteer.page.getByLabel('interest status')).toContainText('Request sent', {
-      timeout: 10_000,
-    })
+    await expect(
+      volunteer.page.getByRole('group', { name: 'Status' }).getByLabel('interest status'),
+    ).toContainText('Request to lead sent', { timeout: 10_000 })
   })
 
   test('Accepting a want-to-own interest promotes the volunteer to Owner, not a duplicate volunteer row', async ({
@@ -77,9 +77,11 @@ test.describe('Project Interests and Assignment', () => {
     await expect(getAlert(adminPage)).toContainText('Accepted. They', { timeout: 10_000 })
 
     // Volunteer now appears once, as Owner — not also listed below in Volunteers
-    await expect(adminPage.getByRole('link', { name: volunteer.name })).toBeVisible({
-      timeout: 10_000,
-    })
+    await expect(
+      adminPage
+        .getByRole('region', { name: 'People on this project' })
+        .getByRole('link', { name: volunteer.name }),
+    ).toBeVisible({ timeout: 10_000 })
     await expect(
       adminPage.locator('.interest-card').filter({ hasText: volunteer.name }),
     ).toHaveCount(0)
@@ -169,7 +171,7 @@ test.describe('Project Interests and Assignment', () => {
     const interestCard = adminPage.locator('.interest-card').filter({ hasText: volunteer.name })
     await expect(interestCard).toBeVisible({ timeout: 10_000 })
     await interestCard.getByRole('button', { name: 'Decline' }).click()
-    const declineDialog = adminPage.getByRole('dialog', { name: 'Decline Volunteer' })
+    const declineDialog = adminPage.getByRole('dialog', { name: 'Decline volunteer' })
     await expect(declineDialog).toBeVisible({ timeout: 10_000 })
     await declineDialog.getByLabel('Optional message for the volunteer').fill(declineMessage)
     await snap(adminPage, 'decline dialog')
@@ -198,7 +200,7 @@ test.describe('Project Interests and Assignment', () => {
 
     await volunteer.page.getByRole('button', { name: 'Withdraw request' }).click()
     await volunteer.page.getByRole('dialog').getByRole('button', { name: 'Withdraw' }).click()
-    await expect(getAlert(volunteer.page)).toContainText("You've left the project", {
+    await expect(getAlert(volunteer.page)).toContainText('Request withdrawn', {
       timeout: 10_000,
     })
 
@@ -262,7 +264,7 @@ test.describe('Project Interests and Assignment', () => {
 
     await adminPage.reload()
     await expect(card).toContainText('Helper', { timeout: 10_000 })
-    await expect(card.getByRole('button', { name: 'Remove' })).toBeVisible()
+    await expect(card.getByRole('button', { name: `Remove ${volunteer.name}` })).toBeVisible()
   })
 
   test('Owner removes an already-accepted volunteer', async ({ adminPage, volunteer, baseUrl }) => {
@@ -276,7 +278,7 @@ test.describe('Project Interests and Assignment', () => {
     const volunteerCard = adminPage.locator('.interest-card').filter({ hasText: volunteer.name })
     await expect(volunteerCard).toBeVisible({ timeout: 10_000 })
 
-    await volunteerCard.getByRole('button', { name: 'Remove' }).click()
+    await volunteerCard.getByRole('button', { name: `Remove ${volunteer.name}` }).click()
     const removeDialog = adminPage.getByRole('dialog', { name: /^Remove .+ from this project\?$/ })
     await expect(removeDialog).toBeVisible({ timeout: 10_000 })
     await removeDialog.getByRole('button', { name: 'Remove' }).click()
@@ -284,7 +286,9 @@ test.describe('Project Interests and Assignment', () => {
       timeout: 10_000,
     })
     await expect(volunteerCard).toContainText('Added, removed', { timeout: 10_000 })
-    await expect(volunteerCard.getByRole('button', { name: 'Remove' })).toHaveCount(0)
+    await expect(
+      volunteerCard.getByRole('button', { name: `Remove ${volunteer.name}` }),
+    ).toHaveCount(0)
 
     // The volunteer is told they were removed, not declined.
     await goToInbox(baseUrl, volunteer.page)
@@ -304,16 +308,21 @@ test.describe('Project Interests and Assignment', () => {
     // Admin posts a comment on the project
     await adminPage.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(adminPage.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
-    await adminPage.getByLabel('Add a comment').fill(commentText)
-    await adminPage.getByRole('button', { name: 'Post Comment' }).click()
+    await postComment(adminPage, commentText)
     await expect(adminPage.getByText(commentText)).toBeVisible({ timeout: 10_000 })
 
     // A non-participant volunteer can read the thread but has no post form
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
     await expect(volunteer.page.getByText(commentText)).toBeVisible({ timeout: 10_000 })
+    // The Discussion is on the Overview, and the link scrolls to it.
+    await expect(volunteer.page.getByRole('tab', { name: 'Overview' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    await expect(volunteer.page.locator('#discussion')).toBeInViewport()
     await expect(volunteer.page.getByLabel('Add a comment')).not.toBeVisible({ timeout: 5_000 })
-    await expect(volunteer.page.getByRole('button', { name: 'Post Comment' })).not.toBeVisible({
+    await expect(volunteer.page.getByRole('button', { name: 'Post comment' })).not.toBeVisible({
       timeout: 5_000,
     })
   })
@@ -342,10 +351,12 @@ test.describe('Project Interests and Assignment', () => {
 
     // The accepted helper can now post a comment
     const commentText = `helper comment ${Date.now()}`
+    // The page is already at this address, where the Discussion loaded before the accept, so
+    // reload it.
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#discussion`)
+    await volunteer.page.reload()
     await expect(volunteer.page.getByLabel('Add a comment')).toBeVisible({ timeout: 10_000 })
-    await volunteer.page.getByLabel('Add a comment').fill(commentText)
-    await volunteer.page.getByRole('button', { name: 'Post Comment' }).click()
+    await postComment(volunteer.page, commentText)
     await expect(volunteer.page.getByText(commentText)).toBeVisible({ timeout: 10_000 })
   })
 
@@ -363,8 +374,7 @@ test.describe('Project Interests and Assignment', () => {
     const commentText = `owner update ${Date.now()}`
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(volunteer.page.getByLabel('Add a comment')).toBeVisible({ timeout: 10_000 })
-    await volunteer.page.getByLabel('Add a comment').fill(commentText)
-    await volunteer.page.getByRole('button', { name: 'Post Comment' }).click()
+    await postComment(volunteer.page, commentText)
     await expect(volunteer.page.getByText(commentText)).toBeVisible({ timeout: 10_000 })
 
     // Admin (the project creator) receives a comment notification

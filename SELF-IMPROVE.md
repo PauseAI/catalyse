@@ -29,7 +29,7 @@ GitHub issue. An entry here is about the work itself: something in the code
 structure, tooling, tests, docs or diagnostics that made a task slower or more
 confusing than it needed to be, and that will do so again.
 
-## 3x
+## 8x
 
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
       and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
@@ -38,11 +38,66 @@ confusing than it needed to be, and that will do so again.
       first autosave were dropped), and e2e `01` reloaded before a background
       mark-read landed. R-06's run hit e2e `16`, which read a reply's text on screen
       as proof it was saved while the draft was still in the box, and R-09's hit
-      `ProjectEditor.test.tsx` again (a button that follows a refetch, read with `getBy…`). Each passed 8/8
+      `ProjectEditor.test.tsx` again (a button that follows a refetch, read with `getBy…`). Phase 3's
+      D-04 run hit it a third time (the Add Task button reads "Adding…" while the title's
+      autosave creates the draft) together with the Inbox mark-read test (opening a row
+      before it showed as read). Phase 6's second run hit e2e `36`: Save Changes still read
+      "Saving…" after 10 s with no toast, then passed 16/16 alone. Its follow-up runs then hit
+      four more in turn, one per ten-minute run: e2e `34` (a project pushed off the overview by
+      other specs' projects), e2e `23` (a reload's aborted request signing the user out), the
+      owner-picker test (a debounce outliving its picker), and `ProjectEditor.test.tsx` again
+      (a click on a still-disabled Submit). Each passed 8/8
       when run alone. A script that reruns one
       file under the same parallel load (for example all unit files at once with
       only the suspect repeated) would find them in one pass instead of one per
       full run.
+      After the status-badge stack was merged up to main, the unit tier hit
+      `scripts/disposable-db.test.ts` twice running (its `DROP DATABASE` hook outlasting 10 s
+      while the rest of the suite loads the server), and e2e `09` "Posting a comment notifies
+      other participants" failed in three of eleven runs, never when run alone. It was `16`'s
+      race again: React mirrors a textarea's value into its text, so `getByText` found the
+      comment in the box and the admin opened the inbox before the post landed. A trace with
+      both pages' network timings showed it in one read; `postComment` (`e2e/actions/ui.ts`)
+      now waits for the box to empty, and every spec that posts a comment uses it. The next
+      `check-all` then hit `jobs/deadline-reminders.test.ts`: one test runs the job four times,
+      past the node project's five-second default under load; that project now allows 20 s.
+
+## 6x
+
+- [ ] **Two sessions running vitest at once share one test template database and one
+      `coverage/` directory, so one run wipes the other's.** During P4-05 another agent's
+      single-file reruns in the same checkout dropped `vitest_template` mid-run (about 70
+      suites failed with "template database does not exist"), and the next full run refused to
+      start on the coverage lock. In P4-14 a P4-07 agent's reruns of the task page test made
+      four of five runs of the project page test fail with bare `PrismaClientKnownRequestError`s,
+      and the full unit suite could not be run at all without breaking the other agent's. P4-07's
+      own full run then failed 49 tests on "Database `vitest_…` does not exist" while P4-14's
+      was going, and passed untouched once that had finished. P4-20's full run, with P4-19 and
+      P4-12 agents in the same tree, first hit the coverage lock and then failed every suite on
+      "Server has closed the connection", so its coverage was checked file by file instead.
+      P4-19's two full runs, beside the same agents, failed 50-100 suites on
+      `PrismaClientInitializationError` while every file passed alone (`--coverage.reportsDirectory`
+      at least got past the lock). In Phase 6 even two agents' single-file runs of the project
+      page test, against separate regions of it, dropped each other's databases repeatedly, so
+      each waited for the other to finish before its tests counted. A per-run database prefix and reports directory in
+      `test/pg.ts` and `scripts/test-unit.ts` (from an env var or the pid) would let runs overlap.
+
+## 4x
+
+- [ ] **Component tests that remount a page as a different user read the previous user's
+      cached query first, so a `getBy…` right after the remount sees stale data.** It cost
+      a debugging round in R-06 and two more in R-08 (the owner's buttons, then the
+      "waiting" count). P4-07's task page test found no Reopen button straight after
+      remounting as the owner, and after reopening saw the old Done state come back. P4-11's
+      timeline test, remounting after marking a task done in the database, still drew the
+      not-done task's Plan menu until it called `queryClient.clear()`. A fourth hit: a
+      task-helpers test mounting a third, then a fourth, viewer in the same test (no
+      mutation between the third mount and the fourth, so nothing had invalidated the
+      cache) rendered the third viewer's `canAddHelpers`/`eligibleHelpers` for the fourth —
+      `findByRole` for a heading unchanged between the two views resolved instantly against
+      the stale tree, so the race hid behind a passing assertion right up to the real one.
+      `renderApp` could start each mount with an empty query cache, or `test/render.tsx`
+      could say to use `findBy…` after a remount.
 
 ## 2x
 
@@ -55,6 +110,31 @@ confusing than it needed to be, and that will do so again.
       line — render the dialog inside `{target && (…)}` and read the target in
       the handler closure — belongs in `AGENTS.md` next to the coverage rules,
       and in `components/ui/ConfirmDialog.tsx`'s own usage note.
+
+- [ ] **There is no quick way to see coverage for just the files a change touched, so each
+      uncovered line costs a full `check-all`.** Phase 3 needed four extra runs (about 7 minutes
+      each) for single lines, and its UX-review follow-up a fifth (a hint's click handler): a cron registry wrapper, a dialog's error toast, an import path
+      no test fed a new field, a chip's own null guard. An npm script that runs the unit tests
+      with coverage limited to files changed since `main` and prints their uncovered lines would
+      find these in a minute.
+
+- [ ] **`npm run new-migration` always writes an unrelated `ALTER TABLE "schema_migrations"`
+      line that must be deleted by hand, and if `npm run migrate` runs first it is applied
+      and recorded.** In R-08 a failed rename let migrate apply it; undoing it needed a
+      hand-run `psql` from the owner, because editing an applied migration is blocked. P4-05's
+      enum rename diff carried it again. `scripts/new-migration.ts` should strip that
+      statement from the diff it writes.
+
+- [ ] **A git worktree cannot run the suite until it has the main checkout's env files and a
+      real `node_modules`.** Working beside another session's uncommitted changes, the unit tier
+      failed with "DATABASE_URL is not set" until `.env`/`.env.local` were linked in, and the e2e
+      build failed on a symlinked `node_modules` ("points out of the filesystem root") until it
+      was cloned with `cp -cR`. An Orca worktree for the status-badge review had no
+      `node_modules`, `generated/` or `.env` at all: typecheck needed `npm ci`, then
+      `npm run generate` needed a dummy `DATABASE_URL`, `CHECKPOINT_DISABLE=1` and
+      `node --import tsx` (the sandbox refuses tsx's IPC pipe), and no unit test could run. A
+      `scripts/new-worktree.ts` that links the env files, clones `node_modules` and copies
+      `generated/` would make a side worktree work first time.
 
 ## 1x
 
@@ -73,25 +153,41 @@ confusing than it needed to be, and that will do so again.
       `app/dashboard/page.tsx`. Reading query parameters through one hook
       (`lib/hooks/useOneTimeNotice.ts` reads on mount) and a line in `AGENTS.md` would stop
       the next page repeating it.
-- [ ] **`npm run new-migration` always writes an unrelated `ALTER TABLE "schema_migrations"`
-      line that must be deleted by hand, and if `npm run migrate` runs first it is applied
-      and recorded.** In R-08 a failed rename let migrate apply it; undoing it needed a
-      hand-run `psql` from the owner, because editing an applied migration is blocked.
-      `scripts/new-migration.ts` should strip that statement from the diff it writes.
-- [ ] **Component tests that remount a page as a different user read the previous user's
-      cached query first, so a `getBy…` right after the remount sees stale data.** It cost
-      a debugging round in R-06 and two more in R-08 (the owner's buttons, then the
-      "waiting" count). `renderApp` could start each mount with an empty query cache, or
-      `test/render.tsx` could say to use `findBy…` after a remount.
-- [ ] **Browser QA as several users at once has no working setup: pages on
-      `127.0.0.1:3000`, `[::1]:3000` or `*.localhost:3000` render blank under
-      `next dev`.** Separate hosts would give each account its own `localStorage`
-      token, but the dev server only hydrates `localhost`, so the Phase 2 QA fell
-      back to swapping `authToken` by hand in one tab. `allowedDevOrigins` in
-      `next.config.ts` (e.g. `['*.localhost']`) plus a line in `CLAUDE.local.md`
-      would give one tab per account.
 - [ ] **Seeded dev accounts are hidden from the directory, so they can't be
       invited to a project or sent a contact request.** `scripts/seed-dev-accounts.ts`
       sets `consent_make_profile_visible_in_directory` false, and the invite picker
       and Request contact both need it true; QA needed a hand-run `UPDATE`. The seed
       should set it true.
+
+- [ ] **Seeded dev accounts hold no project roles, so a two-role browser drive (owner and
+      assignee) starts with hand-run database edits.** The Phase 3 UX review spent several turns
+      giving `volunteer@example.com` a task by `UPDATE`, then hit "Task not found" because the
+      project is team- and country-scoped and a bare `assigneeId` grants no membership; a second
+      volunteer had no session token because `SEED_VOLUNTEERS` defaults to 1. The seed could put
+      each dev account on one live project (owner, deputy, assignee with an accepted interest and
+      a matching country) and `CLAUDE.local.md` could say which project that is.
+
+- [ ] **A hard navigation in the Claude-in-Chrome tab sometimes leaves the page unresponsive to
+      the extension (screenshots and scripts time out for minutes) while the server and renderer
+      are idle.** Three times in one review; each cost a tab-context reset and a fresh tab. A line
+      in `CLAUDE.local.md` saying to prefer in-app links over `navigate` and to open a fresh tab
+      after one timeout, rather than waiting or diagnosing the app, would save the detour.
+
+- [ ] **Component tests that pin a calendar date but not "today" rot as the calendar passes
+      them.** `task-dates-ui.test.tsx` failed the day its 17 Sept 2026 deadline fell behind the
+      real date, though nothing about the component had changed. Tests of anything that compares
+      to today should either take a fixed today (`vi.setSystemTime`) or use dates far ahead.
+
+- [ ] **Component tests mount React in a `<div>`, but Next.js hydrates it at `document`, so
+      `stopPropagation` in a React handler holds back a `document` listener in jsdom and not in
+      the browser.** The owner popover's Remove row passed every unit test and did nothing in
+      e2e `28`: the picker's outside-click listener on `document` closed the popover on mousedown,
+      so the click never landed, and it took a debugging round to see why. `test/render.tsx`
+      could mount into `document` (or `FilterDropdown` could take an "inside" ref), and a line in
+      `AGENTS.md` could say not to rely on `stopPropagation` against `document` listeners.
+
+- [ ] **An agent session cannot run `check-all`, the unit tier or e2e.** Its sandbox refuses
+      tsx's IPC pipe (`listen EPERM`), cannot reach the test Postgres on the host, and
+      `next build` dies reading the sandbox's unreadable dotfile mounts in the worktree. Every
+      run in the status-badge stack merge went through the user, one paste per round. Sandbox
+      requests are filed; until they land, a task that needs a test run has to hand it over.

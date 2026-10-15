@@ -17,15 +17,19 @@ function state(over: Partial<CurrentState> = {}): CurrentState {
         id: 10,
         title: 'Book the venue',
         description: null,
-        status: 'open',
+        status: 'not_started',
         assigneeId: null,
         assigneeEmail: null,
-        deadline: null,
+        deadline: day('2026-09-04'),
         startDate: day('2026-09-02'),
-        durationDays: 3,
+        durationDays: null,
         baselineSetAt: null,
         featuredAsQuickTask: false,
         isAnchor: false,
+        timing: 'flexible',
+        submissionPrompt: null,
+        submissionAsksLink: false,
+        helpersWanted: 2,
         sortOrder: 1,
       },
     ],
@@ -106,6 +110,40 @@ describe('bounds on how much one file may ask for', () => {
 
   it('refuses an over-long ref', () => {
     expect(parseImportFile(file([{ ref: 'r'.repeat(65), title: 'T' }])).ok).toBe(false)
+  })
+})
+
+describe('a task length in a file', () => {
+  it('becomes the deadline it implies from the start, and is dropped without one', () => {
+    const file = (tasks: unknown[]) => JSON.stringify({ project: { title: 'Rally' }, tasks })
+    const parsed = parseImportFile(
+      file([
+        { title: 'Old export', startDate: '2026-09-02', durationDays: 3 },
+        { title: 'Has both', startDate: '2026-09-02', durationDays: 3, deadline: '2026-09-10' },
+        { title: 'No start', durationDays: 3 },
+        { title: 'Milestone', startDate: '2026-09-02', durationDays: 0 },
+      ]),
+    )
+    expect(parsed.ok).toBe(true)
+    const tasks = parsed.ok ? parsed.file.tasks : []
+    expect(tasks.map((t) => [t.durationDays, t.deadline])).toEqual([
+      [null, '2026-09-04'],
+      [null, '2026-09-10'],
+      [null, undefined],
+      [0, undefined],
+    ])
+  })
+})
+
+describe('a task status in a file', () => {
+  it('reads an older export’s `open` as not_started, so it changes nothing', () => {
+    const file = roundTrip()
+    file.tasks[0].status = 'open'
+    const parsed = parseImportFile(JSON.stringify(file))
+    expect(parsed.ok).toBe(true)
+    const read = parsed.ok ? parsed.file : file
+    expect(read.tasks[0].status).toBe('not_started')
+    expect(computeProjectDiff(state(), read).tasks[0].op).toBe('noop')
   })
 })
 

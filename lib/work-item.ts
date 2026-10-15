@@ -9,7 +9,11 @@ import {
   RemoteEligibility,
   TaskStatus,
   WorkItemType,
+  TaskTiming,
 } from '@/generated/prisma/enums'
+import { diffInDays } from './schedule'
+import { taskDisplayStatus, type TaskStatusView } from './task-status'
+import type { ClaimViewer } from './action-labels'
 
 // ── Comment access ────────────────────────────────────────────────────────────
 // Reading a work item's comment thread is gated identically to viewing the work
@@ -268,6 +272,52 @@ export async function resolveProjectMembership(
   return Boolean(membership || interest)
 }
 
+type ClaimProject = { id: number; teamId: number | null; assigneeId: number | null }
+
+/**
+ * Where `volunteer` stands on each of `projects`, for `claimLabel`: the returned function
+ * answers for any one of them. Mirrors `updateTask`'s self-claim, where the owner, an admin,
+ * a member and an invitee take the task and anyone else asks.
+ */
+export async function resolveClaimViewers(
+  projects: ClaimProject[],
+  volunteer: { id: number; isAdmin?: boolean | null },
+): Promise<(project: ClaimProject) => ClaimViewer> {
+  const teamIds = projects.flatMap((p) => (p.teamId === null ? [] : [p.teamId]))
+  const [memberships, interests] = await Promise.all([
+    prisma.teamMembership.findMany({
+      where: { volunteerId: volunteer.id, teamId: { in: teamIds } },
+      select: { teamId: true },
+    }),
+    prisma.workItemInterest.findMany({
+      where: {
+        volunteerId: volunteer.id,
+        workItemId: { in: projects.map((p) => p.id) },
+        status: { in: [InterestStatus.accepted, InterestStatus.invited] },
+      },
+      select: { workItemId: true, status: true },
+    }),
+  ])
+  const myTeams = new Set(memberships.map((m) => m.teamId))
+  const statusOn = new Map(interests.map((i) => [i.workItemId, i.status]))
+  return (p) => ({
+    onProject:
+      Boolean(volunteer.isAdmin) ||
+      p.assigneeId === volunteer.id ||
+      (p.teamId !== null && myTeams.has(p.teamId)) ||
+      statusOn.get(p.id) === InterestStatus.accepted,
+    invited: statusOn.get(p.id) === InterestStatus.invited,
+  })
+}
+
+/** `resolveClaimViewers` for one project. */
+export async function resolveClaimViewer(
+  project: ClaimProject,
+  volunteer: { id: number; isAdmin?: boolean | null },
+): Promise<ClaimViewer> {
+  return (await resolveClaimViewers([project], volunteer))(project)
+}
+
 /**
  * Can `viewer` post a comment? Participants only.
  * `isAcceptedHelper` = viewer has an accepted WorkItemInterest on the project
@@ -407,6 +457,7 @@ export type EnrichedProject = ScheduleFieldsLike & {
   outcome: string | null
   outcomeNotes: string | null
   completedAt: Date | null
+  deadline: Date | null
   createdAt: Date | null
   updatedAt: Date | null
   country: string | null
@@ -455,6 +506,7 @@ export function withProjectExtras(
     outcome: p.outcome,
     outcomeNotes: p.outcomeNotes,
     completedAt: p.completedAt,
+    deadline: p.deadline,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
     country: p.country,
@@ -527,6 +579,7 @@ export type ScheduleFieldsLike = {
   scheduleUpdatedAt: Date | null
   startedAt: Date | null
   isAnchor?: boolean
+  timing?: TaskTiming
 }
 
 export function serializeScheduleFields(t: ScheduleFieldsLike) {
@@ -539,6 +592,7 @@ export function serializeScheduleFields(t: ScheduleFieldsLike) {
     scheduleUpdatedAt: t.scheduleUpdatedAt,
     startedAt: t.startedAt,
     isAnchor: t.isAnchor ?? false,
+    timing: t.timing ?? TaskTiming.flexible,
   }
 }
 
@@ -553,15 +607,25 @@ export type TaskLike = ScheduleFieldsLike & {
   status: string
   estimatedHours: number | null
   deadline: Date | null
+  claimedAt: Date | null
   completedAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
-} & SubmissionLike
+  helpersWanted: number | null
+} & SubmissionLike &
+  SubmissionAskLike
 
 type SubmissionLike = {
   submissionNote: string | null
   submissionUrl: string | null
   submittedAt: Date | null
+}
+
+type SubmissionAskLike = { submissionPrompt: string | null; submissionAsksLink: boolean }
+
+/** What the submit box asks for, set on the task by whoever can edit it. */
+export function serializeSubmissionAsk(t: SubmissionAskLike) {
+  return { submissionPrompt: t.submissionPrompt, submissionAsksLink: t.submissionAsksLink }
 }
 
 /** What the assignee handed in, or null before they first submit. */
@@ -594,6 +658,51 @@ export function submissionData(input: { note?: string | null; url?: string | nul
   }
 }
 
+/**
+ * Shown statuses, in the order given, for project tasks loaded without their project's task
+ * list (Home, My tasks): each one's predecessors are fetched here.
+ */
+export async function loadTaskStatusViews(
+  tasks: { id: number; title: string; status: string }[],
+): Promise<TaskStatusView[]> {
+  const rows = await prisma.workItemDependency.findMany({
+    where: {
+      successorId: { in: tasks.map((t) => t.id) },
+      predecessor: { type: WorkItemType.TASK },
+    },
+    select: { successorId: true, predecessor: { select: { id: true, title: true, status: true } } },
+  })
+  return tasks.map((t) =>
+    taskDisplayStatus(
+      t,
+      rows.filter((r) => r.successorId === t.id).map((r) => r.predecessor),
+    ),
+  )
+}
+
+/**
+ * The write that starts a task's work, or nothing when it has already started: the assignee
+ * pressing Start, posting their first update or submitting it.
+ */
+export function startWorkData(task: { status: string }, now: Date = new Date()) {
+  return task.status === TaskStatus.not_started
+    ? { status: TaskStatus.in_progress, startedAt: now }
+    : {}
+}
+
+/** Writes that hand a task back to nobody, unstarted. */
+export const RELEASED_TASK = {
+  status: TaskStatus.not_started,
+  assigneeId: null,
+  requestedById: null,
+  claimedAt: null,
+  startedAt: null,
+  completedAt: null,
+  nudgeSentAt: null,
+  finalWarningSentAt: null,
+  ...CLEARED_SUBMISSION,
+} as const
+
 export function serializeTask(t: TaskLike) {
   return {
     id: t.id,
@@ -606,10 +715,13 @@ export function serializeTask(t: TaskLike) {
     status: t.status,
     estimatedHours: t.estimatedHours,
     deadline: t.deadline,
+    claimedAt: t.claimedAt,
     completedAt: t.completedAt,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
+    helpersWanted: t.helpersWanted,
     submission: serializeSubmission(t),
+    ...serializeSubmissionAsk(t),
     ...serializeScheduleFields(t),
   }
 }
@@ -618,8 +730,9 @@ export function serializeTask(t: TaskLike) {
  * Builds the Prisma `data` for a schedule change, and reports whether the write actually
  * touches the schedule.
  *
- * `scheduleUpdatedAt` is stamped whenever startDate or durationDays moves, so every caller
- * (task edit, project edit, drag-to-reschedule) records it identically.
+ * `scheduleUpdatedAt` is stamped whenever startDate, durationDays or `taskDeadline` moves, so
+ * every caller (task edit, project edit, drag-to-reschedule) records it identically. Only a task
+ * passes `taskDeadline`: its bar ends there. A project's deadline is a target, not its plan.
  *
  * The baseline is deliberately NOT touched here. Typing a first date is planning, not
  * committing to a plan: an owner needs to sketch dates and shuffle them before anything is
@@ -628,18 +741,36 @@ export function serializeTask(t: TaskLike) {
  */
 export function applyScheduleWrite(
   data: Record<string, unknown>,
-  input: { startDate?: Date | null; durationDays?: number | null },
+  input: { startDate?: Date | null; durationDays?: number | null; taskDeadline?: Date | null },
   now: Date = new Date(),
 ): boolean {
   const touchesStart = input.startDate !== undefined
   const touchesDuration = input.durationDays !== undefined
-  if (!touchesStart && !touchesDuration) return false
+  const touchesDeadline = input.taskDeadline !== undefined
+  if (!touchesStart && !touchesDuration && !touchesDeadline) return false
 
   if (touchesStart) data.startDate = input.startDate
   if (touchesDuration) data.durationDays = input.durationDays
+  if (touchesDeadline) data.deadline = input.taskDeadline
   data.scheduleUpdatedAt = now
 
   return true
+}
+
+/**
+ * The length a baseline records. A task's bar ends on its deadline, so its length is the days
+ * from its start through that deadline; a project's is its own `durationDays`.
+ */
+export function baselineLength(w: {
+  type: string
+  startDate: Date | null
+  durationDays: number | null
+  deadline: Date | null
+}): number | null {
+  if (w.type !== WorkItemType.TASK || !w.startDate || !w.deadline || w.durationDays === 0) {
+    return w.durationDays
+  }
+  return Math.max(1, diffInDays(w.startDate, w.deadline) + 1)
 }
 
 export type StarterTaskLike = {
@@ -656,10 +787,12 @@ export type StarterTaskLike = {
   reviewedById: number | null
   reviewedAt: Date | null
   estimatedHours: number | null
+  deadline: Date | null
   createdAt: Date | null
   updatedAt: Date | null
   changesRequestedNote: string | null
-} & SubmissionLike
+} & SubmissionLike &
+  SubmissionAskLike
 
 export function serializeStarterTask(t: StarterTaskLike) {
   return {
@@ -676,9 +809,11 @@ export function serializeStarterTask(t: StarterTaskLike) {
     reviewedById: t.reviewedById,
     reviewedAt: t.reviewedAt,
     estimatedHours: t.estimatedHours,
+    deadline: t.deadline,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
     submission: serializeSubmission(t),
+    ...serializeSubmissionAsk(t),
     changesRequested: t.changesRequestedNote,
   }
 }

@@ -18,7 +18,7 @@ test.describe('Settings: Notifications tab', () => {
       'Keep me in the loop about new projects',
       'Send me a fortnightly digest',
     )
-    await volunteer.page.getByRole('button', { name: 'Save Changes' }).click()
+    await volunteer.page.getByRole('button', { name: 'Save changes' }).click()
     await expect(getAlert(volunteer.page)).toBeVisible({ timeout: 10_000 })
 
     await volunteer.page.reload()
@@ -29,7 +29,7 @@ test.describe('Settings: Notifications tab', () => {
   })
 })
 
-test.describe('Settings: Privacy & Data tab', () => {
+test.describe('Settings: Privacy & data tab', () => {
   test('Directory visibility persists, and there is no owner-contact choice to make', async ({
     volunteer,
     baseUrl,
@@ -43,7 +43,7 @@ test.describe('Settings: Privacy & Data tab', () => {
 
     const wasListed = await listed.isChecked()
     await volunteer.page.locator('label:has(#consent_make_profile_visible_in_directory)').click()
-    await volunteer.page.getByRole('button', { name: 'Save Changes' }).click()
+    await volunteer.page.getByRole('button', { name: 'Save changes' }).click()
     await expect(getAlert(volunteer.page)).toBeVisible({ timeout: 10_000 })
     await volunteer.page.reload()
     await expect(volunteer.page.getByLabel('Show me in the volunteer directory')).toBeChecked({

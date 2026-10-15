@@ -17,9 +17,16 @@ export type ScheduleInput = {
   id: number
   /** Pinned anchor, or null to derive the start from predecessors. */
   startDate: Date | null
-  /** null is read as 1 day. */
+  /** null is read as 1 day. Ignored when the item ends on its deadline. */
   durationDays: number | null
   deadline: Date | null
+  /**
+   * A task's deadline is where its bar ends, so the length follows from the start. A project's
+   * deadline is only a target its plan is measured against.
+   */
+  endsOnDeadline?: boolean
+  /** Happens on exactly its dates (a shift, an event): on one day, it is drawn as a milestone. */
+  fixed?: boolean
   baselineStartDate: Date | null
   baselineDurationDays: number | null
   startedAt: Date | null
@@ -45,17 +52,30 @@ export type ScheduledItem = {
   isPinned: boolean
   /** Start came from a predecessor rather than from the origin. */
   isDerived: boolean
+  /** The deadline as a UTC day, or null when there is none. */
+  deadline: Date | null
+  /**
+   * Planned end minus deadline: positive is days late, zero is on the day, negative is spare.
+   * An item that ends on its deadline is only ever late (its start is pushed past it), else null.
+   */
+  daysLate: number | null
   breachesDeadline: boolean
   /** Pin is earlier than the dependencies allow. The pin wins; this flags the conflict. */
   pinnedBeforePredecessor: boolean
+  /** Days the pin would have to move later to satisfy its predecessors; null when it need not. */
+  pinConflictDays: number | null
+  /** The predecessor that sets the earliest permitted start, when the pin conflicts with it. */
+  pinConflictWith: number | null
+  /** The bar ends on the deadline rather than after a number of days. */
+  endsOnDeadline: boolean
   /** On a chain that determines when an anchor (or, with no anchors, the scope) lands. */
   isCritical: boolean
   /** This item is itself a fixed point the plan is built around. */
   isAnchor: boolean
   /**
-   * Zero duration — a moment rather than a stretch of work. It still occupies its start day for
-   * scheduling (a successor follows the day after), but the chart draws it as a diamond so it
-   * does not read as a day of work.
+   * A moment rather than a stretch of work: zero duration, or fixed with its start and deadline
+   * on the same day. It still occupies its start day for scheduling (a successor follows the day
+   * after), but the chart draws it as a diamond so it does not read as a day of work.
    */
   isMilestone: boolean
   baseline: DateSpan | null
@@ -215,16 +235,25 @@ export function computeSchedule(
 
     let earliest = scopeOrigin
     let isDerived = false
+    let bindingPredecessor: number | null = null
     for (const edge of preds) {
       const predSpan = spans.get(edge.predecessorId)
       if (!predSpan) continue // predecessor sat on a cycle; ignore this constraint
       isDerived = true
-      earliest = laterOf(earliest, addDays(predSpan.end, 1 + edge.lagDays))
+      const permitted = addDays(predSpan.end, 1 + edge.lagDays)
+      if (bindingPredecessor === null || permitted.getTime() > earliest.getTime()) {
+        bindingPredecessor = edge.predecessorId
+      }
+      earliest = laterOf(earliest, permitted)
     }
 
     const pinned = item.startDate ? startOfUtcDay(item.startDate) : null
     const start = pinned ?? earliest
-    const end = endOfSpan(start, item.durationDays)
+    const deadline = item.deadline ? startOfUtcDay(item.deadline) : null
+    const endsOnDeadline = item.endsOnDeadline === true && item.durationDays !== 0
+    // Work that cannot start until after its deadline still takes its first day, and is late.
+    const end =
+      endsOnDeadline && deadline ? laterOf(deadline, start) : endOfSpan(start, item.durationDays)
     spans.set(id, { start, end })
 
     const baseline =
@@ -243,19 +272,31 @@ export function computeSchedule(
             end: item.completedAt ? startOfUtcDay(item.completedAt) : null,
           }
 
+    const gap = deadline ? diffInDays(deadline, end) : null
+    const daysLate = endsOnDeadline && gap !== null && gap <= 0 ? null : gap
+    const pinConflict = pinned !== null && isDerived && pinned.getTime() < earliest.getTime()
+
     const scheduledItem: ScheduledItem = {
       id,
       start,
       end,
       isPinned: pinned !== null,
       isDerived: isDerived && pinned === null,
-      breachesDeadline:
-        item.deadline !== null && end.getTime() > startOfUtcDay(item.deadline).getTime(),
-      pinnedBeforePredecessor:
-        pinned !== null && isDerived && pinned.getTime() < earliest.getTime(),
+      deadline,
+      daysLate,
+      breachesDeadline: daysLate !== null && daysLate > 0,
+      pinnedBeforePredecessor: pinConflict,
+      pinConflictDays: pinConflict ? diffInDays(pinned, earliest) : null,
+      pinConflictWith: pinConflict ? bindingPredecessor : null,
+      endsOnDeadline,
       isCritical: false,
       isAnchor: item.isAnchor === true,
-      isMilestone: item.durationDays === 0,
+      isMilestone:
+        item.durationDays === 0 ||
+        (item.fixed === true &&
+          pinned !== null &&
+          deadline !== null &&
+          pinned.getTime() === deadline.getTime()),
       baseline,
       actual,
       startVarianceDays: baseline ? diffInDays(baseline.start, start) : null,

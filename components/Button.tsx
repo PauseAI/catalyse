@@ -2,7 +2,7 @@ import Link from 'next/link'
 import type { ComponentPropsWithoutRef } from 'react'
 
 const base =
-  'inline-flex items-center justify-center gap-2 rounded-lg font-bold cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed'
+  'inline-flex items-center justify-center gap-2 rounded-lg font-bold cursor-pointer transition-all disabled:opacity-40 disabled:saturate-50 disabled:cursor-not-allowed'
 
 const variants = {
   primary: 'bg-primary text-[#111827] hover:bg-primary-dark',

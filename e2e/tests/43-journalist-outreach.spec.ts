@@ -23,7 +23,7 @@ async function importJournalists(
   rows: ReturnType<typeof journalist>[],
 ): Promise<void> {
   await adminPage.goto(`${baseUrl}${ADMIN}`)
-  await expect(adminPage.getByRole('heading', { name: 'Journalist Outreach' })).toBeVisible({
+  await expect(adminPage.getByRole('heading', { name: 'Journalist outreach' })).toBeVisible({
     timeout: 10_000,
   })
   const csv = [
@@ -59,7 +59,7 @@ test.describe('Journalist outreach', () => {
   }) => {
     const good = journalist()
     await adminPage.goto(`${baseUrl}${ADMIN}`)
-    await expect(adminPage.getByRole('heading', { name: 'Journalist Outreach' })).toBeVisible({
+    await expect(adminPage.getByRole('heading', { name: 'Journalist outreach' })).toBeVisible({
       timeout: 10_000,
     })
     await snap(adminPage, 'empty list')

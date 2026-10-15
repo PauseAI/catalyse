@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import { useAuth } from '@/lib/auth-context'
 import { orpc } from '@/lib/orpc'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import Button from '@/components/Button'
 
 function AcceptInviteContent() {
@@ -54,15 +55,15 @@ function AcceptInviteContent() {
     const redirectUrl =
       typeof window !== 'undefined' ? encodeURIComponent(window.location.href) : ''
     return (
-      <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word text-center">
-        <h2>Admin Invite</h2>
+      <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word text-center`}>
+        <h2>Admin invite</h2>
         <p className="text-text-light my-4">
           You&apos;ve been invited to become an admin on Catalyse.
         </p>
         <p className="mb-6">Please log in or sign up with the invited email address to accept.</p>
-        <Button href={`/login?redirect=${redirectUrl}`}>Log In</Button>
+        <Button href={`/login?redirect=${redirectUrl}`}>Log in</Button>
         <Button href={`/signup?redirect=${redirectUrl}`} variant="outline" className="ml-2">
-          Sign Up
+          Sign up
         </Button>
       </div>
     )
@@ -70,10 +71,10 @@ function AcceptInviteContent() {
 
   if (status === 'success') {
     return (
-      <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word text-center">
-        <h2>Welcome to the Team!</h2>
+      <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word text-center`}>
+        <h2>Welcome to the team!</h2>
         <p className="text-text-light my-4">You now have admin access to Catalyse. Redirecting…</p>
-        <Button href="/admin/triage">Go to Admin Dashboard</Button>
+        <Button href="/admin/triage">Go to admin dashboard</Button>
       </div>
     )
   }
@@ -85,7 +86,7 @@ function AcceptInviteContent() {
       : 'Failed to accept invite'
 
   return (
-    <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word text-center">
+    <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word text-center`}>
       <h2>Invite not accepted</h2>
       <p className="my-4 text-error">{errorMsg}</p>
       <p className="text-text-light text-sm mb-6">
@@ -96,7 +97,7 @@ function AcceptInviteContent() {
         .
       </p>
       <Button href="/" variant="outline">
-        Back to Home
+        Back to home
       </Button>
     </div>
   )
@@ -106,7 +107,7 @@ export default function AcceptInvitePage() {
   return (
     <>
       <main className="container py-5 pb-15">
-        <div className="max-w-[500px] my-15 mx-auto text-center">
+        <div className="sm:max-w-[500px] my-15 mx-auto text-center">
           <Suspense fallback={<div className="text-center py-10 text-text-light">Loading…</div>}>
             <AcceptInviteContent />
           </Suspense>

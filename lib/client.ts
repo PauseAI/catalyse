@@ -3,6 +3,7 @@ import { RPCLink } from '@orpc/client/fetch'
 import type { RouterClient } from '@orpc/server'
 import type { appRouter } from '@/server/router'
 import { OUTREACH_TOKEN_HEADER, OUTREACH_TOKEN_STORAGE_KEY } from '@/lib/journalist-outreach'
+import { VIEW_AS_HEADER, isViewingAsVolunteer } from '@/lib/view-as'
 
 const link = new RPCLink({
   url:
@@ -13,9 +14,11 @@ const link = new RPCLink({
     const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
     const outreachToken =
       typeof window !== 'undefined' ? localStorage.getItem(OUTREACH_TOKEN_STORAGE_KEY) : null
+    const asVolunteer = typeof window !== 'undefined' && isViewingAsVolunteer()
     return {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(outreachToken ? { [OUTREACH_TOKEN_HEADER]: outreachToken } : {}),
+      ...(asVolunteer ? { [VIEW_AS_HEADER]: 'volunteer' } : {}),
     }
   },
   interceptors: [

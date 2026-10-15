@@ -43,7 +43,7 @@ describe('route layouts', () => {
     expect(await edit({ params })).toEqual({ title: 'Edit Rally' })
     const missing = Promise.resolve({ id: '999999' })
     expect(await view({ params: missing })).toEqual({ title: 'Project' })
-    expect(await edit({ params: missing })).toEqual({ title: 'Edit Project' })
+    expect(await edit({ params: missing })).toEqual({ title: 'Edit project' })
     render(
       <ViewLayout>
         <EditLayout>

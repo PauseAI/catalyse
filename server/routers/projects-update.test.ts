@@ -166,7 +166,7 @@ describe('projects.update fields and status', () => {
         where: { type: 'project_status_changed' },
       })
       expect(notified.map((n) => n.volunteerId).sort()).toEqual([creator.id, helper.id].sort())
-      expect(notified[0].title).toBe(`'${project.title}' is now On Hold`)
+      expect(notified[0].title).toBe(`'${project.title}' is now On hold`)
     })
 
     // Dropping the owner keeps the status; giving a ready project an owner starts it.
@@ -184,10 +184,10 @@ describe('projects.update fields and status', () => {
     // Completing clears the seeking-help flag.
     const done = await clientAs(owner).projects.update({ id: project.id, status: 'completed' })
     expect(done).toMatchObject({ status: 'completed', isSeekingHelp: false })
-    // Terminal projects keep their status even when the owner changes.
-    expect(
-      (await clientAs(admin).projects.update({ id: project.id, assigneeId: null })).status,
-    ).toBe('completed')
+    // A completed project is locked: not even an admin changes its owner without reopening it.
+    await expect(
+      clientAs(admin).projects.update({ id: project.id, assigneeId: null }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
     // Explicit in_progress while already in_progress needs no task check; admin can set anything.
     const p2 = await createProject({ assigneeId: owner.id, status: 'in_progress' })
     expect(

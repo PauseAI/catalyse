@@ -20,7 +20,11 @@ async function projectIdsOf(volunteerIds: number[]): Promise<Map<number, Set<num
       select: { id: true, assigneeId: true },
     }),
     prisma.workItemInterest.findMany({
-      where: { volunteerId: { in: volunteerIds }, status: InterestStatus.accepted },
+      where: {
+        volunteerId: { in: volunteerIds },
+        status: InterestStatus.accepted,
+        workItem: { type: WorkItemType.PROJECT },
+      },
       select: { workItemId: true, volunteerId: true },
     }),
     prisma.workItem.findMany({

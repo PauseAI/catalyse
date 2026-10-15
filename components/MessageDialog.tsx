@@ -125,7 +125,7 @@ export default function MessageDialog({
             Cancel
           </Button>
           <Button type="submit" disabled={sendMessageMutation.isPending}>
-            {sendMessageMutation.isPending ? 'Sending…' : 'Send Message'}
+            {sendMessageMutation.isPending ? 'Sending…' : 'Send message'}
           </Button>
         </div>
       </form>

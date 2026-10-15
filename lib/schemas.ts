@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { MUTABLE_EMAIL_CATEGORIES } from './notification-categories'
+import { isHttpUrl } from './url'
 import {
   AdminInviteSchema,
   AdminNoteSchema,
@@ -62,7 +63,7 @@ const VOLUNTEER_TEXT_LIMITS = {
 const BioSchema = z
   .string()
   .min(20, 'Please write at least 20 characters')
-  .max(2000, 'About You must be no more than 2000 characters')
+  .max(2000, 'About you must be no more than 2000 characters')
 const AvailabilitySchema = z
   .number()
   .int()
@@ -190,12 +191,6 @@ const PROJECT_INPUT_FIELDS = {
   ...SCHEDULE_INPUT_FIELDS,
 } as const
 
-const HTTP_URL_RE = /^https?:\/\/\S+$/i
-
-/** A link the app will render as an href: http(s) only, so it can never run script. */
-export const isHttpUrl = (value: string | null | undefined): value is string =>
-  typeof value === 'string' && HTTP_URL_RE.test(value)
-
 /** A user-supplied link, empty allowed; the caller decides whether empty means null. */
 export const HttpUrlSchema = z
   .string()
@@ -223,6 +218,7 @@ export const UpdateProjectSchema = WorkItemSchema.pick({
   outcome: true,
   outcomeNotes: true,
   autoAcceptTasks: true,
+  deadline: true,
 })
   .partial()
   .extend({
@@ -232,11 +228,39 @@ export const UpdateProjectSchema = WorkItemSchema.pick({
   })
 
 export const ProjectInterestBodySchema = z.object({
-  interestType: z.enum(['want_to_contribute', 'want_to_own'], {
+  // `want_to_help_task` joins a task as a helper (lib/task-helpers.ts); the others are a project's.
+  interestType: z.enum(['want_to_contribute', 'want_to_own', 'want_to_help_task'], {
     error: 'Invalid interestType',
   }),
   message: z.string().optional().nullable(),
 })
+
+/** A task's bar ends on its deadline, so it has no length of its own; zero marks a milestone. */
+const TaskDurationSchema = z
+  .literal(0, { error: 'A task ends on its deadline; only a milestone has a length (0)' })
+  .nullable()
+  .optional()
+
+/** What the submit box asks for (TASK and QUICK_TASK). A blank prompt is no prompt. */
+export const SUBMISSION_ASK_FIELDS = {
+  submissionPrompt: z
+    .string()
+    .trim()
+    .max(200, { message: 'Keep what to submit under 200 characters' })
+    .nullable()
+    .optional()
+    .transform((s) => (s === '' ? null : s)),
+  submissionAsksLink: z.boolean().optional(),
+}
+
+/** How many helpers a task seeks beside its lead; null seeks none. */
+const HelpersWantedSchema = z
+  .number()
+  .int()
+  .min(1, { message: 'Ask for at least one helper, or none' })
+  .max(100, { message: 'Ask for at most 100 helpers' })
+  .nullable()
+  .optional()
 
 export const CreateProjectTaskSchema = WorkItemSchema.pick({
   title: true,
@@ -244,14 +268,22 @@ export const CreateProjectTaskSchema = WorkItemSchema.pick({
   estimatedHours: true,
   deadline: true,
   featuredAsQuickTask: true,
-  ...SCHEDULE_INPUT_FIELDS,
-}).partial({
-  description: true,
-  estimatedHours: true,
-  deadline: true,
-  featuredAsQuickTask: true,
+  timing: true,
   ...SCHEDULE_INPUT_FIELDS,
 })
+  .partial({
+    description: true,
+    estimatedHours: true,
+    deadline: true,
+    featuredAsQuickTask: true,
+    timing: true,
+    ...SCHEDULE_INPUT_FIELDS,
+  })
+  .extend({
+    durationDays: TaskDurationSchema,
+    helpersWanted: HelpersWantedSchema,
+    ...SUBMISSION_ASK_FIELDS,
+  })
 
 export const UpdateProjectTaskSchema = WorkItemSchema.pick({
   title: true,
@@ -261,10 +293,16 @@ export const UpdateProjectTaskSchema = WorkItemSchema.pick({
   deadline: true,
   featuredAsQuickTask: true,
   isAnchor: true,
+  timing: true,
   ...SCHEDULE_INPUT_FIELDS,
 })
   .partial()
-  .extend({ status: TaskStatusSchema.optional() })
+  .extend({
+    status: TaskStatusSchema.optional(),
+    durationDays: TaskDurationSchema,
+    helpersWanted: HelpersWantedSchema,
+    ...SUBMISSION_ASK_FIELDS,
+  })
 
 /** A finish-to-start link. Lag is signed: positive leaves a gap, negative overlaps. */
 export const DependencyBodySchema = z.object({
@@ -431,7 +469,10 @@ export const CreateQuickTaskSchema = WorkItemSchema.pick({
   skillId: true,
   contextProjectId: true,
   estimatedHours: true,
-}).partial({ skillId: true, contextProjectId: true, estimatedHours: true })
+  deadline: true,
+})
+  .partial({ skillId: true, contextProjectId: true, estimatedHours: true, deadline: true })
+  .extend(SUBMISSION_ASK_FIELDS)
 
 export const AssignQuickTaskSchema = z.object({
   volunteerId: z.number().int({ message: 'volunteerId is required' }),
@@ -506,4 +547,5 @@ export const UpdateVolunteerSchema = VolunteerSchema.omit({
       .optional(),
     availabilityHoursPerWeek: AvailabilitySchema.nullable().optional(),
     emailMutedCategories: z.array(z.enum(MUTABLE_EMAIL_CATEGORIES)).optional(),
+    dailySummary: z.enum(['email_and_in_app', 'in_app_only', 'off']).optional(),
   })

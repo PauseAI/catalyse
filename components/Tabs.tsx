@@ -1,4 +1,6 @@
-import React from 'react'
+'use client'
+
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 export interface TabItem<T extends string = string> {
   key: T
@@ -15,6 +17,9 @@ interface TabsProps<T extends string = string> {
   className?: string
 }
 
+// Fades the strip's right edge while tabs lie beyond it, so a clipped tab reads as "scroll for more".
+const FADE_RIGHT = '[mask-image:linear-gradient(to_right,black_calc(100%-3rem),transparent)]'
+
 export default function Tabs<T extends string = string>({
   tabs,
   activeTab,
@@ -22,8 +27,25 @@ export default function Tabs<T extends string = string>({
   role,
   className = 'mb-6',
 }: TabsProps<T>) {
+  const strip = useRef<HTMLDivElement>(null)
+  const [moreRight, setMoreRight] = useState(false)
+  const measure = useCallback(() => {
+    const el = strip.current!
+    setMoreRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+  }, [])
+  useEffect(() => {
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [measure, tabs.length])
+
   return (
-    <div role={role} className={`flex overflow-x-auto border-b border-brand-border ${className}`}>
+    <div
+      ref={strip}
+      role={role}
+      onScroll={measure}
+      className={`flex overflow-x-auto border-b border-brand-border ${moreRight ? FADE_RIGHT : ''} ${className}`}
+    >
       {tabs.map(({ key, label, 'data-tab': dataTab }) => (
         <button
           key={key}

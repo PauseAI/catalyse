@@ -52,7 +52,7 @@ describe('admin bugs', () => {
     expect(resolved).toHaveTextContent('Resolution: Shipped')
     expect(resolved).toHaveTextContent('· javascript:alert(1)')
     expect(resolved).toHaveTextContent('Assigned to: Fiona Fixer')
-    expect(within(resolved).queryByRole('button', { name: 'Mark In Progress' })).toBeNull()
+    expect(within(resolved).queryByRole('button', { name: 'Mark in progress' })).toBeNull()
     resolvedToggle.focus()
     await userEvent.keyboard('{Enter}')
     expect(screen.queryByText('Nice to have')).toBeNull()
@@ -100,7 +100,7 @@ describe('admin bugs', () => {
     await userEvent.click(within(openCard()).getByRole('button', { name: 'Assign' }))
     await screen.findByText('Bug report assigned')
     await waitFor(() => expect(openCard()).toHaveTextContent('Assigned to: Fiona Fixer'))
-    await userEvent.click(within(openCard()).getByRole('button', { name: 'Mark In Progress' }))
+    await userEvent.click(within(openCard()).getByRole('button', { name: 'Mark in progress' }))
     await screen.findByText('Marked in progress')
     await waitFor(async () =>
       expect((await prisma.bugReport.findUniqueOrThrow({ where: { id: open.id } })).status).toBe(
@@ -108,7 +108,7 @@ describe('admin bugs', () => {
       ),
     )
     // The card re-mounts under its new section once the list refetches; click the settled one.
-    await screen.findByRole('heading', { name: 'In Progress: 1' })
+    await screen.findByRole('heading', { name: 'In progress: 1' })
 
     await userEvent.click(openCard())
     expect(navigation.push).toHaveBeenCalledWith(`/bugs/${open.id}`)
@@ -143,7 +143,7 @@ describe('admin bugs', () => {
       '[role="link"]',
     )!
     localStorage.setItem('authToken', 'stale')
-    await userEvent.click(within(again).getByRole('button', { name: 'Mark In Progress' }))
+    await userEvent.click(within(again).getByRole('button', { name: 'Mark in progress' }))
     await screen.findByText('Unauthorized')
   })
 })
@@ -179,15 +179,15 @@ describe('triage', () => {
 
     await renderApp(<TriagePage />, { as: admin, url: '/admin/triage' })
     await screen.findByRole('link', { name: 'Needs review' })
-    expect(screen.getByRole('tab', { name: 'Pending Review1' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'In review1' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Review' })).toHaveAttribute(
       'href',
       `/projects/${pending.id}`,
     )
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Needs Changes1' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Needs changes1' }))
     await screen.findByRole('link', { name: 'Talk about it' })
-    await userEvent.click(await screen.findByRole('tab', { name: 'No Open Tasks1' }))
+    await userEvent.click(await screen.findByRole('tab', { name: 'No open tasks1' }))
     await screen.findByRole('link', { name: 'All done really' })
 
     await userEvent.click(await screen.findByRole('tab', { name: 'Drafts2' }))
@@ -199,34 +199,37 @@ describe('triage', () => {
     const emptyCard = screen
       .getByRole('link', { name: 'Empty draft' })
       .closest<HTMLElement>('.card')!
-    await userEvent.click(within(emptyCard).getByRole('button', { name: 'Submit for Review' }))
+    await userEvent.click(within(emptyCard).getByRole('button', { name: 'Submit for review' }))
     await screen.findByText(/Add at least one task/)
     const draftCard = screen
       .getByRole('link', { name: 'Half a draft' })
       .closest<HTMLElement>('.card')!
-    await userEvent.click(within(draftCard).getByRole('button', { name: 'Submit for Review' }))
+    await userEvent.click(within(draftCard).getByRole('button', { name: 'Submit for review' }))
     await screen.findByText('Draft submitted for review')
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Half a draft' })).toBeNull())
-    await userEvent.click(await screen.findByRole('tab', { name: 'Pending Review2' }))
+    await userEvent.click(await screen.findByRole('tab', { name: 'In review2' }))
     await screen.findByRole('link', { name: 'Half a draft' })
 
-    await userEvent.click(await screen.findByRole('tab', { name: 'Volunteer Interests1' }))
+    await userEvent.click(await screen.findByRole('tab', { name: 'Volunteer interests1' }))
     const interest = (await screen.findByText('Pick me', { exact: false })).closest<HTMLElement>(
       '.card',
     )!
-    expect(interest).toHaveTextContent('Ivy Interested wants to own Needs review')
+    expect(interest).toHaveTextContent('Ivy Interested wants to lead Needs review')
     expect(interest).toHaveTextContent('Owner: None')
-    expect(within(interest).getByRole('link', { name: 'View Project' })).toHaveAttribute(
+    expect(within(interest).getByRole('link', { name: 'View project' })).toHaveAttribute(
       'href',
       `/projects/${pending.id}`,
     )
     await userEvent.click(within(interest).getByRole('button', { name: 'Decline' }))
     await waitFor(() => expect(screen.queryByText('Pick me', { exact: false })).toBeNull())
-    await screen.findByText('No pending interests found.')
+    await screen.findByText('No requests right now.')
+    await userEvent.click(screen.getByRole('button', { name: 'Status' }))
+    await userEvent.click(screen.getByRole('option', { name: 'Accepted' }))
+    await screen.findByText('No accepted interests found.')
     await userEvent.click(screen.getByRole('button', { name: 'Status' }))
     await userEvent.click(screen.getByRole('option', { name: 'All' }))
-    await screen.findByText(/wants to contribute to/)
-    expect(screen.getByText('declined')).toBeInTheDocument()
+    await screen.findByText(/wants to help with/)
+    expect(screen.getByText('Declined', { selector: '.status-badge' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Accept' })).toBeNull()
   })
 
@@ -241,13 +244,13 @@ describe('triage', () => {
     })
     await renderApp(<TriagePage />, { as: admin })
     await screen.findByText('No projects awaiting review.')
-    await userEvent.click(screen.getByRole('tab', { name: 'Needs Changes' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Needs changes' }))
     await screen.findByText('No projects awaiting discussion.')
-    await userEvent.click(screen.getByRole('tab', { name: 'No Open Tasks' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'No open tasks' }))
     await screen.findByText('No in-progress projects with all tasks completed.')
     await userEvent.click(screen.getByRole('tab', { name: 'Drafts' }))
     await screen.findByText('No volunteer drafts in progress.')
-    await userEvent.click(await screen.findByRole('tab', { name: 'Volunteer Interests1' }))
+    await userEvent.click(await screen.findByRole('tab', { name: 'Volunteer interests1' }))
     await userEvent.click(await screen.findByRole('button', { name: 'Accept' }))
     await waitFor(async () =>
       expect(
@@ -256,13 +259,13 @@ describe('triage', () => {
     )
     await userEvent.click(screen.getByRole('button', { name: 'Status' }))
     await userEvent.click(screen.getByRole('option', { name: 'Accepted' }))
-    await screen.findByText('accepted')
+    await screen.findByText('Accepted', { selector: '.status-badge' })
     await prisma.workItemInterest.update({
       where: { id: interest.id },
       data: { status: 'pending' },
     })
     await userEvent.click(screen.getByRole('button', { name: 'Status' }))
-    await userEvent.click(screen.getByRole('option', { name: 'Pending' }))
+    await userEvent.click(screen.getByRole('option', { name: 'Requests' }))
     const decline = await screen.findByRole('button', { name: 'Decline' })
     localStorage.setItem('authToken', 'stale')
     await userEvent.click(decline)
@@ -279,7 +282,7 @@ describe('triage', () => {
     await renderApp(<TriagePage />, { as: admin })
     await screen.findByText('No projects awaiting review.')
     await userEvent.click(await screen.findByRole('tab', { name: 'Drafts1' }))
-    const submit = await screen.findByRole('button', { name: 'Submit for Review' })
+    const submit = await screen.findByRole('button', { name: 'Submit for review' })
     localStorage.setItem('authToken', 'stale')
     await userEvent.click(submit)
     await screen.findByText('Unauthorized')

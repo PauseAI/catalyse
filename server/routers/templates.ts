@@ -15,6 +15,7 @@ import {
 import { approvedProcedure, adminProcedure } from '../procedures'
 import {
   ProjectStatus,
+  TaskStatus,
   WorkItemType,
   TemplateSourceType,
   TeamMembershipRole,
@@ -29,6 +30,10 @@ const ScratchTaskSchema = z.object({
   durationDays: z.number().int().min(0).max(3650).nullable().optional(),
   featuredAsQuickTask: z.boolean().optional(),
   isAnchor: z.boolean().optional(),
+  timing: z.enum(['flexible', 'fixed']).optional(),
+  submissionPrompt: z.string().max(200).nullable().optional(),
+  submissionAsksLink: z.boolean().optional(),
+  helpersWanted: z.number().int().min(1).max(100).nullable().optional(),
   skillIds: z.array(z.number().int()).optional(),
   dependsOnRefs: z.array(z.string().min(1).max(64)).optional(),
 })
@@ -154,6 +159,10 @@ export const templatesRouter = {
         baselineSetAt: t.baselineSetAt,
         featuredAsQuickTask: t.featuredAsQuickTask ?? false,
         isAnchor: t.isAnchor ?? false,
+        timing: t.timing ?? 'flexible',
+        submissionPrompt: t.submissionPrompt,
+        submissionAsksLink: t.submissionAsksLink,
+        helpersWanted: t.helpersWanted,
         sortOrder: t.sortOrder,
         skills: t.skills.map((s) => ({ skillId: s.skillId, isRequired: s.isRequired ?? true })),
       }))
@@ -232,6 +241,10 @@ export const templatesRouter = {
           durationDays: t.durationDays ?? null,
           featuredAsQuickTask: t.featuredAsQuickTask ?? false,
           isAnchor: t.isAnchor ?? false,
+          timing: t.timing ?? 'flexible',
+          submissionPrompt: t.submissionPrompt ?? null,
+          submissionAsksLink: t.submissionAsksLink ?? false,
+          helpersWanted: t.helpersWanted ?? null,
           skills: (t.skillIds ?? []).map((skillId) => ({ skillId, isRequired: true })),
           dependsOn: (t.dependsOnRefs ?? []).map((ref) => ({ on: ref, lagDays: 0 })),
         })),
@@ -385,7 +398,7 @@ export const templatesRouter = {
           const createdTask = await tx.workItem.create({
             data: {
               type: WorkItemType.TASK,
-              status: 'open',
+              status: TaskStatus.not_started,
               parentId: newProject.id,
               title: taskCreate.title,
               description: taskCreate.description,
@@ -393,6 +406,10 @@ export const templatesRouter = {
               deadline: taskCreate.deadline,
               featuredAsQuickTask: taskCreate.featuredAsQuickTask,
               isAnchor: taskCreate.isAnchor,
+              timing: taskCreate.timing,
+              submissionPrompt: taskCreate.submissionPrompt,
+              submissionAsksLink: taskCreate.submissionAsksLink,
+              helpersWanted: taskCreate.helpersWanted,
               creatorId: context.volunteer.id,
               sortOrder: ++sortOrder,
               ...taskScheduleData,

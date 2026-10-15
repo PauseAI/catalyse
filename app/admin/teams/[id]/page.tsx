@@ -11,6 +11,7 @@ import VolunteerSelect from '@/components/VolunteerSelect'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import PageLoading from '@/components/PageLoading'
 
 interface TeamMember {
@@ -175,7 +176,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
       <main className="container py-5 pb-15">
         <p className="text-text-light">Only this team&apos;s leader or an admin can manage it.</p>
         <Link href={backHref} className="text-brand-text no-underline hover:text-primary">
-          ← Back to Teams
+          ← Back to teams
         </Link>
       </main>
     )
@@ -186,7 +187,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
       <main className="container py-5 pb-15">
         <p className="text-text-light">Team not found.</p>
         <Link href={backHref} className="text-brand-text no-underline hover:text-primary">
-          ← Back to Teams
+          ← Back to teams
         </Link>
       </main>
     )
@@ -195,15 +196,15 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
   return (
     <main className="container py-5 pb-15 max-w-2xl">
       <Link href={backHref} className="text-sm text-brand-text no-underline hover:text-primary">
-        ← All Teams
+        ← All teams
       </Link>
       <h1 className="mt-3 mb-6">{team.name}</h1>
 
-      <div className="bg-surface rounded-xl shadow p-6 mb-4">
-        <h2>Team Details</h2>
+      <div className={`${SECTION_CARD} mb-4`}>
+        <h2>Team details</h2>
         <form onSubmit={handleSave}>
           <div className="mb-5">
-            <label htmlFor="team-name">Team Name</label>
+            <label htmlFor="team-name">Team name</label>
             <input
               id="team-name"
               type="text"
@@ -243,11 +244,11 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
           </div>
           <div className="flex gap-3 justify-between">
             <Button type="submit" disabled={!name.trim() || updateTeamMutation.isPending}>
-              {updateTeamMutation.isPending ? 'Saving…' : 'Save Changes'}
+              {updateTeamMutation.isPending ? 'Saving…' : 'Save changes'}
             </Button>
             {user.isAdmin && (
               <Button type="button" variant="danger" onClick={() => setShowDeleteDialog(true)}>
-                Delete Team
+                Delete team
               </Button>
             )}
           </div>
@@ -255,8 +256,8 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
       </div>
 
       {joinRequests.length > 0 && (
-        <div className="bg-surface rounded-xl shadow p-6 mb-4">
-          <h2>Pending Join Requests</h2>
+        <div className={`${SECTION_CARD} mb-4`}>
+          <h2>Pending join requests</h2>
           <div className="space-y-3">
             {joinRequests.map((r) => (
               <div key={r.id} className="flex items-center justify-between gap-3">
@@ -282,7 +283,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      <div className="bg-surface rounded-xl shadow p-6 mb-4">
+      <div className={`${SECTION_CARD} mb-4`}>
         <h2>Members</h2>
 
         <div className="mb-5 pb-5 border-b border-brand-border flex items-end gap-2">
@@ -323,7 +324,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
                     </span>
                   )}
                   <Button size="sm" variant="secondary" onClick={() => toggleLeader(m)}>
-                    {m.role === 'leader' ? 'Demote' : 'Make Leader'}
+                    {m.role === 'leader' ? 'Demote' : 'Make leader'}
                   </Button>
                   <Button size="sm" variant="danger" onClick={() => removeMember(m)}>
                     Remove
@@ -340,7 +341,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
         isOpen={showDeleteDialog}
         title="Delete this team?"
         body="Its members lose access to the projects scoped to it. This cannot be undone."
-        confirmLabel="Delete Team"
+        confirmLabel="Delete team"
         busyLabel="Deleting…"
         danger
         busy={deleteTeamMutation.isPending}

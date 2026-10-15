@@ -21,10 +21,10 @@ import { Badge, type BadgeVariant } from '@/components/Badge'
 type Preview = Awaited<ReturnType<typeof client.admin.journalistOutreach.previewImport>>
 type Row = Awaited<ReturnType<typeof client.admin.journalistOutreach.list>>['journalists'][number]
 
-const card = 'bg-surface rounded-xl shadow p-6 mb-6 overflow-hidden wrap-break-word'
+const card = 'bg-surface rounded-xl shadow p-4 sm:p-6 mb-6 overflow-hidden wrap-break-word'
 const STATUS_VARIANT: Record<JournalistStatus, BadgeVariant> = {
   available: 'neutral',
-  claimed: 'warning',
+  claimed: 'info',
   contacted: 'success',
   bounced: 'danger',
 }
@@ -111,7 +111,7 @@ export default function AdminJournalistOutreachPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Journalist Outreach</h1>
+      <h1>Journalist outreach</h1>
       <p className="text-text-light mb-6">
         Volunteers work through this list at <a href={OUTREACH_PATH}>{OUTREACH_PATH}</a>.
       </p>

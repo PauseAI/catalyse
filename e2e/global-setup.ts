@@ -75,10 +75,14 @@ async function startWorkerNextJs(parallelIndex: number, serverCount: number): Pr
   const nextArgs = IS_DEV_MODE
     ? ['dev', '--turbo', '-p', String(nextPort)]
     : ['start', '-p', String(nextPort)]
+  fs.mkdirSync(path.join(PROJECT_ROOT, 'tmp'), { recursive: true })
+  const log = fs.openSync(path.join(PROJECT_ROOT, 'tmp', `e2e-server-${parallelIndex}.log`), 'w')
   const server = spawn(NEXT_BINARY, nextArgs, {
     env: {
       ...process.env,
       PORT: String(nextPort),
+      // Links in emails and exports are built from it, so they point at this worker.
+      APP_URL: `http://localhost:${nextPort}`,
       DATABASE_URL: workerDbUrl(parallelIndex, serverCount),
       ADMIN_EMAILS: ADMIN_EMAIL,
       RESEND_API_KEY: '',
@@ -91,7 +95,8 @@ async function startWorkerNextJs(parallelIndex: number, serverCount: number): Pr
     },
     cwd: PROJECT_ROOT,
     detached: false,
-    stdio: 'ignore',
+    // A failing test's server-side errors land here, one file per worker.
+    stdio: ['ignore', log, log],
   })
 
   return server.pid!

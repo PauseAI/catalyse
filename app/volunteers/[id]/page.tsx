@@ -5,14 +5,14 @@ import { useRequireAuth } from '@/lib/hooks/auth'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import Button from '@/components/Button'
-import { Badge } from '@/components/Badge'
-import { STATUS_LABELS, projectStatusVariant } from '@/components/ProjectCard'
+import { ProjectStatusBadge } from '@/components/StatusBadges'
 import ContactButton from '@/components/ContactButton'
 import ActiveDot from '@/components/ActiveDot'
 import Linkify from '@/components/Linkify'
 import { useToast } from '@/lib/toast'
 import { volunteerLocation } from '@/lib/filter-options'
 import { orpc } from '@/lib/orpc'
+import { SECTION_CARD } from '@/lib/ui-classes'
 
 export default function VolunteerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -62,7 +62,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
         <main className="container py-5 pb-15">
           <p className="text-error">Volunteer not found.</p>
           <Button href="/volunteers" variant="secondary" className="mt-4">
-            Back to Volunteers
+            Back to volunteers
           </Button>
         </main>
       </>
@@ -80,7 +80,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
       <main className="container py-5 pb-15">
         <div className="mb-5">
           <Link href="/volunteers" className="text-text-light">
-            &larr; Back to Volunteers
+            &larr; Back to volunteers
           </Link>
         </div>
 
@@ -88,7 +88,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
           {incoming && (
             <section
               aria-label="Contact request"
-              className="bg-surface rounded-xl shadow p-6 mb-4 border-l-4 border-primary"
+              className={`${SECTION_CARD} mb-4 border-l-4 border-primary`}
             >
               <h2 className="text-lg m-0 mb-2">{volunteer.name} would like to connect</h2>
               <p className="m-0 mb-3 whitespace-pre-wrap">
@@ -115,7 +115,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
               </div>
             </section>
           )}
-          <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word">
+          <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
             <div className="flex items-center mb-2">
               <h1 id="volunteerName" className="m-0">
                 {volunteer.name}
@@ -150,7 +150,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
 
             {volunteer.otherSkills && (
               <div className="mb-5">
-                <h4 className="text-text-light">Other Skills</h4>
+                <h4 className="text-text-light">Other skills</h4>
                 <p>{volunteer.otherSkills}</p>
               </div>
             )}
@@ -200,9 +200,9 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
           {endorsements.length > 0 && (
             <div
               id="endorsementsSection"
-              className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word"
+              className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}
             >
-              <h2>Verified Skills</h2>
+              <h2>Verified skills</h2>
               <p className="text-text-light mb-3">
                 Skills verified through completed work on the platform.
               </p>
@@ -223,8 +223,8 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
           )}
 
           {volunteer.completedTasks.length > 0 && (
-            <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word">
-              <h2>Completed Quick Tasks</h2>
+            <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
+              <h2>Completed quick tasks</h2>
               {volunteer.completedTasks.map((t, i) => (
                 <div key={i} className="py-3 border-b border-brand-border">
                   <div className="flex justify-between items-center">
@@ -246,17 +246,15 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
           )}
 
           {volunteer.projects.length > 0 && (
-            <div className="bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word">
-              <h2>Project History</h2>
+            <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
+              <h2>Project history</h2>
               {volunteer.projects.map((p) => (
                 <div key={p.id} className="py-3 border-b border-brand-border">
                   <div className="flex justify-between items-center">
                     <Link href={`/projects/${p.id}`} className="font-semibold text-primary-dark">
                       {p.title}
                     </Link>
-                    <Badge variant={projectStatusVariant(p.status)}>
-                      {STATUS_LABELS[p.status] ?? p.status.replace(/_/g, ' ')}
-                    </Badge>
+                    <ProjectStatusBadge status={p.status} viewerIsAdmin={Boolean(user?.isAdmin)} />
                   </div>
                   <p className="text-sm text-text-light mt-1">
                     {p.role === 'owner' ? 'Project owner' : 'Proposer'}

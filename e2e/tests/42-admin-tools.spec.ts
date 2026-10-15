@@ -9,7 +9,7 @@ test.describe('Cron job runs', () => {
     snap,
   }) => {
     await adminPage.goto(`${baseUrl}/admin/cron-runs`)
-    await expect(adminPage.getByRole('heading', { name: 'Cron Job Runs' })).toBeVisible({
+    await expect(adminPage.getByRole('heading', { name: 'Cron job runs' })).toBeVisible({
       timeout: 10_000,
     })
     // Other tests on this server may have run jobs already, so the page is
@@ -50,12 +50,12 @@ test.describe('Email previews', () => {
     baseUrl,
   }) => {
     await adminPage.goto(`${baseUrl}/admin/email-preview`)
-    await expect(adminPage.getByRole('heading', { name: 'Email Previews' })).toBeVisible({
+    await expect(adminPage.getByRole('heading', { name: 'Email previews' })).toBeVisible({
       timeout: 10_000,
     })
     const welcome = adminPage
       .locator('section')
-      .filter({ has: adminPage.getByRole('heading', { name: 'Welcome and Confirm Email' }) })
+      .filter({ has: adminPage.getByRole('heading', { name: 'Welcome and confirm email' }) })
     await expect(welcome.getByText(/^Subject:/)).toBeVisible({ timeout: 15_000 })
     await expect(welcome.locator('iframe')).toBeVisible()
     // Every preview has arrived once no row still says it is loading.
@@ -107,7 +107,7 @@ test.describe('Roadmap', () => {
     // Other tests may have left completed projects behind, so what is asserted is that
     // this project leaves the chart, not that the chart empties.
     await adminPage.getByRole('button', { name: 'Completed', exact: true }).click()
-    for (const label of ['Ready', 'In progress', 'On hold']) {
+    for (const label of ['To do', 'In progress', 'On hold']) {
       await adminPage.getByRole('button', { name: label, exact: true }).click()
     }
     await expect(
