@@ -46,10 +46,129 @@ enum TemplateSourceType {
   QUICK_TASK
 }
 
-enum RemoteEligibility {
-  NONE
-  COUNTRY
-  GLOBAL
+/// Where a project or quick task happens, always within its chapter's country.
+enum ProjectReach {
+  COUNTRY_WIDE
+  LOCAL
+  REMOTE
+}
+
+enum ChapterRoleKind {
+  LEAD
+  DEPUTY
+}
+
+enum ChapterTransferStatus {
+  pending
+  approved
+  declined
+  cancelled
+}
+
+enum ChapterAuditAction {
+  CHAPTER_CREATED
+  CHAPTER_UPDATED
+  LEAD_APPOINTED
+  LEAD_REMOVED
+  DEPUTY_APPOINTED
+  DEPUTY_REMOVED
+  VOLUNTEER_REASSIGNED
+  TRANSFER_APPROVED
+  TRANSFER_DECLINED
+  PROJECT_CHAPTER_CHANGED
+  TEAM_CHAPTER_CHANGED
+  ROLE_INVITE_SENT
+  ROLE_INVITE_ACCEPTED
+}
+
+/// One country's members and the people who run it. A volunteer with no chapter is in the
+/// holding pool, which global admins look after. The lead is a single column so a chapter
+/// can never have two; deputies are ChapterDeputy rows. Both are members of the chapter.
+model NationalChapter {
+  id        Int      @id @default(autoincrement())
+  /// A value from COUNTRIES (lib/countries.ts), e.g. "UK".
+  country   String   @unique
+  name      String
+  leadId    Int?     @unique @map("lead_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  lead                  Volunteer?               @relation("ChapterLead", fields: [leadId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  deputies              ChapterDeputy[]
+  members               Volunteer[]              @relation("ChapterMembers")
+  workItems             WorkItem[]
+  localGroups           LocalGroup[]
+  localGroupSuggestions LocalGroupSuggestion[]
+  teams                 Team[]
+  teamSuggestions       TeamSuggestion[]
+  adminInvites          AdminInvite[]
+  transfersIn           ChapterTransferRequest[] @relation("TransferTo")
+  transfersOut          ChapterTransferRequest[] @relation("TransferFrom")
+  auditEvents           ChapterAuditEvent[]
+
+  @@map("national_chapters")
+}
+
+/// A chapter lead's appointed helper: every power the lead has except appointing staff.
+/// `volunteerId` is unique, so a person is deputy of at most one chapter.
+model ChapterDeputy {
+  id                Int      @id @default(autoincrement())
+  nationalChapterId Int      @map("national_chapter_id")
+  volunteerId       Int      @unique @map("volunteer_id")
+  appointedById     Int?     @map("appointed_by_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  chapter     NationalChapter @relation(fields: [nationalChapterId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  volunteer   Volunteer       @relation("ChapterDeputyVolunteer", fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  appointedBy Volunteer?      @relation("ChapterDeputyAppointedBy", fields: [appointedById], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([nationalChapterId], map: "idx_chapter_deputies_chapter")
+  @@map("chapter_deputies")
+}
+
+/// A member asking to move country, and so chapter. A null chapter on either side is the
+/// holding pool; `toCountry` is kept because the destination may have no chapter yet.
+model ChapterTransferRequest {
+  id            Int                   @id @default(autoincrement())
+  volunteerId   Int                   @map("volunteer_id")
+  fromChapterId Int?                  @map("from_chapter_id")
+  toChapterId   Int?                  @map("to_chapter_id")
+  toCountry     String                @map("to_country")
+  reason        String?
+  status        ChapterTransferStatus @default(pending)
+  decidedById   Int?                  @map("decided_by_id")
+  decidedAt     DateTime?             @map("decided_at")
+  decisionNote  String?               @map("decision_note")
+  createdAt     DateTime              @default(now()) @map("created_at")
+
+  volunteer   Volunteer        @relation("TransferVolunteer", fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  fromChapter NationalChapter? @relation("TransferFrom", fields: [fromChapterId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  toChapter   NationalChapter? @relation("TransferTo", fields: [toChapterId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  decidedBy   Volunteer?       @relation("TransferDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([toChapterId, status], map: "idx_chapter_transfers_to_status")
+  @@index([volunteerId, status], map: "idx_chapter_transfers_volunteer_status")
+  @@map("chapter_transfer_requests")
+}
+
+/// Who changed a chapter's staff or moved people and work between chapters.
+model ChapterAuditEvent {
+  id                Int                @id @default(autoincrement())
+  action            ChapterAuditAction
+  actorId           Int?               @map("actor_id")
+  nationalChapterId Int?               @map("national_chapter_id")
+  targetVolunteerId Int?               @map("target_volunteer_id")
+  workItemId        Int?               @map("work_item_id")
+  details           Json?
+  createdAt         DateTime           @default(now()) @map("created_at")
+
+  actor           Volunteer?       @relation("ChapterAuditActor", fields: [actorId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  chapter         NationalChapter? @relation(fields: [nationalChapterId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  targetVolunteer Volunteer?       @relation("ChapterAuditTarget", fields: [targetVolunteerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  workItem        WorkItem?        @relation(fields: [workItemId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([nationalChapterId, createdAt], map: "idx_chapter_audit_chapter_created")
+  @@map("chapter_audit_events")
 }
 
 // The work's own progress, apart from who holds it (`assigneeId`). Blocked and Ready are not
@@ -126,19 +245,23 @@ enum LocalGroupSuggestionStatus {
 }
 
 model AdminInvite {
-  id           Int          @id @default(autoincrement())
+  id                Int              @id @default(autoincrement())
   /// @zod.string.email({ message: "A valid email address is required" })
-  email        String
+  email             String
   /// @zod.custom.omit([model])
-  inviteToken  String       @unique @map("invite_token")
-  invitedById  Int          @map("invited_by_id")
-  status       InviteStatus @default(pending)
-  acceptedById Int?         @map("accepted_by_id")
-  acceptedAt   DateTime?    @map("accepted_at")
-  expiresAt    DateTime     @map("expires_at")
-  createdAt    DateTime?    @default(now()) @map("created_at")
-  acceptedBy   Volunteer?   @relation("AdminInviteAcceptedBy", fields: [acceptedById], references: [id], onUpdate: NoAction)
-  invitedBy    Volunteer    @relation("AdminInviteInvitedBy", fields: [invitedById], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  inviteToken       String           @unique @map("invite_token")
+  invitedById       Int              @map("invited_by_id")
+  status            InviteStatus     @default(pending)
+  acceptedById      Int?             @map("accepted_by_id")
+  acceptedAt        DateTime?        @map("accepted_at")
+  expiresAt         DateTime         @map("expires_at")
+  createdAt         DateTime?        @default(now()) @map("created_at")
+  /// The chapter role the invitee takes on accepting.
+  nationalChapterId Int?             @map("national_chapter_id")
+  role              ChapterRoleKind?
+  acceptedBy        Volunteer?       @relation("AdminInviteAcceptedBy", fields: [acceptedById], references: [id], onUpdate: NoAction)
+  invitedBy         Volunteer        @relation("AdminInviteInvitedBy", fields: [invitedById], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  chapter           NationalChapter? @relation(fields: [nationalChapterId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([inviteToken], map: "idx_admin_invites_token")
   @@index([email], map: "idx_admin_invites_email")
@@ -393,18 +516,20 @@ model WorkItem {
   // and inactivity clocks count from here rather than from `startedAt`.
   claimedAt            DateTime?  @map("claimed_at")
 
-  country           String?
-  localGroup        String?           @map("local_group")
-  remoteEligibility RemoteEligibility @default(NONE) @map("remote_eligibility")
   // Optional standing team this PROJECT belongs to (Team is orthogonal to LocalGroup —
   // see Team model). Nullable, TASK/QUICK_TASK don't use it.
-  teamId            Int?              @map("team_id")
+  teamId            Int?         @map("team_id")
   // Set only on a PROJECT created by instantiating a Template. Distinct from isOrgProposed:
   // gates the self-publish-without-triage path in publishDraft and the separate
   // MAX_TEMPLATE_DRAFTS cap, rather than the general volunteer draft pool.
-  templateOriginId  Int?              @map("template_origin_id")
-  createdAt         DateTime?         @default(now()) @map("created_at")
-  updatedAt         DateTime?         @default(now()) @map("updated_at")
+  templateOriginId  Int?         @map("template_origin_id")
+  // PROJECT and QUICK_TASK belong to a chapter (null: the holding pool); a TASK follows its
+  // parent. `localGroupId` is set only when `reach` is LOCAL.
+  nationalChapterId Int?         @map("national_chapter_id")
+  reach             ProjectReach @default(COUNTRY_WIDE)
+  localGroupId      Int?         @map("local_group_id")
+  createdAt         DateTime?    @default(now()) @map("created_at")
+  updatedAt         DateTime?    @default(now()) @map("updated_at")
 
   creator              Volunteer?             @relation("WorkItemCreator", fields: [creatorId], references: [id], onUpdate: NoAction)
   templateOrigin       Template?              @relation("WorkItemTemplateOrigin", fields: [templateOriginId], references: [id], onDelete: SetNull, onUpdate: NoAction)
@@ -414,6 +539,9 @@ model WorkItem {
   reviewedBy           Volunteer?             @relation("WorkItemReviewedBy", fields: [reviewedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   skill                Skill?                 @relation(fields: [skillId], references: [id], onUpdate: NoAction)
   team                 Team?                  @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  chapter              NationalChapter?       @relation(fields: [nationalChapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  group                LocalGroup?            @relation(fields: [localGroupId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  chapterAuditEvents   ChapterAuditEvent[]
   comments             WorkItemComment[]
   events               WorkItemEvent[]
   finishByReminders    FinishByReminder[]
@@ -435,10 +563,10 @@ model WorkItem {
   @@index([creatorId], map: "idx_work_items_creator")
   @@index([assigneeId], map: "idx_work_items_assignee")
   @@index([skillId], map: "idx_work_items_skill")
-  @@index([localGroup], map: "idx_work_items_local_group")
-  @@index([country], map: "idx_work_items_country")
   @@index([teamId], map: "idx_work_items_team")
   @@index([templateOriginId], map: "idx_work_items_template_origin")
+  @@index([nationalChapterId], map: "idx_work_items_chapter")
+  @@index([localGroupId], map: "idx_work_items_local_group_id")
   @@map("work_items")
 }
 
@@ -613,35 +741,43 @@ model Template {
 }
 
 model LocalGroup {
-  id          Int                    @id @default(autoincrement())
+  id                Int                    @id @default(autoincrement())
   /// @zod.string.min(1, { message: "Group name is required" })
-  name        String
-  /// @zod.string.min(1, { message: "Country is required" })
-  country     String
-  suggestions LocalGroupSuggestion[]
+  name              String
+  /// Its chapter's country.
+  country           String
+  nationalChapterId Int                    @map("national_chapter_id")
+  chapter           NationalChapter        @relation(fields: [nationalChapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  suggestions       LocalGroupSuggestion[]
+  members           Volunteer[]
+  workItems         WorkItem[]
 
+  @@unique([nationalChapterId, name], map: "uq_local_groups_chapter_name")
   @@index([country], map: "idx_local_groups_country")
   @@map("local_groups")
 }
 
 model LocalGroupSuggestion {
-  id            Int                        @id @default(autoincrement())
+  id                Int                        @id @default(autoincrement())
   /// @zod.string.min(1, { message: "Group name is required" })
-  name          String
+  name              String
   /// @zod.string.min(1, { message: "Country is required" })
-  country       String
-  status        LocalGroupSuggestionStatus @default(pending)
-  suggestedById Int                        @map("suggested_by_id")
-  reviewedById  Int?                       @map("reviewed_by_id")
-  reviewedAt    DateTime?                  @map("reviewed_at")
-  adminNotes    String?                    @map("admin_notes")
-  mergedIntoId  Int?                       @map("merged_into_id")
-  createdAt     DateTime?                  @default(now()) @map("created_at")
-  updatedAt     DateTime?                  @default(now()) @map("updated_at")
+  country           String
+  status            LocalGroupSuggestionStatus @default(pending)
+  suggestedById     Int                        @map("suggested_by_id")
+  reviewedById      Int?                       @map("reviewed_by_id")
+  reviewedAt        DateTime?                  @map("reviewed_at")
+  adminNotes        String?                    @map("admin_notes")
+  mergedIntoId      Int?                       @map("merged_into_id")
+  // Null: suggested from the holding pool, so reviewed by global admins.
+  nationalChapterId Int?                       @map("national_chapter_id")
+  createdAt         DateTime?                  @default(now()) @map("created_at")
+  updatedAt         DateTime?                  @default(now()) @map("updated_at")
 
-  suggestedBy Volunteer   @relation("LocalGroupSuggestionSuggestedBy", fields: [suggestedById], references: [id])
-  reviewedBy  Volunteer?  @relation("LocalGroupSuggestionReviewedBy", fields: [reviewedById], references: [id])
-  mergedInto  LocalGroup? @relation(fields: [mergedIntoId], references: [id])
+  chapter     NationalChapter? @relation(fields: [nationalChapterId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  suggestedBy Volunteer        @relation("LocalGroupSuggestionSuggestedBy", fields: [suggestedById], references: [id])
+  reviewedBy  Volunteer?       @relation("LocalGroupSuggestionReviewedBy", fields: [reviewedById], references: [id])
+  mergedInto  LocalGroup?      @relation(fields: [mergedIntoId], references: [id])
 
   @@index([status], map: "idx_local_group_suggestions_status")
   @@index([suggestedById], map: "idx_local_group_suggestions_suggested_by")
@@ -674,13 +810,17 @@ model Team {
   description          String?
   lumaUrl              String?           @map("luma_url")
   docUrl               String?           @map("doc_url")
+  // Null: a holding-pool team, run by global admins.
+  nationalChapterId    Int?              @map("national_chapter_id")
   createdAt            DateTime?         @default(now()) @map("created_at")
+  chapter              NationalChapter?  @relation(fields: [nationalChapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   members              TeamMembership[]
   joinRequests         TeamJoinRequest[]
   suggestions          TeamSuggestion[]  @relation("TeamSuggestionMergedInto")
   workItems            WorkItem[]
   templatesSourcedFrom Template[]        @relation("TemplateSourceTeam")
 
+  @@index([nationalChapterId], map: "idx_teams_chapter")
   @@map("teams")
 }
 
@@ -721,22 +861,24 @@ model TeamJoinRequest {
 }
 
 model TeamSuggestion {
-  id            Int                  @id @default(autoincrement())
+  id                Int                  @id @default(autoincrement())
   /// @zod.string.min(1, { message: "Team name is required" })
-  name          String
-  description   String?
-  status        TeamSuggestionStatus @default(pending)
-  suggestedById Int                  @map("suggested_by_id")
-  reviewedById  Int?                 @map("reviewed_by_id")
-  reviewedAt    DateTime?            @map("reviewed_at")
-  adminNotes    String?              @map("admin_notes")
-  mergedIntoId  Int?                 @map("merged_into_id")
-  createdAt     DateTime?            @default(now()) @map("created_at")
-  updatedAt     DateTime?            @default(now()) @map("updated_at")
+  name              String
+  description       String?
+  status            TeamSuggestionStatus @default(pending)
+  suggestedById     Int                  @map("suggested_by_id")
+  reviewedById      Int?                 @map("reviewed_by_id")
+  reviewedAt        DateTime?            @map("reviewed_at")
+  adminNotes        String?              @map("admin_notes")
+  mergedIntoId      Int?                 @map("merged_into_id")
+  nationalChapterId Int?                 @map("national_chapter_id")
+  createdAt         DateTime?            @default(now()) @map("created_at")
+  updatedAt         DateTime?            @default(now()) @map("updated_at")
 
-  suggestedBy Volunteer  @relation("TeamSuggestionSuggestedBy", fields: [suggestedById], references: [id])
-  reviewedBy  Volunteer? @relation("TeamSuggestionReviewedBy", fields: [reviewedById], references: [id])
-  mergedInto  Team?      @relation("TeamSuggestionMergedInto", fields: [mergedIntoId], references: [id])
+  chapter     NationalChapter? @relation(fields: [nationalChapterId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  suggestedBy Volunteer        @relation("TeamSuggestionSuggestedBy", fields: [suggestedById], references: [id])
+  reviewedBy  Volunteer?       @relation("TeamSuggestionReviewedBy", fields: [reviewedById], references: [id])
+  mergedInto  Team?            @relation("TeamSuggestionMergedInto", fields: [mergedIntoId], references: [id])
 
   @@index([status], map: "idx_team_suggestions_status")
   @@index([suggestedById], map: "idx_team_suggestions_suggested_by")
@@ -923,8 +1065,18 @@ model Volunteer {
   emailMutedCategories                    String[]                 @default([]) @map("email_muted_categories")
   /// How the daily summary of reminders and project activity reaches this person.
   dailySummary                            DailySummaryPreference   @default(email_and_in_app) @map("daily_summary")
-  notifyRemoteProjects                    Boolean                  @default(false) @map("notify_remote_projects")
-  localGroup                              String?                  @map("local_group")
+  /// Set from `country`; null is the holding pool. Changing it is a transfer (ChapterTransferRequest).
+  nationalChapterId                       Int?                     @map("national_chapter_id")
+  localGroupId                            Int?                     @map("local_group_id")
+  chapter                                 NationalChapter?         @relation("ChapterMembers", fields: [nationalChapterId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  group                                   LocalGroup?              @relation(fields: [localGroupId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  ledChapter                              NationalChapter?         @relation("ChapterLead")
+  chapterDeputyRole                       ChapterDeputy?           @relation("ChapterDeputyVolunteer")
+  chapterDeputiesAppointed                ChapterDeputy[]          @relation("ChapterDeputyAppointedBy")
+  chapterTransferRequests                 ChapterTransferRequest[] @relation("TransferVolunteer")
+  chapterTransfersDecided                 ChapterTransferRequest[] @relation("TransferDecidedBy")
+  chapterAuditActions                     ChapterAuditEvent[]      @relation("ChapterAuditActor")
+  chapterAuditTargeted                    ChapterAuditEvent[]      @relation("ChapterAuditTarget")
   locationConfirmedAt                     DateTime?                @map("location_confirmed_at")
   approvalStatus                          ApprovalStatus           @default(pending) @map("approval_status")
   applicationMessage                      String?                  @map("application_message")
@@ -977,8 +1129,8 @@ model Volunteer {
   templatesCreated                        Template[]               @relation("TemplateCreatedBy")
   sessions                                Session[]
 
-  @@index([localGroup], map: "idx_volunteers_local_group")
   @@index([country], map: "idx_volunteers_country")
+  @@index([nationalChapterId], map: "idx_volunteers_chapter")
   @@index([deletedAt], map: "idx_volunteers_deleted")
   @@index([authToken], map: "idx_volunteers_auth_token")
   @@index([email], map: "idx_volunteers_email")

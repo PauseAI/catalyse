@@ -15,7 +15,12 @@ describe('admin local groups', () => {
     const suggester = await createVolunteer({ name: 'Sam Suggester' })
     const group = await createLocalGroup({ name: 'Zz Bristol', country: 'UK' })
     await createLocalGroup({ name: 'Zz Berlin', country: 'Germany' })
-    await createProject({ title: 'Bristol project', localGroup: 'Zz Bristol', country: 'UK' })
+    await createProject({
+      title: 'Bristol project',
+      nationalChapterId: group.nationalChapterId,
+      reach: 'LOCAL',
+      localGroupId: group.id,
+    })
     const pending = await prisma.localGroupSuggestion.create({
       data: { name: 'Zz Bath', country: 'UK', suggestedById: suggester.id },
     })

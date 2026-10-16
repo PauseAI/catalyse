@@ -22,8 +22,6 @@ async function createAdminProject(
       timeCommitmentHoursPerWeek: null,
       urgency: 'medium',
       collaborationLink: null,
-      country: null,
-      localGroup: null,
       isSeekingHelp: opts?.isSeekingHelp ?? false,
       tasks: [{ title: 'Seed task' }],
     },

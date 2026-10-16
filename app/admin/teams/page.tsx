@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRequireAdmin } from '@/lib/hooks/auth'
+import { useRequireStaff } from '@/lib/hooks/auth'
 import Link from 'next/link'
 import { useMutation, useQuery, useQueryClient, useQueries } from '@tanstack/react-query'
 import Button from '@/components/Button'
@@ -64,7 +64,7 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 export default function AdminTeamsPage() {
-  const { user, loading } = useRequireAdmin()
+  const { user, loading } = useRequireStaff()
   const showToast = useToast()
   const queryClient = useQueryClient()
 
@@ -104,7 +104,7 @@ export default function AdminTeamsPage() {
     ...orpc.volunteers.list.queryOptions({
       input: { limit: 20, search: volunteerSearch || undefined },
     }),
-    enabled: !!user?.isAdmin,
+    enabled: !!user,
   })
   const volunteers = volunteersData?.volunteers ?? []
   const volunteerOptions = volunteers.map((v) => ({ value: String(v.id), label: v.name }))
@@ -116,22 +116,22 @@ export default function AdminTeamsPage() {
 
   const [teamsResult, pendingResult, onHoldResult, declinedResult] = useQueries({
     queries: [
-      { ...orpc.admin.teams.list.queryOptions(), enabled: !!user?.isAdmin && fetchTeams },
+      { ...orpc.admin.teams.list.queryOptions(), enabled: !!user && fetchTeams },
       {
         ...orpc.admin.teams.listSuggestions.queryOptions({
           input: { status: TeamSuggestionStatus.pending },
         }),
-        enabled: !!user?.isAdmin && fetchPending,
+        enabled: !!user && fetchPending,
       },
       {
         ...orpc.admin.teams.listSuggestions.queryOptions({
           input: { status: TeamSuggestionStatus.on_hold },
         }),
-        enabled: !!user?.isAdmin && fetchOnHold,
+        enabled: !!user && fetchOnHold,
       },
       {
         ...orpc.admin.teams.listSuggestions.queryOptions({ input: { status: 'declined' } }),
-        enabled: !!user?.isAdmin && fetchDeclined,
+        enabled: !!user && fetchDeclined,
       },
     ],
   })

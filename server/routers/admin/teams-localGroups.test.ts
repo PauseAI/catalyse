@@ -6,6 +6,9 @@ import {
   createTeam,
   createLocalGroup,
   createProject,
+  createMember,
+  createChapterDeputy,
+  chapterFor,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 
@@ -176,39 +179,137 @@ describe('admin.teams', () => {
 })
 
 describe('admin.localGroups', () => {
-  it('creates, lists, updates and deletes groups', async () => {
+  it('creates, lists, updates and deletes groups in a chapter', async () => {
     const c = clientAs(await createAdmin())
+    const uk = await chapterFor('UK')
+    const france = await chapterFor('France')
     await expect(
       c.admin.localGroups.create({ name: 'X', country: 'Remote' }),
-    ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'That country has no chapter yet' })
     const g = await c.admin.localGroups.create({ name: 'Zeta', country: 'UK' })
-    expect((await c.admin.localGroups.list({ country: 'UK' })).groups.map((x) => x.id)).toContain(
-      g.id,
+    expect(await prisma.localGroup.findUniqueOrThrow({ where: { id: g.id } })).toMatchObject({
+      nationalChapterId: uk.id,
+    })
+    await expect(c.admin.localGroups.create({ name: 'Zeta', country: 'UK' })).rejects.toMatchObject(
+      {
+        message: 'This chapter already has a group of that name',
+      },
     )
-    expect((await c.admin.localGroups.list({})).groups.length).toBeGreaterThan(0)
+    expect((await c.admin.localGroups.list()).groups.map((x) => x.id)).toContain(g.id)
     await expect(
       c.admin.localGroups.update({ id: g.id, name: 'Z', country: 'Nowhere' }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
     await expect(
       c.admin.localGroups.update({ id: 999_999, name: 'Z', country: 'UK' }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+
+    // Moving a group to another chapter takes it away from the old chapter's members and projects.
+    const member = await createMember(uk, { localGroupId: g.id })
+    const local = await createProject({
+      nationalChapterId: uk.id,
+      reach: 'LOCAL',
+      localGroupId: g.id,
+    })
     expect(
       await c.admin.localGroups.update({ id: g.id, name: 'Zeta2', country: 'France' }),
     ).toEqual({ id: g.id, name: 'Zeta2', country: 'France' })
+    expect(
+      (await prisma.volunteer.findUniqueOrThrow({ where: { id: member.id } })).localGroupId,
+    ).toBeNull()
+    expect(await prisma.workItem.findUniqueOrThrow({ where: { id: local.id } })).toMatchObject({
+      localGroupId: null,
+      reach: 'COUNTRY_WIDE',
+    })
+    expect(
+      await c.admin.localGroups.update({ id: g.id, name: 'Zeta3', country: 'France' }),
+    ).toEqual({
+      id: g.id,
+      name: 'Zeta3',
+      country: 'France',
+    })
 
     const vol = await createVolunteer()
     const sug = await groupSuggestion(vol.id, { mergedIntoId: g.id })
-    const project = await createProject({ localGroup: 'Zeta2' })
+    const frenchMember = await createMember(france, { localGroupId: g.id })
+    const project = await createProject({
+      nationalChapterId: france.id,
+      reach: 'LOCAL',
+      localGroupId: g.id,
+    })
     expect(await c.admin.localGroups.delete({ id: g.id })).toEqual({ message: 'Group deleted' })
     expect(
       (await prisma.localGroupSuggestion.findUniqueOrThrow({ where: { id: sug.id } })).mergedIntoId,
     ).toBeNull()
+    expect(await prisma.workItem.findUniqueOrThrow({ where: { id: project.id } })).toMatchObject({
+      localGroupId: null,
+      reach: 'COUNTRY_WIDE',
+    })
     expect(
-      (await prisma.workItem.findUniqueOrThrow({ where: { id: project.id } })).localGroup,
-    ).toBeNull()
+      await prisma.volunteer.findUniqueOrThrow({ where: { id: frenchMember.id } }),
+    ).toMatchObject({
+      localGroupId: null,
+      nationalChapterId: france.id,
+    })
     await expect(c.admin.localGroups.delete({ id: g.id })).rejects.toMatchObject({
       code: 'NOT_FOUND',
     })
+  })
+
+  it("holds chapter staff to their own chapter's groups and suggestions", async () => {
+    const uk = await chapterFor('UK')
+    const de = await chapterFor('Germany')
+    const deputy = clientAs(await createChapterDeputy(uk))
+    const mine = await createLocalGroup({ country: 'UK' })
+    const theirs = await createLocalGroup({ country: 'Germany' })
+    const vol = await createVolunteer()
+    const theirSuggestion = await groupSuggestion(vol.id, {
+      country: 'Germany',
+      nationalChapterId: de.id,
+    })
+    const pooled = await groupSuggestion(vol.id, { country: 'Ghana' })
+
+    const ids = (await deputy.admin.localGroups.list()).groups.map((g) => g.id)
+    expect(ids).toContain(mine.id)
+    expect(ids).not.toContain(theirs.id)
+    await expect(
+      deputy.admin.localGroups.create({ name: 'Berlin', country: 'Germany' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    await expect(
+      deputy.admin.localGroups.update({ id: theirs.id, name: 'Mine now', country: 'UK' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(deputy.admin.localGroups.delete({ id: theirs.id })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    })
+    const listed = (await deputy.admin.localGroups.listSuggestions({})).suggestions.map((s) => s.id)
+    expect(listed).not.toContain(theirSuggestion.id)
+    expect(listed).not.toContain(pooled.id)
+    for (const id of [theirSuggestion.id, pooled.id]) {
+      await expect(
+        deputy.admin.localGroups.reviewSuggestion({ id, action: 'decline' }),
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+      await expect(deputy.admin.localGroups.deleteSuggestion({ id })).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      })
+    }
+    const own = await groupSuggestion(vol.id, { nationalChapterId: uk.id })
+    await expect(
+      deputy.admin.localGroups.reviewSuggestion({
+        id: own.id,
+        action: 'merge',
+        mergedIntoId: theirs.id,
+      }),
+    ).rejects.toMatchObject({ message: 'Target local group not found' })
+    await expect(clientAs(vol).admin.localGroups.list()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    })
+
+    // A pool suggestion for a country with no chapter has nowhere to go until one is opened.
+    await expect(
+      clientAs(await createAdmin()).admin.localGroups.reviewSuggestion({
+        id: pooled.id,
+        action: 'accept',
+      }),
+    ).rejects.toMatchObject({ message: 'That country has no chapter yet' })
   })
 
   it('lists and deletes suggestions', async () => {

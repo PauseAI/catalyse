@@ -31,8 +31,6 @@ async function createOrgProject(
       timeCommitmentHoursPerWeek: null,
       urgency: 'medium',
       collaborationLink: null,
-      country: null,
-      localGroup: null,
       isSeekingHelp: opts.isSeekingHelp ?? false,
       ...(opts.skillIds
         ? {
@@ -122,8 +120,6 @@ test.describe('Project ownership states', () => {
         timeCommitmentHoursPerWeek: null,
         urgency: 'medium',
         collaborationLink: null,
-        country: null,
-        localGroup: null,
         isSeekingHelp: true,
         tasks: [{ title: 'Initial task' }],
       },
@@ -255,8 +251,6 @@ test.describe('Project ownership states', () => {
         timeCommitmentHoursPerWeek: null,
         urgency: 'medium',
         collaborationLink: null,
-        country: null,
-        localGroup: null,
         isSeekingHelp: true,
         skillIds,
         skillRequiredMap: Object.fromEntries(skillIds.map((id) => [id, true])),

@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma'
 import {
   createVolunteer,
   createAdmin,
+  createChapter,
+  createChapterDeputy,
+  createMember,
   createProject,
   createTask,
   createQuickTask,
@@ -260,6 +263,19 @@ describe('workItemComments mentions', () => {
     const task = await createTask(project.id, { assigneeId: other.id })
     const onTask = await clientAs(other).workItemComments.list({ workItemId: task.id })
     expect(onTask.mentionable.map((m) => m.id).sort()).toEqual([owner.id, helper.id].sort())
+  })
+
+  it("offers a chapter's staff who have joined its project's thread", async () => {
+    const chapter = await createChapter()
+    const owner = await createMember(chapter)
+    const deputy = await createChapterDeputy(chapter)
+    const quietDeputy = await createChapterDeputy(chapter)
+    const project = await createProject({ assigneeId: owner.id, nationalChapterId: chapter.id })
+    await clientAs(deputy).workItemComments.add({ workItemId: project.id, content: 'hi' })
+
+    const asOwner = await clientAs(owner).workItemComments.list({ workItemId: project.id })
+    expect(asOwner.mentionable.map((m) => m.id)).toEqual([deputy.id])
+    expect(asOwner.mentionable.map((m) => m.id)).not.toContain(quietDeputy.id)
   })
 
   it('notifies each mentioned member exactly once, and nobody outside the project', async () => {

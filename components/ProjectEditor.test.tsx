@@ -9,6 +9,9 @@ import {
   createTask,
   createSkill,
   createTeam,
+  createChapter,
+  createMember,
+  createLocalGroup,
 } from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { navigation } from '@/test/next-navigation'
@@ -345,8 +348,13 @@ describe('ProjectEditor — autosave line', () => {
 
 describe('ProjectEditor — editing an existing project', () => {
   it('loads the project, autosaves each field on change/blur, and manages tasks', async () => {
-    const me = await createVolunteer()
-    const team = await createTeam()
+    const chapter = await createChapter()
+    const group = await createLocalGroup({
+      country: chapter.country,
+      nationalChapterId: chapter.id,
+    })
+    const me = await createMember(chapter)
+    const team = await createTeam({ nationalChapterId: chapter.id })
     const skill = await createSkill()
     const project = await createProject({
       creatorId: me.id,
@@ -355,8 +363,7 @@ describe('ProjectEditor — editing an existing project', () => {
       description: 'D',
       skills: { create: [{ skillId: (await createSkill()).id }] },
       projectType: 'sprint',
-      country: 'UK',
-      localGroup: 'London',
+      nationalChapterId: chapter.id,
       timeCommitmentHoursPerWeek: 2,
       startDate: new Date('2026-05-01T00:00:00Z'),
     })
@@ -399,19 +406,26 @@ describe('ProjectEditor — editing an existing project', () => {
     await userEvent.click(screen.getByRole('option', { name: /High/ }))
     await waitFor(async () => expect((await row(project.id)).urgency).toBe('high'))
 
-    await userEvent.click(screen.getByRole('button', { name: 'Select country/group' }))
-    await userEvent.click(screen.getByRole('option', { name: 'Germany' }))
+    // A local project is saved once its group is chosen; the chapter's groups are offered.
+    const where = { name: 'Select where the project happens' }
+    await userEvent.click(screen.getByRole('button', where))
+    await userEvent.click(await screen.findByRole('option', { name: 'In a local group' }))
+    expect((await row(project.id)).reach).toBe('COUNTRY_WIDE')
+    await userEvent.click(screen.getByRole('button', { name: 'Select local group' }))
+    await userEvent.click(await screen.findByRole('option', { name: group.name }))
     await waitFor(async () =>
-      expect(await row(project.id)).toMatchObject({ country: 'Germany', localGroup: null }),
+      expect(await row(project.id)).toMatchObject({ reach: 'LOCAL', localGroupId: group.id }),
     )
+    await userEvent.click(screen.getByRole('button', where))
+    await userEvent.click(await screen.findByRole('option', { name: 'Remote' }))
+    await waitFor(async () =>
+      expect(await row(project.id)).toMatchObject({ reach: 'REMOTE', localGroupId: null }),
+    )
+    expect(screen.queryByRole('button', { name: 'Select chapter' })).toBeNull()
 
     await userEvent.click(screen.getByRole('button', { name: 'Select team' }))
     await userEvent.click(await screen.findByRole('option', { name: team.name }))
     await waitFor(async () => expect((await row(project.id)).teamId).toBe(team.id))
-
-    await userEvent.click(screen.getByRole('button', { name: 'Select remote eligibility' }))
-    await userEvent.click(screen.getByRole('option', { name: /any country/ }))
-    await waitFor(async () => expect((await row(project.id)).remoteEligibility).toBe('GLOBAL'))
 
     const start = screen.getByLabelText('Start date')
     blur(start) // unchanged
@@ -609,5 +623,39 @@ describe('ProjectEditor — editing an existing project', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(screen.getAllByText(/already have 2 drafts/)).toHaveLength(2))
     expect(await prisma.workItem.count({ where: { creatorId: me.id, type: 'PROJECT' } })).toBe(2)
+  })
+})
+
+describe('ProjectEditor — a global admin', () => {
+  it('moves a project to another chapter or the holding pool', async () => {
+    const admin = await createAdmin()
+    const [from, to] = [await createChapter(), await createChapter()]
+    const group = await createLocalGroup({ country: from.country, nationalChapterId: from.id })
+    const project = await createProject({
+      creatorId: admin.id,
+      status: 'draft',
+      title: 'Moving',
+      nationalChapterId: from.id,
+      reach: 'LOCAL',
+      localGroupId: group.id,
+    })
+    await mount({ projectId: project.id }, admin)
+    await screen.findByDisplayValue('Moving')
+    await userEvent.click(screen.getByRole('button', { name: 'Select chapter' }))
+    await userEvent.click(await screen.findByRole('option', { name: to.name }))
+    // Its old local group stays behind.
+    await waitFor(async () =>
+      expect(await row(project.id)).toMatchObject({
+        nationalChapterId: to.id,
+        reach: 'COUNTRY_WIDE',
+        localGroupId: null,
+      }),
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Select chapter' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Holding pool' }))
+    await waitFor(async () => expect((await row(project.id)).nationalChapterId).toBeNull())
+    // The pool has no local groups to be local in.
+    await userEvent.click(screen.getByRole('button', { name: 'Select where the project happens' }))
+    expect(screen.queryByRole('option', { name: 'In a local group' })).toBeNull()
   })
 })

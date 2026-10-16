@@ -1,6 +1,7 @@
 import { randomBytes, pbkdf2Sync, timingSafeEqual, createHash } from 'crypto'
 import type { Volunteer } from '@/generated/prisma/client'
 import { prisma } from './prisma'
+import { acceptChapterInvite } from './chapter-roles'
 import { env } from './env'
 import { ApprovalStatus, InviteStatus } from '@/generated/prisma/enums'
 
@@ -92,7 +93,7 @@ export async function getCurrentVolunteer(authorization: string | null | undefin
     prisma.session
       .update({ where: { id: session.id }, data: { lastUsedAt: new Date() } })
       .catch(() => {})
-    return session.volunteer
+    return withGlobalAdmin(session.volunteer)
   }
 
   // Legacy fallback: a session opened before #225, still living on the old single-token
@@ -112,12 +113,25 @@ export async function getCurrentVolunteer(authorization: string | null | undefin
       },
     })
     .catch(() => {})
-  return legacyVolunteer
+  return withGlobalAdmin(legacyVolunteer)
+}
+
+/**
+ * `isAdmin` means global admin, which is decided by ADMIN_EMAILS: the flag is brought into step
+ * with the list, and a stale one grants nothing. Chapter staff powers are in ChapterAccess.
+ */
+async function withGlobalAdmin(volunteer: Volunteer): Promise<Volunteer> {
+  const listed = isSuperAdmin(volunteer)
+  if (listed && !volunteer.isAdmin) await checkAdminBootstrap(volunteer)
+  if (!listed && volunteer.isAdmin) {
+    await prisma.volunteer.update({ where: { id: volunteer.id }, data: { isAdmin: false } })
+  }
+  return { ...volunteer, isAdmin: listed }
 }
 
 // showContact controls whether email and direct contact fields are included.
 export function redactVolunteer(
-  vol: Volunteer,
+  vol: Volunteer & { group: { name: string } | null },
   opts: {
     showContact?: boolean
     skills?: Array<{
@@ -140,7 +154,7 @@ export function redactVolunteer(
     bio: vol.bio,
     location: vol.location,
     country: vol.country,
-    localGroup: vol.localGroup,
+    localGroup: vol.group?.name ?? null,
     locationConfirmedAt: vol.locationConfirmedAt,
     availabilityHoursPerWeek: vol.availabilityHoursPerWeek,
     otherSkills: vol.otherSkills,
@@ -154,7 +168,6 @@ export function redactVolunteer(
     approvalStatus: vol.approvalStatus,
     emailConfirmed: vol.emailConfirmed,
     emailDigest: vol.emailDigest,
-    notifyRemoteProjects: vol.notifyRemoteProjects,
     hasPassword: Boolean(vol.passwordHash),
     createdAt: vol.createdAt,
     updatedAt: vol.updatedAt,
@@ -172,28 +185,6 @@ export function redactVolunteer(
   }
 }
 
-export async function requireAdmin(
-  authorization: string | null | undefined,
-): Promise<
-  | { volunteer: NonNullable<Awaited<ReturnType<typeof getCurrentVolunteer>>>; error: null }
-  | { volunteer: null; error: Response }
-> {
-  const volunteer = await getCurrentVolunteer(authorization)
-  if (!volunteer) {
-    return {
-      volunteer: null,
-      error: Response.json({ detail: 'Authentication required' }, { status: 401 }),
-    }
-  }
-  if (!volunteer.isAdmin) {
-    return {
-      volunteer: null,
-      error: Response.json({ detail: 'Admin access required' }, { status: 403 }),
-    }
-  }
-  return { volunteer, error: null }
-}
-
 /** The fields admin entitlement is decided from. */
 export type EmailIdentity = Pick<Volunteer, 'email' | 'emailConfirmed'>
 
@@ -202,29 +193,14 @@ export type EmailIdentity = Pick<Volunteer, 'email' | 'emailConfirmed'>
 // changing to it, and nobody has clicked the link.
 export function isSuperAdmin(volunteer: EmailIdentity | null | undefined): boolean {
   if (!volunteer?.email || !volunteer.emailConfirmed) return false
-  const adminEmails = env.ADMIN_EMAILS
-  return adminEmails
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean)
-    .includes(volunteer.email.toLowerCase())
+  return adminEmails().includes(volunteer.email.toLowerCase())
 }
 
-export async function requireSuperAdmin(
-  authorization: string | null | undefined,
-): Promise<
-  | { volunteer: NonNullable<Awaited<ReturnType<typeof getCurrentVolunteer>>>; error: null }
-  | { volunteer: null; error: Response }
-> {
-  const result = await requireAdmin(authorization)
-  if (result.error) return result
-  if (!isSuperAdmin(result.volunteer)) {
-    return {
-      volunteer: null,
-      error: Response.json({ detail: 'Super-admin access required' }, { status: 403 }),
-    }
-  }
-  return result
+/** The addresses in ADMIN_EMAILS, lower-cased. */
+export function adminEmails(): string[] {
+  return env.ADMIN_EMAILS.split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
 }
 
 /** The fields promotion decisions are made from. */
@@ -240,13 +216,16 @@ export async function checkAdminBootstrap(volunteer: PromotionCandidate): Promis
   return true
 }
 
-// The pending, unexpired admin invite for this confirmed email (case-insensitive), if any.
+// The pending, unexpired chapter-role invite for this confirmed email (case-insensitive), if any.
 async function findPendingInvite(volunteer: EmailIdentity) {
   if (!volunteer.emailConfirmed || !volunteer.email) return null
   const target = volunteer.email.toLowerCase()
   const pending = await prisma.adminInvite.findMany({
-    where: { status: InviteStatus.pending, expiresAt: { gt: new Date() } },
-    select: { id: true, email: true },
+    where: {
+      status: InviteStatus.pending,
+      expiresAt: { gt: new Date() },
+      nationalChapterId: { not: null },
+    },
   })
   return pending.find((i) => i.email.toLowerCase() === target) ?? null
 }
@@ -254,18 +233,11 @@ async function findPendingInvite(volunteer: EmailIdentity) {
 export async function acceptPendingInvite(volunteer: PromotionCandidate): Promise<boolean> {
   const invite = await findPendingInvite(volunteer)
   if (!invite) return false
-  await prisma.volunteer.update({
-    where: { id: volunteer.id },
-    data: { isAdmin: true, approvalStatus: ApprovalStatus.approved },
-  })
-  await prisma.adminInvite.update({
-    where: { id: invite.id },
-    data: { status: InviteStatus.accepted, acceptedById: volunteer.id, acceptedAt: new Date() },
-  })
+  await prisma.$transaction((tx) => acceptChapterInvite(tx, volunteer.id, invite))
   return true
 }
 
-/** Whether promoteIfEntitled would grant or confirm admin for this volunteer. */
+/** Whether promoteIfEntitled would grant or confirm global admin or a chapter role. */
 export async function isEntitledToAdmin(volunteer: EmailIdentity): Promise<boolean> {
   return isSuperAdmin(volunteer) || (await findPendingInvite(volunteer)) !== null
 }
@@ -280,7 +252,7 @@ export async function revokeCredentials(volunteerId: number): Promise<void> {
   await deleteAllSessions(volunteerId)
 }
 
-/** Runs both promotion checks; true if either granted admin. */
+/** Runs both promotion checks; true if either granted global admin or a chapter role. */
 export async function promoteIfEntitled(volunteer: PromotionCandidate): Promise<boolean> {
   const bootstrapped = await checkAdminBootstrap(volunteer)
   const invited = await acceptPendingInvite(volunteer)

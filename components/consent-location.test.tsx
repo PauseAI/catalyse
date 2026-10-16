@@ -53,7 +53,7 @@ describe('VolunteerSelect', () => {
     const ann = await createVolunteer({
       name: 'Annabelle Zed',
       country: 'UK',
-      localGroup: 'Leeds',
+      localGroupId: (await createLocalGroup({ name: 'Leeds' })).id,
       bio: 'Loves zebrafish and long walks',
     })
     await createVolunteer({ name: 'Bartholomew Zed', country: 'US' })
@@ -141,7 +141,7 @@ describe('ConfirmLocationModal', () => {
   })
 
   it('collects country, local group or city, and saves', async () => {
-    await createLocalGroup({ name: 'Testtown', country: 'UK' })
+    const town = await createLocalGroup({ name: 'Testtown', country: 'UK' })
     const fresh = await createVolunteer({
       locationConfirmedAt: null,
       country: null,
@@ -159,14 +159,19 @@ describe('ConfirmLocationModal', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
     await waitFor(async () => {
       const row = await prisma.volunteer.findUniqueOrThrow({ where: { id: fresh.id } })
-      expect(row).toMatchObject({ country: 'UK', localGroup: 'Testtown', location: 'Somewhere' })
+      expect(row).toMatchObject({
+        country: 'UK',
+        nationalChapterId: town.nationalChapterId,
+        localGroupId: town.id,
+        location: 'Somewhere',
+      })
       expect(row.locationConfirmedAt).not.toBeNull()
     })
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
   it('handles a known country with no groups, and the "none of these" choice', async () => {
-    await createLocalGroup({ name: 'Berlin', country: 'Germany' })
+    const berlin = await createLocalGroup({ name: 'Berlin', country: 'Germany' })
     const noGroups = await createVolunteer({
       locationConfirmedAt: null,
       country: 'Spain',
@@ -180,13 +185,14 @@ describe('ConfirmLocationModal', () => {
     await waitFor(async () =>
       expect(
         await prisma.volunteer.findUniqueOrThrow({ where: { id: noGroups.id } }),
-      ).toMatchObject({ country: 'Spain', location: 'Madrid', localGroup: null }),
+      ).toMatchObject({ country: 'Spain', location: 'Madrid', localGroupId: null }),
     )
 
     const german = await createVolunteer({
       locationConfirmedAt: null,
       country: 'Germany',
-      localGroup: 'Berlin',
+      nationalChapterId: berlin.nationalChapterId,
+      localGroupId: berlin.id,
     })
     await mount(german)
     await screen.findByRole('dialog')
@@ -198,7 +204,7 @@ describe('ConfirmLocationModal', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
     await waitFor(async () =>
       expect(await prisma.volunteer.findUniqueOrThrow({ where: { id: german.id } })).toMatchObject({
-        localGroup: null,
+        localGroupId: null,
         location: 'Hamburg',
       }),
     )

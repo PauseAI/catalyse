@@ -3,6 +3,8 @@ import { screen, fireEvent, cleanup, waitFor, within } from '@testing-library/re
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import {
+  createChapter,
+  createMember,
   connect,
   createVolunteer,
   createAdmin,
@@ -21,19 +23,26 @@ describe('volunteer directory', () => {
   it('lists, filters, pages and clears', async () => {
     const skill = await createSkill()
     const extra = await Promise.all(Array.from({ length: 6 }, () => createSkill()))
-    await createLocalGroup({ name: 'Dir Town', country: 'UK' })
-    const me = await createVolunteer()
-    const ann = await createVolunteer({
+    const chapter = await createChapter()
+    const dirTown = await createLocalGroup({
+      name: 'Dir Town',
+      country: chapter.country,
+      nationalChapterId: chapter.id,
+    })
+    const me = await createMember(chapter)
+    const ann = await createMember(chapter, {
       name: 'Ann Directory',
       bio: 'x'.repeat(120),
-      country: 'UK',
-      localGroup: 'Dir Town',
+      localGroupId: dirTown.id,
       availabilityHoursPerWeek: 4,
       skills: { create: [skill, ...extra].map((s) => ({ skillId: s.id })) },
     })
-    await createVolunteer({ name: 'Hidden Person', consentMakeProfileVisibleInDirectory: false })
+    await createMember(chapter, {
+      name: 'Hidden Person',
+      consentMakeProfileVisibleInDirectory: false,
+    })
     for (let i = 0; i < 50; i++)
-      await createVolunteer({
+      await createMember(chapter, {
         name: `Filler ${i}`,
         bio: null,
         availabilityHoursPerWeek: null,
@@ -54,11 +63,11 @@ describe('volunteer directory', () => {
       .getByRole('link', { name: 'Ann Directory' })
       .closest('.card') as HTMLElement
     expect(within(annCard).getByRole('button', { name: 'Request contact' })).toBeInTheDocument()
-    expect(screen.getByText(/📍 Dir Town · United Kingdom/)).toBeInTheDocument()
+    expect(screen.getByText(new RegExp(`📍 Dir Town · ${chapter.name}`))).toBeInTheDocument()
     expect(screen.getByText('🕐 4h/week')).toBeInTheDocument()
     expect(screen.queryByText('Filler 0')).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Country/Group filter' }))
-    await userEvent.click(await screen.findByRole('option', { name: 'United Kingdom - Dir Town' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Local group filter' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Dir Town' }))
     await screen.findByRole('link', { name: 'Ann Directory' })
     fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'nobody-matches' } })
     await screen.findByText('No volunteers found')
@@ -72,6 +81,14 @@ describe('volunteer directory', () => {
     await renderApp(<VolunteersPage />, { as: admin, url: '/volunteers?q=Hidden' })
     await screen.findByRole('link', { name: 'Hidden Person' })
     expect(screen.getByText('Hidden')).toBeInTheDocument()
+    // A global admin narrows the directory to a chapter, then to one of its groups.
+    await userEvent.click(screen.getByRole('button', { name: 'Chapter filter' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Holding pool' }))
+    await screen.findByText('No volunteers found')
+    await userEvent.click(screen.getByRole('button', { name: 'Chapter filter' }))
+    await userEvent.click(await screen.findByRole('option', { name: chapter.name }))
+    await screen.findByRole('link', { name: 'Hidden Person' })
+    expect(await screen.findByRole('button', { name: 'Local group filter' })).toBeInTheDocument()
   })
 })
 
@@ -83,7 +100,7 @@ describe('volunteer profile', () => {
       name: 'Profiled',
       email: 'profiled@example.org',
       location: 'Leeds',
-      localGroup: 'North',
+      localGroupId: (await createLocalGroup({ name: 'North' })).id,
       otherSkills: 'juggling',
       availabilityHoursPerWeek: 3,
       discordHandle: 'd#1',

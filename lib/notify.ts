@@ -1,6 +1,7 @@
 import { prisma } from './prisma'
 import { sendProjectNotificationEmail, sendAdminAlertEmail } from './email'
 import { categoryOf } from './notification-categories'
+import { chapterCarers, globalAdminWhere } from './chapter-access-server'
 
 export async function createNotification(
   volunteerId: number,
@@ -155,10 +156,29 @@ export async function notifyAdmins(
   entityId?: number | null,
 ): Promise<void> {
   const admins = await prisma.volunteer.findMany({
-    where: { isAdmin: true, deletedAt: null },
+    where: globalAdminWhere(),
     select: { id: true },
   })
   await Promise.all(
     admins.map((admin) => notifyUser(admin.id, type, title, body, link, email, entityId)),
+  )
+}
+
+/**
+ * Alerts the lead and deputies of `chapterId` about something of theirs to act on. The holding
+ * pool, and a chapter with no staff, are looked after by the global admins, so they get it.
+ */
+export async function notifyChapterStaff(
+  chapterId: number | null,
+  type: string,
+  title: string,
+  body: string | null | undefined,
+  link: string | null | undefined,
+  email?: NotifyEmailPayload,
+  entityId?: number | null,
+): Promise<void> {
+  const recipients = await chapterCarers(chapterId)
+  await Promise.all(
+    recipients.map((id) => notifyUser(id, type, title, body, link, email, entityId)),
   )
 }

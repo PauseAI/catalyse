@@ -9,7 +9,7 @@ import FloatingActions from './FloatingActions'
 import SkillPicker from './SkillPicker'
 import FilterDropdown, { useFilterOptions, type FilterOption } from './FilterDropdown'
 import { renderApp } from '@/test/render'
-import { createVolunteer } from '@/test/factories'
+import { createAdmin, createVolunteer } from '@/test/factories'
 import { prisma } from '@/lib/prisma'
 import { navigation } from '@/test/next-navigation'
 
@@ -147,7 +147,7 @@ describe('FloatingActions', () => {
 
   it('lets an admin switch between the admin and volunteer views', async () => {
     mockMatchMedia(false)
-    const admin = await createVolunteer({ isAdmin: true })
+    const admin = await createAdmin()
     await renderApp(
       <ThemeProvider>
         <FloatingActions />

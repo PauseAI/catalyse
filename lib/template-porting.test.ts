@@ -14,7 +14,7 @@ const project: SourceProject = {
   timeCommitmentHoursPerWeek: 5,
   urgency: 'high',
   collaborationLink: null,
-  remoteEligibility: 'GLOBAL',
+  reach: 'REMOTE',
   startDate: new Date('2026-01-01T00:00:00.000Z'),
   durationDays: 14,
 }

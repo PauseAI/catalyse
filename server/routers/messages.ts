@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { sendRelayMessage, isEmailConfigured } from '@/lib/email'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { canReach } from '@/lib/contact'
+import { inChapter } from '@/lib/chapter-access'
 import { projectScopeWhere } from '@/lib/work-item'
 import { authedProcedure, approvedProcedure } from '../procedures'
 import { WorkItemType } from '@/generated/prisma/enums'
@@ -101,8 +102,12 @@ async function loadThread(threadId: number, viewerId: number) {
       OR: [{ fromVolunteerId: viewerId }, { toVolunteerId: viewerId }],
     },
     include: {
-      from: { select: { id: true, name: true, email: true, deletedAt: true } },
-      to: { select: { id: true, name: true, email: true, deletedAt: true } },
+      from: {
+        select: { id: true, name: true, email: true, deletedAt: true, nationalChapterId: true },
+      },
+      to: {
+        select: { id: true, name: true, email: true, deletedAt: true, nationalChapterId: true },
+      },
       relatedWorkItem: { select: { id: true, title: true } },
     },
   })
@@ -180,7 +185,8 @@ export const messagesRouter = {
         subject: root.subject,
         with: { id: other.id, name: other.name },
         relatedProject: root.relatedWorkItem,
-        canReply: other.deletedAt === null,
+        // A conversation from before chapters can cross them: it stays readable, not answerable.
+        canReply: other.deletedAt === null && inChapter(context.access, other.nationalChapterId),
         messages: messages.map((m) => ({
           id: m.id,
           fromMe: m.fromVolunteerId === me,
@@ -206,6 +212,11 @@ export const messagesRouter = {
       if (other.deletedAt) {
         throw new ORPCError('BAD_REQUEST', { message: 'This volunteer has left Catalyse' })
       }
+      if (!inChapter(context.access, other.nationalChapterId)) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: `${other.name} is in another national chapter, so you can no longer message them`,
+        })
+      }
       await deliver(sender, other, {
         subject: root.subject,
         body: input.message,
@@ -229,7 +240,7 @@ export const messagesRouter = {
       select: { id: true, name: true, email: true },
     })
     if (!recipient) throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
-    if (!(await canReach(sender, recipient.id))) {
+    if (!(await canReach(sender, context.access, recipient.id))) {
       throw new ORPCError('FORBIDDEN', {
         message: 'You can message people you work with. Send them a contact request first.',
       })

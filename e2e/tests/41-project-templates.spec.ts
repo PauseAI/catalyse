@@ -19,9 +19,6 @@ async function adminCreateCountryProjectViaApi(
       timeCommitmentHoursPerWeek: null,
       urgency: 'medium',
       collaborationLink: 'https://example.test/doc',
-      country: 'UK',
-      localGroup: null,
-      remoteEligibility: 'NONE',
       isSeekingHelp: true,
       skillIds: [],
       skillRequiredMap: {},
@@ -135,13 +132,11 @@ test.describe('Project templates', () => {
     const projectResult = await adminApi.projects.getById({ body: { id: newProjectId } })
     if (projectResult.status !== 200) throw new Error('could not load new project')
     const p = projectResult.body as {
-      country: string | null
-      localGroup: string | null
+      localGroupId: number | null
       teamId: number | null
       collaborationLink: string | null
     }
-    expect(p.country).toBeNull()
-    expect(p.localGroup).toBeNull()
+    expect(p.localGroupId).toBeNull()
     expect(p.teamId).toBeNull()
     expect(p.collaborationLink).toBeNull()
 

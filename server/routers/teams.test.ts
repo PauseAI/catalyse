@@ -1,6 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { createVolunteer, createAdmin, createTeam } from '@/test/factories'
+import {
+  createVolunteer,
+  createAdmin,
+  createTeam,
+  createChapter,
+  createChapterDeputy,
+  createMember,
+  createProject,
+} from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 
 async function leaderOf(teamId: number) {
@@ -200,5 +208,115 @@ describe('team management', () => {
     expect(
       await prisma.teamMembership.count({ where: { teamId: team.id, volunteerId: vol.id } }),
     ).toBe(0)
+  })
+})
+
+describe('teams by chapter', () => {
+  it("shows a member their chapter's teams and their own, and lets them join only their chapter's", async () => {
+    const [home, away] = [await createChapter(), await createChapter()]
+    const me = await createMember(home)
+    const ours = await createTeam({ name: 'Ours', nationalChapterId: home.id })
+    const theirs = await createTeam({ name: 'Theirs', nationalChapterId: away.id })
+    const joined = await createTeam({ name: 'Joined abroad', nationalChapterId: away.id })
+    await prisma.teamMembership.create({ data: { teamId: joined.id, volunteerId: me.id } })
+    const c = clientAs(me)
+    const ids = (await c.teams.list()).teams.map((t) => t.id)
+    expect(ids).toEqual(expect.arrayContaining([ours.id, joined.id]))
+    expect(ids).not.toContain(theirs.id)
+    await expect(c.teams.getById({ id: theirs.id })).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect((await c.teams.getById({ id: joined.id })).name).toBe('Joined abroad')
+    await expect(c.teams.apply({ id: theirs.id })).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect(await c.teams.apply({ id: ours.id })).toEqual({ message: 'Application submitted' })
+  })
+
+  it("lets a chapter's staff run its teams, and a global admin move one", async () => {
+    const [home, away] = [await createChapter(), await createChapter()]
+    const deputy = await createChapterDeputy(home)
+    const c = clientAs(deputy)
+    const ours = await createTeam({ nationalChapterId: home.id })
+    const theirs = await createTeam({ nationalChapterId: away.id })
+
+    expect((await c.teams.getManageable({ id: ours.id })).viewerCanAdmin).toBe(true)
+    await expect(c.teams.getManageable({ id: theirs.id })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    })
+    const abroad = await createMember(away)
+    await expect(
+      c.teams.assignMember({ teamId: ours.id, volunteerId: abroad.id }),
+    ).rejects.toMatchObject({ message: 'They are in another national chapter' })
+    const listed = (await c.admin.teams.list()).teams.map((t) => t.id)
+    expect(listed).toContain(ours.id)
+    expect(listed).not.toContain(theirs.id)
+    const made = await c.admin.teams.create({
+      name: 'New team',
+      description: null,
+      lumaUrl: null,
+      docUrl: null,
+    })
+    expect(
+      (await prisma.team.findUniqueOrThrow({ where: { id: made.id } })).nationalChapterId,
+    ).toBe(home.id)
+    await expect(c.admin.teams.delete({ id: theirs.id })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    })
+    await expect(
+      c.admin.teams.setChapter({ id: ours.id, chapterId: away.id }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+
+    const admin = clientAs(await createAdmin())
+    expect(await admin.admin.teams.setChapter({ id: ours.id, chapterId: away.id })).toMatchObject({
+      message: expect.stringContaining('moved'),
+    })
+    expect(
+      (await prisma.team.findUniqueOrThrow({ where: { id: ours.id } })).nationalChapterId,
+    ).toBe(away.id)
+    expect(
+      await prisma.chapterAuditEvent.findFirst({ where: { action: 'TEAM_CHAPTER_CHANGED' } }),
+    ).toMatchObject({ nationalChapterId: away.id })
+    await admin.admin.teams.setChapter({ id: ours.id, chapterId: null })
+    await expect(
+      admin.admin.teams.setChapter({ id: ours.id, chapterId: 999_999 }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(
+      admin.admin.teams.setChapter({ id: 999_999, chapterId: null }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+
+  it("files a member's team suggestion under their chapter, for its staff to review", async () => {
+    const [home, away] = [await createChapter(), await createChapter()]
+    const deputy = await createChapterDeputy(home)
+    const awayDeputy = clientAs(await createChapterDeputy(away))
+    const member = await createMember(home)
+    const { id } = await clientAs(member).teamSuggestions.create({
+      name: 'Ideas',
+      description: null,
+    })
+    expect(
+      await prisma.notification.count({
+        where: { volunteerId: deputy.id, type: 'team_suggestion' },
+      }),
+    ).toBe(1)
+    expect(
+      (await awayDeputy.admin.teams.listSuggestions({})).suggestions.map((x) => x.id),
+    ).not.toContain(id)
+    await expect(
+      awayDeputy.admin.teams.reviewSuggestion({ id, action: 'decline' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await clientAs(deputy).admin.teams.reviewSuggestion({ id, action: 'accept' })
+    const team = await prisma.team.findFirstOrThrow({ where: { name: 'Ideas' } })
+    expect(team.nationalChapterId).toBe(home.id)
+  })
+
+  it("tags a project only with one of its chapter's teams", async () => {
+    const [home, away] = [await createChapter(), await createChapter()]
+    const owner = await createMember(home)
+    const project = await createProject({ nationalChapterId: home.id, assigneeId: owner.id })
+    const theirs = await createTeam({ nationalChapterId: away.id })
+    await expect(
+      clientAs(owner).projects.update({ id: project.id, teamId: theirs.id }),
+    ).rejects.toMatchObject({ message: "Choose one of the project's chapter's teams" })
+    await expect(
+      clientAs(owner).projects.update({ id: project.id, teamId: 999_999 }),
+    ).rejects.toMatchObject({ message: 'Team not found' })
   })
 })

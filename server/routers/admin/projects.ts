@@ -9,14 +9,27 @@ import {
 } from '@/lib/work-item'
 import { notifyUser, notifyTeamOfProject, clearNotifications } from '@/lib/notify'
 import { updateWorkItem } from '@/lib/work-item-events'
+import { assertTeamInChapter, projectLocation } from '@/lib/project-location'
 import { html } from '@/lib/email'
 import { notifyMatchingVolunteers } from '@/lib/project-match-notify'
 import { AdminCreateProjectSchema, ReviewProjectSchema, OutcomeProjectSchema } from '@/lib/schemas'
-import { adminProcedure } from '../../procedures'
+import { staffProcedure } from '../../procedures'
+import { canAdminChapter, type ChapterAccess } from '@/lib/chapter-access'
+import { chapterFilter } from '@/lib/chapter-access-server'
 import { ProjectStatus, TaskStatus, WorkItemType } from '@/generated/prisma/enums'
 
+/** A project in a chapter the caller runs; any other is not found. */
+async function projectRunBy(access: ChapterAccess, id: number) {
+  const project = await prisma.workItem.findFirst({ where: { id, type: WorkItemType.PROJECT } })
+  if (!project || !canAdminChapter(access, project.nationalChapterId)) {
+    throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
+  }
+  return project
+}
+
+/** Org projects and project review, for a global admin or a chapter's staff on their chapter. */
 export const adminProjectsRouter = {
-  myDrafts: adminProcedure.handler(async ({ context }) => {
+  myDrafts: staffProcedure.handler(async ({ context }) => {
     const admin = context.volunteer
     const drafts = await prisma.workItem.findMany({
       where: {
@@ -31,7 +44,7 @@ export const adminProjectsRouter = {
     return drafts
   }),
 
-  create: adminProcedure.input(AdminCreateProjectSchema).handler(async ({ input, context }) => {
+  create: staffProcedure.input(AdminCreateProjectSchema).handler(async ({ input, context }) => {
     const admin = context.volunteer
     const { wantToOwn, skillIds, skillRequiredMap, tasks, saveAsDraft } = input
     if (!saveAsDraft && tasks.length === 0) {
@@ -47,6 +60,8 @@ export const adminProjectsRouter = {
       durationDays: input.durationDays ?? null,
     })
 
+    const { chapterChanged: _, ...location } = await projectLocation(context.access, input)
+    await assertTeamInChapter(context.access, input.teamId, location.nationalChapterId)
     const project = await prisma.$transaction(async (tx) => {
       const newProject = await tx.workItem.create({
         data: {
@@ -69,9 +84,7 @@ export const adminProjectsRouter = {
           timeCommitmentHoursPerWeek: input.timeCommitmentHoursPerWeek ?? null,
           urgency: input.urgency ?? 'medium',
           collaborationLink: input.collaborationLink ?? null,
-          country: input.country ?? null,
-          localGroup: input.localGroup ?? null,
-          remoteEligibility: input.remoteEligibility ?? 'NONE',
+          ...location,
           isSeekingHelp: input.isSeekingHelp !== false,
           teamId: input.teamId ?? null,
           ...scheduleOnCreate,
@@ -115,14 +128,11 @@ export const adminProjectsRouter = {
     return { id: project.id, message: saveAsDraft ? 'Draft saved' : 'Org project created' }
   }),
 
-  review: adminProcedure
+  review: staffProcedure
     .input(z.object({ id: z.number().int() }).merge(ReviewProjectSchema))
     .handler(async ({ input, context }) => {
       const admin = context.volunteer
-      const project = await prisma.workItem.findFirst({
-        where: { id: input.id, type: WorkItemType.PROJECT },
-      })
-      if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
+      const project = await projectRunBy(context.access, input.id)
 
       const { status, reviewNotes = null, comment = null } = input
 
@@ -239,14 +249,11 @@ export const adminProjectsRouter = {
       return { message: `Project marked as ${status}` }
     }),
 
-  setOutcome: adminProcedure
+  setOutcome: staffProcedure
     .input(z.object({ id: z.number().int() }).merge(OutcomeProjectSchema))
     .handler(async ({ input, context }) => {
       const admin = context.volunteer
-      const project = await prisma.workItem.findFirst({
-        where: { id: input.id, type: WorkItemType.PROJECT },
-      })
-      if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
+      const project = await projectRunBy(context.access, input.id)
 
       const { outcome, outcomeNotes = null } = input
       const isCompleted = ['successful', 'partial', 'not_completed'].includes(outcome)
@@ -317,10 +324,11 @@ export const adminProjectsRouter = {
       return { message: `Project outcome recorded as ${outcome}` }
     }),
 
-  triage: adminProcedure.handler(async () => {
+  triage: staffProcedure.handler(async ({ context }) => {
     const projects = await prisma.workItem.findMany({
       where: {
         type: WorkItemType.PROJECT,
+        nationalChapterId: chapterFilter(context.access),
         status: { in: [ProjectStatus.pending_review, ProjectStatus.needs_discussion] },
       },
       include: projectInclude,
@@ -331,10 +339,11 @@ export const adminProjectsRouter = {
 
   // Owned projects with an empty backlog — the same condition the `needsTasks` badge
   // derives, from the admin side.
-  staleInProgress: adminProcedure.handler(async () => {
+  staleInProgress: staffProcedure.handler(async ({ context }) => {
     const projects = await prisma.workItem.findMany({
       where: {
         type: WorkItemType.PROJECT,
+        nationalChapterId: chapterFilter(context.access),
         status: ProjectStatus.in_progress,
         children: {
           none: {

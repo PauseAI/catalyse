@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
   volunteerLocation,
-  buildLocationOptions,
   buildLocalGroupOptionsForCountry,
   countryLabel,
   projectLocationParts,
@@ -13,20 +12,6 @@ const groups = [
   { name: 'London', country: 'UK' },
   { name: 'Berlin', country: 'Germany' },
 ]
-
-describe('buildLocationOptions', () => {
-  it('nests local groups under their country as indented options', () => {
-    const opts = buildLocationOptions(groups)
-    const uk = opts.findIndex((o) => o.value === 'UK')
-    expect(opts[uk + 1]).toEqual({
-      value: 'UK:London',
-      label: 'United Kingdom - London',
-      indent: true,
-    })
-    expect(opts.find((o) => o.value === 'Germany:Berlin')).toBeDefined()
-    expect(opts[0]).toEqual({ value: '', label: 'Any country' })
-  })
-})
 
 describe('buildLocalGroupOptionsForCountry', () => {
   it('lists the groups for that country between a placeholder and a none option', () => {
@@ -50,14 +35,12 @@ describe('countryLabel', () => {
 
 describe('projectLocationParts', () => {
   it('builds the location line parts', () => {
-    expect(projectLocationParts('UK', 'London', 'GLOBAL')).toEqual([
-      'Remote',
-      'Global',
+    expect(projectLocationParts('LOCAL', 'London')).toEqual(['London'])
+    expect(projectLocationParts('REMOTE', null, 'United Kingdom')).toEqual([
       'United Kingdom',
-      'London',
+      'Remote',
     ])
-    expect(projectLocationParts('UK', null, 'COUNTRY')).toEqual(['Remote', 'United Kingdom'])
-    expect(projectLocationParts(null, null, 'NONE')).toEqual([])
+    expect(projectLocationParts('COUNTRY_WIDE', null)).toEqual([])
   })
 })
 

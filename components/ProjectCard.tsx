@@ -6,6 +6,7 @@ import { LatenessBadge, ProjectStatusBadge } from '@/components/StatusBadges'
 import { lateness } from '@/lib/lateness'
 import { matchGradeLabel } from '@/lib/matching'
 import { projectLocationParts } from '@/lib/filter-options'
+import { useOptionalUser } from '@/lib/auth-context'
 
 export interface Project {
   id: number
@@ -28,9 +29,9 @@ export interface Project {
   viewerLeads?: boolean
   isOrgProposed?: boolean | null
   projectType?: string | null
-  country?: string | null
+  reach: string
   localGroup?: string | null
-  remoteEligibility?: string | null
+  chapterName?: string | null
   team?: { id: number; name: string } | null
   /** Derived server-side: is the viewer a member of this project's team? */
   isMyTeam?: boolean
@@ -69,6 +70,8 @@ export function ProjectCard({
   /** An admin answers a proposal in review, so for them it is filled. */
   viewerIsAdmin?: boolean
 }) {
+  // A global admin sees every chapter's projects, so the card says whose each is.
+  const showChapter = Boolean(useOptionalUser()?.access.globalAdmin)
   // The grade says how well the viewer fits; these say why.
   const matchedRequired = (p.skills ?? [])
     .filter((s) => s.isRequired && userSkillIds.has(s.id))
@@ -103,7 +106,11 @@ export function ProjectCard({
       <div className="row-start-3 flex items-center gap-3 flex-wrap text-xs text-text-light self-start">
         <span title="Owner">👤 {p.owner ? p.owner.name : 'Seeking owner'}</span>
         {(() => {
-          const parts = projectLocationParts(p.country, p.localGroup, p.remoteEligibility)
+          const parts = projectLocationParts(
+            p.reach,
+            p.localGroup,
+            showChapter ? (p.chapterName ?? 'Holding pool') : null,
+          )
           return parts.length > 0 && <span title="Location">📍 {parts.join(' · ')}</span>
         })()}
         {p.team && <span title="Team">🧑‍🤝‍🧑 {p.team.name}</span>}

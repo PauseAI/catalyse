@@ -29,7 +29,7 @@ GitHub issue. An entry here is about the work itself: something in the code
 structure, tooling, tests, docs or diagnostics that made a task slower or more
 confusing than it needed to be, and that will do so again.
 
-## 9x
+## 10x
 
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
       and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
@@ -63,6 +63,10 @@ confusing than it needed to be, and that will do so again.
       past the node project's five-second default under load; that project now allows 20 s. Main's
       first CI run after the merge hit e2e `30`: `transferProjectOwnership` waited for any alert,
       and the approval toast still up on the same page satisfied it before the transfer saved.
+      The settings-page reorganisation hit it a tenth time: three full `check-all` runs in a row
+      each failed one unrelated unit file — `ProjectEditor.test.tsx`, `app/quick-tasks/page.test.tsx`,
+      then `server/routers/quickTasks.test.ts` — each passing alone in under 40 s, before a fourth
+      run went clean.
 
 ## 6x
 
@@ -101,6 +105,16 @@ confusing than it needed to be, and that will do so again.
       `renderApp` could start each mount with an empty query cache, or `test/render.tsx`
       could say to use `findBy…` after a remount.
 
+## 3x
+
+- [ ] **`npm run new-migration` always writes an unrelated `ALTER TABLE "schema_migrations"`
+      line that must be deleted by hand, and if `npm run migrate` runs first it is applied
+      and recorded.** In R-08 a failed rename let migrate apply it; undoing it needed a
+      hand-run `psql` from the owner, because editing an applied migration is blocked. P4-05's
+      enum rename diff carried it again, and so did the national chapters migration, along
+      with a `CREATE EXTENSION` already applied. `scripts/new-migration.ts` should strip both
+      from the diff it writes.
+
 ## 2x
 
 - [ ] **A `null`-target guard written for a dialog's confirm or dismiss handler
@@ -119,13 +133,6 @@ confusing than it needed to be, and that will do so again.
       no test fed a new field, a chip's own null guard. An npm script that runs the unit tests
       with coverage limited to files changed since `main` and prints their uncovered lines would
       find these in a minute.
-
-- [ ] **`npm run new-migration` always writes an unrelated `ALTER TABLE "schema_migrations"`
-      line that must be deleted by hand, and if `npm run migrate` runs first it is applied
-      and recorded.** In R-08 a failed rename let migrate apply it; undoing it needed a
-      hand-run `psql` from the owner, because editing an applied migration is blocked. P4-05's
-      enum rename diff carried it again. `scripts/new-migration.ts` should strip that
-      statement from the diff it writes.
 
 - [ ] **A git worktree cannot run the suite until it has the main checkout's env files and a
       real `node_modules`.** Working beside another session's uncommitted changes, the unit tier
@@ -188,8 +195,9 @@ confusing than it needed to be, and that will do so again.
       could mount into `document` (or `FilterDropdown` could take an "inside" ref), and a line in
       `AGENTS.md` could say not to rely on `stopPropagation` against `document` listeners.
 
-- [ ] **An agent session cannot run `check-all`, the unit tier or e2e.** Its sandbox refuses
-      tsx's IPC pipe (`listen EPERM`), cannot reach the test Postgres on the host, and
-      `next build` dies reading the sandbox's unreadable dotfile mounts in the worktree. Every
-      run in the status-badge stack merge went through the user, one paste per round. Sandbox
-      requests are filed; until they land, a task that needs a test run has to hand it over.
+- [ ] **The test template database is built from every migration, so it holds the rows a
+      migration inserts: a UK chapter and local groups such as London that no test made.**
+      Fixtures named after real places then hit unique constraints, and a volunteer signing up
+      from the UK lands in that chapter, which cost two rounds of reading test failures in the
+      national chapters work. `test/setup-db.ts` could empty those tables in the template, or
+      `test/factories.ts` could say which rows are already there.

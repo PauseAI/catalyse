@@ -14,8 +14,7 @@ import { TemplateStructureSchema, CURRENT_TEMPLATE_SCHEMA_VERSION } from './temp
 
 // Fields templates intentionally never carry, and why — kept in sync manually.
 const TEMPLATE_OMITTED_PROJECT_FIELDS = [
-  'country', // always blanked + repicked on instantiate, never stored on the template
-  'localGroup', // same
+  'localGroupId', // always blanked + repicked on instantiate, never stored on the template
   'teamId', // same
   'isSeekingHelp', // per-instance recruiting flag, not part of the reusable structure
 ] as const
@@ -26,6 +25,7 @@ const TEMPLATE_ADDED_PROJECT_FIELDS = [
   'startOffsetDays', // relative-date replacement for absolute startDate
   'skills', // WorkItemSkill isn't part of PROJECT_INPUT_FIELDS but templates must carry it
   'tasks', // the task list itself
+  'remoteEligibility', // read from templates saved before `reach`, mapped onto it
 ] as const
 
 const TEMPLATE_TASK_ADDED_FIELDS = ['ref', 'startOffsetDays', 'skills', 'dependsOn'] as const
@@ -41,9 +41,8 @@ const PROJECT_INPUT_FIELD_NAMES = [
   'timeCommitmentHoursPerWeek',
   'urgency',
   'collaborationLink',
-  'country',
-  'localGroup',
-  'remoteEligibility',
+  'reach',
+  'localGroupId',
   'isSeekingHelp',
   'teamId',
   'startDate',

@@ -20,8 +20,8 @@ export const PENDING_URL = '/dashboard'
 /** Where someone lands from an admin page they may not open; see the projects page. */
 export const NO_ACCESS_NOTICE_URL = '/projects?notice=no-access'
 
-/** The same, from a page only super admins may open. */
-export const SUPER_ADMIN_NOTICE_URL = '/projects?notice=super-admin-only'
+/** The same, from a page only global admins may open. */
+export const GLOBAL_ADMIN_NOTICE_URL = '/projects?notice=global-admin-only'
 
 /**
  * For pages only approved volunteers (and admins) may use. `user` stays null until the
@@ -59,24 +59,25 @@ export function useRequireConfirmed() {
   return { ...auth, user: needsConfirmation ? null : auth.user }
 }
 
+/** For pages only a global admin may use. */
 export function useRequireAdmin() {
   const router = useRouter()
   const auth = useAuth()
   useEffect(() => {
     if (!auth.loading && !auth.user) router.replace('/login')
-    if (!auth.loading && auth.user && !auth.user.isAdmin) router.replace(NO_ACCESS_NOTICE_URL)
+    if (!auth.loading && auth.user && !auth.user.isAdmin) router.replace(GLOBAL_ADMIN_NOTICE_URL)
   }, [auth.user, auth.loading, router])
   return auth
 }
 
-export function useRequireSuperAdmin() {
+/** For pages a chapter's lead or deputies may use as well as a global admin. */
+export function useRequireStaff() {
   const router = useRouter()
   const auth = useAuth()
+  const isStaff = Boolean(auth.user && (auth.user.access.globalAdmin || auth.user.access.role))
   useEffect(() => {
     if (!auth.loading && !auth.user) router.replace('/login')
-    if (!auth.loading && auth.user && !auth.user.isSuperAdmin) {
-      router.replace(SUPER_ADMIN_NOTICE_URL)
-    }
-  }, [auth.user, auth.loading, router])
-  return auth
+    if (!auth.loading && auth.user && !isStaff) router.replace(NO_ACCESS_NOTICE_URL)
+  }, [auth.user, auth.loading, isStaff, router])
+  return { ...auth, user: isStaff ? auth.user : null }
 }

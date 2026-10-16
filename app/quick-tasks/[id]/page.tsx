@@ -76,7 +76,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
   }
 
   const mine = task.assignedToId === user.id
-  const viewer = { isAssignee: mine, canReview: Boolean(user.isAdmin) }
+  const viewer = { isAssignee: mine, canReview: task.viewerCanAdmin }
 
   return (
     <main className="container py-5 pb-15">
@@ -172,7 +172,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
           <p className="text-text-light text-sm mt-4 mb-0">Your submission is awaiting review.</p>
         )}
 
-        {user.isAdmin && task.status === QuickTaskStatus.under_review && (
+        {task.viewerCanAdmin && task.status === QuickTaskStatus.under_review && (
           <div className="flex flex-wrap gap-2 mt-4">
             <Button onClick={() => setReviewing(true)}>Accept…</Button>
             <RequestChangesButton target={{ kind: 'quick', taskId: task.id }} assigneeName={null} />

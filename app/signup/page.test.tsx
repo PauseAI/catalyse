@@ -113,7 +113,7 @@ describe('signup with email and password', () => {
   })
 
   it('submits a full application, lands on the confirmation, and can resend the email', async () => {
-    await createLocalGroup({ name: 'Signup Town', country: 'UK' })
+    const town = await createLocalGroup({ name: 'Signup Town', country: 'UK' })
     const needed = await createSkill({ name: 'Needed Skill' })
     const other = await createSkill({ name: 'Rare Skill' })
     const p = await createProject({ status: 'in_progress', isSeekingHelp: true })
@@ -175,7 +175,8 @@ describe('signup with email and password', () => {
     expect(row).toMatchObject({
       name: 'Ann Applicant',
       country: 'UK',
-      localGroup: 'Signup Town',
+      nationalChapterId: town.nationalChapterId,
+      localGroupId: town.id,
       discordHandle: 'ann#1',
       contactPreference: 'discord',
       signalNumber: '+44 1',
@@ -222,8 +223,14 @@ describe('signup with email and password', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Select country' }))
     await userEvent.click(await screen.findByRole('option', { name: 'Serbia' }))
     expect(screen.getByLabelText('City / area')).toBeInTheDocument()
+    // Serbia has no chapter, so the applicant is told who will look after them.
+    expect(await screen.findByRole('note')).toHaveTextContent('no PauseAI chapter for Serbia')
+    await userEvent.click(screen.getByRole('button', { name: 'Select country' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Other' }))
+    expect(screen.getByRole('note')).toHaveTextContent('no PauseAI chapter for your country')
     await userEvent.click(screen.getByRole('button', { name: 'Select country' }))
     await userEvent.click(await screen.findByRole('option', { name: 'United Kingdom' }))
+    expect(screen.queryByRole('note')).toBeNull()
     await userEvent.click(await screen.findByRole('button', { name: 'Select local group' }))
     await userEvent.click(
       await screen.findByRole('option', { name: "None of these, I'll enter my city" }),
@@ -371,7 +378,7 @@ describe('signup with Google', () => {
 
   it('validates and submits the Google application (restored from storage)', async () => {
     stubAuth()
-    await createLocalGroup({ name: 'Google Town', country: 'UK' })
+    const town = await createLocalGroup({ name: 'Google Town', country: 'UK' })
     await renderApp(<SignupPage />)
     await screen.findByText('Complete your application')
     await onStep('About you')
@@ -401,7 +408,8 @@ describe('signup with Google', () => {
     expect(row).toMatchObject({
       name: 'Stub User',
       cookieConsentAnalytics: true,
-      localGroup: 'Google Town',
+      nationalChapterId: town.nationalChapterId,
+      localGroupId: town.id,
       contactPreference: 'email',
       contactNotes: 'n',
       emailDigest: 'none',

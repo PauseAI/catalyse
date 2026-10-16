@@ -1,7 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createHash } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
-import { createVolunteer, createSuperAdmin, createSkill } from '@/test/factories'
+import {
+  createVolunteer,
+  createSuperAdmin,
+  createSkill,
+  createChapter,
+  createChapterDeputy,
+  createMember,
+} from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 
 import { emails } from '@/test/fakes/email'
@@ -81,6 +88,53 @@ describe('admin.applications.list / getById', () => {
     await expect(c.admin.applications.getById({ id: 999_999 })).rejects.toMatchObject({
       code: 'NOT_FOUND',
     })
+  })
+})
+
+describe('admin.applications by chapter', () => {
+  it("lets chapter staff decide their own chapter's applications only", async () => {
+    const [mine, theirs] = [await createChapter(), await createChapter()]
+    const deputy = clientAs(await createChapterDeputy(mine))
+    const pending = { approvalStatus: 'pending' as const }
+    const ours = await createMember(mine, pending)
+    const foreign = await createMember(theirs, pending)
+    const pooled = await createVolunteer(pending)
+
+    const listed = (await deputy.admin.applications.list({})).map((a) => a.id)
+    expect(listed).toContain(ours.id)
+    expect(listed).not.toContain(foreign.id)
+    expect(listed).not.toContain(pooled.id)
+    // Asking for another chapter or the pool still gives their own.
+    expect((await deputy.admin.applications.list({ chapter: 'pool' })).map((a) => a.id)).toEqual(
+      listed,
+    )
+    for (const id of [foreign.id, pooled.id]) {
+      await expect(deputy.admin.applications.getById({ id })).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      })
+      await expect(
+        deputy.admin.applications.action({ id, action: 'approve' }),
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    }
+    expect(await deputy.admin.applications.action({ id: ours.id, action: 'approve' })).toEqual({
+      message: 'Application approved',
+    })
+  })
+
+  it('lets a global admin see every chapter, one, or the pool', async () => {
+    const chapter = await createChapter()
+    const admin = clientAs(await createSuperAdmin())
+    const pending = { approvalStatus: 'pending' as const }
+    const member = await createMember(chapter, pending)
+    const pooled = await createVolunteer(pending)
+    const all = (await admin.admin.applications.list({})).map((a) => a.id)
+    expect(all).toEqual(expect.arrayContaining([member.id, pooled.id]))
+    expect((await admin.admin.applications.list({ chapter: chapter.id })).map((a) => a.id)).toEqual(
+      [member.id],
+    )
+    const pool = (await admin.admin.applications.list({ chapter: 'pool' })).map((a) => a.id)
+    expect(pool).toContain(pooled.id)
+    expect(pool).not.toContain(member.id)
   })
 })
 
@@ -198,7 +252,11 @@ describe('admin.applications.action', () => {
         where: { volunteerId: unconfirmed.id, type: 'application_approved' },
       }),
     ).toMatchObject({ link: '/verify-email' })
-    expect(await prisma.notification.count({ where: { type: 'application_approved' } })).toBe(2)
+    expect(
+      await prisma.notification.count({
+        where: { type: 'application_approved', volunteerId: { in: [a.id, unconfirmed.id] } },
+      }),
+    ).toBe(2)
 
     const r = await createVolunteer({ approvalStatus: 'needs_info' })
     expect(

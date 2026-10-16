@@ -1,12 +1,12 @@
 import { Prisma } from '@/generated/prisma/client'
 import { prisma } from './prisma'
-import { calculateMatchScore, isGeoEligible } from './matching'
+import { calculateMatchScore } from './matching'
 import { isSeekingOwner, UNAPPROVED_STATUSES } from './project-status'
 import {
   InterestStatus,
   ProjectStatus,
   QuickTaskStatus,
-  RemoteEligibility,
+  ProjectReach,
   TaskStatus,
   WorkItemType,
   TaskTiming,
@@ -25,19 +25,18 @@ export type WorkItemForAccess = {
   creatorId: number | null
   assigneeId: number | null
   teamId?: number | null
-  country: string | null
-  remoteEligibility: string
+  nationalChapterId: number | null
 }
 
 export type CommentViewer = {
   id: number
   isAdmin: boolean
   isApproved: boolean
-  country: string | null
+  nationalChapterId: number | null
 } | null
 
 /** Which of a project's scope restrictions the viewer is exempt from; see `resolveProjectPrivy`. */
-export type ProjectPrivy = { team: boolean; country: boolean }
+export type ProjectPrivy = { team: boolean; chapter: boolean }
 
 const PROJECT_HIDDEN_STATUSES: string[] = UNAPPROVED_STATUSES
 
@@ -71,8 +70,8 @@ export function canViewWorkItem(
       if (item.teamId !== null && item.teamId !== undefined) {
         if (!isDirectParticipant && !privy?.team) return false
       }
-      if (viewer && isOutsideCountry(item, viewer.country)) {
-        if (!isDirectParticipant && !privy?.country) return false
+      if (viewer && isOutsideChapter(item, viewer.nationalChapterId)) {
+        if (!isDirectParticipant && !privy?.chapter) return false
       }
       if (!PROJECT_HIDDEN_STATUSES.includes(item.status)) return true
       return Boolean(viewer && (viewer.isAdmin || viewer.id === item.creatorId))
@@ -119,35 +118,37 @@ export async function resolveTeamPrivy(
 }
 
 // ── Project scope ─────────────────────────────────────────────────────────────
-// A project reaches a volunteer only within its scope. A team-tagged project stays within
-// its team; a country-scoped one (it names a country and is not open to remote volunteers
-// everywhere) stays within that country. Its owner and proposer see it regardless, and so
-// do admins. For a team project, its team's members and accepted helpers see it; for a
-// country-scoped one, so does anyone already on it: the team's members, anyone who applied
-// or was added, and anyone holding one of its tasks. A volunteer who has not given a
-// country is not held to the country rule.
+// A project reaches a volunteer only within its scope. It stays within its national chapter
+// (the holding pool counts as one), and a team-tagged project within its team as well. Its
+// owner and proposer see it regardless, and so do global admins. For a team project, its
+// team's members and accepted helpers see it; for one in another chapter, so does anyone
+// already on it from before chapters: the team's members, anyone who applied or was added,
+// and anyone holding one of its tasks.
 //
 // The rule is written three ways, for the three shapes of query: `projectScopeSql` for raw
 // SQL lists, `projectScopeWhere` for Prisma queries, and `resolveProjectPrivy` with
 // `canViewWorkItem` (or `canSeeProjectScope`) for a single row.
 
-export type ProjectViewer = { id: number; isAdmin: boolean | null; country: string | null }
+export type ProjectViewer = {
+  id: number
+  isAdmin: boolean | null
+  nationalChapterId: number | null
+}
 
 type ScopedProject = {
   id: number
   teamId: number | null
   creatorId: number | null
   assigneeId: number | null
-  country: string | null
-  remoteEligibility: string
+  nationalChapterId: number | null
 }
 
-/** Is this project scoped to a country other than the viewer's? */
-export function isOutsideCountry(
-  project: { country: string | null; remoteEligibility: string },
-  viewerCountry: string | null,
+/** Is this project in a chapter other than the viewer's? */
+export function isOutsideChapter(
+  project: { nationalChapterId: number | null },
+  viewerChapterId: number | null,
 ): boolean {
-  return !isGeoEligible(viewerCountry, true, project.country, project.remoteEligibility)
+  return project.nationalChapterId !== viewerChapterId
 }
 
 /** Has the volunteer applied to, been added to, or been given a task on this project? */
@@ -168,12 +169,14 @@ async function isOnProject(projectId: number, volunteerId: number): Promise<bool
 /** Which of the project's scope restrictions `viewer` is exempt from, for `canViewWorkItem`. */
 export async function resolveProjectPrivy(
   project: Omit<ScopedProject, 'creatorId' | 'assigneeId'>,
-  viewer: { id: number; country: string | null },
+  viewer: { id: number; nationalChapterId: number | null },
 ): Promise<ProjectPrivy> {
   const team = await resolveTeamPrivy(project.teamId, project.id, viewer.id)
-  const country =
-    team || !isOutsideCountry(project, viewer.country) || (await isOnProject(project.id, viewer.id))
-  return { team, country }
+  const chapter =
+    team ||
+    !isOutsideChapter(project, viewer.nationalChapterId) ||
+    (await isOnProject(project.id, viewer.id))
+  return { team, chapter }
 }
 
 /** Is the project within `viewer`'s scope? Status (drafts and the like) is not checked. */
@@ -185,7 +188,7 @@ export async function canSeeProjectScope(
     return true
   }
   const privy = await resolveProjectPrivy(project, viewer)
-  return (project.teamId === null || privy.team) && privy.country
+  return (project.teamId === null || privy.team) && privy.chapter
 }
 
 /** The scope rule as a condition on `work_items` rows, for raw SQL project lists. */
@@ -201,11 +204,12 @@ export function projectScopeSql(viewer: ProjectViewer): Prisma.Sql {
       WHERE volunteer_id = ${id} AND status = ${InterestStatus.accepted}::"InterestStatus"
     )
   )`
-  if (!viewer.country) return team
+  const chapter =
+    viewer.nationalChapterId === null
+      ? Prisma.sql`national_chapter_id IS NULL`
+      : Prisma.sql`national_chapter_id = ${viewer.nationalChapterId}`
   return Prisma.sql`${team} AND (
-    country IS NULL
-    OR remote_eligibility = ${RemoteEligibility.GLOBAL}::"RemoteEligibility"
-    OR country = ${viewer.country}
+    ${chapter}
     OR ${involved}
     OR id IN (SELECT work_item_id FROM work_item_interests WHERE volunteer_id = ${id})
     OR id IN (SELECT parent_id FROM work_items WHERE assignee_id = ${id} AND parent_id IS NOT NULL)
@@ -228,15 +232,12 @@ export function projectScopeWhere(viewer: ProjectViewer): Prisma.WorkItemWhereIn
       { interests: { some: { volunteerId: id, status: InterestStatus.accepted } } },
     ],
   }
-  if (!viewer.country) return team
   return {
     AND: [
       team,
       {
         OR: [
-          { country: null },
-          { remoteEligibility: RemoteEligibility.GLOBAL },
-          { country: viewer.country },
+          { nationalChapterId: viewer.nationalChapterId },
           ...involved,
           { interests: { some: { volunteerId: id } } },
           { children: { some: { assigneeId: id } } },
@@ -460,11 +461,13 @@ export type EnrichedProject = ScheduleFieldsLike & {
   deadline: Date | null
   createdAt: Date | null
   updatedAt: Date | null
-  country: string | null
   isSeekingHelp: boolean | null
-  localGroup: string | null
-  remoteEligibility: RemoteEligibility
+  nationalChapterId: number | null
+  reach: ProjectReach
+  localGroupId: number | null
   teamId: number | null
+  chapter: { id: number; name: string } | null
+  group: { id: number; name: string } | null
   skills: WorkItemSkillWithRelations[]
   assignee: { id: number; name: string } | null
   creator: { id: number; name: string } | null
@@ -509,7 +512,6 @@ export function withProjectExtras(
     deadline: p.deadline,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
-    country: p.country,
     isSeekingHelp: p.isSeekingHelp,
     autoAcceptTasks: p.autoAcceptTasks,
     // Derived, not stored — see isSeekingOwner() in lib/project-status.ts.
@@ -519,8 +521,11 @@ export function withProjectExtras(
     // kept it up to date.
     needsTasks: p.status === ProjectStatus.in_progress && p._count.children === 0,
     openTaskCount: p._count.children,
-    localGroup: p.localGroup,
-    remoteEligibility: p.remoteEligibility,
+    nationalChapterId: p.nationalChapterId,
+    chapterName: p.chapter?.name ?? null,
+    reach: p.reach,
+    localGroupId: p.localGroupId,
+    localGroup: p.group?.name ?? null,
     teamId: p.teamId,
     team: p.team,
     isMyTeam: p.teamId !== null && Boolean(viewerTeamIds?.has(p.teamId)),
@@ -554,6 +559,8 @@ export const projectInclude = {
   assignee: { select: { id: true, name: true } },
   creator: { select: { id: true, name: true } },
   team: { select: { id: true, name: true } },
+  chapter: { select: { id: true, name: true } },
+  group: { select: { id: true, name: true } },
   _count: {
     select: {
       interests: { where: { status: InterestStatus.pending } },

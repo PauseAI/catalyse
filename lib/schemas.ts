@@ -81,7 +81,6 @@ export const SignupSchema = VolunteerSchema.pick({
   availabilityHoursPerWeek: true,
   location: true,
   country: true,
-  localGroup: true,
   otherSkills: true,
   consentMakeProfileVisibleInDirectory: true,
   consentContactableByProjectOwners: true,
@@ -97,7 +96,6 @@ export const SignupSchema = VolunteerSchema.pick({
     contactPreference: true,
     contactNotes: true,
     location: true,
-    localGroup: true,
     otherSkills: true,
     consentMakeProfileVisibleInDirectory: true,
     consentContactableByProjectOwners: true,
@@ -183,13 +181,15 @@ const PROJECT_INPUT_FIELDS = {
   timeCommitmentHoursPerWeek: true,
   urgency: true,
   collaborationLink: true,
-  country: true,
-  localGroup: true,
-  remoteEligibility: true,
+  reach: true,
+  localGroupId: true,
   isSeekingHelp: true,
   teamId: true,
   ...SCHEDULE_INPUT_FIELDS,
 } as const
+
+/** A global admin's choice of chapter for a project; null is the holding pool. */
+const PROJECT_CHAPTER_FIELD = { chapterId: z.number().int().nullable().optional() }
 
 /** A user-supplied link, empty allowed; the caller decides whether empty means null. */
 export const HttpUrlSchema = z
@@ -201,8 +201,9 @@ export const HttpUrlSchema = z
   })
 
 export const CreateProjectSchema = WorkItemSchema.pick(PROJECT_INPUT_FIELDS)
-  .partial({ remoteEligibility: true, teamId: true, ...SCHEDULE_INPUT_FIELDS })
+  .partial({ reach: true, localGroupId: true, teamId: true, ...SCHEDULE_INPUT_FIELDS })
   .extend({
+    ...PROJECT_CHAPTER_FIELD,
     collaborationLink: HttpUrlSchema.nullable(),
     tasks: z.array(TaskInputSchema).optional().default([]),
     wantToOwn: z.boolean().optional().default(false),
@@ -222,6 +223,7 @@ export const UpdateProjectSchema = WorkItemSchema.pick({
 })
   .partial()
   .extend({
+    ...PROJECT_CHAPTER_FIELD,
     collaborationLink: HttpUrlSchema.nullable().optional(),
     skillIds: z.array(z.number().int()).optional(),
     skillRequiredMap: z.record(z.string(), z.boolean()).optional(),
@@ -318,8 +320,9 @@ export const CreateProjectUpdateSchema = WorkItemCommentSchema.pick({
 // ─── Admin: projects ──────────────────────────────────────────────────────────
 
 export const AdminCreateProjectSchema = WorkItemSchema.pick(PROJECT_INPUT_FIELDS)
-  .partial({ remoteEligibility: true, teamId: true, ...SCHEDULE_INPUT_FIELDS })
+  .partial({ reach: true, localGroupId: true, teamId: true, ...SCHEDULE_INPUT_FIELDS })
   .extend({
+    ...PROJECT_CHAPTER_FIELD,
     tasks: z.array(TaskInputSchema).optional().default([]),
     wantToOwn: z.boolean().optional().default(false),
     skillIds: z.array(z.number().int()).optional().default([]),
@@ -448,8 +451,9 @@ export const ReviewTeamSuggestionSchema = z.object({
 
 // ─── Admin: invite ────────────────────────────────────────────────────────────
 
-export const InviteAdminSchema = AdminInviteSchema.pick({
-  email: true,
+export const InviteChapterStaffSchema = AdminInviteSchema.pick({ email: true }).extend({
+  chapterId: z.number().int(),
+  role: z.enum(['LEAD', 'DEPUTY']),
 })
 
 // ─── Admin: platform settings ─────────────────────────────────────────────────
@@ -472,7 +476,7 @@ export const CreateQuickTaskSchema = WorkItemSchema.pick({
   deadline: true,
 })
   .partial({ skillId: true, contextProjectId: true, estimatedHours: true, deadline: true })
-  .extend(SUBMISSION_ASK_FIELDS)
+  .extend({ ...SUBMISSION_ASK_FIELDS, ...PROJECT_CHAPTER_FIELD })
 
 export const AssignQuickTaskSchema = z.object({
   volunteerId: z.number().int({ message: 'volunteerId is required' }),

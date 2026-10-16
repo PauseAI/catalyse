@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { Client } from 'pg'
 import { prisma } from '@/lib/prisma'
 import { resolveDbUrl } from '@/lib/db-url'
-import { createVolunteer, createAdmin, createProject } from '@/test/factories'
+import { createVolunteer, createAdmin, createProject, createStaffInvite } from '@/test/factories'
 import { createSession } from '@/lib/auth'
 import { libpqUrl } from '../jobs/backup'
 import { COLUMN_TREATMENT, REDACTED } from './anonymise-columns'
@@ -60,13 +60,11 @@ describe('anonymise', () => {
     await prisma.passwordResetToken.create({
       data: { volunteerId: vol.id, token: 'live-reset', expiresAt: new Date(Date.now() + 60_000) },
     })
-    await prisma.adminInvite.create({
-      data: {
-        email: 'invited.person@example.org',
-        inviteToken: 'live-invite',
-        invitedById: admin.id,
-        expiresAt: new Date(Date.now() + 60_000),
-      },
+    await createStaffInvite({
+      email: 'invited.person@example.org',
+      inviteToken: 'live-invite',
+      invitedById: admin.id,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     const journalist = await prisma.experimentalJournalist.create({
       data: {

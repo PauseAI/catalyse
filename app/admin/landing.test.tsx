@@ -2,7 +2,13 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
-import { createVolunteer, createAdmin, createSuperAdmin, createProject } from '@/test/factories'
+import {
+  createVolunteer,
+  createSuperAdmin,
+  createProject,
+  createChapter,
+  createChapterDeputy,
+} from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { navigation } from '@/test/next-navigation'
 import AdminLandingPage from './page'
@@ -23,7 +29,7 @@ describe('admin landing', () => {
       ],
     })
     await renderApp(<AdminLandingPage />, { as: sa })
-    await screen.findByRole('heading', { name: 'Super admin' })
+    await screen.findByRole('heading', { name: 'Global admin' })
     await screen.findByText('Bug came in')
     expect(screen.getByRole('link', { name: 'View' })).toHaveAttribute('href', '/admin/bugs')
     expect(screen.getByRole('link', { name: /Manage applications/ })).toBeInTheDocument()
@@ -40,11 +46,19 @@ describe('admin landing', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Mark as read' })).toBeNull())
 
     cleanup()
-    const admin = await createAdmin()
-    await renderApp(<AdminLandingPage />, { as: admin })
-    await screen.findByRole('heading', { name: 'Admin' })
-    expect(screen.queryByRole('link', { name: /Manage applications/ })).toBeNull()
+    const chapter = await createChapter()
+    const deputy = await createChapterDeputy(chapter)
+    await renderApp(<AdminLandingPage />, { as: deputy })
+    await screen.findByRole('heading', { name: `${chapter.name} chapter admin` })
+    expect(screen.getByRole('link', { name: /Manage applications/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: `${chapter.name} chapter` })).toHaveAttribute(
+      'href',
+      `/admin/chapters/${chapter.id}`,
+    )
+    // The global admins' pages are not offered.
     expect(screen.queryByText('Platform')).toBeNull()
+    expect(screen.queryByRole('link', { name: /Bug reports/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'National chapters' })).toBeNull()
     await screen.findByText(/No notifications|no new notifications/i)
     cleanup()
     const vol = await createVolunteer()

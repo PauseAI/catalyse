@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { hashPassword } from '@/lib/auth'
 import { ApprovalStatus, WorkItemType, ProjectStatus } from '@/generated/prisma/enums'
 import type { Prisma } from '@/generated/prisma/client'
+import { COUNTRIES } from '@/lib/countries'
+import { globalAdminEmail } from './admin-emails'
 
 let seq = 0
 export const nextSeq = () => ++seq
@@ -31,11 +33,13 @@ export async function createVolunteer(
   })
 }
 
+let adminSeq = 0
+/** A global admin: an address listed in ADMIN_EMAILS (see test/setup-db.ts). */
 export const createAdmin = (overrides: Partial<Prisma.VolunteerUncheckedCreateInput> = {}) =>
-  createVolunteer({ isAdmin: true, ...overrides })
+  createVolunteer({ isAdmin: true, email: globalAdminEmail(adminSeq++), ...overrides })
 
 let superSeq = 0
-/** An admin whose email is in ADMIN_EMAILS (see test/setup-db.ts) — a super-admin. */
+/** A global admin at admin@example.com, admin1@example.com and so on. */
 export const createSuperAdmin = (overrides: Partial<Prisma.VolunteerUncheckedCreateInput> = {}) =>
   createAdmin({ email: `admin${superSeq++ || ''}@example.com`, ...overrides })
 
@@ -99,11 +103,89 @@ export async function createTeam(overrides: Partial<Prisma.TeamUncheckedCreateIn
   return prisma.team.create({ data: { name: `Team ${n}`, ...overrides } })
 }
 
+/** A local group, by default in the UK chapter, which is made if it does not exist. */
 export async function createLocalGroup(
   overrides: Partial<Prisma.LocalGroupUncheckedCreateInput> = {},
 ) {
   const n = nextSeq()
-  return prisma.localGroup.create({ data: { name: `Group ${n}`, country: 'UK', ...overrides } })
+  const country = overrides.country ?? 'UK'
+  const nationalChapterId = overrides.nationalChapterId ?? (await chapterFor(country)).id
+  return prisma.localGroup.create({
+    data: { name: `Group ${n}`, ...overrides, country, nationalChapterId },
+  })
+}
+
+/** The chapter for a listed country, made if it does not exist yet. */
+export async function chapterFor(country: string) {
+  const name = COUNTRIES.find((c) => c.value === country)?.label ?? country
+  return prisma.nationalChapter.upsert({
+    where: { country },
+    update: {},
+    create: { country, name },
+  })
+}
+
+/** A national chapter for a listed country that has none yet. */
+export async function createChapter(
+  overrides: Partial<Prisma.NationalChapterUncheckedCreateInput> = {},
+) {
+  const taken = new Set(
+    (await prisma.nationalChapter.findMany({ select: { country: true } })).map((c) => c.country),
+  )
+  const listed = COUNTRIES.find((c) => !taken.has(c.value))
+  if (!listed) throw new Error('createChapter: every listed country already has a chapter')
+  return prisma.nationalChapter.create({
+    data: { country: listed.value, name: listed.label, ...overrides },
+  })
+}
+
+/** A volunteer who belongs to `chapter`, with their country set to match. */
+export const createMember = (
+  chapter: { id: number; country: string },
+  overrides: Partial<Prisma.VolunteerUncheckedCreateInput> = {},
+) => createVolunteer({ nationalChapterId: chapter.id, country: chapter.country, ...overrides })
+
+/** A member made the chapter's lead. */
+export async function createChapterLead(
+  chapter: { id: number; country: string },
+  overrides: Partial<Prisma.VolunteerUncheckedCreateInput> = {},
+) {
+  const lead = await createMember(chapter, overrides)
+  await prisma.nationalChapter.update({ where: { id: chapter.id }, data: { leadId: lead.id } })
+  return lead
+}
+
+/** A member made one of the chapter's deputies. */
+export async function createChapterDeputy(
+  chapter: { id: number; country: string },
+  overrides: Partial<Prisma.VolunteerUncheckedCreateInput> = {},
+) {
+  const deputy = await createMember(chapter, overrides)
+  await prisma.chapterDeputy.create({
+    data: { nationalChapterId: chapter.id, volunteerId: deputy.id },
+  })
+  return deputy
+}
+
+/** A pending invite to be a deputy of a new chapter, unless the overrides say otherwise. */
+export async function createStaffInvite(
+  overrides: Partial<Prisma.AdminInviteUncheckedCreateInput> &
+    Pick<Prisma.AdminInviteUncheckedCreateInput, 'email' | 'invitedById'>,
+) {
+  const n = nextSeq()
+  const nationalChapterId =
+    overrides.nationalChapterId === undefined
+      ? (await createChapter()).id
+      : overrides.nationalChapterId
+  return prisma.adminInvite.create({
+    data: {
+      inviteToken: `invite-token-${n}`,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      role: 'DEPUTY',
+      ...overrides,
+      nationalChapterId,
+    },
+  })
 }
 
 /** Two volunteers who have accepted a contact request, so they may message each other. */

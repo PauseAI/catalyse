@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { useRequireSuperAdmin } from '@/lib/hooks/auth'
+import { useState, Suspense } from 'react'
+import { useRequireStaff } from '@/lib/hooks/auth'
+import { useUrlParam } from '@/lib/hooks/url-filters'
+import ChapterFilter, { chapterSelection } from '@/components/ChapterFilter'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import Button from '@/components/Button'
@@ -33,39 +35,42 @@ const SECTIONS: { key: Filter; label: string; color: string; collapsedByDefault?
   },
 ]
 
-export default function ApplicationsPage() {
+function ApplicationsPageContent() {
   const router = useRouter()
-  const { user, loading } = useRequireSuperAdmin()
+  const { user, loading } = useRequireStaff()
   const showToast = useToast()
   const [startingReview, setStartingReview] = useState<number | null>(null)
   const [approvedOpen, setApprovedOpen] = useState(false)
   const [anonymisedOpen, setAnonymisedOpen] = useState(false)
 
-  const enabled = !!user?.isAdmin
+  const enabled = !!user
+  const [chapterParam, setChapterParam] = useUrlParam('chapter')
+  const chapter = chapterSelection(chapterParam)
 
   const mine = useQuery({
-    ...orpc.admin.applications.list.queryOptions({ input: { filter: 'mine' } }),
+    ...orpc.admin.applications.list.queryOptions({ input: { filter: 'mine', chapter } }),
     enabled,
   })
   const others = useQuery({
-    ...orpc.admin.applications.list.queryOptions({ input: { filter: 'others' } }),
+    ...orpc.admin.applications.list.queryOptions({ input: { filter: 'others', chapter } }),
     enabled,
   })
   const needsInfo = useQuery({
-    ...orpc.admin.applications.list.queryOptions({ input: { filter: 'needs_info' } }),
+    ...orpc.admin.applications.list.queryOptions({ input: { filter: 'needs_info', chapter } }),
     enabled,
   })
   const rejected = useQuery({
-    ...orpc.admin.applications.list.queryOptions({ input: { filter: 'rejected' } }),
+    ...orpc.admin.applications.list.queryOptions({ input: { filter: 'rejected', chapter } }),
     enabled,
   })
   const approved = useQuery({
-    ...orpc.admin.applications.list.queryOptions({ input: { filter: 'approved' } }),
+    ...orpc.admin.applications.list.queryOptions({ input: { filter: 'approved', chapter } }),
     enabled,
   })
   const anonymised = useQuery({
     ...orpc.admin.rejectedApplications.list.queryOptions(),
-    enabled,
+    // Anonymised rejections belong to no chapter, so they are the global admins'.
+    enabled: !!user?.isAdmin,
   })
 
   const queriesByKey: Record<Filter, typeof mine> = {
@@ -104,6 +109,11 @@ export default function ApplicationsPage() {
     <main className="container py-5 pb-15">
       <h1>Applications</h1>
       <p className="text-text-light mb-6">Review new volunteer applications.</p>
+      {user.isAdmin && (
+        <div className="mb-6">
+          <ChapterFilter value={chapterParam} onChange={setChapterParam} />
+        </div>
+      )}
 
       {anyLoading && totalCount === 0 ? (
         <p className="text-text-light mt-6">Loading…</p>
@@ -450,5 +460,14 @@ function AnonymisedCard({ app }: { app: AnonymisedApplication }) {
         )}
       </div>
     </div>
+  )
+}
+
+// The chapter filter lives in the URL, which needs a Suspense boundary to read.
+export default function ApplicationsPage() {
+  return (
+    <Suspense>
+      <ApplicationsPageContent />
+    </Suspense>
   )
 }

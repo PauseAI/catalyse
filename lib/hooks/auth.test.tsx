@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { screen, waitFor, cleanup, act } from '@testing-library/react'
-import { createVolunteer, createAdmin } from '@/test/factories'
+import { createVolunteer, createAdmin, createChapter, createChapterDeputy } from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { navigation } from '@/test/next-navigation'
 import {
@@ -8,7 +8,7 @@ import {
   useRequireApproved,
   useRequireConfirmed,
   useRequireAdmin,
-  useRequireSuperAdmin,
+  useRequireStaff,
 } from './auth'
 
 const hooks = {
@@ -16,7 +16,7 @@ const hooks = {
   useRequireApproved,
   useRequireConfirmed,
   useRequireAdmin,
-  useRequireSuperAdmin,
+  useRequireStaff,
 }
 type HookName = keyof typeof hooks
 
@@ -58,14 +58,11 @@ describe('auth gate hooks', () => {
     expect(navigation.replace).not.toHaveBeenCalled()
   })
 
-  it('useRequireConfirmed sends an unconfirmed email to /verify-email, admins excepted', async () => {
+  it('useRequireConfirmed sends an unconfirmed email to /verify-email', async () => {
     const unconfirmed = await createVolunteer({ emailConfirmed: false })
     await settle('useRequireConfirmed', unconfirmed)
     expect(navigation.replace).toHaveBeenCalledWith('/verify-email')
     expect(screen.getByText('anon')).toBeInTheDocument()
-    navigation.reset()
-    await settle('useRequireConfirmed', await createAdmin({ emailConfirmed: false }))
-    expect(navigation.replace).not.toHaveBeenCalled()
     navigation.reset()
     await settle('useRequireConfirmed', await createVolunteer())
     expect(navigation.replace).not.toHaveBeenCalled()
@@ -77,17 +74,20 @@ describe('auth gate hooks', () => {
     expect(navigation.replace).toHaveBeenCalledWith('/dashboard')
   })
 
-  it('useRequireAdmin / useRequireSuperAdmin send the wrong role to /projects', async () => {
-    await settle('useRequireAdmin', await createVolunteer())
+  it('useRequireStaff and useRequireAdmin send the wrong role to /projects', async () => {
+    const deputy = await createChapterDeputy(await createChapter())
+    await settle('useRequireStaff', await createVolunteer())
     expect(navigation.replace).toHaveBeenCalledWith('/projects?notice=no-access')
+    for (const allowed of [deputy, await createAdmin()]) {
+      navigation.reset()
+      await settle('useRequireStaff', allowed)
+      expect(navigation.replace).not.toHaveBeenCalled()
+    }
+    navigation.reset()
+    await settle('useRequireAdmin', deputy)
+    expect(navigation.replace).toHaveBeenCalledWith('/projects?notice=global-admin-only')
     navigation.reset()
     await settle('useRequireAdmin', await createAdmin())
-    expect(navigation.replace).not.toHaveBeenCalled()
-    navigation.reset()
-    await settle('useRequireSuperAdmin', await createAdmin())
-    expect(navigation.replace).toHaveBeenCalledWith('/projects?notice=super-admin-only')
-    navigation.reset()
-    await settle('useRequireSuperAdmin', await createAdmin({ email: 'admin@example.com' }))
     expect(navigation.replace).not.toHaveBeenCalled()
   })
 })

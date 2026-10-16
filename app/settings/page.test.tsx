@@ -12,7 +12,7 @@ const me = (id: number) => prisma.volunteer.findUniqueOrThrow({ where: { id } })
 
 describe('settings — profile tab', () => {
   it('loads the profile, edits every field and saves', async () => {
-    await createLocalGroup({ name: 'Settings Town', country: 'UK' })
+    const town = await createLocalGroup({ name: 'Settings Town', country: 'UK' })
     const skill = await createSkill()
     const vol = await createVolunteer({
       name: 'Sam Settings',
@@ -34,17 +34,11 @@ describe('settings — profile tab', () => {
     await userEvent.click(screen.getByRole('option', { name: 'Discord' }))
     await userEvent.type(screen.getByLabelText('Contact notes'), 'evenings')
     await userEvent.type(screen.getByLabelText('Hours per week'), '4')
-    await userEvent.click(screen.getByRole('button', { name: 'Select country' }))
-    await userEvent.click(await screen.findByRole('option', { name: 'United Kingdom' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Select local group' }))
-    await userEvent.click(await screen.findByRole('option', { name: 'Settings Town' }))
-    expect(screen.queryByLabelText('City / area')).toBeNull()
     await userEvent.type(screen.getByLabelText('Other skills'), 'juggling')
     await userEvent.click(await screen.findByLabelText(skill.name))
     await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
     await screen.findByText('Profile updated!')
-    const row = await me(vol.id)
-    expect(row).toMatchObject({
+    expect(await me(vol.id)).toMatchObject({
       name: 'Samantha',
       discordHandle: 'sam#1',
       signalNumber: '+1',
@@ -52,13 +46,27 @@ describe('settings — profile tab', () => {
       contactPreference: 'discord',
       contactNotes: 'evenings',
       availabilityHoursPerWeek: 4,
-      country: 'UK',
-      localGroup: 'Settings Town',
       otherSkills: 'juggling',
     })
     expect(
       await prisma.volunteerSkill.count({ where: { volunteerId: vol.id, skillId: skill.id } }),
     ).toBe(1)
+
+    // Location is its own section, saved on its own.
+    await userEvent.click(screen.getByRole('button', { name: 'Select country' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'United Kingdom' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Select local group' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Settings Town' }))
+    expect(screen.queryByLabelText('City / area')).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Save location' }))
+    await waitFor(() => expect(screen.getAllByText('Profile updated!')).toHaveLength(2))
+    await waitFor(async () =>
+      expect(await me(vol.id)).toMatchObject({
+        country: 'UK',
+        nationalChapterId: town.nationalChapterId,
+        localGroupId: town.id,
+      }),
+    )
 
     // "None of these" reveals the city input; a failed save is reported.
     await userEvent.click(screen.getByRole('button', { name: 'Select local group' }))
@@ -66,11 +74,11 @@ describe('settings — profile tab', () => {
       await screen.findByRole('option', { name: "None of these, I'll enter my city" }),
     )
     await userEvent.type(screen.getByLabelText('City / area'), 'Leeds')
-    await userEvent.click(screen.getByRole('button', { name: 'Select country' }))
-    await userEvent.click(await screen.findByRole('option', { name: 'Serbia' }))
-    expect(screen.getByLabelText('City / area')).toBeInTheDocument()
+    // Once given, the country is no longer edited here: it decides the chapter.
+    expect(await screen.findByText('United Kingdom · United Kingdom chapter')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Select country' })).toBeNull()
     localStorage.setItem('authToken', 'stale')
-    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save location' }))
     await screen.findByText('Unauthorized')
   })
 
@@ -204,7 +212,6 @@ describe('settings — notifications and privacy tabs', () => {
       await screen.findByRole('button', { name: 'Keep me in the loop about new projects' }),
     )
     await userEvent.click(screen.getByRole('option', { name: 'Send me a fortnightly digest' }))
-    await userEvent.click(screen.getByLabelText(/remote/i))
     // Both email categories start on; turn updates off, then needs-action off and on again.
     const needs = screen.getByLabelText(/^Things that need me/)
     const updates = screen.getByLabelText(/^Updates:/)
@@ -219,7 +226,6 @@ describe('settings — notifications and privacy tabs', () => {
     await screen.findByText('Profile updated!')
     expect(await me(vol.id)).toMatchObject({
       emailDigest: 'fortnightly',
-      notifyRemoteProjects: true,
       emailMutedCategories: ['update'],
       dailySummary: 'in_app_only',
     })

@@ -30,7 +30,6 @@ function fakeVolunteerData(id: number): {
   contactNotes: string
   otherSkills: string
   location: string
-  localGroup: string
 } {
   faker.seed(id)
   const firstName = faker.person.firstName()
@@ -47,7 +46,6 @@ function fakeVolunteerData(id: number): {
     contactNotes: faker.lorem.sentence(),
     otherSkills: faker.lorem.words({ min: 2, max: 5 }),
     location: `${faker.location.city()}, ${faker.location.country()}`,
-    localGroup: faker.location.city(),
   }
 }
 
@@ -66,9 +64,8 @@ export async function anonymise(db: Client): Promise<void> {
     contact_notes: string | null
     other_skills: string | null
     location: string | null
-    local_group: string | null
   }>(
-    'SELECT id, bio, discord_handle, signal_number, whatsapp_number, contact_notes, other_skills, location, local_group FROM volunteers',
+    'SELECT id, bio, discord_handle, signal_number, whatsapp_number, contact_notes, other_skills, location FROM volunteers',
   )
   for (const row of volunteerRows) {
     const f = fakeVolunteerData(row.id)
@@ -76,8 +73,8 @@ export async function anonymise(db: Client): Promise<void> {
       `UPDATE volunteers SET
         name = $1, email = $2, bio = $3, discord_handle = $4, signal_number = $5,
         whatsapp_number = $6, contact_notes = $7, other_skills = $8, location = $9,
-        local_group = $10, auth_token = NULL, auth_token_expires_at = NULL, password_hash = $11
-      WHERE id = $12`,
+        auth_token = NULL, auth_token_expires_at = NULL, password_hash = $10
+      WHERE id = $11`,
       [
         f.name,
         f.email,
@@ -88,7 +85,6 @@ export async function anonymise(db: Client): Promise<void> {
         row.contact_notes !== null ? f.contactNotes : null,
         row.other_skills !== null ? f.otherSkills : null,
         row.location !== null ? f.location : null,
-        row.local_group !== null ? f.localGroup : null,
         anonPasswordHash,
         row.id,
       ],

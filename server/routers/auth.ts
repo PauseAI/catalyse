@@ -2,6 +2,7 @@ import { ORPCError } from '@orpc/server'
 import { randomBytes, createHash } from 'crypto'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { chapterCarers } from '@/lib/chapter-access-server'
 import {
   verifyPassword,
   hashPassword,
@@ -26,7 +27,8 @@ import {
 } from '@/lib/email'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { verifyGoogleToken } from '@/lib/google-auth'
-import { notifyAdmins } from '@/lib/notify'
+import { notifyChapterStaff } from '@/lib/notify'
+import { placement } from '@/lib/chapter-placement'
 import {
   SignupSchema,
   CompleteGoogleSignupSchema,
@@ -72,7 +74,7 @@ async function sendAccountDeletionNotifications(deletedId: number, deletedName: 
       assigneeId: deletedId,
       status: { notIn: [ProjectStatus.completed, ProjectStatus.archived] },
     },
-    select: { id: true, title: true },
+    select: { id: true, title: true, nationalChapterId: true },
   })
   if (!taskRows.length && !ownedProjects.length) return
 
@@ -100,21 +102,20 @@ async function sendAccountDeletionNotifications(deletedId: number, deletedName: 
     })
   }
 
-  const ownerless = ownedProjects.map((p) => ({ projectId: p.id, projectTitle: p.title }))
-  if (ownerless.length) {
-    const admins = await prisma.volunteer.findMany({
-      where: { isAdmin: true, deletedAt: null, id: { not: deletedId } },
+  // An ownerless project is its chapter's staff's to find a new owner for.
+  for (const p of ownedProjects) {
+    const carers = await prisma.volunteer.findMany({
+      where: { id: { in: await chapterCarers(p.nationalChapterId), not: deletedId } },
       select: { id: true, name: true, email: true },
     })
-    for (const admin of admins) {
-      if (!recipients[admin.id])
-        recipients[admin.id] = {
-          name: admin.name,
-          email: admin.email,
-          taskProjects: [],
-          ownerlessProjects: [],
-        }
-      recipients[admin.id].ownerlessProjects = ownerless
+    for (const carer of carers) {
+      recipients[carer.id] ??= {
+        name: carer.name,
+        email: carer.email,
+        taskProjects: [],
+        ownerlessProjects: [],
+      }
+      recipients[carer.id].ownerlessProjects.push({ projectId: p.id, projectTitle: p.title })
     }
   }
 
@@ -291,6 +292,7 @@ export const authRouter = {
       })
     }
 
+    const placed = await placement(input.country, input.localGroup)
     const volunteer = await prisma.volunteer.create({
       data: {
         name: input.name,
@@ -305,8 +307,7 @@ export const authRouter = {
         contactNotes: input.contactNotes ?? null,
         availabilityHoursPerWeek: input.availabilityHoursPerWeek ?? null,
         location: input.location ?? null,
-        country: input.country ?? null,
-        localGroup: input.localGroup ?? null,
+        ...placed,
         locationConfirmedAt: new Date(),
         otherSkills: input.otherSkills ?? null,
         consentMakeProfileVisibleInDirectory: input.consentMakeProfileVisibleInDirectory ?? true,
@@ -354,7 +355,8 @@ export const authRouter = {
     const isApproved = !platformSettings.requireApplicationApproval
     if (!isApproved) {
       // Awaited so an approval that follows at once finds the row to clear.
-      await notifyAdmins(
+      await notifyChapterStaff(
+        volunteer.nationalChapterId,
         'new_volunteer_signup',
         'New volunteer application',
         `${volunteer.name} has applied to join Catalyse`,
@@ -398,6 +400,8 @@ export const authRouter = {
           orderBy: [{ skill: { category: { sortOrder: 'asc' } } }, { skill: { sortOrder: 'asc' } }],
         },
         skillEndorsementsReceived: { include: { skill: true } },
+        chapter: { select: { id: true, name: true, country: true } },
+        group: { select: { name: true } },
       },
     })
     if (!vol) throw new ORPCError('NOT_FOUND')
@@ -419,11 +423,12 @@ export const authRouter = {
         skillName: se.skill.name,
       })),
     })
-    const { viewingAsVolunteer } = context
+    const { viewingAsVolunteer, access } = context
+    const chapterInfo = { chapter: vol.chapter, access }
     // Super admin is decided by email address, so it has to be withdrawn here explicitly.
     return viewingAsVolunteer
-      ? { ...me, isAdmin: false, isSuperAdmin: false, viewingAsVolunteer }
-      : { ...me, viewingAsVolunteer }
+      ? { ...me, ...chapterInfo, isAdmin: false, isSuperAdmin: false, viewingAsVolunteer }
+      : { ...me, ...chapterInfo, viewingAsVolunteer }
   }),
 
   changePassword: authedProcedure
@@ -886,6 +891,7 @@ export const authRouter = {
         })
       }
 
+      const placed = await placement(input.country, input.localGroup)
       const volunteer = await prisma.volunteer.create({
         data: {
           name,
@@ -900,8 +906,7 @@ export const authRouter = {
           contactNotes: input.contactNotes ?? null,
           availabilityHoursPerWeek: input.availabilityHoursPerWeek,
           location: input.location ?? null,
-          country: input.country,
-          localGroup: input.localGroup ?? null,
+          ...placed,
           locationConfirmedAt: new Date(),
           otherSkills: input.otherSkills ?? null,
           consentMakeProfileVisibleInDirectory: input.consentMakeProfileVisibleInDirectory ?? true,

@@ -1,5 +1,6 @@
 import { test, expect } from '../fixtures'
 import { createApiClient } from '../client'
+import { ensureChapter, makeChapterStaff } from '../actions/chapters'
 
 test.describe('Admin Landing Page Stats', () => {
   test('Admin landing page shows volunteer/project/interest stat tiles and admin nav groups', async ({
@@ -65,33 +66,17 @@ test.describe('Admin Platform Settings', () => {
     await expect(adminPage.getByText('Settings saved')).toBeVisible({ timeout: 10_000 })
   })
 
-  test('A plain admin (not super admin) cannot access platform settings', async ({
-    adminPage,
-    volunteer,
-    baseUrl,
-  }) => {
-    // Make the volunteer a plain (non-super) admin via the invite flow — accepting an
-    // admin invite grants isAdmin without isSuperAdmin, which is keyed off ADMIN_EMAILS.
+  test('A chapter deputy cannot open platform settings', async ({ volunteer, baseUrl }) => {
     // Navigate first: a brand new page is about:blank, and localStorage is inaccessible there.
-    await adminPage.goto(`${baseUrl}/dashboard`)
-    const adminToken = await adminPage.evaluate(() => localStorage.getItem('authToken'))
-    const inviteResult = await createApiClient(baseUrl, adminToken).admin.admins.invite({
-      body: { email: volunteer.email },
-    })
-    expect(inviteResult.status).toBe(200)
-    const inviteToken = (inviteResult.body as { _dev_invite_token?: string })._dev_invite_token
-    expect(inviteToken).toBeTruthy()
-
     await volunteer.page.goto(`${baseUrl}/dashboard`)
     const volunteerToken = await volunteer.page.evaluate(() => localStorage.getItem('authToken'))
-    const acceptResult = await createApiClient(baseUrl, volunteerToken).admin.admins.acceptInvite({
-      body: { inviteToken: inviteToken! },
-    })
-    expect(acceptResult.status).toBe(200)
+    const me = await createApiClient(baseUrl, volunteerToken).auth.me()
+    await makeChapterStaff(baseUrl, me.body.id, await ensureChapter(baseUrl, 'UK'), 'DEPUTY')
 
     await volunteer.page.goto(`${baseUrl}/admin/platform-settings`)
     await expect(volunteer.page).not.toHaveURL(`${baseUrl}/admin/platform-settings`, {
       timeout: 10_000,
     })
+    await expect(volunteer.page.getByText('That page is for global admins.')).toBeVisible()
   })
 })

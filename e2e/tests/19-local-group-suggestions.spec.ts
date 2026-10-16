@@ -74,13 +74,9 @@ test.describe('Local Group Suggestions', () => {
 
     await volunteer.page.goto(`${baseUrl}/projects`)
     await volunteer.page.waitForLoadState('networkidle', { timeout: 15_000 })
-    await selectFilterDropdown(
-      volunteer.page,
-      'Country/Group filter',
-      `United Kingdom - ${groupName}`,
-    )
-    await expect(volunteer.page.getByLabel('Country/Group filter', { exact: true })).toContainText(
-      `United Kingdom - ${groupName}`,
+    await selectFilterDropdown(volunteer.page, 'Local group filter', groupName)
+    await expect(volunteer.page.getByLabel('Local group filter', { exact: true })).toContainText(
+      groupName,
     )
   })
 
@@ -100,17 +96,13 @@ test.describe('Local Group Suggestions', () => {
 
     await volunteer.page.goto(`${baseUrl}/projects`)
     await volunteer.page.waitForLoadState('networkidle', { timeout: 15_000 })
-    await selectFilterDropdown(
-      volunteer.page,
-      'Country/Group filter',
-      `United Kingdom - ${adjusted}`,
-    )
-    await expect(volunteer.page.getByLabel('Country/Group filter', { exact: true })).toContainText(
-      `United Kingdom - ${adjusted}`,
+    await selectFilterDropdown(volunteer.page, 'Local group filter', adjusted)
+    await expect(volunteer.page.getByLabel('Local group filter', { exact: true })).toContainText(
+      adjusted,
     )
   })
 
-  test('Accepted group appears in the propose-project country/local-group form', async ({
+  test('Accepted group appears in the propose-project local group picker', async ({
     volunteer,
     adminPage,
     baseUrl,
@@ -128,10 +120,11 @@ test.describe('Local Group Suggestions', () => {
 
     await selectFilterDropdown(
       volunteer.page,
-      'Select country/group',
-      `United Kingdom - ${groupName}`,
+      'Select where the project happens',
+      'In a local group',
     )
-    await expect(volunteer.page.getByLabel('Select country/group', { exact: true })).toContainText(
+    await selectFilterDropdown(volunteer.page, 'Select local group', groupName)
+    await expect(volunteer.page.getByLabel('Select local group', { exact: true })).toContainText(
       groupName,
     )
   })
@@ -341,10 +334,11 @@ test.describe('Admin Local Group Management', () => {
 
     await selectFilterDropdown(
       volunteer.page,
-      'Select country/group',
-      `United Kingdom - ${groupName}`,
+      'Select where the project happens',
+      'In a local group',
     )
-    await expect(volunteer.page.getByLabel('Select country/group', { exact: true })).toContainText(
+    await selectFilterDropdown(volunteer.page, 'Select local group', groupName)
+    await expect(volunteer.page.getByLabel('Select local group', { exact: true })).toContainText(
       groupName,
     )
   })

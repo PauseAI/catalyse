@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useRequireAdmin } from '@/lib/hooks/auth'
+import { useRequireStaff } from '@/lib/hooks/auth'
 import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query'
 import Button from '@/components/Button'
@@ -59,7 +59,7 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 export default function AdminLocalGroupsPage() {
-  const { user, loading } = useRequireAdmin()
+  const { user, loading } = useRequireStaff()
   const showToast = useToast()
   const queryClient = useQueryClient()
 
@@ -97,32 +97,32 @@ export default function AdminLocalGroupsPage() {
   const fetchDeclined = statusFilter === 'all' || statusFilter === 'declined'
 
   const { data: allGroupsData } = useQuery({
-    ...orpc.localGroups.list.queryOptions({ input: {} }),
-    enabled: !!user?.isAdmin,
+    ...orpc.admin.localGroups.list.queryOptions(),
+    enabled: !!user,
   })
   const allGroups: LocalGroup[] = (allGroupsData?.groups ?? []) as LocalGroup[]
 
   const [groupsResult, pendingResult, onHoldResult, declinedResult] = useQueries({
     queries: [
       {
-        ...orpc.admin.localGroups.list.queryOptions({ input: {} }),
-        enabled: !!user?.isAdmin && fetchGroups,
+        ...orpc.admin.localGroups.list.queryOptions(),
+        enabled: !!user && fetchGroups,
       },
       {
         ...orpc.admin.localGroups.listSuggestions.queryOptions({
           input: { status: LocalGroupSuggestionStatus.pending },
         }),
-        enabled: !!user?.isAdmin && fetchPending,
+        enabled: !!user && fetchPending,
       },
       {
         ...orpc.admin.localGroups.listSuggestions.queryOptions({
           input: { status: LocalGroupSuggestionStatus.on_hold },
         }),
-        enabled: !!user?.isAdmin && fetchOnHold,
+        enabled: !!user && fetchOnHold,
       },
       {
         ...orpc.admin.localGroups.listSuggestions.queryOptions({ input: { status: 'declined' } }),
-        enabled: !!user?.isAdmin && fetchDeclined,
+        enabled: !!user && fetchDeclined,
       },
     ],
   })
@@ -175,7 +175,7 @@ export default function AdminLocalGroupsPage() {
 
   const { data: deleteTargetProjectsData, isFetching: loadingDeleteProjects } = useQuery({
     ...orpc.projects.list.queryOptions({
-      input: { localGroup: deleteTarget?.name ?? '', limit: 100 },
+      input: { localGroupId: deleteTarget?.id ?? 0, limit: 100 },
     }),
     enabled: !!deleteTarget && deleteTarget.kind === 'group',
   })
@@ -197,6 +197,11 @@ export default function AdminLocalGroupsPage() {
   const deleteSuggestionMutation = useMutation({
     ...orpc.admin.localGroups.deleteSuggestion.mutationOptions(),
   })
+
+  // Chapter staff run their own country's groups; a global admin any country's.
+  const groupCountries = user?.access.globalAdmin
+    ? SUGGESTION_COUNTRIES
+    : SUGGESTION_COUNTRIES.filter((c) => c.value === '' || c.value === user?.chapter?.country)
 
   const displayItems = countryFilter ? items.filter((i) => i.country === countryFilter) : items
 
@@ -446,7 +451,7 @@ export default function AdminLocalGroupsPage() {
                     label="Country"
                     ariaLabel="Select country/group"
                     value={addCountry}
-                    options={SUGGESTION_COUNTRIES}
+                    options={groupCountries}
                     onChange={setAddCountry}
                     searchable
                   />
@@ -498,7 +503,7 @@ export default function AdminLocalGroupsPage() {
                     label="Country"
                     ariaLabel="Select country/group"
                     value={editCountry}
-                    options={SUGGESTION_COUNTRIES}
+                    options={groupCountries}
                     onChange={setEditCountry}
                     searchable
                   />

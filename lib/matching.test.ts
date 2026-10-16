@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calculateMatchScore, matchGradeLabel, isGeoEligible, MATCH_GRADES } from './matching'
+import { calculateMatchScore, matchGradeLabel, MATCH_GRADES } from './matching'
 
 describe('calculateMatchScore', () => {
   it('scores the overlap with required skills only', () => {
@@ -30,18 +30,5 @@ describe('matchGradeLabel', () => {
     expect(matchGradeLabel(2)).toBe('Good match')
     expect(matchGradeLabel(1)).toBe('Partial match')
     expect(matchGradeLabel(0)).toBeNull()
-  })
-})
-
-describe('isGeoEligible', () => {
-  it('is permissive when either country is unknown', () => {
-    expect(isGeoEligible(null, false, 'UK', 'NONE')).toBe(true)
-    expect(isGeoEligible('UK', false, null, 'NONE')).toBe(true)
-  })
-  it('matches same-country, and cross-country only for opted-in global remote', () => {
-    expect(isGeoEligible('UK', false, 'UK', 'NONE')).toBe(true)
-    expect(isGeoEligible('US', true, 'UK', 'GLOBAL')).toBe(true)
-    expect(isGeoEligible('US', false, 'UK', 'GLOBAL')).toBe(false)
-    expect(isGeoEligible('US', true, 'UK', 'COUNTRY')).toBe(false)
   })
 })

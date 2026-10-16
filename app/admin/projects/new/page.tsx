@@ -1,12 +1,12 @@
 'use client'
 
-import { useRequireAdmin } from '@/lib/hooks/auth'
+import { useRequireStaff } from '@/lib/hooks/auth'
 import { useRouter } from 'next/navigation'
 import ProjectEditor from '@/components/ProjectEditor'
 
 export default function AdminCreateProjectPage() {
   const router = useRouter()
-  const { user, loading } = useRequireAdmin()
+  const { user, loading } = useRequireStaff()
 
   if (loading || !user) return null
 

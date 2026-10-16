@@ -1,7 +1,7 @@
 'use client'
 
 import { use, useState } from 'react'
-import { useRequireAdmin } from '@/lib/hooks/auth'
+import { useRequireStaff } from '@/lib/hooks/auth'
 import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
@@ -92,7 +92,7 @@ type Tab = 'admin_notes' | 'quick_tasks' | 'project_history' | 'endorse_skill'
 
 export default function AdminVolunteerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const { user, loading } = useRequireAdmin()
+  const { user, loading } = useRequireStaff()
   const showToast = useToast()
   const queryClient = useQueryClient()
   const [submitting, setSubmitting] = useState(false)
@@ -123,12 +123,12 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
 
   const { data: vol, isPending: loadingData } = useQuery({
     ...orpc.admin.volunteers.getById.queryOptions({ input: { id: Number(id) } }),
-    enabled: !!user?.isAdmin,
+    enabled: !!user,
     select: (d) => d as unknown as VolunteerDetail,
   })
   const { data: flatSkills = [] } = useQuery({
     ...orpc.skills.list.queryOptions({ input: {} }),
-    enabled: !!user?.isAdmin,
+    enabled: !!user,
     select: (cats) =>
       cats.flatMap((cat) =>
         cat.skills.map((s) => ({ id: s.id, name: s.name, categoryName: cat.name })),

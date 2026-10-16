@@ -3,9 +3,12 @@ import { screen, waitFor, fireEvent, cleanup, within } from '@testing-library/re
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import {
+  createChapterDeputy,
+  createChapter,
+  createMember,
+  createLocalGroup,
   createVolunteer,
   createSuperAdmin,
-  createAdmin,
   createProject,
   createSkill,
   createTeam,
@@ -61,8 +64,14 @@ describe('projects directory', () => {
   })
 
   it('filters via the URL, pages the flat view, and clears filters', async () => {
-    const me = await createVolunteer()
-    const owner = await createVolunteer()
+    const chapter = await createChapter()
+    const london = await createLocalGroup({
+      name: 'London',
+      country: chapter.country,
+      nationalChapterId: chapter.id,
+    })
+    const me = await createMember(chapter)
+    const owner = await createMember(chapter)
     const team = await createTeam()
     await prisma.teamMembership.create({ data: { teamId: team.id, volunteerId: me.id } })
     for (let i = 0; i < 51; i++)
@@ -72,12 +81,14 @@ describe('projects directory', () => {
         status: 'in_progress',
         isSeekingHelp: false,
         urgency: 'low',
+        nationalChapterId: chapter.id,
       })
     await createProject({
       title: 'Urgent UK',
       urgency: 'high',
-      country: 'UK',
-      localGroup: 'London',
+      nationalChapterId: chapter.id,
+      reach: 'LOCAL',
+      localGroupId: london.id,
       teamId: team.id,
       isOrgProposed: true,
     })
@@ -114,8 +125,8 @@ describe('projects directory', () => {
     await screen.findByRole('link', { name: 'Urgent UK' })
     await userEvent.click(screen.getByRole('button', { name: 'Needs filter' }))
     await userEvent.click(screen.getByRole('option', { name: 'Not seeking' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Country/Group filter' }))
-    await userEvent.click(screen.getByRole('option', { name: 'United Kingdom - London' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Local group filter' }))
+    await userEvent.click(screen.getByRole('option', { name: 'London' }))
     await userEvent.click(screen.getByRole('button', { name: 'Team filter' }))
     await userEvent.click(screen.getByRole('option', { name: team.name }))
     await userEvent.click(screen.getByRole('button', { name: 'Sort filter' }))
@@ -147,6 +158,30 @@ describe('projects directory', () => {
     await waitFor(() => expect(screen.queryByText('In progress: 2 projects')).toBeNull())
     const links = screen.getAllByRole('link', { name: /^Sorted/ }).map((l) => l.textContent)
     expect(links).toEqual(['Sorted newer', 'Sorted older'])
+  })
+
+  it('clears the local group filter when a global admin switches chapters', async () => {
+    const [chapterA, chapterB] = [await createChapter(), await createChapter()]
+    const london = await createLocalGroup({
+      name: 'London',
+      country: chapterA.country,
+      nationalChapterId: chapterA.id,
+    })
+    await createProject({
+      nationalChapterId: chapterA.id,
+      reach: 'LOCAL',
+      localGroupId: london.id,
+    })
+    await renderApp(<ProjectsPage />, {
+      as: await createSuperAdmin(),
+      url: `/projects?chapter=${chapterA.id}`,
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Local group filter' }))
+    await userEvent.click(screen.getByRole('option', { name: 'London' }))
+    expect(window.location.search).toContain('group=')
+    await userEvent.click(screen.getByRole('button', { name: 'Chapter filter' }))
+    await userEvent.click(await screen.findByRole('option', { name: chapterB.name }))
+    await waitFor(() => expect(window.location.search).not.toContain('group='))
   })
 
   it('shows admin alerts, the all-teams filter, and the email confirmation error', async () => {
@@ -190,26 +225,27 @@ describe('projects directory', () => {
   it('says once, dismissibly, that an admin page turned the viewer away', async () => {
     const me = await createVolunteer()
     await renderApp(<ProjectsPage />, { as: me, url: '/projects?notice=no-access' })
-    const notice = await screen.findByText('That page is for admins.')
+    const notice = await screen.findByText("That page is for a chapter's organisers.")
     await waitFor(() => expect(window.location.search).toBe(''))
     await userEvent.click(
       within(notice.closest('[role=status]') as HTMLElement).getByLabelText('Dismiss'),
     )
-    expect(screen.queryByText('That page is for admins.')).toBeNull()
+    expect(screen.queryByText("That page is for a chapter's organisers.")).toBeNull()
   })
 
-  it('says a super-admin page is for super admins, and only they are offered its link', async () => {
-    const admin = await createAdmin()
-    await createVolunteer({ approvalStatus: 'pending' })
-    await renderApp(<ProjectsPage />, { as: admin, url: '/projects?notice=super-admin-only' })
-    await screen.findByText('That page is for super admins.')
+  it("says a global admin page is for global admins, and offers staff their chapter's queues", async () => {
+    const chapter = await createChapter()
+    const deputy = await createChapterDeputy(chapter)
+    await createMember(chapter, { approvalStatus: 'pending' })
+    await renderApp(<ProjectsPage />, { as: deputy, url: '/projects?notice=global-admin-only' })
+    await screen.findByText('That page is for global admins.')
     await waitFor(() => expect(window.location.search).toBe(''))
-    expect(screen.queryByText('That page is for admins.')).toBeNull()
-    // A regular admin is not offered the applications page they cannot open.
-    expect(screen.queryByRole('link', { name: /Review applications/ })).toBeNull()
-    cleanup()
-    await renderApp(<ProjectsPage />, { as: await createSuperAdmin(), url: '/projects' })
+    // Their chapter's applicant is theirs to review.
     expect(await screen.findByRole('link', { name: /Review applications/ })).toBeInTheDocument()
+    cleanup()
+    await renderApp(<ProjectsPage />, { as: await createVolunteer(), url: '/projects' })
+    await screen.findByRole('heading', { name: 'Projects' })
+    expect(screen.queryByRole('link', { name: /Review applications/ })).toBeNull()
   })
 
   it('switches between List and Timeline, and offers templates only once one exists', async () => {
@@ -227,8 +263,12 @@ describe('projects directory', () => {
     expect(screen.queryByRole('link', { name: 'Start from a template' })).toBeNull()
     cleanup()
 
+    // Templates are for chapter staff.
     await prisma.template.create({ data: { title: 'Stall kit', structure: '{}' } })
-    await renderApp(<ProjectsPage />, { as: me, url: '/projects' })
+    await renderApp(<ProjectsPage />, {
+      as: await createChapterDeputy(await createChapter()),
+      url: '/projects',
+    })
     expect(await screen.findByRole('link', { name: 'Start from a template' })).toHaveAttribute(
       'href',
       '/templates',

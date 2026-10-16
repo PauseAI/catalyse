@@ -254,7 +254,10 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
                     <Link href={`/projects/${p.id}`} className="font-semibold text-primary-dark">
                       {p.title}
                     </Link>
-                    <ProjectStatusBadge status={p.status} viewerIsAdmin={Boolean(user?.isAdmin)} />
+                    <ProjectStatusBadge
+                      status={p.status}
+                      viewerIsAdmin={Boolean(user?.isAdmin || user?.access.role)}
+                    />
                   </div>
                   <p className="text-sm text-text-light mt-1">
                     {p.role === 'owner' ? 'Project owner' : 'Proposer'}

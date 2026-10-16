@@ -116,7 +116,7 @@ export default function RoadmapPage() {
           rangeEnd={new Date(data!.scopeEnd)}
           // The server lets only a project's manager move it; across the whole roadmap that
           // is reliably true only for admins.
-          editable={Boolean(user.isAdmin)}
+          editable={Boolean(user.isAdmin || user.access.role)}
           onReschedule={(patch) =>
             reschedule.mutate({
               items: [
@@ -136,7 +136,7 @@ export default function RoadmapPage() {
 
       <p className="text-text-light mt-2 text-xs max-w-3xl">
         Each bar spans a project&apos;s tasks (or its set duration).
-        {user.isAdmin && (
+        {(user.isAdmin || user.access.role) && (
           <>
             {' '}
             Drag to shift a project; drag the dot onto another project to say &ldquo;this one comes

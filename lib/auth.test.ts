@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { createVolunteer, createAdmin } from '@/test/factories'
+import { createVolunteer, createAdmin, createStaffInvite } from '@/test/factories'
 import {
   hashPassword,
   verifyPassword,
@@ -14,8 +14,6 @@ import {
   deleteOtherSessions,
   getCurrentVolunteer,
   redactVolunteer,
-  requireAdmin,
-  requireSuperAdmin,
   isSuperAdmin,
   checkAdminBootstrap,
   acceptPendingInvite,
@@ -108,10 +106,33 @@ describe('sessions', () => {
   })
 })
 
+describe('getCurrentVolunteer and the global admin flag', () => {
+  const flagOf = async (id: number) =>
+    (await prisma.volunteer.findUniqueOrThrow({ where: { id } })).isAdmin
+
+  it('keeps isAdmin in step with ADMIN_EMAILS, whatever the stored flag says', async () => {
+    const listed = await createVolunteer({ email: 'admin15@example.com', isAdmin: false })
+    const signedIn = await getCurrentVolunteer(await createSession(listed.id))
+    expect(signedIn?.isAdmin).toBe(true)
+    expect(await flagOf(listed.id)).toBe(true)
+
+    const stale = await createVolunteer({ isAdmin: true })
+    expect((await getCurrentVolunteer(await createSession(stale.id)))?.isAdmin).toBe(false)
+    expect(await flagOf(stale.id)).toBe(false)
+
+    const plain = await createVolunteer()
+    expect((await getCurrentVolunteer(await createSession(plain.id)))?.isAdmin).toBe(false)
+  })
+})
+
 describe('redactVolunteer', () => {
   it('hides contact fields unless showContact, and reports super-admin status', async () => {
-    const vol = await createVolunteer({ email: 'admin@example.com', discordHandle: 'd' })
+    const vol = {
+      ...(await createVolunteer({ email: 'admin@example.com', discordHandle: 'd' })),
+      group: { name: 'Leeds' },
+    }
     const hidden = redactVolunteer(vol)
+    expect(hidden.localGroup).toBe('Leeds')
     expect(hidden.email).toBeUndefined()
     expect(hidden.discordHandle).toBeUndefined()
     expect(hidden.isSuperAdmin).toBe(true)
@@ -124,27 +145,10 @@ describe('redactVolunteer', () => {
   })
 })
 
-describe('requireAdmin / requireSuperAdmin', () => {
-  it('returns 401, 403 or the volunteer', async () => {
-    expect((await requireAdmin(null)).error?.status).toBe(401)
-    const vol = await createVolunteer()
-    const t = await createSession(vol.id)
-    expect((await requireAdmin(t)).error?.status).toBe(403)
-    const admin = await createAdmin()
-    const at = await createSession(admin.id)
-    expect((await requireAdmin(at)).volunteer?.id).toBe(admin.id)
-    expect((await requireSuperAdmin(at)).error?.status).toBe(403)
-    expect((await requireSuperAdmin(t)).error?.status).toBe(403)
-    const superAdmin = await createAdmin({ email: 'Admin@Example.com' })
-    const st = await createSession(superAdmin.id)
-    expect((await requireSuperAdmin(st)).volunteer?.id).toBe(superAdmin.id)
-  })
-
+describe('isSuperAdmin', () => {
   it('refuses an admin whose listed address is unconfirmed', async () => {
     const squatter = await createAdmin({ email: 'admin18@example.com', emailConfirmed: false })
-    const token = await createSession(squatter.id)
-    expect((await requireSuperAdmin(token)).error?.status).toBe(403)
-    expect(redactVolunteer(squatter).isSuperAdmin).toBe(false)
+    expect(redactVolunteer({ ...squatter, group: null }).isSuperAdmin).toBe(false)
   })
 
   it('isSuperAdmin is case-insensitive, false for empty and false until confirmed', () => {
@@ -159,13 +163,11 @@ describe('requireAdmin / requireSuperAdmin', () => {
 describe('isEntitledToAdmin', () => {
   it('is true for a confirmed listed address or a confirmed pending invite', async () => {
     const inviter = await createAdmin()
-    await prisma.adminInvite.create({
-      data: {
-        email: 'entitled@example.com',
-        inviteToken: 'entitled-tok',
-        invitedById: inviter.id,
-        expiresAt: new Date(Date.now() + 60_000),
-      },
+    await createStaffInvite({
+      email: 'entitled@example.com',
+      inviteToken: 'entitled-tok',
+      invitedById: inviter.id,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     const invited = { email: 'Entitled@example.com', emailConfirmed: true }
     expect(await isEntitledToAdmin(invited)).toBe(true)
@@ -231,13 +233,11 @@ describe('acceptPendingInvite', () => {
     const inviter = await createAdmin()
     const vol = await createVolunteer({ email: 'invitee@example.com', approvalStatus: 'pending' })
     expect(await acceptPendingInvite(vol)).toBe(false)
-    const invite = await prisma.adminInvite.create({
-      data: {
-        email: 'Invitee@Example.com',
-        inviteToken: 'tok',
-        invitedById: inviter.id,
-        expiresAt: new Date(Date.now() + 60_000),
-      },
+    const invite = await createStaffInvite({
+      email: 'Invitee@Example.com',
+      inviteToken: 'tok',
+      invitedById: inviter.id,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     expect(await acceptPendingInvite({ ...vol, emailConfirmed: false })).toBe(false)
     expect(await acceptPendingInvite({ ...vol, email: null })).toBe(false)
@@ -248,8 +248,9 @@ describe('acceptPendingInvite', () => {
     const after = await prisma.adminInvite.findUniqueOrThrow({ where: { id: invite.id } })
     expect(after).toMatchObject({ status: 'accepted', acceptedById: vol.id })
     expect(await prisma.volunteer.findUniqueOrThrow({ where: { id: vol.id } })).toMatchObject({
-      isAdmin: true,
+      nationalChapterId: invite.nationalChapterId,
       approvalStatus: 'approved',
     })
+    expect(await prisma.chapterDeputy.findUnique({ where: { volunteerId: vol.id } })).not.toBeNull()
   })
 })

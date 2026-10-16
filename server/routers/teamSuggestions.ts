@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { TeamSuggestionBodySchema } from '@/lib/schemas'
-import { notifyAdmins } from '@/lib/notify'
+import { notifyChapterStaff } from '@/lib/notify'
 import { html } from '@/lib/email'
 import { authedProcedure, approvedProcedure } from '../procedures'
 
@@ -30,11 +30,13 @@ export const teamSuggestionsRouter = {
         name: input.name,
         description: input.description ?? null,
         suggestedById: context.volunteer.id,
+        nationalChapterId: context.volunteer.nationalChapterId,
       },
     })
 
     const title = `New team suggestion: ${input.name}`
-    await notifyAdmins(
+    await notifyChapterStaff(
+      suggestion.nationalChapterId,
       'team_suggestion',
       title,
       null,

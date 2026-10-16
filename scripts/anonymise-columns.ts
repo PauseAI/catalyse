@@ -20,6 +20,9 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
   admin_notes: { content: 'redact', category: 'keep' },
   anonymised_emails: { email_hash: 'token' },
   bug_report_comments: { content: 'redact' },
+  // Ids and enum values only; never free text.
+  chapter_audit_events: { details: 'keep' },
+  chapter_transfer_requests: { to_country: 'keep', reason: 'redact', decision_note: 'redact' },
   bug_reports: {
     reporter_email: 'null',
     title: 'redact',
@@ -53,6 +56,7 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
   experimental_outreach_sessions: { token_hash: 'rows-deleted' },
   local_group_suggestions: { name: 'keep', country: 'keep', admin_notes: 'redact' },
   local_groups: { name: 'keep', country: 'keep' },
+  national_chapters: { country: 'keep', name: 'keep' },
   notifications: { type: 'keep', title: 'redact', body: 'null', link: 'keep' },
   password_reset_tokens: { token: 'token' },
   project_review_requests: { message: 'redact' },
@@ -88,7 +92,6 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
     password_hash: 'custom',
     country: 'keep',
     email_digest: 'keep',
-    local_group: 'custom',
     application_message: 'redact',
     application_admin_notes: 'redact',
     application_applicant_notes: 'redact',
@@ -114,7 +117,5 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
     collaboration_link: 'keep',
     outcome: 'keep',
     outcome_notes: 'redact',
-    country: 'keep',
-    local_group: 'keep',
   },
 }

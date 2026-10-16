@@ -19,7 +19,7 @@ test.describe('Access Control', () => {
   test('Non-admin cannot access admin triage', async ({ volunteer, baseUrl }) => {
     await volunteer.page.goto(`${baseUrl}/admin/triage`)
     await volunteer.page.waitForURL(/\/projects/, { timeout: 10_000 })
-    await expect(volunteer.page.getByText('That page is for admins.')).toBeVisible({
+    await expect(volunteer.page.getByText("That page is for a chapter's organisers.")).toBeVisible({
       timeout: 10_000,
     })
   })

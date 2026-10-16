@@ -172,6 +172,15 @@ async function setupAdminAuth(parallelIndex: number): Promise<void> {
   fs.mkdirSync(path.dirname(authFile), { recursive: true })
   await context.storageState({ path: authFile })
 
+  // The UK has a chapter, as in production, so the fixtures' UK volunteers and the admin
+  // share one. Specs about chapters themselves open chapters for other countries.
+  const token = await page.evaluate(() => localStorage.getItem('authToken'))
+  const api = createApiClient(baseUrl, token)
+  const { body } = await api.admin.chapters.list()
+  if (!body.chapters.some((c) => c.country === 'UK')) {
+    await api.admin.chapters.create({ body: { country: 'UK' } })
+  }
+
   await browser.close()
 }
 

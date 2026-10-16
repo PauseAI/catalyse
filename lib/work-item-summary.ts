@@ -78,7 +78,7 @@ export type SummaryViewer = {
   id: number
   isAdmin: boolean | null
   approvalStatus: string
-  country: string | null
+  nationalChapterId: number | null
 }
 
 /**
@@ -106,7 +106,7 @@ export async function loadWorkItemSummaries(
     id: viewer.id,
     isAdmin: Boolean(viewer.isAdmin),
     isApproved: viewer.approvalStatus === ApprovalStatus.approved,
-    country: viewer.country,
+    nationalChapterId: viewer.nationalChapterId,
   }
   const visible = items.filter((i) =>
     canViewWorkItem(i, access, i.parent, i.parent ? privies.get(i.parent.id) : undefined),

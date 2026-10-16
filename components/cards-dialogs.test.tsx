@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
-import { createVolunteer } from '@/test/factories'
+import { createAdmin, createVolunteer } from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { ProjectCard, ProjectList, type Project } from './ProjectCard'
 import BugReportDialog from './BugReportDialog'
@@ -13,6 +13,7 @@ const base: Project = {
   status: 'in_progress',
   description: 'x'.repeat(200),
   owner: { name: 'Owen' },
+  reach: 'COUNTRY_WIDE',
   skills: [
     { id: 1, name: 'A', isRequired: true },
     { id: 2, name: 'B', isRequired: true },
@@ -23,6 +24,18 @@ const base: Project = {
 }
 
 describe('ProjectCard', () => {
+  it("names each project's chapter for a global admin, who sees every chapter", async () => {
+    await renderApp(
+      <>
+        <ProjectCard project={{ ...base, reach: 'REMOTE', chapterName: 'Kenya' }} />
+        <ProjectCard project={{ ...base, id: 2, title: 'Pooled', chapterName: null }} />
+      </>,
+      { as: await createAdmin() },
+    )
+    expect(await screen.findByText('📍 Kenya · Remote')).toBeInTheDocument()
+    expect(screen.getByText('📍 Holding pool')).toBeInTheDocument()
+  })
+
   it('renders the owned, populated card with badges, meta line and skill overflow', () => {
     render(
       <ProjectCard
@@ -31,9 +44,8 @@ describe('ProjectCard', () => {
           isSeekingHelp: true,
           needsTasks: true,
           daysLate: 2,
-          country: 'UK',
+          reach: 'LOCAL',
           localGroup: 'Leeds',
-          remoteEligibility: 'GLOBAL',
           team: { id: 1, name: 'Ops' },
           isMyTeam: true,
           projectType: 'sprint',
@@ -56,7 +68,7 @@ describe('ProjectCard', () => {
     // A list that does not say whether the viewer leads it shows the lateness filled.
     expect(screen.getByText('2 days late')).toHaveAttribute('data-emphasis', 'filled')
     expect(screen.getByText('👤 Owen')).toBeInTheDocument()
-    expect(screen.getByText('📍 Remote · Global · United Kingdom · Leeds')).toBeInTheDocument()
+    expect(screen.getByText('📍 Leeds')).toBeInTheDocument()
     expect(screen.getByText('🧑‍🤝‍🧑 Ops')).toBeInTheDocument()
     expect(screen.getByText('📋 Sprint')).toBeInTheDocument()
     expect(screen.getByText('🕐 3h/week')).toBeInTheDocument()

@@ -117,7 +117,7 @@ export default function TeamsPage() {
                   </div>
                 </div>
                 <div className="shrink-0">
-                  {user.isAdmin || team.viewerRole === 'leader' ? (
+                  {team.viewerCanAdmin || team.viewerRole === 'leader' ? (
                     <Link href={`/admin/teams/${team.id}`}>
                       <Button size="sm" variant="secondary">
                         Manage members

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { DragEndEvent } from '@dnd-kit/core'
 import { prisma } from '@/lib/prisma'
 import {
+  createLocalGroup,
   connect,
   createVolunteer,
   createAdmin,
@@ -51,9 +52,7 @@ describe('project page — visitor', () => {
       status: 'in_progress',
       isSeekingHelp: true,
       collaborationLink: 'https://doc.example',
-      country: 'UK',
-      localGroup: 'Leeds',
-      remoteEligibility: 'GLOBAL',
+      reach: 'REMOTE',
       teamId: team.id,
       projectType: 'sprint',
       timeCommitmentHoursPerWeek: 3,
@@ -1351,7 +1350,7 @@ describe('project page — admin', () => {
     const proposer = await createVolunteer({ name: 'Pat Proposer' })
     const newOwner = await createVolunteer({
       name: 'Nina New',
-      localGroup: 'Oslo',
+      localGroupId: (await createLocalGroup({ name: 'Oslo', country: 'Norway' })).id,
       country: 'Norway',
     })
     const otherOwner = await createVolunteer({ name: 'Oli Other' })
@@ -2207,7 +2206,10 @@ describe('project page — a completed project', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Reopen project' }))
     const ask = await screen.findByRole('dialog', { name: "Reopen 'Finished campaign'?" })
     // Taken off the admin list in the meantime.
-    await prisma.volunteer.update({ where: { id: admin.id }, data: { isAdmin: false } })
+    await prisma.volunteer.update({
+      where: { id: admin.id },
+      data: { email: 'former-admin@example.com' },
+    })
     await userEvent.click(within(ask).getByRole('button', { name: 'Reopen' }))
     await screen.findByText('Not authorized to edit this project')
     expect(await row(project.id)).toMatchObject({ status: 'completed' })

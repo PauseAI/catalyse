@@ -1,9 +1,25 @@
 import { describe, it, expect, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { connect, createAdmin, createProject, createTask, createVolunteer } from '@/test/factories'
+import {
+  connect,
+  createAdmin,
+  createChapter,
+  createChapterDeputy,
+  createMember,
+  createProject,
+  createTask,
+  createVolunteer,
+} from '@/test/factories'
+
+type Person = Awaited<ReturnType<typeof createVolunteer>>
+const canReach = async (viewer: Person, id: number) =>
+  reachWith(viewer, await loadAccess(viewer), id)
+const contactRelations = async (viewer: Person, ids: number[]) =>
+  relationsWith(viewer, await loadAccess(viewer), ids)
 import { clientAs } from '@/test/rpc'
 import { emails } from '@/test/fakes/email'
-import { contactRelations, canReach } from '@/lib/contact'
+import { contactRelations as relationsWith, canReach as reachWith, worksWith } from '@/lib/contact'
+import { loadAccess } from '@/lib/chapter-access-server'
 import { isActiveRecently, touchLastActive } from '@/lib/activity'
 
 const helps = (volunteerId: number, workItemId: number, status = 'accepted' as const) =>
@@ -56,6 +72,33 @@ describe('who may reach whom', () => {
       requested: new Set([owner.id]),
     })
     expect((await contactRelations(owner, [other.id])).requested.size).toBe(0)
+  })
+
+  it('keeps contact within a chapter, but for global admins', async () => {
+    const [home, away] = [await createChapter(), await createChapter()]
+    const owner = await createMember(home)
+    const local = await createMember(home)
+    const abroad = await createMember(away)
+    const deputy = await createChapterDeputy(home)
+    const admin = await createAdmin()
+    // Working together across chapters, from before chapters existed, opens no contact.
+    const p = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    await helps(local.id, p.id)
+    await helps(abroad.id, p.id)
+    await connect(abroad, local)
+
+    expect(await canReach(owner, local.id)).toBe(true)
+    expect(await canReach(owner, abroad.id)).toBe(false)
+    expect(await canReach(local, abroad.id)).toBe(false)
+    expect(await worksWith(owner.id, abroad.id)).toBe(true)
+    // Staff reach everyone in their own chapter, and nobody beyond it.
+    expect(await canReach(deputy, local.id)).toBe(true)
+    expect(await canReach(deputy, abroad.id)).toBe(false)
+    expect(await canReach(admin, abroad.id)).toBe(true)
+    expect(await contactRelations(owner, [abroad.id])).toEqual({
+      reachable: new Set(),
+      requested: new Set(),
+    })
   })
 })
 
@@ -171,6 +214,18 @@ describe('contacts.request / respond', () => {
     await expect(
       clientAs(busy).contacts.request({ toVolunteerId: me.id, message: note }),
     ).rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' })
+  })
+
+  it('sends no request to someone in another chapter', async () => {
+    const [home, away] = [await createChapter(), await createChapter()]
+    const me = await createMember(home)
+    const abroad = await createMember(away)
+    await expect(
+      clientAs(me).contacts.request({
+        toVolunteerId: abroad.id,
+        message: 'Hello from the other side of the border',
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
   })
 
   it('offers Accept and Decline in the Inbox to the person asked', async () => {

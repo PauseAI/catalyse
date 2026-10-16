@@ -1,13 +1,13 @@
 'use client'
 
-import { useRequireAdmin } from '@/lib/hooks/auth'
+import { useRequireStaff } from '@/lib/hooks/auth'
 import { useQuery } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { SECTION_CARD } from '@/lib/ui-classes'
 
 export default function AdminProjectsPage() {
-  const { user, loading } = useRequireAdmin()
+  const { user, loading } = useRequireStaff()
 
   const { data: drafts = [] } = useQuery({
     ...orpc.admin.projects.myDrafts.queryOptions(),

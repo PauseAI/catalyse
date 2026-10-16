@@ -1,16 +1,18 @@
 import { prisma } from './prisma'
+import { isStaff, type ChapterAccess } from './chapter-access'
 import { ContactRequestStatus, InterestStatus, WorkItemType } from '@/generated/prisma/enums'
 
 /**
  * Who may see whose contact details and message whom.
  *
- * People who work together may: a project's owner and everyone on it (accepted helpers and
- * task holders), including those helpers with each other. So may two people once one has
- * accepted the other's contact request. Admins may reach anyone, and everyone sees their own.
- * Anyone else in the directory can be sent a contact request instead.
+ * Only within a chapter (the holding pool counts as one): there, people who work together may,
+ * a project's owner and everyone on it (accepted helpers and task holders), including those
+ * helpers with each other. So may two people once one has accepted the other's contact request.
+ * A chapter's staff may reach anyone in it, a global admin anyone at all, and everyone sees their
+ * own. Anyone else in the viewer's chapter's directory can be sent a contact request instead.
  */
 
-type Viewer = { id: number; isAdmin: boolean | null }
+type Viewer = { id: number }
 
 /** The projects a volunteer owns or is on. */
 async function projectIdsOf(volunteerIds: number[]): Promise<Map<number, Set<number>>> {
@@ -56,16 +58,27 @@ export interface ContactRelations {
 /** The viewer's relation to each of `targetIds`, in a few queries for a whole list. */
 export async function contactRelations(
   viewer: Viewer,
+  access: ChapterAccess,
   targetIds: number[],
 ): Promise<ContactRelations> {
-  const others = targetIds.filter((id) => id !== viewer.id)
   const reachable = new Set<number>(targetIds.includes(viewer.id) ? [viewer.id] : [])
   const requested = new Set<number>()
-  if (others.length === 0) return { reachable, requested }
-  if (viewer.isAdmin) {
+  const candidates = targetIds.filter((id) => id !== viewer.id)
+  if (candidates.length === 0) return { reachable, requested }
+  if (access.globalAdmin) {
+    for (const id of candidates) reachable.add(id)
+    return { reachable, requested }
+  }
+  const sameChapter = await prisma.volunteer.findMany({
+    where: { id: { in: candidates }, nationalChapterId: access.chapterId },
+    select: { id: true },
+  })
+  const others = sameChapter.map((v) => v.id)
+  if (isStaff(access)) {
     for (const id of others) reachable.add(id)
     return { reachable, requested }
   }
+  if (others.length === 0) return { reachable, requested }
 
   const [projects, requests] = await Promise.all([
     projectIdsOf([viewer.id, ...others]),
@@ -95,6 +108,17 @@ export async function contactRelations(
 }
 
 /** May the viewer see this volunteer's contact details and message them? */
-export async function canReach(viewer: Viewer, targetId: number): Promise<boolean> {
-  return (await contactRelations(viewer, [targetId])).reachable.has(targetId)
+export async function canReach(
+  viewer: Viewer,
+  access: ChapterAccess,
+  targetId: number,
+): Promise<boolean> {
+  return (await contactRelations(viewer, access, [targetId])).reachable.has(targetId)
+}
+
+/** Whether two volunteers are on a project together, whatever their chapters. */
+export async function worksWith(a: number, b: number): Promise<boolean> {
+  const projects = await projectIdsOf([a, b])
+  const theirs = projects.get(b) as Set<number>
+  return [...(projects.get(a) as Set<number>)].some((p) => theirs.has(p))
 }

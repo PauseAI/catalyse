@@ -248,7 +248,11 @@ export interface ApiVolunteer {
   email: string
 }
 
-export async function createPendingVolunteer(baseUrl: string): Promise<ApiVolunteer> {
+/** `country` places them in that country's chapter, or the holding pool where it has none. */
+export async function createPendingVolunteer(
+  baseUrl: string,
+  { country = 'UK' }: { country?: string } = {},
+): Promise<ApiVolunteer> {
   const person = fake.person()
   const api = createApiClient(baseUrl)
   const result = await api.auth.signup({
@@ -257,7 +261,7 @@ export async function createPendingVolunteer(baseUrl: string): Promise<ApiVolunt
       email: person.email,
       password: 'testpassword1',
       bio: 'e2e test bio, at least twenty characters long',
-      country: 'UK',
+      country,
       availabilityHoursPerWeek: 5,
       applicationMessage: 'e2e test application message',
       consentMakeProfileVisibleInDirectory: true,
@@ -277,8 +281,11 @@ export async function createPendingVolunteer(baseUrl: string): Promise<ApiVolunt
   return { id, token, name: person.name, email: person.email }
 }
 
-export async function createApprovedVolunteer(baseUrl: string): Promise<ApiVolunteer> {
-  const pending = await createPendingVolunteer(baseUrl)
+export async function createApprovedVolunteer(
+  baseUrl: string,
+  options: { country?: string } = {},
+): Promise<ApiVolunteer> {
+  const pending = await createPendingVolunteer(baseUrl, options)
   await approveVolunteer(baseUrl, pending.id, pending.token)
   return pending
 }
@@ -377,6 +384,14 @@ export async function reopenApplication(
     params: { id: volunteerId },
     body: { action: 'reopen', ...(applicantNotes && { applicantNotes }) },
   })
+}
+
+/** A browser signed in with a volunteer's token, as the volunteer fixture's is. */
+export async function signedInPage(browser: Browser, token: string): Promise<Page> {
+  const context = await browser.newContext()
+  await context.addInitScript((t: string) => localStorage.setItem('authToken', t), token)
+  await context.addInitScript(dismissCookieConsentScript)
+  return context.newPage()
 }
 
 export function getAlert(page: Page) {

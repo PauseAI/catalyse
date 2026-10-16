@@ -294,7 +294,7 @@ export default function TaskDetailPage({
           status={task.projectStatus}
           completedAt={task.projectCompletedAt}
           reopen={
-            user.isAdmin || task.projectOwnerId === user.id
+            task.viewerCanAdmin || task.projectOwnerId === user.id
               ? { projectId, title: task.projectTitle }
               : undefined
           }

@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { client } from '@/lib/client'
+import type { ChapterAccess } from '@/lib/chapter-access'
 
 interface User {
   id: number
@@ -10,8 +11,11 @@ interface User {
   name: string
   isAdmin: boolean
   isSuperAdmin: boolean
-  /** An admin browsing as a volunteer: `isAdmin` and `isSuperAdmin` read false meanwhile. */
+  /** An admin browsing as a volunteer: `isAdmin`, `isSuperAdmin` and staff roles read false meanwhile. */
   viewingAsVolunteer: boolean
+  /** Null: the holding pool. */
+  chapter: { id: number; name: string; country: string } | null
+  access: ChapterAccess
   approvalStatus: string
   emailConfirmed: boolean
   hasPassword: boolean
@@ -122,6 +126,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AuthContext.Provider>
   )
+}
+
+/** The signed-in user, for a component that may also be shown outside the app's providers. */
+export function useOptionalUser() {
+  return useContext(AuthContext)?.user ?? null
 }
 
 export function useAuth() {

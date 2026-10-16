@@ -1,67 +1,10 @@
 import { InferRouterOutputs } from '@orpc/server'
 import { FilterOption } from '@/components/FilterDropdown'
 import { AppRouter } from '@/server/router'
+import { COUNTRIES, OTHER_COUNTRY, countryName } from './countries'
 
 export type LocalGroupOption =
   InferRouterOutputs<AppRouter>['localGroups']['list']['groups'][number]
-
-export const BASE_LOCATION_OPTIONS: FilterOption[] = [
-  { value: '', label: 'Any country' },
-  { value: 'Remote', label: 'Remote' },
-  { value: 'Australia', label: 'Australia' },
-  // { value: 'Austria', label: 'Austria' },
-  { value: 'Belgium', label: 'Belgium' },
-  // { value: 'Brazil', label: 'Brazil' },
-  { value: 'Canada', label: 'Canada' },
-  { value: 'Czech Republic', label: 'Czech Republic' },
-  // { value: 'Denmark', label: 'Denmark' },
-  // { value: 'Finland', label: 'Finland' },
-  { value: 'France', label: 'France' },
-  { value: 'Germany', label: 'Germany' },
-  { value: 'Ghana', label: 'Ghana' },
-  // { value: 'India', label: 'India' },
-  // { value: 'Ireland', label: 'Ireland' },
-  { value: 'Italy', label: 'Italy' },
-  // { value: 'Japan', label: 'Japan' },
-  { value: 'Kenya', label: 'Kenya' },
-  // { value: 'Mexico', label: 'Mexico' },
-  { value: 'Netherlands', label: 'Netherlands' },
-  // { value: 'New Zealand', label: 'New Zealand' },
-  { value: 'Nigeria', label: 'Nigeria' },
-  // { value: 'Norway', label: 'Norway' },
-  { value: 'Poland', label: 'Poland' },
-  // { value: 'Portugal', label: 'Portugal' },
-  { value: 'Romania', label: 'Romania' },
-  { value: 'Serbia', label: 'Serbia' },
-  // { value: 'Singapore', label: 'Singapore' },
-  // { value: 'South Korea', label: 'South Korea' },
-  { value: 'Spain', label: 'Spain' },
-  { value: 'Sweden', label: 'Sweden' },
-  { value: 'Switzerland', label: 'Switzerland' },
-  { value: 'UK', label: 'United Kingdom' },
-  { value: 'US', label: 'United States' },
-  { value: 'Other', label: 'Other' },
-]
-
-export function buildLocationOptions(
-  groups: Pick<LocalGroupOption, 'name' | 'country'>[],
-): FilterOption[] {
-  const result: FilterOption[] = []
-  for (const option of BASE_LOCATION_OPTIONS) {
-    result.push(option)
-    if (!option.indent && option.value) {
-      const countryGroups = groups.filter((g) => g.country === option.value)
-      for (const g of countryGroups) {
-        result.push({
-          value: `${option.value}:${g.name}`,
-          label: `${option.label} - ${g.name}`,
-          indent: true,
-        })
-      }
-    }
-  }
-  return result
-}
 
 export const NO_LOCAL_GROUP = '__none__'
 
@@ -77,17 +20,18 @@ export function buildLocalGroupOptionsForCountry(
   ]
 }
 
+/** The countries a person can say they live in. */
 export const COUNTRY_OPTIONS: FilterOption[] = [
   { value: '', label: 'Select…' },
-  ...BASE_LOCATION_OPTIONS.filter((o) => o.value !== '' && !o.indent),
+  ...COUNTRIES,
+  { value: OTHER_COUNTRY, label: 'Other' },
 ]
 
-// Stored country values are short codes/names (e.g. "UK"); this resolves the
-// display label (e.g. "United Kingdom") so raw values are never shown in the UI.
-// Falls back to the raw value for anything not in BASE_LOCATION_OPTIONS.
+// Stored country values are short codes/names (e.g. "UK"); this resolves the display label
+// (e.g. "United Kingdom") so raw values are never shown in the UI. Falls back to the raw value
+// for anything not listed.
 export function countryLabel(value: string | null | undefined): string {
-  if (!value) return ''
-  return BASE_LOCATION_OPTIONS.find((o) => o.value === value)?.label ?? value
+  return value ? countryName(value) : ''
 }
 
 /**
@@ -105,18 +49,18 @@ export function volunteerLocation(v: {
   return [...new Set(parts)].join(' · ')
 }
 
-// Builds the parts of a project's location line, e.g. ['Remote', 'Global', 'United Kingdom', 'London']
-// for a worldwide-remote project, or ['United Kingdom', 'London'] for an in-person one.
-// Join with ' · ' and prefix with 📍 to render.
+/**
+ * The parts of a project's location line, e.g. ['Remote'] or ['London'], with its chapter's name
+ * first when given (for a global admin, who sees every chapter). Join with ' · ' and prefix with
+ * 📍 to render.
+ */
 export function projectLocationParts(
-  country: string | null | undefined,
+  reach: string,
   localGroup: string | null | undefined,
-  remoteEligibility: string | null | undefined,
+  chapterName?: string | null,
 ): string[] {
-  const parts: string[] = []
-  if (remoteEligibility === 'COUNTRY' || remoteEligibility === 'GLOBAL') parts.push('Remote')
-  if (remoteEligibility === 'GLOBAL') parts.push('Global')
-  if (country) parts.push(countryLabel(country))
+  const parts = chapterName ? [chapterName] : []
+  if (reach === 'REMOTE') parts.push('Remote')
   if (localGroup) parts.push(localGroup)
   return parts
 }

@@ -8,6 +8,11 @@ import {
   createQuickTask,
   createSkill,
   TEST_PASSWORD,
+  createStaffInvite,
+  createChapter,
+  createChapterDeputy,
+  createLocalGroup,
+  createMember,
 } from '@/test/factories'
 import { clientAs, anon } from '@/test/rpc'
 import { rateLimit } from '@/test/fakes/rate-limit'
@@ -75,31 +80,27 @@ describe('auth.login', () => {
     ).toBe(true)
     const inviter = await createAdmin()
     const invited = await createVolunteer({ email: 'invited@example.com' })
-    await prisma.adminInvite.create({
-      data: {
-        email: 'invited@example.com',
-        inviteToken: 't1',
-        invitedById: inviter.id,
-        expiresAt: new Date(Date.now() + 60_000),
-      },
+    await createStaffInvite({
+      email: 'invited@example.com',
+      inviteToken: 't1',
+      invitedById: inviter.id,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     const res = await anon().auth.login({ email: 'invited@example.com', password: TEST_PASSWORD })
     expect(res.message).toContain('granted admin access')
-    expect((await prisma.volunteer.findUniqueOrThrow({ where: { id: invited.id } })).isAdmin).toBe(
-      true,
-    )
+    expect(
+      await prisma.chapterDeputy.findUnique({ where: { volunteerId: invited.id } }),
+    ).not.toBeNull()
   })
   it('does not promote an account whose email is unconfirmed', async () => {
     // A pending applicant repoints their account at an invited address (or an
     // ADMIN_EMAILS address) without ever confirming it, then logs back in.
     const inviter = await createAdmin()
-    await prisma.adminInvite.create({
-      data: {
-        email: 'ceo@example.com',
-        inviteToken: 't-unconfirmed',
-        invitedById: inviter.id,
-        expiresAt: new Date(Date.now() + 60_000),
-      },
+    await createStaffInvite({
+      email: 'ceo@example.com',
+      inviteToken: 't-unconfirmed',
+      invitedById: inviter.id,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     for (const target of ['ceo@example.com', 'admin12@example.com']) {
       const applicant = await createVolunteer({ approvalStatus: 'pending', emailConfirmed: false })
@@ -181,13 +182,11 @@ describe('auth.signup', () => {
 
   it('promotes bootstrapped admins and invitees only once they confirm their email', async () => {
     const inviter = await createAdmin()
-    const invite = await prisma.adminInvite.create({
-      data: {
-        email: 'inv@example.com',
-        inviteToken: 't2',
-        invitedById: inviter.id,
-        expiresAt: new Date(Date.now() + 60_000),
-      },
+    const invite = await createStaffInvite({
+      email: 'inv@example.com',
+      inviteToken: 't2',
+      invitedById: inviter.id,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     for (const address of ['admin6@example.com', 'inv@example.com']) {
       // Signing up with a listed address proves nothing: the account waits like any other.
@@ -206,7 +205,9 @@ describe('auth.signup', () => {
         requiresPasswordReset: true,
       })
       expect(await prisma.volunteer.findUniqueOrThrow({ where: { id: res.id } })).toMatchObject({
-        isAdmin: true,
+        // The listed address becomes a global admin; the invitee joins the inviting chapter.
+        isAdmin: address === 'admin6@example.com',
+        ...(address === 'inv@example.com' && { nationalChapterId: invite.nationalChapterId }),
         approvalStatus: 'approved',
         emailConfirmed: true,
       })
@@ -248,6 +249,64 @@ describe('auth.signup', () => {
       expect(error).toHaveBeenCalledWith('[SIGNUP NOTIFY]', expect.any(Error))
     })
     vi.restoreAllMocks()
+  })
+})
+
+describe('auth.signup placement', () => {
+  it("places a new volunteer in their country's chapter, with its group, and tells its staff", async () => {
+    const chapter = await createChapter()
+    const deputy = await createChapterDeputy(chapter)
+    const admin = await createAdmin()
+    const group = await createLocalGroup({
+      country: chapter.country,
+      nationalChapterId: chapter.id,
+    })
+    const res = await anon().auth.signup(
+      signupInput('placed@example.com', { country: chapter.country, localGroup: group.name }),
+    )
+    expect(await prisma.volunteer.findUniqueOrThrow({ where: { id: res.id } })).toMatchObject({
+      country: chapter.country,
+      nationalChapterId: chapter.id,
+      localGroupId: group.id,
+    })
+    const alerted = (id: number) =>
+      prisma.notification.count({ where: { volunteerId: id, type: 'new_volunteer_signup' } })
+    expect(await alerted(deputy.id)).toBe(1)
+    expect(await alerted(admin.id)).toBe(0)
+  })
+
+  it('puts someone from a country without a chapter, or Other, in the holding pool', async () => {
+    const admin = await createAdmin()
+    for (const [email, country] of [
+      ['ghana@example.com', 'Ghana'],
+      ['other@example.com', 'Other'],
+    ]) {
+      const res = await anon().auth.signup(signupInput(email, { country }))
+      expect(await prisma.volunteer.findUniqueOrThrow({ where: { id: res.id } })).toMatchObject({
+        country,
+        nationalChapterId: null,
+      })
+    }
+    expect(
+      await prisma.notification.count({
+        where: { volunteerId: admin.id, type: 'new_volunteer_signup' },
+      }),
+    ).toBe(2)
+  })
+
+  it('refuses a country off the list, or a local group from elsewhere', async () => {
+    await expect(
+      anon().auth.signup(signupInput('atlantis@example.com', { country: 'Atlantis' })),
+    ).rejects.toMatchObject({ message: 'Choose your country from the list' })
+    const elsewhere = await createLocalGroup({ country: 'Germany' })
+    await expect(
+      anon().auth.signup(signupInput('mixed@example.com', { localGroup: elsewhere.name })),
+    ).rejects.toMatchObject({ message: "Choose one of your country's local groups" })
+    await expect(
+      anon().auth.signup(
+        signupInput('pooled@example.com', { country: 'Ghana', localGroup: elsewhere.name }),
+      ),
+    ).rejects.toMatchObject({ message: "Choose one of your country's local groups" })
   })
 })
 
@@ -542,13 +601,11 @@ describe('verifyEmail / resendVerification', () => {
     // token; they fire the confirmation and a changeEmail to an invited address at
     // once. Whatever the interleaving, the invited address must stay unconfirmed.
     const inviter = await createAdmin()
-    await prisma.adminInvite.create({
-      data: {
-        email: 'target@example.com',
-        inviteToken: 't-race',
-        invitedById: inviter.id,
-        expiresAt: new Date(Date.now() + 60_000),
-      },
+    await createStaffInvite({
+      email: 'target@example.com',
+      inviteToken: 't-race',
+      invitedById: inviter.id,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     const vol = await createVolunteer({ approvalStatus: 'pending', emailConfirmed: false })
     const t = await tokenFor(vol.id)
@@ -651,6 +708,25 @@ describe('verifyEmail / resendVerification', () => {
     await expect(
       anon().auth.verifyEmail({ token: signup.emailVerificationToken! }),
     ).resolves.toBeTruthy()
+  })
+})
+
+describe('deleteAccount and chapters', () => {
+  it("asks an ownerless project's chapter staff to find it a new owner", async () => {
+    const chapter = await createChapter()
+    const deputy = await createChapterDeputy(chapter)
+    const admin = await createAdmin()
+    const me = await createMember(chapter)
+    const mine = await createProject({
+      assigneeId: me.id,
+      status: 'in_progress',
+      nationalChapterId: chapter.id,
+    })
+    await clientAs(me).auth.deleteAccount({ password: TEST_PASSWORD })
+    const told = (id: number) =>
+      prisma.notification.findFirst({ where: { volunteerId: id, type: 'account_deleted_impact' } })
+    expect(await told(deputy.id)).toMatchObject({ body: `'${mine.title}' needs a new owner.` })
+    expect(await told(admin.id)).toBeNull()
   })
 })
 
@@ -769,13 +845,11 @@ describe('google sign-in (stubbed)', () => {
     })
     // Promotion on Google login via invite.
     const inviter = await createSuperAdmin()
-    await prisma.adminInvite.create({
-      data: {
-        email: 'g@example.com',
-        inviteToken: 'g1',
-        invitedById: inviter.id,
-        expiresAt: new Date(Date.now() + 60_000),
-      },
+    await createStaffInvite({
+      email: 'g@example.com',
+      inviteToken: 'g1',
+      invitedById: inviter.id,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     expect((await anon().auth.google({ stub: true, email: 'g@example.com' })).wasPromoted).toBe(
       true,

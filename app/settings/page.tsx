@@ -10,6 +10,7 @@ import Radio from '@/components/Radio'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import SkillPicker from '@/components/SkillPicker'
 import Tabs from '@/components/Tabs'
+import ChapterMove from '@/components/ChapterMove'
 import { Badge } from '@/components/Badge'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
@@ -26,6 +27,7 @@ import {
   COUNTRY_OPTIONS,
   NO_LOCAL_GROUP,
   buildLocalGroupOptionsForCountry,
+  countryLabel,
   type LocalGroupOption,
 } from '@/lib/filter-options'
 
@@ -109,7 +111,6 @@ function SettingsPageContent() {
     ],
     'none',
   )
-  const [notifyRemoteProjects, setNotifyRemoteProjects] = useState(false)
   const [emailMutedCategories, setEmailMutedCategories] = useState<MutableEmailCategory[]>([])
   const [dailySummary, setDailySummary] = useState<DailySummaryChoice>('email_and_in_app')
   const [consentMakeProfileVisibleInDirectory, setConsentMakeProfileVisibleInDirectory] =
@@ -199,7 +200,6 @@ function SettingsPageContent() {
     setContactPreference(me.contactPreference ?? '')
     setContactNotes(me.contactNotes ?? '')
     setEmailDigest(me.emailDigest ?? 'none')
-    setNotifyRemoteProjects(!!me.notifyRemoteProjects)
     setEmailMutedCategories(
       MUTABLE_EMAIL_CATEGORIES.filter((c) => me.emailMutedCategories?.includes(c)),
     )
@@ -322,7 +322,6 @@ function SettingsPageContent() {
       contactPreference: contactPreference || null,
       contactNotes: contactNotes.trim() || null,
       emailDigest,
-      notifyRemoteProjects,
       emailMutedCategories,
       dailySummary,
       otherSkills: otherSkills.trim() || null,
@@ -380,6 +379,11 @@ function SettingsPageContent() {
   const saveButton = (
     <Button type="submit" disabled={updateMutation.isPending}>
       {updateMutation.isPending ? 'Saving…' : 'Save changes'}
+    </Button>
+  )
+  const saveLocationButton = (
+    <Button type="submit" disabled={updateMutation.isPending}>
+      {updateMutation.isPending ? 'Saving…' : 'Save location'}
     </Button>
   )
 
@@ -449,6 +453,7 @@ function SettingsPageContent() {
           className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word max-w-4xl`}
           onSubmit={handleSave}
         >
+          <h3 className="mt-0 mb-4">Details</h3>
           <div className="mb-5">
             <label htmlFor="name" className="required">
               Your name
@@ -534,7 +539,7 @@ function SettingsPageContent() {
             />
           </div>
 
-          <h3 className="mt-6 mb-4">Availability</h3>
+          <h3 className="mt-6 mb-4">Skills &amp; availability</h3>
           <div className="mb-5">
             <label htmlFor="hours">Hours per week</label>
             <input
@@ -547,16 +552,54 @@ function SettingsPageContent() {
             />
           </div>
           <div className="mb-5">
-            <FilterDropdown
-              id="locationCountry"
-              label="Country"
-              ariaLabel="Select country"
-              value={countryValue}
-              options={COUNTRY_OPTIONS}
-              onChange={handleCountryChange}
-              searchable
+            <SkillPicker value={skills} onChange={setSkills} />
+          </div>
+          <div className="mb-5">
+            <label htmlFor="other_skills">Other skills</label>
+            <input
+              type="text"
+              id="other_skills"
+              placeholder="Any skills not listed above…"
+              value={otherSkills}
+              onChange={(e) => setOtherSkills(e.target.value)}
             />
           </div>
+
+          {saveButton}
+        </form>
+      )}
+
+      {activeTab === 'profile' && (
+        // Its own form: the country, once set, decides the chapter and is changed only by
+        // asking to move, not by this form's submit — ChapterMove's own buttons are plain
+        // buttons so they don't trigger it.
+        <form
+          className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word max-w-4xl`}
+          onSubmit={handleSave}
+        >
+          <h3 className="mt-0 mb-4">Location</h3>
+          {me?.country ? (
+            <div className="mb-5">
+              <span className="block font-semibold mb-1">Country</span>
+              <p className="m-0">
+                {countryLabel(me.country)} ·{' '}
+                {me.chapter ? `${me.chapter.name} chapter` : 'Holding pool'}
+              </p>
+              <ChapterMove country={me.country} />
+            </div>
+          ) : (
+            <div className="mb-5">
+              <FilterDropdown
+                id="locationCountry"
+                label="Country"
+                ariaLabel="Select country"
+                value={countryValue}
+                options={COUNTRY_OPTIONS}
+                onChange={handleCountryChange}
+                searchable
+              />
+            </div>
+          )}
           {countryValue && hasLocalGroups && (
             <div className="mb-5">
               <FilterDropdown
@@ -581,36 +624,16 @@ function SettingsPageContent() {
               />
             </div>
           )}
-
-          <h3 className="mt-6 mb-4">Your skills</h3>
-          <div className="mb-5">
-            <SkillPicker value={skills} onChange={setSkills} />
-          </div>
-          <div className="mb-5">
-            <label htmlFor="other_skills">Other skills</label>
-            <input
-              type="text"
-              id="other_skills"
-              placeholder="Any skills not listed above…"
-              value={otherSkills}
-              onChange={(e) => setOtherSkills(e.target.value)}
-            />
-          </div>
-
-          {saveButton}
-        </form>
-      )}
-
-      {activeTab === 'profile' && (
-        <div className={`${SECTION_CARD} mb-4 border-2 border-brand-border max-w-4xl`}>
-          <h3>Local groups</h3>
-          <p className="text-text-light mb-4">
-            Don&apos;t see your local group listed? Suggest a new one.
+          <p className="text-sm text-text-light mb-4">
+            Don&apos;t see your local group?{' '}
+            <Link href="/suggest-local-group" className="underline">
+              Suggest one
+            </Link>
+            .
           </p>
-          <Button href="/suggest-local-group" variant="outline">
-            Suggest a local group
-          </Button>
-        </div>
+
+          {saveLocationButton}
+        </form>
       )}
 
       {activeTab === 'account' && (
@@ -729,19 +752,6 @@ function SettingsPageContent() {
               options={emailDigestOptions}
               onChange={setEmailDigest}
             />
-          </div>
-          <div className="mb-5">
-            <Checkbox
-              id="notify_remote_projects"
-              checked={notifyRemoteProjects}
-              onChange={(e) => setNotifyRemoteProjects(e.target.checked)}
-            >
-              Also alert me about remote-friendly projects outside my own country
-            </Checkbox>
-            <p className="text-sm text-text-light mt-1 ml-7">
-              By default you only hear about projects based in your own country. Turn this on to
-              also get alerts for projects elsewhere that are marked remote-friendly worldwide.
-            </p>
           </div>
           <fieldset className="mb-5 border-0 p-0">
             <legend className="font-medium mb-2">Also email me</legend>

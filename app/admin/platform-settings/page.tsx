@@ -1,19 +1,19 @@
 'use client'
 
-import { useRequireSuperAdmin } from '@/lib/hooks/auth'
+import { useRequireAdmin } from '@/lib/hooks/auth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import Toggle from '@/components/Toggle'
 
 export default function PlatformSettingsPage() {
-  const { user, loading } = useRequireSuperAdmin()
+  const { user, loading } = useRequireAdmin()
   const showToast = useToast()
   const queryClient = useQueryClient()
 
   const { data: settings, isLoading: loadingData } = useQuery({
     ...orpc.admin.platformSettings.get.queryOptions(),
-    enabled: !!user?.isSuperAdmin,
+    enabled: !!user?.isAdmin,
   })
 
   const updateMutation = useMutation({
@@ -26,7 +26,7 @@ export default function PlatformSettingsPage() {
     onError: () => showToast('Failed to save settings', 'error'),
   })
 
-  if (loading || loadingData || !user?.isSuperAdmin) return null
+  if (loading || loadingData || !user?.isAdmin) return null
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">

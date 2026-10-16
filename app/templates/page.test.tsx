@@ -2,7 +2,13 @@ import { describe, it, expect } from 'vitest'
 import { screen, waitFor, within, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
-import { createAdmin, createVolunteer, createTeam } from '@/test/factories'
+import {
+  createChapter,
+  createChapterDeputy,
+  createAdmin,
+  createVolunteer,
+  createTeam,
+} from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { navigation } from '@/test/next-navigation'
 import TemplatesLibraryPage from './page'
@@ -64,23 +70,17 @@ describe('templates library', () => {
     expect(navigation.push).toHaveBeenCalledWith(`/projects/${draft.id}/edit`)
   })
 
-  it('shows plain volunteers the library read-only, and reports a refused copy', async () => {
-    await prisma.template.deleteMany()
-    const vol = await createVolunteer()
-    await renderApp(<TemplatesLibraryPage />, { as: vol, url: '/templates' })
-    await screen.findByText(/Check back once an admin has published one/)
-    expect(screen.queryByRole('link', { name: 'New template' })).toBeNull()
-
-    await prisma.template.create({ data: { title: 'Later', structure: structure('Later') } })
-    // A team leader may copy; the button then reflects the server's refusal.
-    const team = await createTeam()
-    const leader = await createVolunteer()
-    await prisma.teamMembership.create({
-      data: { teamId: team.id, volunteerId: leader.id, role: 'leader' },
-    })
+  it("turns away a member, and lets a chapter's staff copy a template", async () => {
+    await renderApp(<TemplatesLibraryPage />, { as: await createVolunteer(), url: '/templates' })
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledWith('/projects?notice=no-access'),
+    )
     cleanup()
-    await renderApp(<TemplatesLibraryPage />, { as: leader, url: '/templates' })
-    const use = await screen.findByRole('button', { name: 'Use template' })
+    await prisma.template.create({ data: { title: 'Later', structure: structure('Later') } })
+    const deputy = await createChapterDeputy(await createChapter())
+    await renderApp(<TemplatesLibraryPage />, { as: deputy, url: '/templates' })
+    expect(await screen.findByRole('link', { name: 'New template' })).toBeInTheDocument()
+    const use = (await screen.findAllByRole('button', { name: 'Use template' }))[0]
     localStorage.setItem('authToken', 'stale')
     await userEvent.click(use)
     await screen.findByText('Unauthorized')

@@ -4,7 +4,7 @@ import { screen, waitFor, within, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import { APPLICATION_ANONYMISATION_MS } from '@/lib/applications'
-import { createVolunteer, createSuperAdmin, createSkill } from '@/test/factories'
+import { createLocalGroup, createVolunteer, createSuperAdmin, createSkill } from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { navigation } from '@/test/next-navigation'
 import ApplicationsPage from './page'
@@ -21,7 +21,7 @@ describe('applications list', () => {
     const fresh = await createVolunteer({
       name: 'Fresh Applicant',
       approvalStatus: 'pending',
-      localGroup: 'Leeds',
+      localGroupId: (await createLocalGroup({ name: 'Leeds' })).id,
       country: 'UK',
       bio: 'Keen as mustard',
       availabilityHoursPerWeek: 5,

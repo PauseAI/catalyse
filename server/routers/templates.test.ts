@@ -7,6 +7,9 @@ import {
   createTask,
   createSkill,
   createTeam,
+  createLocalGroup,
+  createChapter,
+  createChapterDeputy,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 
@@ -14,11 +17,13 @@ async function saveTemplate() {
   const admin = await createAdmin()
   const team = await createTeam({ name: 'Source Team' })
   const skill = await createSkill()
+  const leeds = await createLocalGroup({ country: 'UK' })
   const project = await createProject({
     title: 'Rally',
     description: 'A rally',
-    country: 'UK',
-    localGroup: 'Leeds',
+    nationalChapterId: leeds.nationalChapterId,
+    reach: 'LOCAL',
+    localGroupId: leeds.id,
     teamId: team.id,
     startDate: new Date('2026-03-01T00:00:00.000Z'),
     durationDays: 10,
@@ -47,12 +52,12 @@ async function saveTemplate() {
     title: 'Rally template',
     description: 'Reusable rally',
   })
-  return { admin, c, team, skill, project, a, b, id }
+  return { admin, c, team, skill, project, a, b, id, leeds }
 }
 
 describe('templates.saveAsTemplate / get / list', () => {
   it('serialises a project without its location or people, and lists it', async () => {
-    const { c, team, skill, project, id } = await saveTemplate()
+    const { c, team, skill, project, id, leeds } = await saveTemplate()
     await expect(
       c.templates.saveAsTemplate({ projectId: 999_999, title: 'x' }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
@@ -63,7 +68,7 @@ describe('templates.saveAsTemplate / get / list', () => {
       description: 'Reusable rally',
       sourceType: 'PROJECT',
       sourceCountry: 'UK',
-      sourceLocalGroup: 'Leeds',
+      sourceLocalGroup: leeds.name,
       sourceTeam: { id: team.id, name: 'Source Team' },
     })
     const structure = t.structure!
@@ -135,7 +140,7 @@ describe('templates.createFromScratch / update / archive', () => {
     })
     const structure = (await c.templates.get({ id })).structure!
     if (structure.sourceType !== 'PROJECT') throw new Error('unreachable')
-    expect(structure).toMatchObject({ urgency: 'medium', remoteEligibility: 'NONE', skills: [] })
+    expect(structure).toMatchObject({ urgency: 'medium', reach: 'COUNTRY_WIDE', skills: [] })
     expect(structure.tasks[0].skills).toEqual([{ skillId: 1, isRequired: true }])
     expect(structure.tasks[0]).toMatchObject({ submissionPrompt: null, submissionAsksLink: false })
     expect(structure.tasks[1]).toMatchObject({
@@ -196,8 +201,10 @@ describe('templates.instantiate / canInstantiate', () => {
       status: 'draft',
       title: 'Rally template',
       description: 'A rally',
-      country: null,
-      localGroup: null,
+      // In the copier's chapter, its location left to them.
+      nationalChapterId: admin.nationalChapterId,
+      reach: 'COUNTRY_WIDE',
+      localGroupId: null,
       teamId: null,
       collaborationLink: null,
       startDate: null,
@@ -231,28 +238,64 @@ describe('templates.instantiate / canInstantiate', () => {
     expect((await c.templates.list()).find((x) => x.id === id)?.usedCount).toBe(1)
   })
 
-  it('is open to admins and team leaders only', async () => {
+  it("is for chapter staff and global admins, and puts the copy in the copier's chapter", async () => {
     const { id } = await saveTemplate()
+    const chapter = await createChapter()
+    const deputy = await createChapterDeputy(chapter)
     const leader = await createVolunteer()
-    const member = await createVolunteer()
     const team = await createTeam()
-    await prisma.teamMembership.createMany({
-      data: [
-        { teamId: team.id, volunteerId: leader.id, role: 'leader' },
-        { teamId: team.id, volunteerId: member.id, role: 'member' },
-      ],
+    await prisma.teamMembership.create({
+      data: { teamId: team.id, volunteerId: leader.id, role: 'leader' },
     })
-    expect(await clientAs(leader).templates.canInstantiate()).toEqual({ canInstantiate: true })
-    expect(await clientAs(member).templates.canInstantiate()).toEqual({ canInstantiate: false })
+    expect(await clientAs(deputy).templates.canInstantiate()).toEqual({ canInstantiate: true })
+    expect(await clientAs(leader).templates.canInstantiate()).toEqual({ canInstantiate: false })
     expect(await clientAs(await createAdmin()).templates.canInstantiate()).toEqual({
       canInstantiate: true,
     })
-    await expect(clientAs(member).templates.instantiate({ templateId: id })).rejects.toMatchObject({
+    // A team leader, like any member, no longer copies templates or sees the library.
+    for (const call of [
+      () => clientAs(leader).templates.instantiate({ templateId: id }),
+      () => clientAs(leader).templates.list(),
+    ]) {
+      await expect(call()).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    }
+    const copy = await clientAs(deputy).templates.instantiate({ templateId: id })
+    expect(copy.title).toBe('Rally template')
+    expect(
+      (await prisma.workItem.findUniqueOrThrow({ where: { id: copy.id } })).nationalChapterId,
+    ).toBe(chapter.id)
+    // Shared across chapters: the deputy sees the template another chapter's author made.
+    expect((await clientAs(deputy).templates.list()).map((t) => t.id)).toContain(id)
+  })
+
+  it("lets a template's author or a global admin change it, and staff save only their own chapter's projects", async () => {
+    const chapter = await createChapter()
+    const author = await createChapterDeputy(chapter)
+    const other = await createChapterDeputy(await createChapter())
+    const project = await createProject({ nationalChapterId: chapter.id, title: 'Ours' })
+    const elsewhere = await createProject({ nationalChapterId: other.nationalChapterId })
+    const { id } = await clientAs(author).templates.saveAsTemplate({
+      projectId: project.id,
+      title: 'Our kit',
+    })
+    await expect(
+      clientAs(other).templates.saveAsTemplate({ projectId: project.id, title: 'x' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(
+      clientAs(author).templates.saveAsTemplate({ projectId: elsewhere.id, title: 'x' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(clientAs(other).templates.update({ id, title: 'Mine now' })).rejects.toMatchObject(
+      { code: 'FORBIDDEN' },
+    )
+    await expect(clientAs(other).templates.archive({ id })).rejects.toMatchObject({
       code: 'FORBIDDEN',
     })
-    expect((await clientAs(leader).templates.instantiate({ templateId: id })).title).toBe(
-      'Rally template',
-    )
+    expect(await clientAs(author).templates.update({ id, title: 'Our kit 2' })).toEqual({
+      message: 'Template updated',
+    })
+    expect(await clientAs(await createAdmin()).templates.archive({ id })).toEqual({
+      message: 'Template archived',
+    })
   })
 
   it('lets an admin instantiate past the draft cap a volunteer would hit', async () => {

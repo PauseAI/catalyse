@@ -2,6 +2,8 @@ import { createHash } from 'crypto'
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
+import { canAdminChapter, type ChapterAccess } from '@/lib/chapter-access'
+import { chapterFilter } from '@/lib/chapter-access-server'
 import {
   sendApplicationApprovedEmail,
   sendApplicationRejectedEmail,
@@ -10,22 +12,36 @@ import {
 } from '@/lib/email'
 import { APPLICATION_ANONYMISATION_MS } from '@/lib/applications'
 import { ApplicationActionSchema } from '@/lib/schemas'
-import { superAdminProcedure } from '../../procedures'
+import { staffProcedure } from '../../procedures'
 import { ApprovalStatus } from '@/generated/prisma/enums'
 import { clearNotifications, createNotification } from '@/lib/notify'
 
+/** An applicant in a chapter the caller runs; anyone else is not found. */
+async function applicantRunBy<T extends { nationalChapterId: number | null }>(
+  access: ChapterAccess,
+  applicant: T | null,
+): Promise<T> {
+  if (!applicant || !canAdminChapter(access, applicant.nationalChapterId)) {
+    throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
+  }
+  return applicant
+}
+
+/** Applications are decided by the applicant's chapter, or the global admins for the pool. */
 export const adminApplicationsRouter = {
-  list: superAdminProcedure
+  list: staffProcedure
     .input(
       z.object({
         filter: z
           .enum(['mine', 'others', 'approved', 'rejected', 'needs_info'])
           .optional()
           .default('mine'),
+        chapter: z.union([z.number().int(), z.literal('pool')]).optional(),
       }),
     )
     .handler(async ({ input, context }) => {
       const admin = context.volunteer
+      const nationalChapterId = chapterFilter(context.access, input.chapter)
 
       type WhereClause = NonNullable<Parameters<typeof prisma.volunteer.findMany>[0]>['where']
       const where: WhereClause = (() => {
@@ -52,8 +68,9 @@ export const adminApplicationsRouter = {
       })()
 
       const volunteers = await prisma.volunteer.findMany({
-        where,
+        where: { ...where, nationalChapterId },
         include: {
+          group: { select: { name: true } },
           skills: {
             include: { skill: { include: { category: true } } },
             orderBy: [
@@ -119,7 +136,7 @@ export const adminApplicationsRouter = {
           availabilityHoursPerWeek: v.availabilityHoursPerWeek,
           location: v.location,
           country: v.country,
-          localGroup: v.localGroup,
+          localGroup: v.group?.name ?? null,
           signalNumber: v.signalNumber,
           whatsappNumber: v.whatsappNumber,
           discordHandle: v.discordHandle,
@@ -138,12 +155,13 @@ export const adminApplicationsRouter = {
       })
     }),
 
-  getById: superAdminProcedure
+  getById: staffProcedure
     .input(z.object({ id: z.number().int() }))
-    .handler(async ({ input }) => {
-      const v = await prisma.volunteer.findFirst({
+    .handler(async ({ input, context }) => {
+      const found = await prisma.volunteer.findFirst({
         where: { id: input.id, deletedAt: null },
         include: {
+          group: { select: { name: true } },
           skills: {
             include: { skill: { include: { category: true } } },
             orderBy: [
@@ -155,7 +173,7 @@ export const adminApplicationsRouter = {
         },
       })
 
-      if (!v) throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
+      const v = await applicantRunBy(context.access, found)
 
       const emailHash = v.email
         ? createHash('sha256').update(v.email.toLowerCase().trim()).digest('hex')
@@ -192,7 +210,7 @@ export const adminApplicationsRouter = {
         availabilityHoursPerWeek: v.availabilityHoursPerWeek,
         location: v.location,
         country: v.country,
-        localGroup: v.localGroup,
+        localGroup: v.group?.name ?? null,
         signalNumber: v.signalNumber,
         whatsappNumber: v.whatsappNumber,
         discordHandle: v.discordHandle,
@@ -210,7 +228,7 @@ export const adminApplicationsRouter = {
       }
     }),
 
-  action: superAdminProcedure
+  action: staffProcedure
     .input(z.object({ id: z.number().int() }).merge(ApplicationActionSchema))
     .handler(async ({ input, context }) => {
       const admin = context.volunteer
@@ -220,20 +238,22 @@ export const adminApplicationsRouter = {
       const applicantNotes =
         rawApplicantNotes !== null ? (rawApplicantNotes ?? undefined) : undefined
 
-      const volunteer = await prisma.volunteer.findFirst({
-        where: { id: input.id, deletedAt: null },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          emailConfirmed: true,
-          approvalStatus: true,
-          applicationAdminNotes: true,
-          applicationApplicantNotes: true,
-        },
-      })
-
-      if (!volunteer) throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
+      const volunteer = await applicantRunBy(
+        context.access,
+        await prisma.volunteer.findFirst({
+          where: { id: input.id, deletedAt: null },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            emailConfirmed: true,
+            approvalStatus: true,
+            applicationAdminNotes: true,
+            applicationApplicantNotes: true,
+            nationalChapterId: true,
+          },
+        }),
+      )
 
       if (action === 'update_notes') {
         await prisma.volunteer.update({

@@ -9,6 +9,9 @@ import {
   createSkill,
   createLocalGroup,
   createTask,
+  chapterFor,
+  createMember,
+  createChapter,
 } from '@/test/factories'
 import { clientAs, anon } from '@/test/rpc'
 
@@ -35,6 +38,17 @@ describe('admin.platformSettings', () => {
   })
 })
 
+describe('chapters.list', () => {
+  it('lists the countries with a chapter, to anyone', async () => {
+    const chapter = await createChapter()
+    expect(await anon().chapters.list()).toContainEqual({
+      id: chapter.id,
+      country: chapter.country,
+      name: chapter.name,
+    })
+  })
+})
+
 describe('localGroups', () => {
   it('lists all or by country, and fetches one by id', async () => {
     const g = await createLocalGroup({ name: 'Aardvark Town', country: 'Zzland' })
@@ -42,7 +56,7 @@ describe('localGroups', () => {
     expect(all.groups.some((x) => x.id === g.id)).toBe(true)
     const zz = await anon().localGroups.list({ country: 'Zzland' })
     expect(zz.groups).toEqual([expect.objectContaining({ id: g.id })])
-    const c = clientAs(await createVolunteer())
+    const c = clientAs(await createMember(await chapterFor('Zzland')))
     expect(await c.localGroups.getById({ id: g.id })).toEqual({
       id: g.id,
       name: 'Aardvark Town',
@@ -51,6 +65,10 @@ describe('localGroups', () => {
     await expect(c.localGroups.getById({ id: 999_999 })).rejects.toMatchObject({
       code: 'NOT_FOUND',
     })
+    // Another chapter's group is not one to join.
+    await expect(
+      clientAs(await createVolunteer()).localGroups.getById({ id: g.id }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
   })
 })
 

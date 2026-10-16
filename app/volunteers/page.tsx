@@ -9,11 +9,8 @@ import Link from 'next/link'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import FilterDropdown from '@/components/FilterDropdown'
-import {
-  buildLocationOptions,
-  volunteerLocation,
-  type LocalGroupOption,
-} from '@/lib/filter-options'
+import { volunteerLocation, type LocalGroupOption } from '@/lib/filter-options'
+import ChapterFilter, { chapterSelection } from '@/components/ChapterFilter'
 import { InferRouterOutputs } from '@orpc/server'
 import { orpc } from '@/lib/orpc'
 import { AppRouter } from '@/server/router'
@@ -34,7 +31,9 @@ type AuthUser = NonNullable<ReturnType<typeof useRequireAuth>['user']>
 function VolunteersPageContent({ user }: { user: AuthUser }) {
   const [searchInput, setSearchInput, urlSearch] = useUrlSearchInput('q')
   const [skillFilter, setSkillFilter] = useUrlParam('skill')
-  const [locationFilter, setLocationFilter] = useUrlParam('location')
+  const [locationFilter, setLocationFilter] = useUrlParam('group')
+  const [chapterParam, setChapterParam] = useUrlParam('chapter')
+  const isGlobal = user.access.globalAdmin
   const [pageParam, setPageParam] = useUrlParam('page')
   const page = Math.max(1, parseInt(pageParam, 10) || 1)
   const router = useRouter()
@@ -43,7 +42,7 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
     router.replace('?', { scroll: false })
   }
 
-  const hasFilters = searchInput || skillFilter || locationFilter
+  const hasFilters = searchInput || skillFilter || locationFilter || chapterParam
 
   // Reset to page 1 whenever a filter changes, but not on the initial mount
   // (which would clobber a deep-linked ?page=N&skill=... URL).
@@ -54,7 +53,7 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
       return
     }
     setPageParam('')
-  }, [urlSearch, skillFilter, locationFilter, setPageParam])
+  }, [urlSearch, skillFilter, locationFilter, chapterParam, setPageParam])
 
   const { data: skillsData } = useQuery({
     ...orpc.skills.list.queryOptions({ input: {} }),
@@ -64,9 +63,17 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
     cat.skills.map((s) => ({ ...s, categoryName: cat.name })),
   )
 
+  // The local groups of the chapter on show: the viewer's own, or the one a global admin picked.
+  const { data: chapters = [] } = useQuery({
+    ...orpc.chapters.list.queryOptions(),
+    enabled: isGlobal,
+  })
+  const shownCountry = isGlobal
+    ? chapters.find((c) => String(c.id) === chapterParam)?.country
+    : user.chapter?.country
   const { data: localGroupsData } = useQuery({
-    ...orpc.localGroups.list.queryOptions({ input: {} }),
-    enabled: !!user,
+    ...orpc.localGroups.list.queryOptions({ input: { country: shownCountry } }),
+    enabled: !!shownCountry,
   })
   const localGroups: LocalGroupOption[] = localGroupsData?.groups ?? []
 
@@ -75,10 +82,8 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
       input: {
         ...(urlSearch ? { search: urlSearch } : {}),
         ...(skillFilter ? { skillIds: [parseInt(skillFilter, 10)] } : {}),
-        ...(locationFilter ? { country: locationFilter.split(':')[0] } : {}),
-        ...(locationFilter && locationFilter.split(':')[1]
-          ? { localGroup: locationFilter.split(':')[1] }
-          : {}),
+        ...(isGlobal && chapterParam ? { chapter: chapterSelection(chapterParam) } : {}),
+        ...(locationFilter ? { localGroup: locationFilter } : {}),
         limit: PAGE_SIZE,
         offset: (page - 1) * PAGE_SIZE,
       },
@@ -127,15 +132,29 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
               searchable
             />
 
-            <FilterDropdown
-              id="location-filter"
-              label="Country/Group"
-              ariaLabel="Country/Group filter"
-              value={locationFilter}
-              options={buildLocationOptions(localGroups)}
-              onChange={setLocationFilter}
-              searchable
-            />
+            {isGlobal && (
+              <ChapterFilter
+                value={chapterParam}
+                onChange={(value) => {
+                  setChapterParam(value)
+                  setLocationFilter('')
+                }}
+              />
+            )}
+            {localGroups.length > 0 && (
+              <FilterDropdown
+                id="location-filter"
+                label="Local group"
+                ariaLabel="Local group filter"
+                value={locationFilter}
+                options={[
+                  { value: '', label: 'All local groups' },
+                  ...localGroups.map((g) => ({ value: g.name, label: g.name })),
+                ]}
+                onChange={setLocationFilter}
+                searchable
+              />
+            )}
 
             {hasFilters && (
               <Button variant="outline" size="lg" onClick={clearFilters}>

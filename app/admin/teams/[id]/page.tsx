@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from 'react'
 import { useRequireApproved } from '@/lib/hooks/auth'
+import FilterDropdown from '@/components/FilterDropdown'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -54,6 +55,20 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
     setDocUrl(team.docUrl ?? '')
     setInitialized(true)
   }, [team, initialized])
+
+  const { data: chapters = [] } = useQuery({
+    ...orpc.chapters.list.queryOptions(),
+    enabled: !!user?.isAdmin,
+  })
+  const setChapterMutation = useMutation({
+    ...orpc.admin.teams.setChapter.mutationOptions(),
+    onSuccess: async (r) => {
+      showToast(r.message, 'success')
+      await queryClient.invalidateQueries({ queryKey: orpc.teams.getManageable.key() })
+    },
+    onError: (err: unknown) =>
+      showToast(err instanceof Error ? err.message : 'Failed to move the team', 'error'),
+  })
 
   const [assignVolunteerId, setAssignVolunteerId] = useState('')
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -159,7 +174,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
     }
   }
 
-  const backHref = user?.isAdmin ? '/admin/teams' : '/teams'
+  const backHref = team?.viewerCanAdmin ? '/admin/teams' : '/teams'
 
   if (loading || !user) return <PageLoading />
 
@@ -199,6 +214,24 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
         ← All teams
       </Link>
       <h1 className="mt-3 mb-6">{team.name}</h1>
+      {user.isAdmin && (
+        <div className="mb-6">
+          <FilterDropdown
+            id="team-chapter"
+            label="Chapter"
+            ariaLabel="Team chapter"
+            value={team.nationalChapterId === null ? 'pool' : String(team.nationalChapterId)}
+            options={[
+              ...chapters.map((c) => ({ value: String(c.id), label: c.name })),
+              { value: 'pool', label: 'Holding pool' },
+            ]}
+            onChange={(v) =>
+              setChapterMutation.mutate({ id: team.id, chapterId: v === 'pool' ? null : Number(v) })
+            }
+            searchable
+          />
+        </div>
+      )}
 
       <div className={`${SECTION_CARD} mb-4`}>
         <h2>Team details</h2>
@@ -246,7 +279,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
             <Button type="submit" disabled={!name.trim() || updateTeamMutation.isPending}>
               {updateTeamMutation.isPending ? 'Saving…' : 'Save changes'}
             </Button>
-            {user.isAdmin && (
+            {team.viewerCanAdmin && (
               <Button type="button" variant="danger" onClick={() => setShowDeleteDialog(true)}>
                 Delete team
               </Button>

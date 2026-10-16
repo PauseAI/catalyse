@@ -2,10 +2,13 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
+import { groupIn, placement } from '@/lib/chapter-placement'
 import { redactVolunteer } from '@/lib/auth'
 import { UpdateVolunteerSchema } from '@/lib/schemas'
 import { projectScopeWhere } from '@/lib/work-item'
-import { canReach, contactRelations } from '@/lib/contact'
+import { canReach, contactRelations, worksWith } from '@/lib/contact'
+import { canAdminChapter, inChapter } from '@/lib/chapter-access'
+import { chapterFilter } from '@/lib/chapter-access-server'
 import { isActiveRecently } from '@/lib/activity'
 import { approvedProcedure, authedProcedure } from '../procedures'
 import {
@@ -23,7 +26,8 @@ export const volunteersRouter = {
       z.object({
         skillIds: z.array(z.number().int()).optional(),
         search: z.string().optional(),
-        country: z.string().optional(),
+        /** A global admin's choice of chapter; everyone else sees their own. */
+        chapter: z.union([z.number().int(), z.literal('pool')]).optional(),
         localGroup: z.string().optional(),
         limit: z.number().int().min(1).max(100).optional().default(50),
         offset: z.number().int().min(0).optional().default(0),
@@ -31,10 +35,8 @@ export const volunteersRouter = {
     )
     .handler(async ({ input, context }) => {
       const currentVolunteer = context.volunteer
-      // Any flavour of admin (full admin or technical admin, which includes super
-      // admins since those always carry isAdmin) may see profiles hidden from the
-      // public directory.
-      const isAdmin = Boolean(currentVolunteer.isAdmin || currentVolunteer.isTechnicalAdmin)
+      // The directory is the viewer's chapter's, and its staff see profiles hidden from it.
+      const isAdmin = canAdminChapter(context.access, context.access.chapterId)
 
       const textConditions: Prisma.Sql[] = []
       if (input.search) {
@@ -43,16 +45,10 @@ export const volunteersRouter = {
           Prisma.sql`(public.unaccent(name) ILIKE public.unaccent(${like}) OR public.unaccent(COALESCE(bio, '')) ILIKE public.unaccent(${like}))`,
         )
       }
-      if (input.country) {
-        const like = `%${input.country}%`
-        textConditions.push(
-          Prisma.sql`(country = ${input.country} OR (country IS NULL AND public.unaccent(COALESCE(location, '')) ILIKE public.unaccent(${like})))`,
-        )
-      }
       if (input.localGroup) {
         const like = `%${input.localGroup}%`
         textConditions.push(
-          Prisma.sql`(local_group = ${input.localGroup} OR (local_group IS NULL AND public.unaccent(COALESCE(location, '')) ILIKE public.unaccent(${like})))`,
+          Prisma.sql`(local_group_id IN (SELECT id FROM local_groups WHERE name = ${input.localGroup}) OR (local_group_id IS NULL AND public.unaccent(COALESCE(location, '')) ILIKE public.unaccent(${like})))`,
         )
       }
       const matchingIds = textConditions.length
@@ -65,6 +61,7 @@ export const volunteersRouter = {
 
       const where: Record<string, unknown> = {
         deletedAt: null,
+        nationalChapterId: chapterFilter(context.access, input.chapter),
         ...(isAdmin ? {} : { consentMakeProfileVisibleInDirectory: true }),
         approvalStatus: ApprovalStatus.approved,
         ...(input.skillIds && input.skillIds.length > 0
@@ -84,7 +81,7 @@ export const volunteersRouter = {
             location: true,
             country: true,
             otherSkills: true,
-            localGroup: true,
+            group: { select: { name: true } },
             createdAt: true,
             lastActiveAt: true,
             consentMakeProfileVisibleInDirectory: true,
@@ -105,6 +102,7 @@ export const volunteersRouter = {
 
       const relations = await contactRelations(
         currentVolunteer,
+        context.access,
         volunteers.map((v) => v.id),
       )
       return {
@@ -119,7 +117,7 @@ export const volunteersRouter = {
           location: v.location,
           country: v.country,
           otherSkills: v.otherSkills,
-          localGroup: v.localGroup,
+          localGroup: v.group?.name ?? null,
           createdAt: v.createdAt,
           hiddenFromDirectory: isAdmin ? !v.consentMakeProfileVisibleInDirectory : false,
           skills: v.skills.map((vs) => ({
@@ -141,11 +139,11 @@ export const volunteersRouter = {
     .input(z.object({ id: z.number().int() }))
     .handler(async ({ input, context }) => {
       const currentVolunteer = context.volunteer
-      const isAdmin = Boolean(currentVolunteer.isAdmin || currentVolunteer.isTechnicalAdmin)
 
       const vol = await prisma.volunteer.findFirst({
         where: { id: input.id, deletedAt: null },
         include: {
+          group: { select: { name: true } },
           skills: {
             include: { skill: { include: { category: true } } },
             orderBy: [
@@ -159,16 +157,27 @@ export const volunteersRouter = {
         },
       })
 
-      if (!vol) throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
+      // Someone in another chapter is out of sight, unless the two already work together on a
+      // project from before chapters.
+      const isOwn = vol?.id === currentVolunteer.id
+      if (
+        !vol ||
+        (!isOwn &&
+          !inChapter(context.access, vol.nationalChapterId) &&
+          !(await worksWith(currentVolunteer.id, vol.id)))
+      ) {
+        throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
+      }
+      const isAdmin = canAdminChapter(context.access, vol.nationalChapterId)
 
       // A profile hidden from the public directory is still visible to:
       //  - the volunteer themselves
-      //  - any admin (full or technical; super admins always carry isAdmin)
+      //  - a global admin, or the staff of the volunteer's chapter
       //  - an owner of a project this volunteer is involved in, so they can assess
       //    the volunteer's skills — including before accepting them. "Involved in" =
       //    holds a task under that project, or has a live (non-declined,
       //    non-withdrawn) interest in it.
-      if (!vol.consentMakeProfileVisibleInDirectory && !isAdmin && currentVolunteer.id !== vol.id) {
+      if (!vol.consentMakeProfileVisibleInDirectory && !isAdmin && !isOwn) {
         const ownedProjectLink = await prisma.workItem.count({
           where: {
             type: WorkItemType.PROJECT,
@@ -193,15 +202,15 @@ export const volunteersRouter = {
             ],
           },
         })
-        if (ownedProjectLink === 0 && !(await canReach(currentVolunteer, vol.id))) {
+        if (ownedProjectLink === 0 && !(await canReach(currentVolunteer, context.access, vol.id))) {
           throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
         }
       }
 
       // Contact details go only to people who work with the volunteer, or whom they have
-      // accepted a contact request from (lib/contact.ts); admins and the volunteer see them too.
+      // accepted a contact request from (lib/contact.ts); their chapter's staff see them too.
       const [relations, incoming] = await Promise.all([
-        contactRelations(currentVolunteer, [vol.id]),
+        contactRelations(currentVolunteer, context.access, [vol.id]),
         prisma.contactRequest.findFirst({
           where: {
             fromVolunteerId: vol.id,
@@ -349,13 +358,10 @@ export const volunteersRouter = {
       'contactNotes',
       'availabilityHoursPerWeek',
       'location',
-      'country',
-      'localGroup',
       'otherSkills',
       'emailDigest',
       'emailMutedCategories',
       'dailySummary',
-      'notifyRemoteProjects',
       'applicationMessage',
     ] as const
     for (const field of scalarFields) {
@@ -364,11 +370,21 @@ export const volunteersRouter = {
       }
     }
 
-    if (
-      Object.prototype.hasOwnProperty.call(input, 'location') ||
-      Object.prototype.hasOwnProperty.call(input, 'country') ||
-      Object.prototype.hasOwnProperty.call(input, 'localGroup')
-    ) {
+    // Country decides chapter, so changing it is a transfer request. Only someone who never
+    // gave one (an account from before signup asked) names it here, as signup would.
+    const hasCountry = Object.prototype.hasOwnProperty.call(input, 'country')
+    const hasLocalGroup = Object.prototype.hasOwnProperty.call(input, 'localGroup')
+    if (hasCountry && input.country && input.country !== volunteer.country) {
+      if (volunteer.country || volunteer.nationalChapterId !== null) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: 'To move to another country, ask to transfer chapter from your settings',
+        })
+      }
+      Object.assign(data, await placement(input.country, input.localGroup))
+    } else if (hasLocalGroup) {
+      Object.assign(data, await groupIn(volunteer.nationalChapterId, input.localGroup))
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'location') || hasCountry || hasLocalGroup) {
       data.locationConfirmedAt = new Date()
     }
 
@@ -395,6 +411,7 @@ export const volunteersRouter = {
         where: { id: volunteer.id },
         data,
         include: {
+          group: { select: { name: true } },
           skills: {
             include: { skill: { include: { category: true } } },
             orderBy: [
@@ -418,6 +435,7 @@ export const volunteersRouter = {
         const fresh = await tx.volunteer.findUnique({
           where: { id: volunteer.id },
           include: {
+            group: { select: { name: true } },
             skills: {
               include: { skill: { include: { category: true } } },
               orderBy: [

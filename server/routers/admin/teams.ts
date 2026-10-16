@@ -3,8 +3,15 @@ import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { createNotification, clearNotifications } from '@/lib/notify'
 import { TeamBodySchema, ReviewTeamSuggestionSchema } from '@/lib/schemas'
-import { adminProcedure } from '../../procedures'
-import { TeamSuggestionStatus, TeamMembershipRole } from '@/generated/prisma/enums'
+import { adminProcedure, staffProcedure } from '../../procedures'
+import { canAdminChapter, type ChapterAccess } from '@/lib/chapter-access'
+import { chapterFilter } from '@/lib/chapter-access-server'
+import { audit } from '@/lib/chapter-roles'
+import {
+  ChapterAuditAction,
+  TeamSuggestionStatus,
+  TeamMembershipRole,
+} from '@/generated/prisma/enums'
 
 const NOTIFICATION_TITLES: Record<string, (name: string) => string> = {
   accepted: (n) => `Approved: your team suggestion "${n}"`,
@@ -13,9 +20,30 @@ const NOTIFICATION_TITLES: Record<string, (name: string) => string> = {
   declined: (n) => `Declined: your team suggestion "${n}"`,
 }
 
+async function teamRunBy(access: ChapterAccess, id: number) {
+  const team = await prisma.team.findUnique({ where: { id } })
+  if (!team || !canAdminChapter(access, team.nationalChapterId)) {
+    throw new ORPCError('NOT_FOUND', { message: 'Not found' })
+  }
+  return team
+}
+
+async function suggestionRunBy(access: ChapterAccess, id: number) {
+  const suggestion = await prisma.teamSuggestion.findUnique({
+    where: { id },
+    include: { suggestedBy: { select: { id: true, name: true, email: true } } },
+  })
+  if (!suggestion || !canAdminChapter(access, suggestion.nationalChapterId)) {
+    throw new ORPCError('NOT_FOUND', { message: 'Not found' })
+  }
+  return suggestion
+}
+
+/** A chapter's teams, run by its staff and the global admins. */
 export const adminTeamsRouter = {
-  list: adminProcedure.handler(async () => {
+  list: staffProcedure.handler(async ({ context }) => {
     const teams = await prisma.team.findMany({
+      where: { nationalChapterId: chapterFilter(context.access) },
       orderBy: { name: 'asc' },
       include: {
         members: { include: { volunteer: { select: { id: true, name: true, email: true } } } },
@@ -28,6 +56,7 @@ export const adminTeamsRouter = {
         description: t.description,
         lumaUrl: t.lumaUrl,
         docUrl: t.docUrl,
+        nationalChapterId: t.nationalChapterId,
         members: t.members.map((m) => ({
           id: m.volunteer.id,
           name: m.volunteer.name,
@@ -38,9 +67,11 @@ export const adminTeamsRouter = {
     }
   }),
 
-  create: adminProcedure.input(TeamBodySchema).handler(async ({ input }) => {
+  /** In the creator's chapter. */
+  create: staffProcedure.input(TeamBodySchema).handler(async ({ input, context }) => {
     const team = await prisma.team.create({
       data: {
+        nationalChapterId: context.access.chapterId,
         name: input.name,
         description: input.description ?? null,
         lumaUrl: input.lumaUrl ?? null,
@@ -50,30 +81,55 @@ export const adminTeamsRouter = {
     return { id: team.id, name: team.name }
   }),
 
-  delete: adminProcedure.input(z.object({ id: z.number().int() })).handler(async ({ input }) => {
-    const existing = await prisma.team.findUnique({ where: { id: input.id } })
-    if (!existing) throw new ORPCError('NOT_FOUND', { message: 'Not found' })
+  /** Moves a team to another chapter, or the pool; its members stay in it, wherever they are. */
+  setChapter: adminProcedure
+    .input(z.object({ id: z.number().int(), chapterId: z.number().int().nullable() }))
+    .handler(async ({ input, context }) => {
+      const team = await prisma.team.findUnique({ where: { id: input.id } })
+      if (!team) throw new ORPCError('NOT_FOUND', { message: 'Not found' })
+      if (input.chapterId !== null) {
+        const chapter = await prisma.nationalChapter.findUnique({ where: { id: input.chapterId } })
+        if (!chapter) throw new ORPCError('NOT_FOUND', { message: 'Chapter not found' })
+      }
+      await prisma.$transaction(async (tx) => {
+        await tx.team.update({
+          where: { id: team.id },
+          data: { nationalChapterId: input.chapterId },
+        })
+        await audit(tx, ChapterAuditAction.TEAM_CHAPTER_CHANGED, {
+          actorId: context.volunteer.id,
+          chapterId: input.chapterId,
+          details: { teamId: team.id, fromChapterId: team.nationalChapterId },
+        })
+      })
+      return { message: `${team.name} moved` }
+    }),
 
-    await prisma.$transaction([
-      prisma.teamSuggestion.updateMany({
-        where: { mergedIntoId: input.id },
-        data: { mergedIntoId: null },
-      }),
-      prisma.team.delete({ where: { id: input.id } }),
-    ])
+  delete: staffProcedure
+    .input(z.object({ id: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      await teamRunBy(context.access, input.id)
 
-    return { message: 'Team deleted' }
-  }),
+      await prisma.$transaction([
+        prisma.teamSuggestion.updateMany({
+          where: { mergedIntoId: input.id },
+          data: { mergedIntoId: null },
+        }),
+        prisma.team.delete({ where: { id: input.id } }),
+      ])
 
-  listSuggestions: adminProcedure
+      return { message: 'Team deleted' }
+    }),
+
+  listSuggestions: staffProcedure
     .input(
       z.object({
         status: z.enum(['pending', 'on_hold', 'accepted', 'declined'] as const).default('pending'),
       }),
     )
-    .handler(async ({ input }) => {
+    .handler(async ({ input, context }) => {
       const suggestions = await prisma.teamSuggestion.findMany({
-        where: { status: input.status },
+        where: { status: input.status, nationalChapterId: chapterFilter(context.access) },
         orderBy: { createdAt: 'asc' },
         include: {
           suggestedBy: { select: { id: true, name: true, email: true } },
@@ -99,15 +155,11 @@ export const adminTeamsRouter = {
       }
     }),
 
-  reviewSuggestion: adminProcedure
+  reviewSuggestion: staffProcedure
     .input(z.object({ id: z.number().int() }).merge(ReviewTeamSuggestionSchema))
     .handler(async ({ input, context }) => {
       const admin = context.volunteer
-      const suggestion = await prisma.teamSuggestion.findUnique({
-        where: { id: input.id },
-        include: { suggestedBy: { select: { id: true, name: true, email: true } } },
-      })
-      if (!suggestion) throw new ORPCError('NOT_FOUND', { message: 'Not found' })
+      const suggestion = await suggestionRunBy(context.access, input.id)
 
       const action = input.action
       const adminNotes =
@@ -130,7 +182,13 @@ export const adminTeamsRouter = {
 
         finalName = name
         const [createdTeam] = await prisma.$transaction([
-          prisma.team.create({ data: { name, description: description ?? null } }),
+          prisma.team.create({
+            data: {
+              name,
+              description: description ?? null,
+              nationalChapterId: suggestion.nationalChapterId,
+            },
+          }),
           prisma.teamSuggestion.update({
             where: { id: input.id },
             data: {
@@ -157,7 +215,9 @@ export const adminTeamsRouter = {
           throw new ORPCError('BAD_REQUEST', { message: 'mergedIntoId required for merge' })
         }
         const target = await prisma.team.findUnique({ where: { id: mergedIntoId } })
-        if (!target) throw new ORPCError('NOT_FOUND', { message: 'Target team not found' })
+        if (!target || !canAdminChapter(context.access, target.nationalChapterId)) {
+          throw new ORPCError('NOT_FOUND', { message: 'Target team not found' })
+        }
 
         await prisma.$transaction([
           prisma.teamSuggestion.update({
@@ -209,12 +269,10 @@ export const adminTeamsRouter = {
       return { message: 'Suggestion updated' }
     }),
 
-  deleteSuggestion: adminProcedure
+  deleteSuggestion: staffProcedure
     .input(z.object({ id: z.number().int() }))
-    .handler(async ({ input }) => {
-      const suggestion = await prisma.teamSuggestion.findUnique({ where: { id: input.id } })
-      if (!suggestion) throw new ORPCError('NOT_FOUND', { message: 'Not found' })
-
+    .handler(async ({ input, context }) => {
+      await suggestionRunBy(context.access, input.id)
       await prisma.teamSuggestion.delete({ where: { id: input.id } })
       return { message: 'Suggestion deleted' }
     }),
