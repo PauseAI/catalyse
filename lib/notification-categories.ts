@@ -31,6 +31,7 @@ const NEEDS_ACTION_TYPES = [
   'new_project_proposal',
   'local_group_suggestion',
   'team_suggestion',
+  'chapter_transfer_request',
   'new_bug_report',
   'bug_report_comment',
 ]

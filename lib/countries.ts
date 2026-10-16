@@ -31,6 +31,7 @@ export function isCountry(value: string): value is Country {
   return COUNTRIES.some((c) => c.value === value)
 }
 
-export function countryName(country: Country): string {
+/** How a stored country is shown: its label, or the value itself when it is not listed. */
+export function countryName(country: string): string {
   return COUNTRIES.find((c) => c.value === country)?.label ?? country
 }

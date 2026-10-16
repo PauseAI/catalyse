@@ -72,6 +72,7 @@ export default function AdminLandingPage() {
         ...(user.chapter && user.access.role
           ? [{ href: `/admin/chapters/${user.chapter.id}`, label: `${user.chapter.name} chapter` }]
           : []),
+        { href: '/admin/transfers', label: 'Chapter moves' },
         { href: '/admin/chapters', label: 'National chapters', globalOnly: true },
         { href: '/admin/team', label: 'Global admins', globalOnly: true },
       ],

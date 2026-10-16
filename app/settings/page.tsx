@@ -10,6 +10,7 @@ import Radio from '@/components/Radio'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import SkillPicker from '@/components/SkillPicker'
 import Tabs from '@/components/Tabs'
+import ChapterMove from '@/components/ChapterMove'
 import { Badge } from '@/components/Badge'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
@@ -552,6 +553,7 @@ function SettingsPageContent() {
                 {countryLabel(me.country)} ·{' '}
                 {me.chapter ? `${me.chapter.name} chapter` : 'Holding pool'}
               </p>
+              <ChapterMove country={me.country} />
             </div>
           ) : (
             <div className="mb-5">

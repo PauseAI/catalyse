@@ -8,6 +8,7 @@ import { messagesRouter } from './routers/messages'
 import { contactsRouter } from './routers/contacts'
 import { bugReportsRouter } from './routers/bugReports'
 import { chaptersRouter } from './routers/chapters'
+import { chapterTransfersRouter } from './routers/chapterTransfers'
 import { localGroupsRouter } from './routers/localGroups'
 import { localGroupSuggestionsRouter } from './routers/localGroupSuggestions'
 import { teamsRouter } from './routers/teams'
@@ -60,6 +61,7 @@ export const appRouter = {
   bugReports: bugReportsRouter,
   bugReportComments: bugReportCommentsRouter,
   chapters: chaptersRouter,
+  chapterTransfers: chapterTransfersRouter,
   localGroups: localGroupsRouter,
   localGroupSuggestions: localGroupSuggestionsRouter,
   teams: teamsRouter,
