@@ -69,7 +69,10 @@ test.describe('National chapters', () => {
     const kept = await createApprovedVolunteer(baseUrl, { country: COUNTRY })
     const second = await createApprovedVolunteer(baseUrl, { country: COUNTRY })
 
-    await adminPage.goto(`${baseUrl}/admin/volunteers/${second.id}`)
+    await adminPage.goto(`${baseUrl}/volunteers/${second.id}`)
+    await expect(adminPage.getByText(second.email)).toBeVisible({ timeout: 10_000 })
+    await snap(adminPage, 'profile as a global admin')
+    await adminPage.getByRole('link', { name: 'Admin page' }).click()
     await expect(adminPage.getByRole('heading', { name: 'Duplicate accounts' })).toBeVisible({
       timeout: 10_000,
     })
@@ -82,6 +85,10 @@ test.describe('National chapters', () => {
     )
     await expect(adminPage.getByRole('button', { name: 'Not a duplicate' })).toBeVisible()
     await snap(adminPage, 'marked as a duplicate')
+
+    await adminPage.goto(`${baseUrl}/volunteers/${second.id}`)
+    await expect(adminPage.getByText('Duplicate account of')).toBeVisible({ timeout: 10_000 })
+    await snap(adminPage, 'profile of a duplicate')
 
     await adminPage.goto(`${baseUrl}/admin/chapters/${chapterId}`)
     await expect(adminPage.getByText(`duplicate of ${kept.name}`)).toBeVisible({
