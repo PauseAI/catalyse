@@ -93,6 +93,21 @@ describe('volunteer directory', () => {
     await screen.findByRole('link', { name: 'Hidden Person' })
     expect(await screen.findByRole('button', { name: 'Local group filter' })).toBeInTheDocument()
   })
+
+  it('keeps a duplicate account listed, marked for a global admin', async () => {
+    const kept = await createVolunteer({ name: 'Dupe Kept' })
+    await createVolunteer({ name: 'Dupe Old', duplicateOfId: kept.id })
+    await renderApp(<VolunteersPage />, { as: await createAdmin(), url: '/volunteers?q=Dupe' })
+    const oldCard = (await screen.findByRole('link', { name: 'Dupe Old' })).closest(
+      '.card',
+    ) as HTMLElement
+    expect(within(oldCard).getByText(/Duplicate account of/)).toBeInTheDocument()
+    expect(within(oldCard).getByRole('link', { name: 'Dupe Kept' })).toHaveAttribute(
+      'href',
+      `/volunteers/${kept.id}`,
+    )
+    expect(screen.getAllByText(/Duplicate account of/)).toHaveLength(1)
+  })
 })
 
 describe('volunteer profile', () => {

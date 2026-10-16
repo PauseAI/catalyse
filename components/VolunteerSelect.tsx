@@ -25,7 +25,7 @@ interface Props {
 // client-side filter over a preloaded page, since the volunteer list can grow far past
 // what's reasonable to fetch upfront. Each option shows name plus location context
 // (local group or country) so admins can make location-aware assignments, and to a global
-// admin the email too. Accounts marked as duplicates never appear.
+// admin the email and any duplicate mark too.
 export default function VolunteerSelect({
   id,
   label,
@@ -64,8 +64,13 @@ export default function VolunteerSelect({
     value: String(v.id),
     label: v.name,
     description:
-      [v.email, [v.localGroup, v.country].filter(Boolean).join(', ')].filter(Boolean).join(' · ') ||
-      undefined,
+      [
+        v.email,
+        [v.localGroup, v.country].filter(Boolean).join(', '),
+        v.duplicateOf && `duplicate of ${v.duplicateOf.name}`,
+      ]
+        .filter(Boolean)
+        .join(' · ') || undefined,
   }))
   const options: FilterOption[] = [
     { value: '', label: placeholder },

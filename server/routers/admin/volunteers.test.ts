@@ -115,10 +115,13 @@ describe('admin.volunteers.markDuplicate', () => {
       'Marked as a duplicate of Sam Twin (sam-new@example.com).',
     )
 
-    // Out of the directory, and so out of every picker that searches it.
-    const listed = (await c.volunteers.list({ search: 'Sam' })).volunteers.map((v) => v.id)
-    expect(listed).toContain(kept.id)
-    expect(listed).not.toContain(old.id)
+    // Still in the directory, marked for a global admin.
+    const listed = (await c.volunteers.list({ search: 'Sam' })).volunteers
+    expect(listed.find((v) => v.id === kept.id)?.duplicateOf).toBeNull()
+    expect(listed.find((v) => v.id === old.id)?.duplicateOf).toEqual({
+      id: kept.id,
+      name: 'Sam Twin',
+    })
     expect((await c.volunteers.getById({ id: old.id })).duplicateOf).toEqual({
       id: kept.id,
       name: 'Sam Twin',

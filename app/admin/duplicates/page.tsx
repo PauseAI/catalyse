@@ -14,8 +14,8 @@ export default function AdminDuplicatesPage() {
       <h1>Possible duplicates</h1>
       <p className="text-text-light">
         Accounts with the same name, Discord handle or phone number. Keep the account the person
-        uses: the other is left out of the directory and of volunteer pickers. A pair you mark as
-        different people is not shown again.
+        uses: the other is marked as its duplicate, which global admins see, and cannot be given a
+        chapter role. A pair you mark as different people is not shown again.
       </p>
       <section className={SECTION_CARD}>
         <DuplicatePairs emptyText="No possible duplicates." />

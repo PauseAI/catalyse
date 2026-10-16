@@ -38,7 +38,8 @@ export const volunteersRouter = {
       // The directory is the viewer's chapter's, and its staff see profiles hidden from it.
       const isAdmin = canAdminChapter(context.access, context.access.chapterId)
 
-      // A global admin sees, and searches by, each volunteer's login address.
+      // A global admin sees, and searches by, each volunteer's login address, and sees which
+      // accounts are marked as another's duplicate.
       const { globalAdmin } = context.access
 
       const textConditions: Prisma.Sql[] = []
@@ -65,7 +66,6 @@ export const volunteersRouter = {
 
       const where: Record<string, unknown> = {
         deletedAt: null,
-        duplicateOfId: null,
         nationalChapterId: chapterFilter(context.access, input.chapter),
         ...(isAdmin ? {} : { consentMakeProfileVisibleInDirectory: true }),
         approvalStatus: ApprovalStatus.approved,
@@ -88,6 +88,7 @@ export const volunteersRouter = {
             country: true,
             otherSkills: true,
             group: { select: { name: true } },
+            duplicateOf: { select: { id: true, name: true } },
             createdAt: true,
             lastActiveAt: true,
             consentMakeProfileVisibleInDirectory: true,
@@ -118,7 +119,7 @@ export const volunteersRouter = {
           contactRequested: relations.requested.has(v.id),
           activeRecently: isActiveRecently(v.lastActiveAt),
           name: v.name,
-          ...(globalAdmin ? { email: v.email } : {}),
+          ...(globalAdmin ? { email: v.email, duplicateOf: v.duplicateOf } : {}),
           bio: v.bio,
           availabilityHoursPerWeek: v.availabilityHoursPerWeek,
           location: v.location,

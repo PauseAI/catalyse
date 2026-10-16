@@ -59,8 +59,8 @@ export default function DuplicateAccounts({
       {duplicateOf ? (
         <div className="flex justify-between items-center gap-4 flex-wrap">
           <p className="m-0">
-            A second account of <AccountLink account={duplicateOf} />, left out of the directory and
-            of volunteer pickers.
+            A second account of <AccountLink account={duplicateOf} />. It cannot be given a chapter
+            role.
           </p>
           {canMark && (
             <Button
