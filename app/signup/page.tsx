@@ -522,8 +522,8 @@ export default function SignupPage() {
             Your application
           </label>
           <FieldHint id={`${prefix}applicationMessage-hint`}>
-            Tell us your connection to PauseAI (if you&apos;re already in the WhatsApp or Discord,
-            how we know you), why the mission matters to you, and how you&apos;d like to help. Only
+            Tell us your connection to PauseAI (if you&apos;re already in our chat app channels, how
+            we know you), why the mission matters to you, and how you&apos;d like to help. Only
             admins read this; it isn&apos;t on your public profile.
           </FieldHint>
           <textarea

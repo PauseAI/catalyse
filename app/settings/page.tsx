@@ -545,17 +545,7 @@ function SettingsPageContent() {
               onChange={(e) => setHours(e.target.value)}
             />
           </div>
-          {me?.country ? (
-            // The country decides the chapter, so it is changed by transfer, not edited here.
-            <div className="mb-5">
-              <span className="block font-semibold mb-1">Country</span>
-              <p className="m-0">
-                {countryLabel(me.country)} ·{' '}
-                {me.chapter ? `${me.chapter.name} chapter` : 'Holding pool'}
-              </p>
-              <ChapterMove country={me.country} />
-            </div>
-          ) : (
+          {!me?.country && (
             <div className="mb-5">
               <FilterDropdown
                 id="locationCountry"
@@ -610,6 +600,19 @@ function SettingsPageContent() {
 
           {saveButton}
         </form>
+      )}
+
+      {activeTab === 'profile' && me?.country && (
+        // The country decides the chapter, so it is changed by transfer, not edited here —
+        // this sits outside the form above because it saves itself, on its own action.
+        <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word max-w-4xl`}>
+          <h3 className="mt-0">Country &amp; chapter</h3>
+          <p className="m-0">
+            {countryLabel(me.country)} ·{' '}
+            {me.chapter ? `${me.chapter.name} chapter` : 'Holding pool'}
+          </p>
+          <ChapterMove country={me.country} />
+        </div>
       )}
 
       {activeTab === 'profile' && (
