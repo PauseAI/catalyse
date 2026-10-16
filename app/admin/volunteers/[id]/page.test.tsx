@@ -210,6 +210,7 @@ describe('duplicate accounts', () => {
 
     await screen.findByRole('heading', { name: 'Duplicate accounts' })
     expect(screen.getByText("No other accounts are marked as this person's.")).toBeInTheDocument()
+    expect(await screen.findByText('No other account looks like this one.')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Mark as a duplicate of' }))
     await userEvent.type(
       screen.getByRole('searchbox', { name: 'Mark as a duplicate of' }),

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { redactVolunteer } from '@/lib/auth'
+import { dismissDuplicatePair, findDuplicatePairs } from '@/lib/duplicate-accounts'
 import { adminProcedure, staffProcedure } from '../../procedures'
 import { canAdminChapter, type ChapterAccess } from '@/lib/chapter-access'
 import { WorkItemType } from '@/generated/prisma/enums'
@@ -255,6 +256,20 @@ export const adminVolunteersRouter = {
         },
       })
       return { message: 'Skill endorsed' }
+    }),
+
+  /** Pairs of accounts that look like one person; with `volunteerId`, that account's only. */
+  possibleDuplicates: adminProcedure
+    .input(z.object({ volunteerId: z.number().int().optional() }))
+    .handler(({ input }) => findDuplicatePairs(input.volunteerId)),
+
+  /** Says two accounts belong to different people, so they are not paired again. */
+  dismissDuplicate: adminProcedure
+    .input(z.object({ ids: z.tuple([z.number().int(), z.number().int()]) }))
+    .handler(async ({ input, context }) => {
+      await Promise.all(input.ids.map(liveVolunteer))
+      await dismissDuplicatePair(input.ids, context.volunteer.id)
+      return { message: 'Marked as different people' }
     }),
 
   /**

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import DuplicatePairs from '@/components/DuplicatePairs'
 import VolunteerSelect from '@/components/VolunteerSelect'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
@@ -89,6 +90,15 @@ export default function DuplicateAccounts({
             <p className="text-text-light mt-0">
               No other accounts are marked as this person&apos;s.
             </p>
+          )}
+          {canMark && (
+            <div className="mb-4">
+              <h4 className="mt-0 mb-2">Possibly the same person</h4>
+              <DuplicatePairs
+                volunteerId={volunteer.id}
+                emptyText="No other account looks like this one."
+              />
+            </div>
           )}
           {canMark && (
             <form

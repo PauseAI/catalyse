@@ -74,6 +74,12 @@ export default function AdminLandingPage() {
           : []),
         { href: '/admin/transfers', label: 'Chapter moves' },
         { href: '/admin/chapters', label: 'National chapters', globalOnly: true },
+        {
+          href: '/admin/duplicates',
+          label: 'Possible duplicates',
+          count: counts?.possibleDuplicates,
+          globalOnly: true,
+        },
         { href: '/admin/team', label: 'Global admins', globalOnly: true },
       ],
     },

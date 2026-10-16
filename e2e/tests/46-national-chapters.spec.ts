@@ -1,4 +1,12 @@
-import { test, expect, getAlert, createApprovedVolunteer, signedInPage } from '../fixtures'
+import {
+  test,
+  expect,
+  getAlert,
+  createApprovedVolunteer,
+  createApprovedVolunteerNamed,
+  signedInPage,
+} from '../fixtures'
+import { fake } from '../fake'
 import { ensureChapter, makeChapterStaff } from '../actions/chapters'
 import { selectFilterDropdown } from '../actions/ui'
 
@@ -85,6 +93,32 @@ test.describe('National chapters', () => {
     await expect(adminPage.getByRole('option', { name: kept.name, exact: true })).toBeVisible()
     await search.fill(second.name)
     await expect(adminPage.getByRole('option', { name: second.name, exact: true })).toHaveCount(0)
+  })
+
+  test('A global admin settles a pair of accounts with the same name', async ({
+    adminPage,
+    baseUrl,
+    snap,
+  }) => {
+    const name = fake.personName()
+    const kept = await createApprovedVolunteerNamed(baseUrl, name)
+    const second = await createApprovedVolunteerNamed(baseUrl, name)
+
+    await adminPage.goto(`${baseUrl}/admin`)
+    await adminPage.getByRole('link', { name: /Possible duplicates/ }).click()
+    await expect(adminPage.getByRole('heading', { name: 'Possible duplicates' })).toBeVisible({
+      timeout: 10_000,
+    })
+    const keptAccount = adminPage.getByRole('group', { name: kept.email })
+    await expect(keptAccount).toBeVisible({ timeout: 10_000 })
+    await expect(adminPage.getByRole('group', { name: second.email })).toBeVisible()
+    await snap(adminPage, 'a pair to settle')
+
+    await keptAccount.getByRole('button', { name: 'Keep this account' }).click()
+    await expect(getAlert(adminPage)).toContainText(`${name} is marked as a duplicate of ${name}`, {
+      timeout: 10_000,
+    })
+    await expect(adminPage.getByRole('group', { name: kept.email })).toHaveCount(0)
   })
 
   test('A deputy runs the chapter but cannot appoint deputies', async ({ browser, baseUrl }) => {

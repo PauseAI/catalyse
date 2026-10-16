@@ -105,15 +105,13 @@ confusing than it needed to be, and that will do so again.
       `renderApp` could start each mount with an empty query cache, or `test/render.tsx`
       could say to use `findBy…` after a remount.
 
-## 3x
-
 - [ ] **`npm run new-migration` always writes an unrelated `ALTER TABLE "schema_migrations"`
       line that must be deleted by hand, and if `npm run migrate` runs first it is applied
       and recorded.** In R-08 a failed rename let migrate apply it; undoing it needed a
       hand-run `psql` from the owner, because editing an applied migration is blocked. P4-05's
       enum rename diff carried it again, and so did the national chapters migration, along
-      with a `CREATE EXTENSION` already applied. `scripts/new-migration.ts` should strip both
-      from the diff it writes.
+      with a `CREATE EXTENSION` already applied, and both duplicate-account migrations.
+      `scripts/new-migration.ts` should strip both from the diff it writes.
 
 ## 2x
 
@@ -206,6 +204,9 @@ confusing than it needed to be, and that will do so again.
       five-minute run to find.** Three unrelated flakes (an unawaited notification in
       `quickTasks.submit`, a scratch-database drop timing out in `disposable-db.test.ts`, a
       `ProjectEditor` test clicking before its task saved) appeared on three successive runs and
-      passed alone every time. A script that runs the unit suite several times under full load
-      and lists every test that failed in any run would surface them together, and could run
-      nightly.
+      passed alone every time. The `ProjectEditor` one came back on a later run, and with half
+      the cores busy other tests in that file failed too, on waits that assume a server round
+      trip finishes within the default second. Reproducing needs load, and running test files
+      side by side collides on the shared test-database setup, so the only way was busy-looping
+      cores by hand. A script that runs the unit suite several times under load and lists every
+      test that failed in any run would surface them together, and could run nightly.

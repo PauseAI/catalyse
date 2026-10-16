@@ -192,6 +192,66 @@ describe('admin.volunteers.markDuplicate', () => {
   })
 })
 
+describe('admin.volunteers.possibleDuplicates', () => {
+  it('pairs accounts with the same name, Discord handle or phone number', async () => {
+    const admin = await createAdmin()
+    const c = clientAs(admin)
+    const chapter = await createChapter({ name: 'Freedonia' })
+    const jo = await createChapterLead(chapter, {
+      name: 'Jo Bloggs',
+      discordHandle: 'JoB#1',
+      signalNumber: '+44 7700 900123',
+    })
+    const accented = await createVolunteer({ name: '  jö   BLOGGS ' })
+    const handle = await createVolunteer({ name: 'Joanne B', discordHandle: ' job#1 ' })
+    const phone = await createVolunteer({ name: 'J. B.', whatsappNumber: '+447700900123' })
+    const short = await createVolunteer({ name: 'Short One', signalNumber: '12' })
+    await createVolunteer({ name: 'Short Two', signalNumber: '12' })
+    const deputy = await createChapterDeputy(chapter, { name: 'Dee Same', discordHandle: 'dee' })
+    const deputyTwin = await createVolunteer({ name: 'Dee Same', discordHandle: 'DEE' })
+
+    const pairs = await c.admin.volunteers.possibleDuplicates({ volunteerId: jo.id })
+    expect(pairs.map((p) => [p.a.id, p.b.id, p.reasons])).toEqual([
+      [jo.id, accented.id, ['name']],
+      [jo.id, handle.id, ['discord']],
+      [jo.id, phone.id, ['phone']],
+    ])
+    expect(pairs[0].a).toMatchObject({ chapterName: 'Freedonia', role: 'Lead of Freedonia' })
+    expect(pairs[0].b).toMatchObject({ chapterName: null, role: null })
+    // Too few digits to count as a number.
+    expect(await c.admin.volunteers.possibleDuplicates({ volunteerId: short.id })).toEqual([])
+    const [both] = await c.admin.volunteers.possibleDuplicates({ volunteerId: deputy.id })
+    expect(both).toMatchObject({
+      a: { id: deputy.id, role: 'Deputy of Freedonia' },
+      b: { id: deputyTwin.id },
+      reasons: ['discord', 'name'],
+    })
+    const all = await c.admin.volunteers.possibleDuplicates({})
+    expect(all.map((p) => [p.a.id, p.b.id])).toContainEqual([deputy.id, deputyTwin.id])
+    expect((await c.admin.overview.counts()).possibleDuplicates).toBe(all.length)
+
+    // Said to be two people, or marked as a duplicate: no longer paired.
+    expect(await c.admin.volunteers.dismissDuplicate({ ids: [handle.id, jo.id] })).toEqual({
+      message: 'Marked as different people',
+    })
+    await c.admin.volunteers.dismissDuplicate({ ids: [jo.id, handle.id] })
+    await c.admin.volunteers.markDuplicate({ id: phone.id, duplicateOfId: jo.id })
+    expect(
+      (await c.admin.volunteers.possibleDuplicates({ volunteerId: jo.id })).map((p) => p.b.id),
+    ).toEqual([accented.id])
+    await expect(
+      c.admin.volunteers.dismissDuplicate({ ids: [jo.id, 999_999] }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+
+    // Only a global admin is shown them.
+    const lead = clientAs(jo)
+    expect((await lead.admin.overview.counts()).possibleDuplicates).toBe(0)
+    await expect(lead.admin.volunteers.possibleDuplicates({})).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    })
+  })
+})
+
 describe('admin.emailPreview', () => {
   it('lists every registered preview and renders each', async () => {
     const c = clientAs(await createAdmin())

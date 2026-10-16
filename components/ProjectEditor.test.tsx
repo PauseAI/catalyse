@@ -306,7 +306,10 @@ describe('ProjectEditor — new volunteer proposal', () => {
     })
     expect(draft.isOrgProposed).toBe(true)
     await userEvent.click(await screen.findByRole('button', { name: 'Publish' }))
-    expect(await screen.findByText('Publish this project?')).toBeInTheDocument()
+    // The dialog opens only once a fresh copy of the project has been fetched.
+    expect(
+      await screen.findByText('Publish this project?', {}, { timeout: 5000 }),
+    ).toBeInTheDocument()
     await userEvent.click(screen.getAllByRole('button', { name: 'Publish' })[1])
     await waitFor(async () => expect((await row(draft.id)).status).toBe('ready'))
     expect(await screen.findByText('Project published!')).toBeInTheDocument()

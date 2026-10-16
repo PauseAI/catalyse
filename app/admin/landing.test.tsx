@@ -21,6 +21,8 @@ describe('admin landing', () => {
     await createProject({ status: 'pending_review' })
     await createVolunteer({ approvalStatus: 'pending' })
     await prisma.bugReport.create({ data: { title: 'b', description: 'ten chars..' } })
+    await createVolunteer({ name: 'Landing Twin' })
+    await createVolunteer({ name: 'Landing Twin' })
     await prisma.notification.createMany({
       data: [
         { volunteerId: sa.id, type: 'new_bug_report', title: 'Bug came in', link: '/admin/bugs' },
@@ -37,6 +39,11 @@ describe('admin landing', () => {
     await waitFor(() =>
       expect(screen.getByRole('link', { name: /Triage queue/ })).toHaveTextContent('1'),
     )
+    expect(screen.getByRole('link', { name: /Possible duplicates/ })).toHaveAttribute(
+      'href',
+      '/admin/duplicates',
+    )
+    expect(screen.getByRole('link', { name: /Possible duplicates/ })).toHaveTextContent('1')
     await screen.findByText('Approved')
     await userEvent.click(screen.getAllByRole('button', { name: 'Mark as read' })[0])
     await waitFor(() =>
@@ -59,6 +66,7 @@ describe('admin landing', () => {
     expect(screen.queryByText('Platform')).toBeNull()
     expect(screen.queryByRole('link', { name: /Bug reports/ })).toBeNull()
     expect(screen.queryByRole('link', { name: 'National chapters' })).toBeNull()
+    expect(screen.queryByRole('link', { name: /Possible duplicates/ })).toBeNull()
     await screen.findByText(/No notifications|no new notifications/i)
     cleanup()
     const vol = await createVolunteer()
