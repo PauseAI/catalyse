@@ -68,7 +68,8 @@ export default function AdminLandingPage() {
           superAdminOnly: true,
           count: counts?.pendingApplications,
         },
-        { href: '/admin/team', label: 'Admin team' },
+        { href: '/admin/chapters', label: 'National chapters', superAdminOnly: true },
+        { href: '/admin/team', label: 'Global admins', superAdminOnly: true },
       ],
     },
     {

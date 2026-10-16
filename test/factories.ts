@@ -110,12 +110,14 @@ export async function createLocalGroup(
   return prisma.localGroup.create({ data: { name: `Group ${n}`, country: 'UK', ...overrides } })
 }
 
-let chapterSeq = 0
-/** A national chapter for the next listed country not yet used in this file. */
+/** A national chapter for a listed country that has none yet. */
 export async function createChapter(
   overrides: Partial<Prisma.NationalChapterUncheckedCreateInput> = {},
 ) {
-  const listed = COUNTRIES[chapterSeq++]
+  const taken = new Set(
+    (await prisma.nationalChapter.findMany({ select: { country: true } })).map((c) => c.country),
+  )
+  const listed = COUNTRIES.find((c) => !taken.has(c.value))
   if (!listed) throw new Error('createChapter: every listed country already has a chapter')
   return prisma.nationalChapter.create({
     data: { country: listed.value, name: listed.label, ...overrides },
@@ -148,6 +150,24 @@ export async function createChapterDeputy(
     data: { nationalChapterId: chapter.id, volunteerId: deputy.id },
   })
   return deputy
+}
+
+/** A pending invite to be a deputy of a new chapter, unless the overrides say otherwise. */
+export async function createStaffInvite(
+  overrides: Partial<Prisma.AdminInviteUncheckedCreateInput> &
+    Pick<Prisma.AdminInviteUncheckedCreateInput, 'email' | 'invitedById'>,
+) {
+  const n = nextSeq()
+  const nationalChapterId = overrides.nationalChapterId ?? (await createChapter()).id
+  return prisma.adminInvite.create({
+    data: {
+      inviteToken: `invite-token-${n}`,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      role: 'DEPUTY',
+      ...overrides,
+      nationalChapterId,
+    },
+  })
 }
 
 /** Two volunteers who have accepted a contact request, so they may message each other. */

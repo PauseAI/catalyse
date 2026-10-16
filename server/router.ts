@@ -31,6 +31,7 @@ import { adminLocalGroupsRouter } from './routers/admin/localGroups'
 import { adminTeamsRouter } from './routers/admin/teams'
 import { adminBugReportsRouter } from './routers/admin/bugReports'
 import { adminAdminsRouter } from './routers/admin/admins'
+import { adminChaptersRouter } from './routers/admin/chapters'
 import { adminPlatformSettingsRouter } from './routers/admin/platformSettings'
 import { adminStatsRouter } from './routers/admin/stats'
 import { adminTriageRouter } from './routers/admin/triage'
@@ -83,6 +84,7 @@ export const appRouter = {
     teams: adminTeamsRouter,
     bugReports: adminBugReportsRouter,
     admins: adminAdminsRouter,
+    chapters: adminChaptersRouter,
     platformSettings: adminPlatformSettingsRouter,
     stats: adminStatsRouter,
     triage: adminTriageRouter,

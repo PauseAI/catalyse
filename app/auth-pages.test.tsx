@@ -2,7 +2,12 @@ import { describe, it, expect, vi } from 'vitest'
 import { screen, waitFor, fireEvent, act, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
-import { createVolunteer, createSuperAdmin, TEST_PASSWORD } from '@/test/factories'
+import {
+  createVolunteer,
+  createSuperAdmin,
+  TEST_PASSWORD,
+  createStaffInvite,
+} from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { emails } from '@/test/fakes/email'
 import { navigation } from '@/test/next-navigation'
@@ -178,20 +183,18 @@ describe('accept invite', () => {
     cleanup()
     const inviter = await createSuperAdmin()
     const invitee = await createVolunteer({ email: 'invitee@example.com' })
-    await prisma.adminInvite.create({
-      data: {
-        email: 'invitee@example.com',
-        inviteToken: 'good-token',
-        invitedById: inviter.id,
-        expiresAt: new Date(Date.now() + 60_000),
-      },
+    await createStaffInvite({
+      email: 'invitee@example.com',
+      inviteToken: 'good-token',
+      invitedById: inviter.id,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     await renderApp(<AcceptInvitePage />, { url: '/accept-invite?token=good-token', as: invitee })
     expect(await screen.findByText('Welcome to the team!')).toBeInTheDocument()
     await waitFor(() => expect(navigation.push).toHaveBeenCalledWith('/dashboard'))
-    expect((await prisma.volunteer.findUniqueOrThrow({ where: { id: invitee.id } })).isAdmin).toBe(
-      true,
-    )
+    expect(
+      await prisma.chapterDeputy.findUnique({ where: { volunteerId: invitee.id } }),
+    ).not.toBeNull()
 
     // Each way an invite can fail says which it was, with someone to ask.
     const failsWith = async (token: string | null, message: string) => {
@@ -206,21 +209,19 @@ describe('accept invite', () => {
       )
     }
     const invite = (inviteToken: string, data: object) =>
-      prisma.adminInvite.create({
-        data: {
-          email: 'invitee@example.com',
-          inviteToken,
-          invitedById: inviter.id,
-          expiresAt: new Date(Date.now() + 60_000),
-          ...data,
-        },
+      createStaffInvite({
+        email: 'invitee@example.com',
+        inviteToken,
+        invitedById: inviter.id,
+        expiresAt: new Date(Date.now() + 60_000),
+        ...data,
       })
     await invite('old-token', { expiresAt: new Date(Date.now() - 60_000) })
     await invite('revoked-token', { status: 'revoked' })
     await failsWith('good-token', 'This invite has already been used.')
     await failsWith(
       'old-token',
-      'This invite has expired. Ask the admin who invited you to send a new one.',
+      'This invite has expired. Ask the person who invited you to send a new one.',
     )
     await failsWith('revoked-token', 'This invite has been withdrawn.')
     await failsWith(

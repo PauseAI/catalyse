@@ -1,6 +1,7 @@
 import { randomBytes, pbkdf2Sync, timingSafeEqual, createHash } from 'crypto'
 import type { Volunteer } from '@/generated/prisma/client'
 import { prisma } from './prisma'
+import { acceptChapterInvite } from './chapter-roles'
 import { env } from './env'
 import { ApprovalStatus, InviteStatus } from '@/generated/prisma/enums'
 
@@ -216,13 +217,16 @@ export async function checkAdminBootstrap(volunteer: PromotionCandidate): Promis
   return true
 }
 
-// The pending, unexpired admin invite for this confirmed email (case-insensitive), if any.
+// The pending, unexpired chapter-role invite for this confirmed email (case-insensitive), if any.
 async function findPendingInvite(volunteer: EmailIdentity) {
   if (!volunteer.emailConfirmed || !volunteer.email) return null
   const target = volunteer.email.toLowerCase()
   const pending = await prisma.adminInvite.findMany({
-    where: { status: InviteStatus.pending, expiresAt: { gt: new Date() } },
-    select: { id: true, email: true },
+    where: {
+      status: InviteStatus.pending,
+      expiresAt: { gt: new Date() },
+      nationalChapterId: { not: null },
+    },
   })
   return pending.find((i) => i.email.toLowerCase() === target) ?? null
 }
@@ -230,18 +234,11 @@ async function findPendingInvite(volunteer: EmailIdentity) {
 export async function acceptPendingInvite(volunteer: PromotionCandidate): Promise<boolean> {
   const invite = await findPendingInvite(volunteer)
   if (!invite) return false
-  await prisma.volunteer.update({
-    where: { id: volunteer.id },
-    data: { isAdmin: true, approvalStatus: ApprovalStatus.approved },
-  })
-  await prisma.adminInvite.update({
-    where: { id: invite.id },
-    data: { status: InviteStatus.accepted, acceptedById: volunteer.id, acceptedAt: new Date() },
-  })
+  await prisma.$transaction((tx) => acceptChapterInvite(tx, volunteer.id, invite))
   return true
 }
 
-/** Whether promoteIfEntitled would grant or confirm admin for this volunteer. */
+/** Whether promoteIfEntitled would grant or confirm global admin or a chapter role. */
 export async function isEntitledToAdmin(volunteer: EmailIdentity): Promise<boolean> {
   return isSuperAdmin(volunteer) || (await findPendingInvite(volunteer)) !== null
 }
@@ -256,7 +253,7 @@ export async function revokeCredentials(volunteerId: number): Promise<void> {
   await deleteAllSessions(volunteerId)
 }
 
-/** Runs both promotion checks; true if either granted admin. */
+/** Runs both promotion checks; true if either granted global admin or a chapter role. */
 export async function promoteIfEntitled(volunteer: PromotionCandidate): Promise<boolean> {
   const bootstrapped = await checkAdminBootstrap(volunteer)
   const invited = await acceptPendingInvite(volunteer)

@@ -212,7 +212,9 @@ describe('templates', () => {
     expect(e.buildApplicationReopenedHtml('A', `${app}/login`, 'n')).toContain('white-space')
     expect(e.buildPendingApplicationsSummaryHtml(3, app)).toContain('3')
     expect(e.buildPasswordResetHtml(`${app}/reset`, 'A')).toContain('Reset Your Password')
-    expect(e.buildAdminInviteHtml(`${app}/invite`, 'B')).toContain('B')
+    expect(
+      e.buildAdminInviteHtml(`${app}/invite`, 'B', { role: 'LEAD', chapterName: 'Kenya' }),
+    ).toContain('B')
     expect(e.buildOutreachLoginHtml(`${app}/outreach`)).toContain(`${app}/outreach`)
     expect(e.buildWelcomeHtml('A', app)).toContain('Welcome')
     expect(e.buildProjectNotificationHtml('A', 'S', 'M', 5, app, '<extra/>')).toContain(
@@ -265,7 +267,12 @@ describe('templates', () => {
       e.sendApplicationReopenedEmail(base),
       e.sendPendingApplicationsSummaryEmail({ ...base, count: 2 }),
       e.sendPasswordResetEmail({ to: 'a@b.c', resetToken: 'r' }),
-      e.sendAdminInviteEmail({ to: 'a@b.c', inviteToken: 'i', invitedBy: 'B' }),
+      e.sendAdminInviteEmail({
+        to: 'a@b.c',
+        inviteToken: 'i',
+        invitedBy: 'B',
+        invite: { role: 'DEPUTY', chapterName: 'Kenya' },
+      }),
       e.sendOutreachLoginEmail({ to: 'a@b.c', loginToken: 'o' }),
       e.sendAdminAlertEmail({ ...base, subject: 'S', message: 'M', ctaLabel: 'L', ctaUrl: '/rel' }),
       e.sendAdminAlertEmail({

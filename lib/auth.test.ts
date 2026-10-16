@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { createVolunteer, createAdmin } from '@/test/factories'
+import { createVolunteer, createAdmin, createStaffInvite } from '@/test/factories'
 import {
   hashPassword,
   verifyPassword,
@@ -159,13 +159,11 @@ describe('isSuperAdmin', () => {
 describe('isEntitledToAdmin', () => {
   it('is true for a confirmed listed address or a confirmed pending invite', async () => {
     const inviter = await createAdmin()
-    await prisma.adminInvite.create({
-      data: {
-        email: 'entitled@example.com',
-        inviteToken: 'entitled-tok',
-        invitedById: inviter.id,
-        expiresAt: new Date(Date.now() + 60_000),
-      },
+    await createStaffInvite({
+      email: 'entitled@example.com',
+      inviteToken: 'entitled-tok',
+      invitedById: inviter.id,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     const invited = { email: 'Entitled@example.com', emailConfirmed: true }
     expect(await isEntitledToAdmin(invited)).toBe(true)
@@ -231,13 +229,11 @@ describe('acceptPendingInvite', () => {
     const inviter = await createAdmin()
     const vol = await createVolunteer({ email: 'invitee@example.com', approvalStatus: 'pending' })
     expect(await acceptPendingInvite(vol)).toBe(false)
-    const invite = await prisma.adminInvite.create({
-      data: {
-        email: 'Invitee@Example.com',
-        inviteToken: 'tok',
-        invitedById: inviter.id,
-        expiresAt: new Date(Date.now() + 60_000),
-      },
+    const invite = await createStaffInvite({
+      email: 'Invitee@Example.com',
+      inviteToken: 'tok',
+      invitedById: inviter.id,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     expect(await acceptPendingInvite({ ...vol, emailConfirmed: false })).toBe(false)
     expect(await acceptPendingInvite({ ...vol, email: null })).toBe(false)
@@ -248,8 +244,9 @@ describe('acceptPendingInvite', () => {
     const after = await prisma.adminInvite.findUniqueOrThrow({ where: { id: invite.id } })
     expect(after).toMatchObject({ status: 'accepted', acceptedById: vol.id })
     expect(await prisma.volunteer.findUniqueOrThrow({ where: { id: vol.id } })).toMatchObject({
-      isAdmin: true,
+      nationalChapterId: invite.nationalChapterId,
       approvalStatus: 'approved',
     })
+    expect(await prisma.chapterDeputy.findUnique({ where: { volunteerId: vol.id } })).not.toBeNull()
   })
 })

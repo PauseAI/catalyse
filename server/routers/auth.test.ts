@@ -8,6 +8,7 @@ import {
   createQuickTask,
   createSkill,
   TEST_PASSWORD,
+  createStaffInvite,
 } from '@/test/factories'
 import { clientAs, anon } from '@/test/rpc'
 import { rateLimit } from '@/test/fakes/rate-limit'
@@ -75,31 +76,27 @@ describe('auth.login', () => {
     ).toBe(true)
     const inviter = await createAdmin()
     const invited = await createVolunteer({ email: 'invited@example.com' })
-    await prisma.adminInvite.create({
-      data: {
-        email: 'invited@example.com',
-        inviteToken: 't1',
-        invitedById: inviter.id,
-        expiresAt: new Date(Date.now() + 60_000),
-      },
+    await createStaffInvite({
+      email: 'invited@example.com',
+      inviteToken: 't1',
+      invitedById: inviter.id,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     const res = await anon().auth.login({ email: 'invited@example.com', password: TEST_PASSWORD })
     expect(res.message).toContain('granted admin access')
-    expect((await prisma.volunteer.findUniqueOrThrow({ where: { id: invited.id } })).isAdmin).toBe(
-      true,
-    )
+    expect(
+      await prisma.chapterDeputy.findUnique({ where: { volunteerId: invited.id } }),
+    ).not.toBeNull()
   })
   it('does not promote an account whose email is unconfirmed', async () => {
     // A pending applicant repoints their account at an invited address (or an
     // ADMIN_EMAILS address) without ever confirming it, then logs back in.
     const inviter = await createAdmin()
-    await prisma.adminInvite.create({
-      data: {
-        email: 'ceo@example.com',
-        inviteToken: 't-unconfirmed',
-        invitedById: inviter.id,
-        expiresAt: new Date(Date.now() + 60_000),
-      },
+    await createStaffInvite({
+      email: 'ceo@example.com',
+      inviteToken: 't-unconfirmed',
+      invitedById: inviter.id,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     for (const target of ['ceo@example.com', 'admin12@example.com']) {
       const applicant = await createVolunteer({ approvalStatus: 'pending', emailConfirmed: false })
@@ -181,13 +178,11 @@ describe('auth.signup', () => {
 
   it('promotes bootstrapped admins and invitees only once they confirm their email', async () => {
     const inviter = await createAdmin()
-    const invite = await prisma.adminInvite.create({
-      data: {
-        email: 'inv@example.com',
-        inviteToken: 't2',
-        invitedById: inviter.id,
-        expiresAt: new Date(Date.now() + 60_000),
-      },
+    const invite = await createStaffInvite({
+      email: 'inv@example.com',
+      inviteToken: 't2',
+      invitedById: inviter.id,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     for (const address of ['admin6@example.com', 'inv@example.com']) {
       // Signing up with a listed address proves nothing: the account waits like any other.
@@ -206,7 +201,9 @@ describe('auth.signup', () => {
         requiresPasswordReset: true,
       })
       expect(await prisma.volunteer.findUniqueOrThrow({ where: { id: res.id } })).toMatchObject({
-        isAdmin: true,
+        // The listed address becomes a global admin; the invitee, the chapter's deputy.
+        isAdmin: address === 'admin6@example.com',
+        nationalChapterId: address === 'admin6@example.com' ? null : invite.nationalChapterId,
         approvalStatus: 'approved',
         emailConfirmed: true,
       })
@@ -542,13 +539,11 @@ describe('verifyEmail / resendVerification', () => {
     // token; they fire the confirmation and a changeEmail to an invited address at
     // once. Whatever the interleaving, the invited address must stay unconfirmed.
     const inviter = await createAdmin()
-    await prisma.adminInvite.create({
-      data: {
-        email: 'target@example.com',
-        inviteToken: 't-race',
-        invitedById: inviter.id,
-        expiresAt: new Date(Date.now() + 60_000),
-      },
+    await createStaffInvite({
+      email: 'target@example.com',
+      inviteToken: 't-race',
+      invitedById: inviter.id,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     const vol = await createVolunteer({ approvalStatus: 'pending', emailConfirmed: false })
     const t = await tokenFor(vol.id)
@@ -769,13 +764,11 @@ describe('google sign-in (stubbed)', () => {
     })
     // Promotion on Google login via invite.
     const inviter = await createSuperAdmin()
-    await prisma.adminInvite.create({
-      data: {
-        email: 'g@example.com',
-        inviteToken: 'g1',
-        invitedById: inviter.id,
-        expiresAt: new Date(Date.now() + 60_000),
-      },
+    await createStaffInvite({
+      email: 'g@example.com',
+      inviteToken: 'g1',
+      invitedById: inviter.id,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     expect((await anon().auth.google({ stub: true, email: 'g@example.com' })).wasPromoted).toBe(
       true,

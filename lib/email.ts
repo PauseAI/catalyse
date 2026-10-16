@@ -344,40 +344,57 @@ export async function sendOutreachLoginEmail({
   return sendEmail(to, 'Your People for a Pause outreach link', buildOutreachLoginHtml(loginUrl))
 }
 
-export function buildAdminInviteHtml(inviteUrl: string, invitedBy: string): string {
+/** "lead" or "deputy" of a named chapter, as the invite email and its subject put it. */
+export type ChapterRoleInvite = { role: 'LEAD' | 'DEPUTY'; chapterName: string }
+
+const roleTitle = ({ role, chapterName }: ChapterRoleInvite) =>
+  `${role === 'LEAD' ? 'lead' : 'a deputy lead'} of the ${chapterName} chapter`
+
+export function buildAdminInviteHtml(
+  inviteUrl: string,
+  invitedBy: string,
+  invite: ChapterRoleInvite,
+): string {
   const by = escapeHtml(invitedBy)
+  const title = escapeHtml(roleTitle(invite))
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${baseStyle}</style></head>
 <body><div class="container">
-  <h2>You're Invited to be a Catalyse Admin</h2>
+  <h2>You're invited to run a PauseAI chapter</h2>
   <p>Hi there,</p>
-  <p><strong>${by}</strong> has invited you to become an admin on Catalyse, the PauseAI volunteer coordination platform.</p>
+  <p><strong>${by}</strong> has invited you to be ${title} on Catalyse, the PauseAI volunteer coordination platform.</p>
   <ul>
-    <li>Review and approve volunteer-proposed projects</li>
-    <li>Manage skills and Quick Tasks</li>
-    <li>View volunteer profiles and add notes</li>
-    <li>Invite other admins</li>
+    <li>Approve new volunteers who sign up in your country</li>
+    <li>Review and approve projects your members propose, and start your own</li>
+    <li>Run your chapter's teams, local groups and Quick Tasks</li>
+    <li>Start projects from templates shared by every chapter</li>${invite.role === 'LEAD' ? '\n    <li>Appoint deputies to help you</li>' : ''}
   </ul>
   <p style="text-align: center; margin: 32px 0;"><a href="${inviteUrl}" class="button">Accept Invitation</a></p>
   <p>This invitation expires in <strong>7 days</strong>.</p>
-  <p>You'll need to sign up or log in with this email address to accept.</p>
+  <p>You'll need to sign up or log in with this email address to accept. If you belong to another chapter, accepting moves you into this one.</p>
   ${footer([['Accept Invitation', inviteUrl]])}
 </div></body></html>`
+}
+
+export function chapterInviteSubject(invitedBy: string, invite: ChapterRoleInvite): string {
+  return `${invitedBy} invited you to be ${roleTitle(invite)}`
 }
 
 export async function sendAdminInviteEmail({
   to,
   inviteToken,
   invitedBy,
+  invite,
 }: {
   to: string
   inviteToken: string
   invitedBy: string
+  invite: ChapterRoleInvite
 }): Promise<boolean> {
   const inviteUrl = `${env.APP_URL}/accept-invite?token=${inviteToken}`
   return sendEmail(
     to,
-    `${invitedBy} invited you to be a Catalyse admin`,
-    buildAdminInviteHtml(inviteUrl, invitedBy),
+    chapterInviteSubject(invitedBy, invite),
+    buildAdminInviteHtml(inviteUrl, invitedBy, invite),
   )
 }
 

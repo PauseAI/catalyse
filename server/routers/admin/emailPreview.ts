@@ -8,6 +8,7 @@ import {
   buildPendingApplicationsSummaryHtml,
   buildPasswordResetHtml,
   buildAdminInviteHtml,
+  chapterInviteSubject,
   buildWelcomeHtml,
   buildProjectNotificationHtml,
   buildLocalGroupSuggestionHtml,
@@ -68,6 +69,8 @@ const SAMPLE_SUMMARY: SummaryLine[] = [
     text: 'Jo wants to help',
   },
 ]
+
+const SAMPLE_CHAPTER_INVITE = { role: 'DEPUTY', chapterName: 'United Kingdom' } as const
 
 const SAMPLE_PROJECTS = [
   {
@@ -131,9 +134,13 @@ const EMAIL_PREVIEW_REGISTRY: Record<string, { subject: string; build: () => str
       buildPasswordResetHtml(`${env.APP_URL}/reset-password?token=sample-token-abc123`, 'Alex'),
   },
   'admin-invite': {
-    subject: 'Jamie Smith invited you to be a Catalyse admin',
+    subject: chapterInviteSubject('Jamie Smith', SAMPLE_CHAPTER_INVITE),
     build: () =>
-      buildAdminInviteHtml(`${env.APP_URL}/accept-invite?token=sample-token-abc123`, 'Jamie Smith'),
+      buildAdminInviteHtml(
+        `${env.APP_URL}/accept-invite?token=sample-token-abc123`,
+        'Jamie Smith',
+        SAMPLE_CHAPTER_INVITE,
+      ),
   },
   'project-notification': {
     subject: 'Your project has been approved',

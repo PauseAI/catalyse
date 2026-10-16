@@ -448,8 +448,9 @@ export const ReviewTeamSuggestionSchema = z.object({
 
 // ─── Admin: invite ────────────────────────────────────────────────────────────
 
-export const InviteAdminSchema = AdminInviteSchema.pick({
-  email: true,
+export const InviteChapterStaffSchema = AdminInviteSchema.pick({ email: true }).extend({
+  chapterId: z.number().int(),
+  role: z.enum(['LEAD', 'DEPUTY']),
 })
 
 // ─── Admin: platform settings ─────────────────────────────────────────────────

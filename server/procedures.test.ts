@@ -6,6 +6,7 @@ import {
   createSuperAdmin,
   createChapter,
   createChapterLead,
+  createChapterDeputy,
 } from '@/test/factories'
 import { clientAs, anon } from '@/test/rpc'
 
@@ -62,6 +63,23 @@ describe('procedure gates', () => {
       requireApplicationApproval: true,
       maintenanceMode: false,
     })
+  })
+
+  it('staffProcedure needs a chapter role or global admin', async () => {
+    const chapter = await createChapter()
+    const deputy = await createChapterDeputy(chapter)
+    await expect(anon().admin.chapters.get({ chapterId: chapter.id })).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+    })
+    await expect(
+      clientAs(await createVolunteer()).admin.chapters.get({ chapterId: chapter.id }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    expect(await clientAs(deputy).admin.chapters.get({ chapterId: chapter.id })).toMatchObject({
+      id: chapter.id,
+    })
+    expect(
+      await clientAs(await createAdmin()).admin.chapters.get({ chapterId: chapter.id }),
+    ).toMatchObject({ id: chapter.id })
   })
 
   it('adminProcedure refuses an admin who changed to a listed address without confirming it', async () => {

@@ -80,3 +80,15 @@ export function useRequireSuperAdmin() {
   }, [auth.user, auth.loading, router])
   return auth
 }
+
+/** For pages a chapter's lead or deputies may use as well as a global admin. */
+export function useRequireStaff() {
+  const router = useRouter()
+  const auth = useAuth()
+  const isStaff = Boolean(auth.user && (auth.user.access.globalAdmin || auth.user.access.role))
+  useEffect(() => {
+    if (!auth.loading && !auth.user) router.replace('/login')
+    if (!auth.loading && auth.user && !isStaff) router.replace(NO_ACCESS_NOTICE_URL)
+  }, [auth.user, auth.loading, isStaff, router])
+  return { ...auth, user: isStaff ? auth.user : null }
+}
