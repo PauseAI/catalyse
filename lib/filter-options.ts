@@ -1,6 +1,7 @@
 import { InferRouterOutputs } from '@orpc/server'
 import { FilterOption } from '@/components/FilterDropdown'
 import { AppRouter } from '@/server/router'
+import { COUNTRIES, OTHER_COUNTRY } from './countries'
 
 export type LocalGroupOption =
   InferRouterOutputs<AppRouter>['localGroups']['list']['groups'][number]
@@ -8,39 +9,8 @@ export type LocalGroupOption =
 export const BASE_LOCATION_OPTIONS: FilterOption[] = [
   { value: '', label: 'Any country' },
   { value: 'Remote', label: 'Remote' },
-  { value: 'Australia', label: 'Australia' },
-  // { value: 'Austria', label: 'Austria' },
-  { value: 'Belgium', label: 'Belgium' },
-  // { value: 'Brazil', label: 'Brazil' },
-  { value: 'Canada', label: 'Canada' },
-  { value: 'Czech Republic', label: 'Czech Republic' },
-  // { value: 'Denmark', label: 'Denmark' },
-  // { value: 'Finland', label: 'Finland' },
-  { value: 'France', label: 'France' },
-  { value: 'Germany', label: 'Germany' },
-  { value: 'Ghana', label: 'Ghana' },
-  // { value: 'India', label: 'India' },
-  // { value: 'Ireland', label: 'Ireland' },
-  { value: 'Italy', label: 'Italy' },
-  // { value: 'Japan', label: 'Japan' },
-  { value: 'Kenya', label: 'Kenya' },
-  // { value: 'Mexico', label: 'Mexico' },
-  { value: 'Netherlands', label: 'Netherlands' },
-  // { value: 'New Zealand', label: 'New Zealand' },
-  { value: 'Nigeria', label: 'Nigeria' },
-  // { value: 'Norway', label: 'Norway' },
-  { value: 'Poland', label: 'Poland' },
-  // { value: 'Portugal', label: 'Portugal' },
-  { value: 'Romania', label: 'Romania' },
-  { value: 'Serbia', label: 'Serbia' },
-  // { value: 'Singapore', label: 'Singapore' },
-  // { value: 'South Korea', label: 'South Korea' },
-  { value: 'Spain', label: 'Spain' },
-  { value: 'Sweden', label: 'Sweden' },
-  { value: 'Switzerland', label: 'Switzerland' },
-  { value: 'UK', label: 'United Kingdom' },
-  { value: 'US', label: 'United States' },
-  { value: 'Other', label: 'Other' },
+  ...COUNTRIES,
+  { value: OTHER_COUNTRY, label: 'Other' },
 ]
 
 export function buildLocationOptions(

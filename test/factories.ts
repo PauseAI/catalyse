@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { hashPassword } from '@/lib/auth'
 import { ApprovalStatus, WorkItemType, ProjectStatus } from '@/generated/prisma/enums'
 import type { Prisma } from '@/generated/prisma/client'
+import { COUNTRIES } from '@/lib/countries'
 
 let seq = 0
 export const nextSeq = () => ++seq
@@ -104,6 +105,46 @@ export async function createLocalGroup(
 ) {
   const n = nextSeq()
   return prisma.localGroup.create({ data: { name: `Group ${n}`, country: 'UK', ...overrides } })
+}
+
+let chapterSeq = 0
+/** A national chapter for the next listed country not yet used in this file. */
+export async function createChapter(
+  overrides: Partial<Prisma.NationalChapterUncheckedCreateInput> = {},
+) {
+  const listed = COUNTRIES[chapterSeq++]
+  if (!listed) throw new Error('createChapter: every listed country already has a chapter')
+  return prisma.nationalChapter.create({
+    data: { country: listed.value, name: listed.label, ...overrides },
+  })
+}
+
+/** A volunteer who belongs to `chapter`, with their country set to match. */
+export const createMember = (
+  chapter: { id: number; country: string },
+  overrides: Partial<Prisma.VolunteerUncheckedCreateInput> = {},
+) => createVolunteer({ nationalChapterId: chapter.id, country: chapter.country, ...overrides })
+
+/** A member made the chapter's lead. */
+export async function createChapterLead(
+  chapter: { id: number; country: string },
+  overrides: Partial<Prisma.VolunteerUncheckedCreateInput> = {},
+) {
+  const lead = await createMember(chapter, overrides)
+  await prisma.nationalChapter.update({ where: { id: chapter.id }, data: { leadId: lead.id } })
+  return lead
+}
+
+/** A member made one of the chapter's deputies. */
+export async function createChapterDeputy(
+  chapter: { id: number; country: string },
+  overrides: Partial<Prisma.VolunteerUncheckedCreateInput> = {},
+) {
+  const deputy = await createMember(chapter, overrides)
+  await prisma.chapterDeputy.create({
+    data: { nationalChapterId: chapter.id, volunteerId: deputy.id },
+  })
+  return deputy
 }
 
 /** Two volunteers who have accepted a contact request, so they may message each other. */
