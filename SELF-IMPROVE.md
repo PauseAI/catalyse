@@ -201,3 +201,11 @@ confusing than it needed to be, and that will do so again.
       from the UK lands in that chapter, which cost two rounds of reading test failures in the
       national chapters work. `test/setup-db.ts` could empty those tables in the template, or
       `test/factories.ts` could say which rows are already there.
+
+- [ ] **Load-dependent flaky unit tests surface one per `check-all`, so each costs a full
+      five-minute run to find.** Three unrelated flakes (an unawaited notification in
+      `quickTasks.submit`, a scratch-database drop timing out in `disposable-db.test.ts`, a
+      `ProjectEditor` test clicking before its task saved) appeared on three successive runs and
+      passed alone every time. A script that runs the unit suite several times under full load
+      and lists every test that failed in any run would surface them together, and could run
+      nightly.

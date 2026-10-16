@@ -440,8 +440,9 @@ export const quickTasksRouter = {
         `${volunteer.name}: ${submission.submissionNote ?? submission.submissionUrl}`,
         `/quick-tasks/${input.id}`,
       ] as const
-      if (task.creatorId) notifyUser(task.creatorId, ...notice, undefined, input.id)
-      else notifyChapterStaff(task.nationalChapterId, ...notice, undefined, input.id)
+      // Awaited, so a review straight after finds these rows there to clear.
+      if (task.creatorId) await notifyUser(task.creatorId, ...notice, undefined, input.id)
+      else await notifyChapterStaff(task.nationalChapterId, ...notice, undefined, input.id)
 
       return { message: 'Task submitted for review' }
     }),
