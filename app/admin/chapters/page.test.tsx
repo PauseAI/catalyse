@@ -54,6 +54,34 @@ describe('national chapters list', () => {
     )
   })
 
+  it('searches and filters the holding pool', async () => {
+    const admin = await createAdmin()
+    const noCountry = await createVolunteer({ name: 'Noel Nocountry', country: null })
+    const other = await createVolunteer({
+      name: 'Olive Other',
+      email: 'olive-other@example.com',
+      country: 'Other',
+    })
+    await createVolunteer({ name: 'Remy Remote', country: 'Remote' })
+    await renderApp(<AdminChaptersPage />, { as: admin })
+
+    await screen.findByRole('link', { name: noCountry.name })
+    await screen.findByRole('link', { name: other.name })
+
+    await userEvent.type(screen.getByLabelText('Search'), other.email!)
+    expect(screen.queryByRole('link', { name: noCountry.name })).toBeNull()
+    await screen.findByRole('link', { name: other.name })
+
+    await userEvent.clear(screen.getByLabelText('Search'))
+    await userEvent.type(screen.getByLabelText('Search'), 'no volunteer has this name')
+    await screen.findByText('Nothing matches.')
+
+    await userEvent.clear(screen.getByLabelText('Search'))
+    await pick('Country given at signup', 'No country given')
+    await screen.findByRole('link', { name: noCountry.name })
+    expect(screen.queryByRole('link', { name: other.name })).toBeNull()
+  })
+
   it('reports a failed open', async () => {
     const admin = await createAdmin()
     await renderApp(<AdminChaptersPage />, { as: admin })

@@ -12,6 +12,7 @@ import { SECTION_CARD } from '@/lib/ui-classes'
 import { countryLabel } from '@/lib/filter-options'
 
 const POOL = 'pool'
+const NO_COUNTRY = '__none__'
 
 /** Every national chapter, opening one for a new country, and placing the holding pool. */
 export default function AdminChaptersPage() {
@@ -19,6 +20,8 @@ export default function AdminChaptersPage() {
   const showToast = useToast()
   const queryClient = useQueryClient()
   const [country, setCountry] = useState('')
+  const [poolSearch, setPoolSearch] = useState('')
+  const [poolCountryFilter, setPoolCountryFilter] = useState('')
 
   const enabled = !!user?.isAdmin
   const { data } = useQuery({ ...orpc.admin.chapters.list.queryOptions(), enabled })
@@ -56,6 +59,31 @@ export default function AdminChaptersPage() {
   if (loading || !user?.isAdmin || !data) return null
 
   const chapterOptions = data.chapters.map((c) => ({ value: String(c.id), label: c.name }))
+
+  // The country someone gave at signup, not the chapter it maps to — this is what tells us
+  // who actually has nowhere to go versus who just hasn't been placed yet.
+  const poolCountryOptions = [
+    { value: '', label: 'All' },
+    ...[...new Set(pool.map((p) => p.country).filter((c): c is string => !!c))]
+      .sort((a, b) => countryLabel(a).localeCompare(countryLabel(b)))
+      .map((c) => ({ value: c, label: countryLabel(c) })),
+    ...(pool.some((p) => !p.country) ? [{ value: NO_COUNTRY, label: 'No country given' }] : []),
+  ]
+  const filteredPool = pool
+    .filter(
+      (p) =>
+        !poolCountryFilter ||
+        (poolCountryFilter === NO_COUNTRY ? !p.country : p.country === poolCountryFilter),
+    )
+    .filter(
+      (p) =>
+        !poolSearch ||
+        p.name.toLowerCase().includes(poolSearch.toLowerCase()) ||
+        p.email?.toLowerCase().includes(poolSearch.toLowerCase()),
+    )
+    .sort(
+      (a, b) => (a.country ?? '').localeCompare(b.country ?? '') || a.name.localeCompare(b.name),
+    )
 
   return (
     <main className="container py-5 pb-15">
@@ -125,36 +153,63 @@ export default function AdminChaptersPage() {
         {pool.length === 0 ? (
           <p className="text-text-light">Nobody is waiting.</p>
         ) : (
-          <ul className="list-none p-0 m-0 grid gap-2">
-            {pool.map((p) => (
-              <li
-                key={p.id}
-                className="flex justify-between items-center gap-4 flex-wrap border-b border-brand-border py-2"
-              >
-                <div>
-                  <Link href={`/volunteers/${p.id}`}>{p.name}</Link>
-                  <span className="text-text-light text-sm">
-                    {' '}
-                    · {countryLabel(p.country) || 'No country given'}
-                  </span>
-                </div>
-                <FilterDropdown
-                  id={`place-${p.id}`}
-                  label={`Move ${p.name} to`}
-                  ariaLabel={`Move ${p.name} to`}
-                  hideLabel
-                  value={POOL}
-                  placeholderLabel="Move to…"
-                  options={[{ value: POOL, label: 'Move to…' }, ...chapterOptions]}
-                  onChange={(value) => {
-                    if (value !== POOL) {
-                      reassignMutation.mutate({ volunteerId: p.id, chapterId: Number(value) })
-                    }
-                  }}
+          <>
+            <div className="flex gap-3 items-end flex-wrap mb-4">
+              <div>
+                <label htmlFor="pool-search">Search</label>
+                <input
+                  type="search"
+                  id="pool-search"
+                  placeholder="Name or email…"
+                  value={poolSearch}
+                  onChange={(e) => setPoolSearch(e.target.value)}
                 />
-              </li>
-            ))}
-          </ul>
+              </div>
+              <FilterDropdown
+                id="pool-country-filter"
+                label="Country given at signup"
+                ariaLabel="Country given at signup"
+                value={poolCountryFilter}
+                options={poolCountryOptions}
+                onChange={setPoolCountryFilter}
+                searchable
+              />
+            </div>
+            {filteredPool.length === 0 ? (
+              <p className="text-text-light">Nothing matches.</p>
+            ) : (
+              <ul className="list-none p-0 m-0 grid gap-2">
+                {filteredPool.map((p) => (
+                  <li
+                    key={p.id}
+                    className="flex justify-between items-center gap-4 flex-wrap border-b border-brand-border py-2"
+                  >
+                    <div>
+                      <Link href={`/volunteers/${p.id}`}>{p.name}</Link>
+                      <span className="text-text-light text-sm">
+                        {' '}
+                        · {countryLabel(p.country) || 'No country given'}
+                      </span>
+                    </div>
+                    <FilterDropdown
+                      id={`place-${p.id}`}
+                      label={`Move ${p.name} to`}
+                      ariaLabel={`Move ${p.name} to`}
+                      hideLabel
+                      value={POOL}
+                      placeholderLabel="Move to…"
+                      options={[{ value: POOL, label: 'Move to…' }, ...chapterOptions]}
+                      onChange={(value) => {
+                        if (value !== POOL) {
+                          reassignMutation.mutate({ volunteerId: p.id, chapterId: Number(value) })
+                        }
+                      }}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </section>
     </main>
