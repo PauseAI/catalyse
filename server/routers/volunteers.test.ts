@@ -10,6 +10,7 @@ import {
   createLocalGroup,
   createChapter,
   createChapterDeputy,
+  createChapterLead,
   createMember,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
@@ -51,10 +52,15 @@ describe('volunteers.list', () => {
       (await c.volunteers.list({ skillIds: [skill.id] })).volunteers[0].skills[0],
     ).toMatchObject({ id: skill.id, categoryName: expect.any(String) })
 
+    expect(all.volunteers.every((v) => !('email' in v))).toBe(true)
+    expect(await names({ search: ann.email! })).toEqual([])
+
     const admin = await createAdmin()
     const adminView = await clientAs(admin).volunteers.list({ search: 'Hidden' })
     expect(adminView.volunteers[0].hiddenFromDirectory).toBe(true)
-    void ann
+    // A global admin sees each login address and can search by it.
+    const byEmail = await clientAs(admin).volunteers.list({ search: ann.email! })
+    expect(byEmail.volunteers.map((v) => [v.name, v.email])).toEqual([[ann.name, ann.email]])
     void bob
   })
 
@@ -177,16 +183,21 @@ describe('volunteers.getById', () => {
     expect((await clientAs(shy).volunteers.getById({ id: shy.id })).discordHandle).toBe('shy#1')
     const admin = await createAdmin()
     expect((await clientAs(admin).volunteers.getById({ id: shy.id })).discordHandle).toBe('shy#1')
-    // The login address stays off every profile, even for the volunteer and for admins.
+    // The login address is on a profile for a global admin only, not even for the volunteer.
     for (const [viewer, target] of [
       [me, vol],
       [shy, shy],
-      [admin, shy],
     ]) {
       expect(await clientAs(viewer).volunteers.getById({ id: target.id })).not.toHaveProperty(
         'email',
       )
     }
+    expect((await clientAs(admin).volunteers.getById({ id: shy.id })).email).toBe(shy.email)
+    const chapter = await createChapter()
+    const member = await createMember(chapter)
+    expect(
+      await clientAs(await createChapterLead(chapter)).volunteers.getById({ id: member.id }),
+    ).not.toHaveProperty('email')
     await expect(clientAs(me).volunteers.getById({ id: 999_999 })).rejects.toMatchObject({
       code: 'NOT_FOUND',
     })

@@ -144,7 +144,12 @@ export default function FilterDropdown<T extends string>({
     options.find((o) => o.value === value)?.label ?? placeholderLabel ?? options[0]?.label
 
   const filtered =
-    searchable && query ? options.filter((o) => textMatches(o.label, query)) : options
+    searchable && query
+      ? options.filter(
+          (o) =>
+            textMatches(o.label, query) || (!!o.description && textMatches(o.description, query)),
+        )
+      : options
 
   function select(opt: FilterOption<T>) {
     if (opt.header) return

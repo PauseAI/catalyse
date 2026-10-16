@@ -167,6 +167,11 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
                 <div id="contactInfo">
                   <h4 className="text-text-light">Contact</h4>
                   <div>
+                    {volunteer.email && (
+                      <div>
+                        Email: <a href={`mailto:${volunteer.email}`}>{volunteer.email}</a>
+                      </div>
+                    )}
                     {volunteer.discordHandle && <div>Discord: {volunteer.discordHandle}</div>}
                     {volunteer.signalNumber && <div>Signal: {volunteer.signalNumber}</div>}
                     {volunteer.whatsappNumber && <div>WhatsApp: {volunteer.whatsappNumber}</div>}
