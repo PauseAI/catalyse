@@ -8,6 +8,8 @@ import {
   createSkill,
   createTeam,
   createLocalGroup,
+  createChapter,
+  createChapterDeputy,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 
@@ -236,28 +238,64 @@ describe('templates.instantiate / canInstantiate', () => {
     expect((await c.templates.list()).find((x) => x.id === id)?.usedCount).toBe(1)
   })
 
-  it('is open to admins and team leaders only', async () => {
+  it("is for chapter staff and global admins, and puts the copy in the copier's chapter", async () => {
     const { id } = await saveTemplate()
+    const chapter = await createChapter()
+    const deputy = await createChapterDeputy(chapter)
     const leader = await createVolunteer()
-    const member = await createVolunteer()
     const team = await createTeam()
-    await prisma.teamMembership.createMany({
-      data: [
-        { teamId: team.id, volunteerId: leader.id, role: 'leader' },
-        { teamId: team.id, volunteerId: member.id, role: 'member' },
-      ],
+    await prisma.teamMembership.create({
+      data: { teamId: team.id, volunteerId: leader.id, role: 'leader' },
     })
-    expect(await clientAs(leader).templates.canInstantiate()).toEqual({ canInstantiate: true })
-    expect(await clientAs(member).templates.canInstantiate()).toEqual({ canInstantiate: false })
+    expect(await clientAs(deputy).templates.canInstantiate()).toEqual({ canInstantiate: true })
+    expect(await clientAs(leader).templates.canInstantiate()).toEqual({ canInstantiate: false })
     expect(await clientAs(await createAdmin()).templates.canInstantiate()).toEqual({
       canInstantiate: true,
     })
-    await expect(clientAs(member).templates.instantiate({ templateId: id })).rejects.toMatchObject({
+    // A team leader, like any member, no longer copies templates or sees the library.
+    for (const call of [
+      () => clientAs(leader).templates.instantiate({ templateId: id }),
+      () => clientAs(leader).templates.list(),
+    ]) {
+      await expect(call()).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    }
+    const copy = await clientAs(deputy).templates.instantiate({ templateId: id })
+    expect(copy.title).toBe('Rally template')
+    expect(
+      (await prisma.workItem.findUniqueOrThrow({ where: { id: copy.id } })).nationalChapterId,
+    ).toBe(chapter.id)
+    // Shared across chapters: the deputy sees the template another chapter's author made.
+    expect((await clientAs(deputy).templates.list()).map((t) => t.id)).toContain(id)
+  })
+
+  it("lets a template's author or a global admin change it, and staff save only their own chapter's projects", async () => {
+    const chapter = await createChapter()
+    const author = await createChapterDeputy(chapter)
+    const other = await createChapterDeputy(await createChapter())
+    const project = await createProject({ nationalChapterId: chapter.id, title: 'Ours' })
+    const elsewhere = await createProject({ nationalChapterId: other.nationalChapterId })
+    const { id } = await clientAs(author).templates.saveAsTemplate({
+      projectId: project.id,
+      title: 'Our kit',
+    })
+    await expect(
+      clientAs(other).templates.saveAsTemplate({ projectId: project.id, title: 'x' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(
+      clientAs(author).templates.saveAsTemplate({ projectId: elsewhere.id, title: 'x' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(clientAs(other).templates.update({ id, title: 'Mine now' })).rejects.toMatchObject(
+      { code: 'FORBIDDEN' },
+    )
+    await expect(clientAs(other).templates.archive({ id })).rejects.toMatchObject({
       code: 'FORBIDDEN',
     })
-    expect((await clientAs(leader).templates.instantiate({ templateId: id })).title).toBe(
-      'Rally template',
-    )
+    expect(await clientAs(author).templates.update({ id, title: 'Our kit 2' })).toEqual({
+      message: 'Template updated',
+    })
+    expect(await clientAs(await createAdmin()).templates.archive({ id })).toEqual({
+      message: 'Template archived',
+    })
   })
 
   it('lets an admin instantiate past the draft cap a volunteer would hit', async () => {

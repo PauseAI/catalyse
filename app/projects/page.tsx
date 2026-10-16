@@ -133,9 +133,10 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
 
   const { data: teamsData } = useQuery({ ...orpc.teams.list.queryOptions(), enabled: !!user })
   // The template button only shows once there is a template to start from.
+  // Templates are for a chapter's staff and the global admins.
   const { data: templates = [] } = useQuery({
     ...orpc.templates.list.queryOptions({ input: {} }),
-    enabled: !!user,
+    enabled: isStaffOrGlobal,
   })
   const hasTemplates = templates.length > 0
   const allTeamsList = teamsData?.teams ?? []

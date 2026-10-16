@@ -239,8 +239,12 @@ describe('projects directory', () => {
     expect(screen.queryByRole('link', { name: 'Start from a template' })).toBeNull()
     cleanup()
 
+    // Templates are for chapter staff.
     await prisma.template.create({ data: { title: 'Stall kit', structure: '{}' } })
-    await renderApp(<ProjectsPage />, { as: me, url: '/projects' })
+    await renderApp(<ProjectsPage />, {
+      as: await createChapterDeputy(await createChapter()),
+      url: '/projects',
+    })
     expect(await screen.findByRole('link', { name: 'Start from a template' })).toHaveAttribute(
       'href',
       '/templates',

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
-import { useRequireAdmin } from '@/lib/hooks/auth'
+import { useRequireStaff } from '@/lib/hooks/auth'
 import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
@@ -37,7 +37,7 @@ function newTask(ref: string): DraftTask {
  * lib/template-porting.ts's buildInstantiatePlan later turns into a real draft project.
  */
 export default function NewTemplatePage() {
-  const { user, loading } = useRequireAdmin()
+  const { user, loading } = useRequireStaff()
   const router = useRouter()
   const showToast = useToast()
 

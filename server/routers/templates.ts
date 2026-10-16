@@ -12,13 +12,13 @@ import {
   type ProjectTemplateStructure,
   type SourceTaskWithSkills,
 } from '@/lib/template-porting'
-import { approvedProcedure, adminProcedure } from '../procedures'
+import { approvedProcedure, staffProcedure } from '../procedures'
+import { canAdminChapter, isStaff, type ChapterAccess } from '@/lib/chapter-access'
 import {
   ProjectStatus,
   TaskStatus,
   WorkItemType,
   TemplateSourceType,
-  TeamMembershipRole,
 } from '@/generated/prisma/enums'
 
 const ScratchTaskSchema = z.object({
@@ -51,22 +51,22 @@ const ScratchTemplateSchema = z.object({
   tasks: z.array(ScratchTaskSchema).max(1000).optional(),
 })
 
-/** Copying a template into a new draft: admins, or a leader of any team. */
-async function assertCanCopyTemplate(volunteer: { id: number; isAdmin: boolean | null }) {
-  if (volunteer.isAdmin) return
-  const leadership = await prisma.teamMembership.findFirst({
-    where: { volunteerId: volunteer.id, role: TeamMembershipRole.leader },
-    select: { id: true },
-  })
-  if (!leadership) {
-    throw new ORPCError('FORBIDDEN', {
-      message: 'Only an admin or a team leader can create a project from a template',
-    })
+/** A template the caller may change: a global admin may change any, staff their own. */
+async function editableTemplate(access: ChapterAccess, volunteerId: number, id: number) {
+  const template = await prisma.template.findUnique({ where: { id } })
+  if (!template) throw new ORPCError('NOT_FOUND', { message: 'Template not found' })
+  if (!access.globalAdmin && template.createdById !== volunteerId) {
+    throw new ORPCError('FORBIDDEN', { message: 'Only its author or a global admin can change it' })
   }
+  return template
 }
 
+/**
+ * Templates are shared by every chapter's staff and the global admins, who make, view and use
+ * them; a project made from one belongs to the chapter of whoever made it.
+ */
 export const templatesRouter = {
-  list: approvedProcedure
+  list: staffProcedure
     .input(z.object({ sourceType: z.nativeEnum(TemplateSourceType).optional() }).optional())
     .handler(async ({ input }) => {
       const templates = await prisma.template.findMany({
@@ -95,7 +95,7 @@ export const templatesRouter = {
       }))
     }),
 
-  get: approvedProcedure.input(z.object({ id: z.number().int() })).handler(async ({ input }) => {
+  get: staffProcedure.input(z.object({ id: z.number().int() })).handler(async ({ input }) => {
     const template = await prisma.template.findUnique({
       where: { id: input.id },
       include: {
@@ -119,7 +119,7 @@ export const templatesRouter = {
   }),
 
   /** Serialise a live project's structure into a new Template row. Admin-only. */
-  saveAsTemplate: adminProcedure
+  saveAsTemplate: staffProcedure
     .input(
       z.object({
         projectId: z.number().int(),
@@ -133,7 +133,10 @@ export const templatesRouter = {
         where: { id: input.projectId, type: WorkItemType.PROJECT },
         include: { chapter: { select: { country: true } }, group: { select: { name: true } } },
       })
-      if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
+      // A chapter's staff save their own chapter's projects.
+      if (!project || !canAdminChapter(context.access, project.nationalChapterId)) {
+        throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
+      }
 
       const [tasks, dependencies, projectSkills] = await Promise.all([
         prisma.workItem.findMany({
@@ -205,7 +208,7 @@ export const templatesRouter = {
     }),
 
   /** Build a template directly, without an existing project to save from. Admin-only. */
-  createFromScratch: adminProcedure
+  createFromScratch: staffProcedure
     .input(z.object({ title: z.string().min(1).max(300), template: ScratchTemplateSchema }))
     .handler(async ({ input, context }) => {
       const refs = new Set(input.template.tasks?.map((t) => t.ref) ?? [])
@@ -264,7 +267,7 @@ export const templatesRouter = {
       return { id: created.id }
     }),
 
-  update: adminProcedure
+  update: staffProcedure
     .input(
       z.object({
         id: z.number().int(),
@@ -272,9 +275,8 @@ export const templatesRouter = {
         description: z.string().max(20_000).nullable().optional(),
       }),
     )
-    .handler(async ({ input }) => {
-      const template = await prisma.template.findUnique({ where: { id: input.id } })
-      if (!template) throw new ORPCError('NOT_FOUND', { message: 'Template not found' })
+    .handler(async ({ input, context }) => {
+      await editableTemplate(context.access, context.volunteer.id, input.id)
       await prisma.template.update({
         where: { id: input.id },
         data: {
@@ -286,36 +288,30 @@ export const templatesRouter = {
       return { message: 'Template updated' }
     }),
 
-  archive: adminProcedure.input(z.object({ id: z.number().int() })).handler(async ({ input }) => {
-    const template = await prisma.template.findUnique({ where: { id: input.id } })
-    if (!template) throw new ORPCError('NOT_FOUND', { message: 'Template not found' })
-    await prisma.template.update({ where: { id: input.id }, data: { isArchived: true } })
-    return { message: 'Template archived' }
-  }),
+  archive: staffProcedure
+    .input(z.object({ id: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      await editableTemplate(context.access, context.volunteer.id, input.id)
+      await prisma.template.update({ where: { id: input.id }, data: { isArchived: true } })
+      return { message: 'Template archived' }
+    }),
 
-  /** Whether the current viewer may copy a template into a new draft (admin or team leader). */
-  canInstantiate: approvedProcedure.handler(async ({ context }) => {
-    if (context.volunteer.isAdmin) return { canInstantiate: true }
-    const leadership = await prisma.teamMembership.findFirst({
-      where: { volunteerId: context.volunteer.id, role: TeamMembershipRole.leader },
-      select: { id: true },
-    })
-    return { canInstantiate: !!leadership }
-  }),
+  /** Whether the current viewer may copy a template into a new draft: staff or a global admin. */
+  canInstantiate: approvedProcedure.handler(({ context }) => ({
+    canInstantiate: context.access.globalAdmin || isStaff(context.access),
+  })),
 
   /**
    * Spin up a brand-new draft project from a template, straight onto its own edit page — no
-   * separate wizard. Available to admins and team leaders (see assertCanCopyTemplate). Every
-   * per-instance field — country, local group, team, collaboration link, start date — is
+   * separate wizard. Every
+   * per-instance field — local group, team, collaboration link, start date — is
    * cleared, never read from the template: the copier fills these in on the draft's normal
    * edit page, the same place they'd edit any other draft. The caller becomes the new draft's
    * owner immediately, since they are the one who will run it.
    */
-  instantiate: approvedProcedure
+  instantiate: staffProcedure
     .input(z.object({ templateId: z.number().int() }))
     .handler(async ({ input, context }) => {
-      await assertCanCopyTemplate(context.volunteer)
-
       const template = await prisma.template.findUnique({ where: { id: input.templateId } })
       if (!template || template.isArchived) {
         throw new ORPCError('NOT_FOUND', { message: 'Template not found' })

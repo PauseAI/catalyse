@@ -1,6 +1,6 @@
 'use client'
 
-import { useRequireApproved } from '@/lib/hooks/auth'
+import { useRequireStaff } from '@/lib/hooks/auth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import Button from '@/components/Button'
@@ -16,7 +16,7 @@ import EmptyState from '@/components/EmptyState'
 const card = `${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`
 
 export default function TemplatesLibraryPage() {
-  const { user, loading } = useRequireApproved()
+  const { user, loading } = useRequireStaff()
   const router = useRouter()
   const showToast = useToast()
   const queryClient = useQueryClient()
@@ -50,11 +50,11 @@ export default function TemplatesLibraryPage() {
         <div>
           <h1 className="m-0">Project templates</h1>
           <p className="text-text-light m-0">
-            Reusable project structures for running the same program in a new country or local
-            group.
+            Reusable project structures, shared by every chapter, for running the same program in
+            your country or a local group.
           </p>
         </div>
-        {user.isAdmin && <Button href="/templates/new">New template</Button>}
+        <Button href="/templates/new">New template</Button>
       </div>
 
       {isPending && <Skeleton label="Loading templates…" />}
@@ -62,11 +62,7 @@ export default function TemplatesLibraryPage() {
       {templates?.length === 0 && (
         <EmptyState
           title="No templates yet."
-          body={
-            user.isAdmin
-              ? 'Build one from scratch, or save an existing project as a template from its project page.'
-              : 'Check back once an admin has published one.'
-          }
+          body="Build one from scratch, or save an existing project as a template from its project page."
           action={
             <Button href="/projects" variant="outline">
               Browse projects
