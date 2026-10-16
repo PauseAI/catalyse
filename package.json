@@ -39,7 +39,9 @@
     "test:e2e:ui": "SLOW_MO=800 playwright test --ui --headed --workers=1",
     "test:e2e:dev:ui": "E2E_DEV=1 SLOW_MO=800 playwright test --ui --headed --workers=1",
     "cron:backup": "tsx scripts/cron-backup.ts",
+    "predemo": "npm install --prefix demo --no-audit --no-fund",
     "demo": "tsx demo/index.ts",
+    "predemo:fast": "npm run predemo",
     "demo:fast": "tsx demo/index.ts --fast",
     "demo:snapshot": "tsx demo/snapshot.ts",
     "demo:compare": "tsx demo/compare.ts"
@@ -80,7 +82,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "jsdom": "^30.0.1",
-    "kokoro-js": "^1.2.1",
     "pg": "^8.23.0",
     "prettier": "^3.8.3",
     "tailwindcss": "^4",

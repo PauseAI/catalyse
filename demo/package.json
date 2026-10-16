@@ -1,0 +1,8 @@
+{
+  "name": "catalyse-demo",
+  "private": true,
+  "description": "Dependencies only the demo recorder needs, kept out of the site's install. `npm run demo` installs them.",
+  "dependencies": {
+    "kokoro-js": "1.2.1"
+  }
+}
