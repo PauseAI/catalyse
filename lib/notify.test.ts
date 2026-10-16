@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { createVolunteer, createAdmin, createTeam } from '@/test/factories'
+import {
+  createVolunteer,
+  createAdmin,
+  createTeam,
+  createChapter,
+  createChapterLead,
+  createChapterDeputy,
+  createMember,
+  createSuperAdmin,
+} from '@/test/factories'
 
 import { emails } from '@/test/fakes/email'
 import {
@@ -10,6 +19,7 @@ import {
   notifyUser,
   notifyTeamOfProject,
   notifyAdmins,
+  notifyChapterStaff,
 } from './notify'
 
 afterEach(() => {
@@ -156,5 +166,37 @@ describe('notifyTeamOfProject / notifyAdmins', () => {
       expect(await prisma.notification.count({ where: { type: 'alert' } })).toBe(1),
     )
     expect(emails.to(admin.email!)).toHaveLength(1)
+  })
+})
+
+describe('notifyChapterStaff', () => {
+  const recipients = async (type: string) =>
+    (await prisma.notification.findMany({ where: { type } })).map((n) => n.volunteerId).sort()
+
+  it("alerts the chapter's lead and deputies, and not its members or the global admins", async () => {
+    const chapter = await createChapter()
+    const lead = await createChapterLead(chapter)
+    const deputy = await createChapterDeputy(chapter)
+    await createMember(chapter)
+    await createSuperAdmin()
+
+    await notifyChapterStaff(chapter.id, 'staff_alert', 'T', null, '/admin', undefined, 4)
+    expect(await recipients('staff_alert')).toEqual([lead.id, deputy.id].sort())
+  })
+
+  it('alerts the global admins about the pool, or a chapter with no staff', async () => {
+    const admin = await createSuperAdmin()
+    const unlisted = await createAdmin()
+    await notifyChapterStaff(null, 'pool_alert', 'T', null, null, {
+      message: 'm',
+      ctaLabel: 'L',
+      ctaUrl: '/u',
+    })
+    expect(await recipients('pool_alert')).toContain(admin.id)
+    expect(await recipients('pool_alert')).not.toContain(unlisted.id)
+    expect(emails.to(admin.email!)).toHaveLength(1)
+
+    await notifyChapterStaff((await createChapter()).id, 'empty_alert', 'T', null, null)
+    expect(await recipients('empty_alert')).toContain(admin.id)
   })
 })

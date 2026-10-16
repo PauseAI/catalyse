@@ -2,6 +2,7 @@ import { os, ORPCError } from '@orpc/server'
 import { ApprovalStatus } from '@/generated/prisma/enums'
 import { isSuperAdmin } from '@/lib/auth'
 import { touchLastActive } from '@/lib/activity'
+import { isStaff } from '@/lib/chapter-access'
 import { inputLimitViolation } from '@/lib/input-limits'
 import { canBypassMaintenance, isMaintenanceMode } from '@/lib/maintenance'
 import { MAINTENANCE_MESSAGE } from '@/lib/maintenance-message'
@@ -60,6 +61,16 @@ export const confirmedProcedure = approvedProcedure.use(({ context, next }) => {
 export const adminProcedure = base.use(({ context, next }) => {
   if (!context.volunteer) throw new ORPCError('UNAUTHORIZED')
   if (!context.volunteer.isAdmin) throw new ORPCError('FORBIDDEN')
+  return next({ context: { volunteer: context.volunteer } })
+})
+
+/**
+ * A global admin, or a chapter's lead or deputy. Handlers hold what they read and change to
+ * the caller's chapter through `context.access` (lib/chapter-access-server.ts).
+ */
+export const staffProcedure = base.use(({ context, next }) => {
+  if (!context.volunteer) throw new ORPCError('UNAUTHORIZED')
+  if (!context.access.globalAdmin && !isStaff(context.access)) throw new ORPCError('FORBIDDEN')
   return next({ context: { volunteer: context.volunteer } })
 })
 

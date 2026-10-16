@@ -202,12 +202,14 @@ export type EmailIdentity = Pick<Volunteer, 'email' | 'emailConfirmed'>
 // changing to it, and nobody has clicked the link.
 export function isSuperAdmin(volunteer: EmailIdentity | null | undefined): boolean {
   if (!volunteer?.email || !volunteer.emailConfirmed) return false
-  const adminEmails = env.ADMIN_EMAILS
-  return adminEmails
-    .split(',')
+  return adminEmails().includes(volunteer.email.toLowerCase())
+}
+
+/** The addresses in ADMIN_EMAILS, lower-cased. */
+export function adminEmails(): string[] {
+  return env.ADMIN_EMAILS.split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean)
-    .includes(volunteer.email.toLowerCase())
 }
 
 export async function requireSuperAdmin(

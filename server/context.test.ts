@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { createSuperAdmin, createVolunteer } from '@/test/factories'
+import {
+  createChapter,
+  createChapterLead,
+  createSuperAdmin,
+  createVolunteer,
+} from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 import { createSession } from '@/lib/auth'
 import { VIEW_AS_HEADER } from '@/lib/view-as'
@@ -49,6 +54,25 @@ describe('createContext', () => {
       isAdmin: true,
       isSuperAdmin: true,
       viewingAsVolunteer: false,
+    })
+
+    // A chapter's staff can view as a member too: they keep their chapter and lose the role.
+    const chapter = await createChapter()
+    const lead = await createChapterLead(chapter)
+    const leadToken = await createSession(lead.id)
+    expect((await contextFor(leadToken, 'admin')).access).toEqual({
+      globalAdmin: false,
+      chapterId: chapter.id,
+      role: 'LEAD',
+    })
+    const leadView = await contextFor(leadToken, 'volunteer')
+    expect(leadView).toMatchObject({
+      viewingAsVolunteer: true,
+      access: { globalAdmin: false, chapterId: chapter.id, role: null },
+    })
+    expect(await clientAs(leadView.volunteer, leadView).auth.me()).toMatchObject({
+      chapter: { id: chapter.id, country: chapter.country },
+      access: { role: null },
     })
 
     // The header only ever takes rights away; a volunteer sending it is unchanged.

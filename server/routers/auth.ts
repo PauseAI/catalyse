@@ -398,6 +398,7 @@ export const authRouter = {
           orderBy: [{ skill: { category: { sortOrder: 'asc' } } }, { skill: { sortOrder: 'asc' } }],
         },
         skillEndorsementsReceived: { include: { skill: true } },
+        chapter: { select: { id: true, name: true, country: true } },
       },
     })
     if (!vol) throw new ORPCError('NOT_FOUND')
@@ -419,11 +420,12 @@ export const authRouter = {
         skillName: se.skill.name,
       })),
     })
-    const { viewingAsVolunteer } = context
+    const { viewingAsVolunteer, access } = context
+    const chapterInfo = { chapter: vol.chapter, access }
     // Super admin is decided by email address, so it has to be withdrawn here explicitly.
     return viewingAsVolunteer
-      ? { ...me, isAdmin: false, isSuperAdmin: false, viewingAsVolunteer }
-      : { ...me, viewingAsVolunteer }
+      ? { ...me, ...chapterInfo, isAdmin: false, isSuperAdmin: false, viewingAsVolunteer }
+      : { ...me, ...chapterInfo, viewingAsVolunteer }
   }),
 
   changePassword: authedProcedure
