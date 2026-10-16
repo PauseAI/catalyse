@@ -2,7 +2,13 @@ import { describe, it, expect } from 'vitest'
 import { screen, waitFor, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
-import { createAdmin, createVolunteer, createTeam } from '@/test/factories'
+import {
+  createAdmin,
+  createVolunteer,
+  createTeam,
+  createChapter,
+  createChapterDeputy,
+} from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { navigation } from '@/test/next-navigation'
 import AdminTeamDetailPage from './page'
@@ -116,9 +122,9 @@ describe('admin team detail', () => {
     await screen.findByText(/Only this team's leader or an admin/)
     expect(screen.getByRole('link', { name: '← Back to teams' })).toHaveAttribute('href', '/teams')
     cleanup()
-    // A non-admin is refused before the lookup; an admin sees the missing team.
+    // A missing team is missing, whoever asks.
     await mount(999_999, leader)
-    await screen.findByText(/Only this team's leader or an admin/)
+    await screen.findByText('Team not found.')
     cleanup()
     await mount(999_999, await createAdmin())
     await screen.findByText('Team not found.')
@@ -168,5 +174,31 @@ describe('admin team detail', () => {
         throw new Error(`${name}: ${e.message.slice(0, 80)}`)
       })
     }
+  })
+})
+
+describe('admin team detail — chapters', () => {
+  it('lets a global admin move a team to another chapter or the pool', async () => {
+    const chapter = await createChapter()
+    const team = await createTeam({ name: 'Movers' })
+    await mount(team.id, await createAdmin())
+    await screen.findByRole('heading', { name: 'Movers' })
+    await userEvent.click(screen.getByRole('button', { name: 'Team chapter' }))
+    await userEvent.click(await screen.findByRole('option', { name: chapter.name }))
+    await screen.findByText('Movers moved')
+    await waitFor(async () =>
+      expect(
+        (await prisma.team.findUniqueOrThrow({ where: { id: team.id } })).nationalChapterId,
+      ).toBe(chapter.id),
+    )
+  })
+
+  it("shows the team's staff the team, without the chapter picker", async () => {
+    const chapter = await createChapter()
+    const team = await createTeam({ name: 'Ours', nationalChapterId: chapter.id })
+    await mount(team.id, await createChapterDeputy(chapter))
+    await screen.findByRole('heading', { name: 'Ours' })
+    expect(screen.queryByRole('button', { name: 'Team chapter' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Delete team' })).toBeInTheDocument()
   })
 })

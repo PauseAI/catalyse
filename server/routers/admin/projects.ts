@@ -9,7 +9,7 @@ import {
 } from '@/lib/work-item'
 import { notifyUser, notifyTeamOfProject, clearNotifications } from '@/lib/notify'
 import { updateWorkItem } from '@/lib/work-item-events'
-import { projectLocation } from '@/lib/project-location'
+import { assertTeamInChapter, projectLocation } from '@/lib/project-location'
 import { html } from '@/lib/email'
 import { notifyMatchingVolunteers } from '@/lib/project-match-notify'
 import { AdminCreateProjectSchema, ReviewProjectSchema, OutcomeProjectSchema } from '@/lib/schemas'
@@ -61,6 +61,7 @@ export const adminProjectsRouter = {
     })
 
     const { chapterChanged: _, ...location } = await projectLocation(context.access, input)
+    await assertTeamInChapter(context.access, input.teamId, location.nationalChapterId)
     const project = await prisma.$transaction(async (tx) => {
       const newProject = await tx.workItem.create({
         data: {

@@ -69,7 +69,7 @@ import { formatDateShort } from '@/lib/format-date'
 import { awaitsOwnerReview } from '@/lib/task-review'
 import { handedIn } from '@/lib/overdue'
 import { canReach } from '@/lib/contact'
-import { projectLocation } from '@/lib/project-location'
+import { assertTeamInChapter, projectLocation } from '@/lib/project-location'
 import { chapterNarrowing, chapterNarrowingSql } from '@/lib/chapter-access-server'
 import { audit } from '@/lib/chapter-roles'
 import { isStaff, type ChapterAccess } from '@/lib/chapter-access'
@@ -1017,6 +1017,7 @@ export const projectsRouter = {
     })
 
     const { chapterChanged: _, ...location } = await projectLocation(context.access, input)
+    await assertTeamInChapter(context.access, input.teamId, location.nationalChapterId)
     const project = await prisma.$transaction(async (tx) => {
       const newProject = await tx.workItem.create({
         data: {
@@ -1631,13 +1632,7 @@ export const projectsRouter = {
             message: 'Only the project owner or an admin can change the team',
           })
         }
-        if (body.teamId !== null) {
-          const team = await prisma.team.findUnique({
-            where: { id: body.teamId },
-            select: { id: true },
-          })
-          if (!team) throw new ORPCError('BAD_REQUEST', { message: 'Team not found' })
-        }
+        await assertTeamInChapter(context.access, body.teamId, project.nationalChapterId)
         data.teamId = body.teamId
       }
 

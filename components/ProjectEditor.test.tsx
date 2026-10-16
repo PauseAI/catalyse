@@ -354,7 +354,7 @@ describe('ProjectEditor — editing an existing project', () => {
       nationalChapterId: chapter.id,
     })
     const me = await createMember(chapter)
-    const team = await createTeam()
+    const team = await createTeam({ nationalChapterId: chapter.id })
     const skill = await createSkill()
     const project = await createProject({
       creatorId: me.id,

@@ -93,7 +93,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
             </span>
           )}
         </h1>
-        {user.isAdmin || team.viewerRole === 'leader' ? (
+        {team.viewerCanAdmin || team.viewerRole === 'leader' ? (
           <Link href={`/admin/teams/${team.id}`}>
             <Button size="sm" variant="secondary">
               Manage members

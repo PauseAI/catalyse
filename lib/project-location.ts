@@ -59,3 +59,17 @@ export async function projectLocation(
   }
   return { nationalChapterId, reach, localGroupId, chapterChanged }
 }
+
+/** Throws unless the team is in the project's chapter; a global admin tags any team. */
+export async function assertTeamInChapter(
+  access: ChapterAccess,
+  teamId: number | null | undefined,
+  chapterId: number | null,
+): Promise<void> {
+  if (teamId === null || teamId === undefined) return
+  const team = await prisma.team.findUnique({ where: { id: teamId } })
+  if (!team) throw new ORPCError('BAD_REQUEST', { message: 'Team not found' })
+  if (!access.globalAdmin && team.nationalChapterId !== chapterId) {
+    throw new ORPCError('BAD_REQUEST', { message: "Choose one of the project's chapter's teams" })
+  }
+}
