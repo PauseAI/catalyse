@@ -1,6 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { createVolunteer, createAdmin, createTeam, createLocalGroup } from '@/test/factories'
+import {
+  createVolunteer,
+  createAdmin,
+  createTeam,
+  createLocalGroup,
+  createChapter,
+  createChapterLead,
+  createMember,
+} from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 
 describe('teamSuggestions', () => {
@@ -69,6 +77,25 @@ describe('localGroupSuggestions', () => {
     const { suggestions } = await c.localGroupSuggestions.list()
     expect(suggestions[0].mergedInto).toEqual({ id: group.id, name: group.name })
     expect((await clientAs(admin).localGroupSuggestions.list()).suggestions).toEqual([])
+  })
+
+  it("files a member's suggestion under their chapter and tells its staff", async () => {
+    const chapter = await createChapter()
+    const lead = await createChapterLead(chapter)
+    const admin = await createAdmin()
+    const member = await createMember(chapter)
+    const created = await clientAs(member).localGroupSuggestions.create({
+      name: 'Riverside',
+      country: 'Other',
+    })
+    expect(created.country).toBe(chapter.country)
+    expect(
+      await prisma.localGroupSuggestion.findUniqueOrThrow({ where: { id: created.id } }),
+    ).toMatchObject({ nationalChapterId: chapter.id })
+    const alerted = async (id: number) =>
+      prisma.notification.count({ where: { volunteerId: id, type: 'local_group_suggestion' } })
+    expect(await alerted(lead.id)).toBe(1)
+    expect(await alerted(admin.id)).toBe(0)
   })
 })
 

@@ -103,11 +103,26 @@ export async function createTeam(overrides: Partial<Prisma.TeamUncheckedCreateIn
   return prisma.team.create({ data: { name: `Team ${n}`, ...overrides } })
 }
 
+/** A local group, by default in the UK chapter, which is made if it does not exist. */
 export async function createLocalGroup(
   overrides: Partial<Prisma.LocalGroupUncheckedCreateInput> = {},
 ) {
   const n = nextSeq()
-  return prisma.localGroup.create({ data: { name: `Group ${n}`, country: 'UK', ...overrides } })
+  const country = overrides.country ?? 'UK'
+  const nationalChapterId = overrides.nationalChapterId ?? (await chapterFor(country)).id
+  return prisma.localGroup.create({
+    data: { name: `Group ${n}`, ...overrides, country, nationalChapterId },
+  })
+}
+
+/** The chapter for a listed country, made if it does not exist yet. */
+export async function chapterFor(country: string) {
+  const name = COUNTRIES.find((c) => c.value === country)?.label ?? country
+  return prisma.nationalChapter.upsert({
+    where: { country },
+    update: {},
+    create: { country, name },
+  })
 }
 
 /** A national chapter for a listed country that has none yet. */

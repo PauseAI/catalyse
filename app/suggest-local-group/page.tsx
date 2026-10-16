@@ -67,12 +67,18 @@ export default function SuggestLocalGroupPage() {
 
   if (loading || !user) return null
 
+  // A member suggests a group for their own chapter; someone in the holding pool picks a country.
+  const countries = user.chapter
+    ? SUGGESTION_COUNTRIES.filter((o) => o.value === user.chapter?.country)
+    : SUGGESTION_COUNTRIES
+
   return (
     <>
       <main className="container py-5 pb-15">
         <h1>Suggest a local group</h1>
         <p className="text-text-light mb-6">
-          Don&apos;t see your local group listed? Suggest it here and an admin will review it.
+          Don&apos;t see your local group listed? Suggest it here and your chapter&apos;s organisers
+          will review it.
         </p>
 
         <div className="sm:max-w-xl">
@@ -83,7 +89,7 @@ export default function SuggestLocalGroupPage() {
                 label="Country/Group"
                 ariaLabel="Select country/group"
                 value={country}
-                options={SUGGESTION_COUNTRIES}
+                options={countries}
                 onChange={setCountry}
               />
             </div>

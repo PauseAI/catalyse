@@ -1,15 +1,9 @@
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
-import { BASE_LOCATION_OPTIONS } from '@/lib/filter-options'
+import { countryName, isCountry } from '@/lib/countries'
 import { LocalGroupSuggestionBodySchema } from '@/lib/schemas'
-import { notifyAdmins } from '@/lib/notify'
+import { notifyChapterStaff } from '@/lib/notify'
 import { authedProcedure, approvedProcedure } from '../procedures'
-
-const VALID_COUNTRIES = new Set(
-  BASE_LOCATION_OPTIONS.filter((o) => o.value && o.value !== 'Remote' && o.value !== 'Other').map(
-    (o) => o.value,
-  ),
-)
 
 export const localGroupSuggestionsRouter = {
   list: authedProcedure.handler(async ({ context }) => {
@@ -34,17 +28,28 @@ export const localGroupSuggestionsRouter = {
   create: approvedProcedure
     .input(LocalGroupSuggestionBodySchema)
     .handler(async ({ input, context }) => {
-      if (!VALID_COUNTRIES.has(input.country)) {
-        throw new ORPCError('BAD_REQUEST', { message: 'Invalid country' })
-      }
+      // A member suggests a group for their own chapter; someone in the pool names a country.
+      const chapter = context.access.chapterId
+        ? await prisma.nationalChapter.findUniqueOrThrow({
+            where: { id: context.access.chapterId },
+          })
+        : null
+      const country = chapter?.country ?? input.country
+      if (!isCountry(country)) throw new ORPCError('BAD_REQUEST', { message: 'Invalid country' })
 
       const suggestion = await prisma.localGroupSuggestion.create({
-        data: { name: input.name, country: input.country, suggestedById: context.volunteer.id },
+        data: {
+          name: input.name,
+          country,
+          nationalChapterId: chapter?.id ?? null,
+          suggestedById: context.volunteer.id,
+        },
       })
 
-      await notifyAdmins(
+      await notifyChapterStaff(
+        suggestion.nationalChapterId,
         'local_group_suggestion',
-        `New local group suggestion: ${input.country}, ${input.name}`,
+        `New local group suggestion: ${countryName(country)}, ${input.name}`,
         null,
         '/admin/local-groups',
         undefined,
