@@ -144,10 +144,20 @@ describe('one chapter', () => {
     await createMember(chapter, { name: 'Sam Twin', email: 'sam-old@example.com' })
     const current = await createMember(chapter, { name: 'Sam Twin', email: 'sam-new@example.com' })
     await createMember(chapter, { name: 'Nell Noemail', email: null })
+    await createMember(chapter, {
+      name: 'Sam Twin',
+      email: 'sam-marked@example.com',
+      duplicateOfId: current.id,
+    })
     await renderApp(chapterPage(chapter.id), { as: admin })
 
     expect(await screen.findByText(/sam-old@example.com/)).toBeInTheDocument()
+    expect(screen.getByText(/sam-marked@example.com · duplicate of Sam Twin/)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Appoint a lead' }))
+    // A marked duplicate is not offered.
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Appoint a lead' }), 'sam-marked')
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
+    await userEvent.clear(screen.getByRole('searchbox', { name: 'Appoint a lead' }))
     await userEvent.type(screen.getByRole('searchbox', { name: 'Appoint a lead' }), 'sam-new')
     const options = await screen.findAllByRole('option')
     expect(options).toHaveLength(1)

@@ -1070,6 +1070,11 @@ model Volunteer {
   localGroupId                            Int?                     @map("local_group_id")
   chapter                                 NationalChapter?         @relation("ChapterMembers", fields: [nationalChapterId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   group                                   LocalGroup?              @relation(fields: [localGroupId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  /// Set by a global admin on a second account of the same person: the account to use instead.
+  /// A duplicate is left out of the directory and of every volunteer picker.
+  duplicateOfId                           Int?                     @map("duplicate_of_id")
+  duplicateOf                             Volunteer?               @relation("DuplicateAccounts", fields: [duplicateOfId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  duplicates                              Volunteer[]              @relation("DuplicateAccounts")
   ledChapter                              NationalChapter?         @relation("ChapterLead")
   chapterDeputyRole                       ChapterDeputy?           @relation("ChapterDeputyVolunteer")
   chapterDeputiesAppointed                ChapterDeputy[]          @relation("ChapterDeputyAppointedBy")
@@ -1131,6 +1136,7 @@ model Volunteer {
 
   @@index([country], map: "idx_volunteers_country")
   @@index([nationalChapterId], map: "idx_volunteers_chapter")
+  @@index([duplicateOfId], map: "idx_volunteers_duplicate_of")
   @@index([deletedAt], map: "idx_volunteers_deleted")
   @@index([authToken], map: "idx_volunteers_auth_token")
   @@index([email], map: "idx_volunteers_email")

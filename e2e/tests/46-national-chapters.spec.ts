@@ -52,6 +52,41 @@ test.describe('National chapters', () => {
     await snap(adminPage, 'chapter history')
   })
 
+  test('A global admin marks a second account as a duplicate, and it is no longer offered', async ({
+    adminPage,
+    baseUrl,
+    snap,
+  }) => {
+    const chapterId = await ensureChapter(baseUrl, COUNTRY)
+    const kept = await createApprovedVolunteer(baseUrl, { country: COUNTRY })
+    const second = await createApprovedVolunteer(baseUrl, { country: COUNTRY })
+
+    await adminPage.goto(`${baseUrl}/admin/volunteers/${second.id}`)
+    await expect(adminPage.getByRole('heading', { name: 'Duplicate accounts' })).toBeVisible({
+      timeout: 10_000,
+    })
+    await selectFilterDropdown(adminPage, 'Mark as a duplicate of', kept.name)
+    await snap(adminPage, 'account to keep chosen')
+    await adminPage.getByRole('button', { name: 'Mark as duplicate' }).click()
+    await expect(getAlert(adminPage)).toContainText(
+      `${second.name} is marked as a duplicate of ${kept.name}`,
+      { timeout: 10_000 },
+    )
+    await expect(adminPage.getByRole('button', { name: 'Not a duplicate' })).toBeVisible()
+    await snap(adminPage, 'marked as a duplicate')
+
+    await adminPage.goto(`${baseUrl}/admin/chapters/${chapterId}`)
+    await expect(adminPage.getByText(`duplicate of ${kept.name}`)).toBeVisible({
+      timeout: 10_000,
+    })
+    await adminPage.getByLabel('Appoint a lead', { exact: true }).click()
+    const search = adminPage.getByRole('searchbox', { name: 'Appoint a lead' })
+    await search.fill(kept.name)
+    await expect(adminPage.getByRole('option', { name: kept.name, exact: true })).toBeVisible()
+    await search.fill(second.name)
+    await expect(adminPage.getByRole('option', { name: second.name, exact: true })).toHaveCount(0)
+  })
+
   test('A deputy runs the chapter but cannot appoint deputies', async ({ browser, baseUrl }) => {
     const chapterId = await ensureChapter(baseUrl, COUNTRY)
     const deputy = await createApprovedVolunteer(baseUrl, { country: COUNTRY })

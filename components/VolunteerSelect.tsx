@@ -24,7 +24,8 @@ interface Props {
 // Reusable volunteer picker: typeahead over a server-side search (name/bio) rather than a
 // client-side filter over a preloaded page, since the volunteer list can grow far past
 // what's reasonable to fetch upfront. Each option shows name plus location context
-// (local group or country) so admins can make location-aware assignments.
+// (local group or country) so admins can make location-aware assignments, and to a global
+// admin the email too. Accounts marked as duplicates never appear.
 export default function VolunteerSelect({
   id,
   label,
@@ -57,15 +58,15 @@ export default function VolunteerSelect({
   const [selectedOption, setSelectedOption] = useState<FilterOption | null>(null)
 
   // Label stays just the name — it's what the trigger shows once selected, and what the
-  // e2e suite matches on. Location context is rendered separately per-option below and
-  // marked aria-hidden so it doesn't change the option's accessible name.
+  // e2e suite matches on. The rest goes in the description, which the search also matches
+  // and which stays out of the option's accessible name.
   const volunteerOptions: FilterOption[] = volunteers.map((v) => ({
     value: String(v.id),
     label: v.name,
+    description:
+      [v.email, [v.localGroup, v.country].filter(Boolean).join(', ')].filter(Boolean).join(' · ') ||
+      undefined,
   }))
-  const locationById = new Map(
-    volunteers.map((v) => [String(v.id), [v.localGroup, v.country].filter(Boolean).join(', ')]),
-  )
   const options: FilterOption[] = [
     { value: '', label: placeholder },
     ...(selectedOption && !volunteerOptions.some((o) => o.value === selectedOption.value)
@@ -90,19 +91,6 @@ export default function VolunteerSelect({
       required={required}
       hideLabel={hideLabel}
       triggerClassName={triggerClassName}
-      renderOption={(opt) => {
-        const location = locationById.get(opt.value)
-        return (
-          <span className="flex flex-col">
-            <span>{opt.label}</span>
-            {location && (
-              <span aria-hidden="true" className="text-xs text-text-light">
-                {location}
-              </span>
-            )}
-          </span>
-        )
-      }}
     />
   )
 }

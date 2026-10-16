@@ -142,6 +142,11 @@ describe('volunteer profile', () => {
       'href',
       'mailto:profiled@example.org',
     )
+    expect(screen.getByRole('link', { name: 'Admin page' })).toHaveAttribute(
+      'href',
+      `/admin/volunteers/${vol.id}`,
+    )
+    expect(screen.queryByText(/Duplicate account of/)).toBeNull()
     expect(screen.getByText('Discord: d#1')).toBeInTheDocument()
     expect(screen.getByText('evenings')).toBeInTheDocument()
     expect(screen.getByText('Verified skills')).toBeInTheDocument()
@@ -251,6 +256,20 @@ describe('volunteer profile', () => {
     })
     await view(hidden.id)
     await screen.findByText('You can reach them once you work on a project together.')
+  })
+
+  it('tells a global admin which account a duplicate stands for', async () => {
+    const kept = await createVolunteer({ name: 'Kept Account' })
+    const old = await createVolunteer({ name: 'Old Account', duplicateOfId: kept.id })
+    await renderApp(<VolunteerDetailPage params={Promise.resolve({ id: String(old.id) })} />, {
+      as: await createAdmin(),
+    })
+    await screen.findByRole('heading', { name: 'Old Account' })
+    expect(screen.getByText(/Duplicate account of/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Kept Account' })).toHaveAttribute(
+      'href',
+      `/volunteers/${kept.id}`,
+    )
   })
 
   it('shows a minimal profile, and a not-found state', async () => {

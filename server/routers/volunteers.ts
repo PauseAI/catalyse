@@ -65,6 +65,7 @@ export const volunteersRouter = {
 
       const where: Record<string, unknown> = {
         deletedAt: null,
+        duplicateOfId: null,
         nationalChapterId: chapterFilter(context.access, input.chapter),
         ...(isAdmin ? {} : { consentMakeProfileVisibleInDirectory: true }),
         approvalStatus: ApprovalStatus.approved,
@@ -160,6 +161,7 @@ export const volunteersRouter = {
           skillEndorsementsReceived: {
             include: { skill: true },
           },
+          duplicateOf: { select: { id: true, name: true } },
         },
       })
 
@@ -287,8 +289,8 @@ export const volunteersRouter = {
         }),
       ])
 
-      // Only a global admin sees the login address on a profile: everyone else reaches the
-      // volunteer through the message relay.
+      // Only a global admin sees the login address on a profile, and which account this one
+      // duplicates: everyone else reaches the volunteer through the message relay.
       const { email, ...profile } = redactVolunteer(vol, {
         showContact,
         skills,
@@ -296,7 +298,7 @@ export const volunteersRouter = {
       })
       return {
         ...profile,
-        ...(context.access.globalAdmin ? { email } : {}),
+        ...(context.access.globalAdmin ? { email, duplicateOf: vol.duplicateOf } : {}),
         canMessage: vol.id !== currentVolunteer.id && showContact,
         contactRequested: relations.requested.has(vol.id),
         incomingContactRequest: incoming,

@@ -115,7 +115,7 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
   const lead = chapter.members.find((m) => m.role === 'LEAD')
   const deputies = chapter.members.filter((m) => m.role === 'DEPUTY')
   const memberOptions = chapter.members
-    .filter((m) => m.role === null)
+    .filter((m) => m.role === null && !m.duplicateOf)
     .map((m) => ({ value: String(m.id), label: m.name, description: m.email ?? undefined }))
   const moveOptions = [
     { value: NONE, label: 'Move to…' },
@@ -287,7 +287,13 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
             >
               <span>
                 <Link href={`/volunteers/${m.id}`}>{m.name}</Link>
-                <Muted parts={[m.email, m.role && (m.role === 'LEAD' ? 'Lead' : 'Deputy')]} />
+                <Muted
+                  parts={[
+                    m.email,
+                    m.role && (m.role === 'LEAD' ? 'Lead' : 'Deputy'),
+                    m.duplicateOf && `duplicate of ${m.duplicateOf.name}`,
+                  ]}
+                />
               </span>
               {isGlobal && (
                 <FilterDropdown
