@@ -19,7 +19,7 @@ async function withSchemaClient<T>(fn: (db: Client) => Promise<T>): Promise<T> {
   }
 }
 
-const counts = { volunteer: 2, admin: 1, superadmin: 0 }
+const counts = { volunteer: 2, lead: 2, deputy: 1, admin: 1, superadmin: 0 }
 
 afterEach(async () => {
   vi.unstubAllEnvs()
@@ -36,7 +36,31 @@ describe('seedDevAccounts', () => {
     expect(volunteer?.email).toBe('volunteer1@example.com')
     const admin = await getCurrentVolunteer('Bearer dev-admin')
     expect(admin).toMatchObject({ email: 'admin@example.com', isAdmin: true })
-    expect(await prisma.session.count()).toBe(3)
+    expect(await prisma.session.count()).toBe(6)
+  })
+
+  it('puts everyone in the UK chapter, with its lead and deputy, and the next lead abroad', async () => {
+    await withSchemaClient((db) => seedDevAccounts(db, counts, false))
+    const uk = await prisma.nationalChapter.findUniqueOrThrow({
+      where: { country: 'UK' },
+      include: { lead: true, deputies: { include: { volunteer: true } } },
+    })
+    expect(uk.lead?.email).toBe('lead@example.com')
+    expect(uk.deputies.map((d) => d.volunteer.email)).toEqual(['deputy@example.com'])
+    const germany = await prisma.nationalChapter.findUniqueOrThrow({
+      where: { country: 'Germany' },
+      include: { lead: true },
+    })
+    expect(germany.lead).toMatchObject({
+      email: 'lead1@example.com',
+      nationalChapterId: germany.id,
+    })
+    expect(
+      await prisma.volunteer.findUniqueOrThrow({ where: { email: 'volunteer@example.com' } }),
+    ).toMatchObject({ nationalChapterId: uk.id, country: 'UK' })
+    await expect(
+      withSchemaClient((db) => seedDevAccounts(db, { ...counts, lead: 9 }, false)),
+    ).rejects.toThrow('SEED_LEADS can be at most 5')
   })
 
   it('seeds no sessions into a database that is not on this machine', async () => {

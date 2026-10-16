@@ -15,7 +15,8 @@ Do **not** run `prisma migrate dev` — it checks for schema drift and will fail
 1. Edit `prisma/schema.prisma`
 2. `npm run new-migration your_migration_name` — generates the SQL diff file
 3. Review the generated SQL and remove any unrelated statements
-   - Adding a `NOT NULL` column: if existing rows need a value other than the column default, backfill them in the same migration. SQLite's table-rebuild (`INSERT INTO "new_x" (...) SELECT ... FROM "x"`) silently applies the column default to every existing row — it does not run any backfill logic for you.
+   - Adding a `NOT NULL` column with no default: the diff adds it as `NOT NULL` straight away, which fails on a table with rows. Add it nullable, backfill it, then `SET NOT NULL`, all in the same migration.
+   - Only what `schema.prisma` can express survives: the next `new-migration` diffs the database against the schema and drops any index or constraint written by hand, such as a partial unique index.
 4. `npm run migrate` — applies it
 5. `npm run generate` — regenerates the client and zod schema
 
@@ -32,11 +33,14 @@ Run `npm run check-all` when work is complete and before raising a PR, to verify
 To check a change in a browser as a particular user, never type a password. Every seeded dev account has a session token, `dev-` plus its email's local part, and signs in on its own localhost subdomain of the same name:
 
 - `volunteer@example.com` → http://volunteer.localhost:3000, token `dev-volunteer`
+- `lead@example.com` → http://lead.localhost:3000, token `dev-lead`
 - `admin1@example.com` → http://admin1.localhost:3000, token `dev-admin1`
+
+Who can do what is decided by national chapter (`lib/chapter-access.ts`). Volunteers and deputies are in the UK chapter; `lead@` leads it, and `lead1@`, `lead2@` … lead Germany, France and on, so a second chapter is there to try. `admin@` and `superadmin@` are global admins only while their addresses are in `ADMIN_EMAILS`.
 
 Sessions live in per-origin `localStorage`, so each subdomain holds its own, and several roles can be open side by side. Use an unseeded subdomain (`anon.localhost:3000`) for signed-out views. To sign one in, open its `/login` page and run `localStorage.setItem('authToken', 'dev-admin'); location.href = '/dashboard'`. On any other page, a stale token's 401 clears storage straight after your write.
 
-`seedDevAccounts` (`scripts/seed-dev-accounts.ts`) seeds the tokens on every `fetch-prod-db` / `anonymise-db`, into local databases only, so a signed-in subdomain stays signed in across reseeds. `SEED_VOLUNTEERS` / `SEED_ADMINS` / `SEED_SUPERADMINS` set how many accounts of each role exist (default 1). For a scenario needing more people (owner, assignee), give seeded volunteers those roles in the app.
+`seedDevAccounts` (`scripts/seed-dev-accounts.ts`) seeds the tokens on every `fetch-prod-db` / `anonymise-db`, into local databases only, so a signed-in subdomain stays signed in across reseeds. `SEED_VOLUNTEERS` / `SEED_LEADS` / `SEED_DEPUTIES` / `SEED_ADMINS` / `SEED_SUPERADMINS` set how many accounts of each role exist (default 1). For a scenario needing more people (owner, assignee), give seeded volunteers those roles in the app.
 
 If `format:check` fails, run `npm run format` to fix all files at once — do not run `prettier --write` on individual files.
 

@@ -32,7 +32,7 @@ afterEach(async () => {
   }
 }, DROP_TIMEOUT_MS)
 
-const counts = { volunteer: 1, admin: 1, superadmin: 0 }
+const counts = { volunteer: 1, lead: 1, deputy: 1, admin: 1, superadmin: 0 }
 
 describe('a database not marked disposable', () => {
   it('is refused by the restore, the anonymiser and the dev-account seed', async () => {
