@@ -1,6 +1,6 @@
 import { createHash } from 'crypto'
 import { prisma } from '@/lib/prisma'
-import { globalAdminWhere } from '@/lib/chapter-access-server'
+import { chapterCarers } from '@/lib/chapter-access-server'
 import { sendPendingApplicationsSummaryEmail } from '@/lib/email'
 import { APPLICATION_ANONYMISATION_MS } from '@/lib/applications'
 import { ApprovalStatus } from '@/generated/prisma/enums'
@@ -16,28 +16,38 @@ export async function runApplicationsSummaryJob(): Promise<Record<string, unknow
   })
   if (sentToday) return { skipped: true, reason: 'already sent today' }
 
-  const count = await prisma.volunteer.count({
+  // Each chapter's applicants are its staff's to review; the pool's, and those of a chapter with
+  // no staff, the global admins'. Someone looking after several chapters hears the total.
+  const byChapter = await prisma.volunteer.groupBy({
+    by: ['nationalChapterId'],
     where: {
       approvalStatus: { in: [ApprovalStatus.pending, ApprovalStatus.under_review] },
       deletedAt: null,
     },
+    _count: true,
   })
-
+  const count = byChapter.reduce((sum, g) => sum + g._count, 0)
   if (!count) return { skipped: true, reason: 'no pending applications' }
 
-  const admins = await prisma.volunteer.findMany({
-    where: globalAdminWhere(),
-    select: { name: true, email: true },
+  const owed = new Map<number, number>()
+  for (const group of byChapter) {
+    for (const id of await chapterCarers(group.nationalChapterId)) {
+      owed.set(id, (owed.get(id) ?? 0) + group._count)
+    }
+  }
+  const recipients = await prisma.volunteer.findMany({
+    where: { id: { in: [...owed.keys()] }, email: { not: null } },
+    select: { id: true, name: true, email: true },
   })
 
   let sent = 0
-  for (const admin of admins) {
-    if (admin.email) {
-      await sendPendingApplicationsSummaryEmail({ to: admin.email, name: admin.name, count }).catch(
-        (e) => console.error('[APPLICATIONS SUMMARY] Email failed:', e),
-      )
-      sent++
-    }
+  for (const r of recipients) {
+    await sendPendingApplicationsSummaryEmail({
+      to: r.email as string,
+      name: r.name,
+      count: owed.get(r.id) as number,
+    }).catch((e) => console.error('[APPLICATIONS SUMMARY] Email failed:', e))
+    sent++
   }
 
   await prisma.applicationsSummaryRun.create({ data: {} })

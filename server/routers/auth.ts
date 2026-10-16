@@ -2,7 +2,7 @@ import { ORPCError } from '@orpc/server'
 import { randomBytes, createHash } from 'crypto'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { globalAdminWhere } from '@/lib/chapter-access-server'
+import { chapterCarers } from '@/lib/chapter-access-server'
 import {
   verifyPassword,
   hashPassword,
@@ -74,7 +74,7 @@ async function sendAccountDeletionNotifications(deletedId: number, deletedName: 
       assigneeId: deletedId,
       status: { notIn: [ProjectStatus.completed, ProjectStatus.archived] },
     },
-    select: { id: true, title: true },
+    select: { id: true, title: true, nationalChapterId: true },
   })
   if (!taskRows.length && !ownedProjects.length) return
 
@@ -102,21 +102,20 @@ async function sendAccountDeletionNotifications(deletedId: number, deletedName: 
     })
   }
 
-  const ownerless = ownedProjects.map((p) => ({ projectId: p.id, projectTitle: p.title }))
-  if (ownerless.length) {
-    const admins = await prisma.volunteer.findMany({
-      where: { ...globalAdminWhere(), id: { not: deletedId } },
+  // An ownerless project is its chapter's staff's to find a new owner for.
+  for (const p of ownedProjects) {
+    const carers = await prisma.volunteer.findMany({
+      where: { id: { in: await chapterCarers(p.nationalChapterId), not: deletedId } },
       select: { id: true, name: true, email: true },
     })
-    for (const admin of admins) {
-      if (!recipients[admin.id])
-        recipients[admin.id] = {
-          name: admin.name,
-          email: admin.email,
-          taskProjects: [],
-          ownerlessProjects: [],
-        }
-      recipients[admin.id].ownerlessProjects = ownerless
+    for (const carer of carers) {
+      recipients[carer.id] ??= {
+        name: carer.name,
+        email: carer.email,
+        taskProjects: [],
+        ownerlessProjects: [],
+      }
+      recipients[carer.id].ownerlessProjects.push({ projectId: p.id, projectTitle: p.title })
     }
   }
 

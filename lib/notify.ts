@@ -1,7 +1,7 @@
 import { prisma } from './prisma'
 import { sendProjectNotificationEmail, sendAdminAlertEmail } from './email'
 import { categoryOf } from './notification-categories'
-import { chapterStaffIds, globalAdminWhere } from './chapter-access-server'
+import { chapterCarers, globalAdminWhere } from './chapter-access-server'
 
 export async function createNotification(
   volunteerId: number,
@@ -177,12 +177,7 @@ export async function notifyChapterStaff(
   email?: NotifyEmailPayload,
   entityId?: number | null,
 ): Promise<void> {
-  const staff = chapterId === null ? [] : await chapterStaffIds(chapterId)
-  const recipients = staff.length
-    ? staff
-    : (await prisma.volunteer.findMany({ where: globalAdminWhere(), select: { id: true } })).map(
-        (a) => a.id,
-      )
+  const recipients = await chapterCarers(chapterId)
   await Promise.all(
     recipients.map((id) => notifyUser(id, type, title, body, link, email, entityId)),
   )

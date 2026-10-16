@@ -87,6 +87,20 @@ export async function chapterStaffIds(chapterId: number): Promise<number[]> {
   return staff.flatMap((s) => (s && !s.deletedAt ? [s.id] : []))
 }
 
+/**
+ * Who looks after something in `chapterId`: its lead and deputies, or the global admins for the
+ * holding pool and for a chapter with no staff.
+ */
+export async function chapterCarers(chapterId: number | null): Promise<number[]> {
+  const staff = chapterId === null ? [] : await chapterStaffIds(chapterId)
+  if (staff.length) return staff
+  const admins = await prisma.volunteer.findMany({
+    where: globalAdminWhere(),
+    select: { id: true },
+  })
+  return admins.map((a) => a.id)
+}
+
 /** The live, confirmed accounts whose address is in ADMIN_EMAILS. */
 export function globalAdminWhere(): Prisma.VolunteerWhereInput {
   return {

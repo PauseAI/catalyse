@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { globalAdminWhere } from '@/lib/chapter-access-server'
+import { chapterCarers } from '@/lib/chapter-access-server'
 import { isEmailConfigured, sendDailySummaryEmail } from '@/lib/email'
 import { createNotification, refreshNotification } from '@/lib/notify'
 import { lateProjects, loadProjectTaskSchedule } from '@/lib/project-schedule'
@@ -350,12 +350,12 @@ export async function runDeadlineRemindersJob(now: Date = new Date()) {
       deadline: { not: null },
     },
   })
-  const admins = (
-    await prisma.volunteer.findMany({
-      where: globalAdminWhere(),
-      select: { id: true },
-    })
-  ).map((a) => a.id)
+  // A quick task nobody set is its chapter's staff's to chase.
+  const carers = new Map<number | null, Promise<number[]>>()
+  const carersOf = (chapterId: number | null) => {
+    if (!carers.has(chapterId)) carers.set(chapterId, chapterCarers(chapterId))
+    return carers.get(chapterId) as Promise<number[]>
+  }
   for (const qt of quickTasks) {
     const deadline = qt.deadline
     if (!deadline) continue // the query asked for one; this narrows the type
@@ -363,7 +363,7 @@ export async function runDeadlineRemindersJob(now: Date = new Date()) {
       { ...qt, deadline },
       startOfUtcDay(deadline),
       null,
-      qt.creatorId !== null ? [qt.creatorId] : admins,
+      qt.creatorId !== null ? [qt.creatorId] : await carersOf(qt.nationalChapterId),
       'Quick Tasks',
       `/quick-tasks/${qt.id}`,
       false,

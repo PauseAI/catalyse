@@ -12,6 +12,7 @@ import {
   createChapter,
   createChapterDeputy,
   createLocalGroup,
+  createMember,
 } from '@/test/factories'
 import { clientAs, anon } from '@/test/rpc'
 import { rateLimit } from '@/test/fakes/rate-limit'
@@ -707,6 +708,25 @@ describe('verifyEmail / resendVerification', () => {
     await expect(
       anon().auth.verifyEmail({ token: signup.emailVerificationToken! }),
     ).resolves.toBeTruthy()
+  })
+})
+
+describe('deleteAccount and chapters', () => {
+  it("asks an ownerless project's chapter staff to find it a new owner", async () => {
+    const chapter = await createChapter()
+    const deputy = await createChapterDeputy(chapter)
+    const admin = await createAdmin()
+    const me = await createMember(chapter)
+    const mine = await createProject({
+      assigneeId: me.id,
+      status: 'in_progress',
+      nationalChapterId: chapter.id,
+    })
+    await clientAs(me).auth.deleteAccount({ password: TEST_PASSWORD })
+    const told = (id: number) =>
+      prisma.notification.findFirst({ where: { volunteerId: id, type: 'account_deleted_impact' } })
+    expect(await told(deputy.id)).toMatchObject({ body: `'${mine.title}' needs a new owner.` })
+    expect(await told(admin.id)).toBeNull()
   })
 })
 
