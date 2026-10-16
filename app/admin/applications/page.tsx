@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useRequireStaff } from '@/lib/hooks/auth'
 import { useUrlParam } from '@/lib/hooks/url-filters'
 import ChapterFilter, { chapterSelection } from '@/components/ChapterFilter'
@@ -35,7 +35,7 @@ const SECTIONS: { key: Filter; label: string; color: string; collapsedByDefault?
   },
 ]
 
-export default function ApplicationsPage() {
+function ApplicationsPageContent() {
   const router = useRouter()
   const { user, loading } = useRequireStaff()
   const showToast = useToast()
@@ -460,5 +460,14 @@ function AnonymisedCard({ app }: { app: AnonymisedApplication }) {
         )}
       </div>
     </div>
+  )
+}
+
+// The chapter filter lives in the URL, which needs a Suspense boundary to read.
+export default function ApplicationsPage() {
+  return (
+    <Suspense>
+      <ApplicationsPageContent />
+    </Suspense>
   )
 }

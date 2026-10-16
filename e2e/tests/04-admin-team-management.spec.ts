@@ -1,102 +1,75 @@
-import { test, expect, getAlert, dismissCookieConsentScript } from '../fixtures'
+import { test, expect, getAlert, dismissCookieConsentScript, readAdminToken } from '../fixtures'
 import { fake } from '../fake'
 import { ADMIN_EMAIL } from '../config'
 import { signup, login } from '../actions/auth'
+import { ensureChapter } from '../actions/chapters'
 import { Page } from '@playwright/test'
 import { createApiClient } from '../client'
 
-async function createAdminInvite(adminPage: Page, baseUrl: string, email: string): Promise<string> {
-  const token = await adminPage.evaluate(() => localStorage.getItem('authToken'))
-  const api = createApiClient(baseUrl, token)
-  const result = await api.admin.admins.invite({ body: { email } })
+// Invites in this file are to the Netherlands chapter, which no other spec uses.
+const COUNTRY = 'Netherlands'
+
+async function createDeputyInvite(baseUrl: string, email: string): Promise<string> {
+  const chapterId = await ensureChapter(baseUrl, COUNTRY)
+  const api = createApiClient(baseUrl, readAdminToken(baseUrl))
+  const result = await api.admin.chapters.invite({ body: { email, chapterId, role: 'DEPUTY' } })
   if (result.status !== 200) throw new Error(`Invite failed: ${JSON.stringify(result.body)}`)
-  const data = result.body as { message: string; _dev_invite_token?: string }
-  if (!data._dev_invite_token) throw new Error('No dev invite token in response')
-  return data._dev_invite_token
+  const url = result.body._dev_invite_url
+  if (!url) throw new Error('No dev invite link in response')
+  return new URL(url).searchParams.get('token') as string
 }
 
-async function getMe(page: Page, baseUrl: string): Promise<{ id: number; isAdmin: boolean }> {
+async function getMe(page: Page, baseUrl: string) {
   const token = await page.evaluate(() => localStorage.getItem('authToken'))
-  const api = createApiClient(baseUrl, token)
-  const result = await api.auth.me()
-  return result.body as { id: number; isAdmin: boolean }
+  const result = await createApiClient(baseUrl, token).auth.me()
+  return result.body
 }
 
-test.describe('Admin: Admin Team Management', () => {
-  test('Admin views the list of current admins', async ({ adminPage, baseUrl }) => {
+test.describe('Admin: global admins and chapter staff invites', () => {
+  test('Admin views the list of global admins', async ({ adminPage, baseUrl }) => {
     await adminPage.goto(`${baseUrl}/admin/team`)
     const adminList = adminPage.locator('#adminList')
     await expect(adminList).toContainText(ADMIN_EMAIL, { timeout: 10_000 })
   })
 
-  test('Admin invites a new admin by email', async ({ adminPage, baseUrl }) => {
+  test('Admin invites a deputy from the chapter page, sees it pending, and cancels it', async ({
+    adminPage,
+    baseUrl,
+    snap,
+  }) => {
     const inviteEmail = fake.uniqueEmail()
+    const chapterId = await ensureChapter(baseUrl, COUNTRY)
 
-    await adminPage.goto(`${baseUrl}/admin/team`)
-    await expect(adminPage.getByRole('button', { name: 'Invite admin' })).toBeVisible({
+    await adminPage.goto(`${baseUrl}/admin/chapters/${chapterId}`)
+    await expect(adminPage.getByRole('heading', { name: 'Netherlands chapter' })).toBeVisible({
       timeout: 10_000,
     })
-
-    await adminPage.getByRole('button', { name: 'Invite admin' }).click()
-    const inviteDialog = adminPage.getByRole('dialog', { name: 'Invite admin' })
-    await expect(inviteDialog).toBeVisible({ timeout: 5_000 })
     await adminPage.getByLabel('Email address').fill(inviteEmail)
     await adminPage.getByRole('button', { name: 'Send invite' }).click()
+    await expect(getAlert(adminPage)).toContainText(`for ${inviteEmail}`, { timeout: 10_000 })
 
-    await expect(inviteDialog.getByRole('status')).toBeVisible({ timeout: 10_000 })
+    const cancel = adminPage.getByRole('button', { name: `Cancel invite to ${inviteEmail}` })
+    await expect(cancel).toBeVisible()
+    await snap(adminPage, 'invite pending')
+    await cancel.click()
+    await expect(getAlert(adminPage)).toContainText('Invite revoked', { timeout: 10_000 })
+    await expect(cancel).toBeHidden()
   })
 
-  test('Admin views pending invites', async ({ adminPage, baseUrl }) => {
-    const inviteEmail = fake.uniqueEmail()
-
-    await adminPage.goto(`${baseUrl}/admin/team`)
-    await expect(adminPage.getByRole('button', { name: 'Invite admin' })).toBeVisible({
-      timeout: 10_000,
-    })
-    await createAdminInvite(adminPage, baseUrl, inviteEmail)
-
-    await adminPage.goto(`${baseUrl}/admin/team`)
-    await adminPage.getByRole('tab', { name: 'Pending invites' }).click()
-
-    await expect(adminPage.locator('#inviteList')).toContainText(inviteEmail, { timeout: 10_000 })
-  })
-
-  test('Admin revokes a pending invite', async ({ adminPage, baseUrl }) => {
-    const inviteEmail = fake.uniqueEmail()
-
-    await adminPage.goto(`${baseUrl}/admin/team`)
-    await expect(adminPage.getByRole('button', { name: 'Invite admin' })).toBeVisible({
-      timeout: 10_000,
-    })
-    await createAdminInvite(adminPage, baseUrl, inviteEmail)
-
-    await adminPage.goto(`${baseUrl}/admin/team`)
-    await adminPage.getByRole('tab', { name: 'Pending invites' }).click()
-
-    const inviteCard = adminPage.locator('#inviteList .card').filter({ hasText: inviteEmail })
-    await expect(inviteCard).toBeVisible({ timeout: 10_000 })
-    await inviteCard.getByRole('button', { name: 'Cancel' }).click()
-
-    await expect(getAlert(adminPage)).toContainText('Invite cancelled', { timeout: 10_000 })
-    await expect(inviteCard).not.toBeVisible({ timeout: 10_000 })
-  })
-
-  test('New user accepts an admin invite link', async ({ adminPage, browser, baseUrl }) => {
+  test('New user accepts a chapter invite link', async ({ browser, baseUrl }) => {
     const person = fake.person()
-
-    await adminPage.goto(`${baseUrl}/admin/team`)
-    const token = await createAdminInvite(adminPage, baseUrl, person.email)
+    const token = await createDeputyInvite(baseUrl, person.email)
 
     const ctx = await browser.newContext()
     await ctx.addInitScript(dismissCookieConsentScript)
     const page = await ctx.newPage()
     try {
       await page.goto(`${baseUrl}/accept-invite?token=${token}`)
-      await expect(page.getByRole('heading', { name: 'Admin Invite' })).toBeVisible({
+      await expect(page.getByRole('heading', { name: 'Chapter staff invite' })).toBeVisible({
         timeout: 10_000,
       })
 
-      // Clear the pending invite token stored by accept-invite.html so signup
+      // Clear the pending invite token stored by accept-invite so signup
       // redirects to dashboard instead of back to accept-invite
       await page.evaluate(() => localStorage.removeItem('pendingAdminInvite'))
 
@@ -124,54 +97,26 @@ test.describe('Admin: Admin Team Management', () => {
       await login(baseUrl, page, person.email, 'testpassword2')
 
       const me = await getMe(page, baseUrl)
-      expect(me.isAdmin).toBeTruthy()
+      expect(me.access.role).toBe('DEPUTY')
+      expect(me.chapter?.country).toBe(COUNTRY)
     } finally {
       await ctx.close()
     }
   })
 
-  test('Existing user accepts an admin invite', async ({ adminPage, volunteer, baseUrl }) => {
-    await adminPage.goto(`${baseUrl}/admin/team`)
-    const token = await createAdminInvite(adminPage, baseUrl, volunteer.email)
+  test('Existing user accepts a chapter invite and moves into the chapter as a deputy', async ({
+    volunteer,
+    baseUrl,
+  }) => {
+    const token = await createDeputyInvite(baseUrl, volunteer.email)
 
     await volunteer.page.goto(`${baseUrl}/accept-invite?token=${token}`)
-    await expect(volunteer.page.getByRole('heading', { name: 'Welcome to the Team!' })).toBeVisible(
+    await expect(volunteer.page.getByRole('heading', { name: 'Welcome to the team!' })).toBeVisible(
       { timeout: 10_000 },
     )
 
     const me = await getMe(volunteer.page, baseUrl)
-    expect(me.isAdmin).toBeTruthy()
-  })
-
-  test("Admin revokes another admin's access", async ({ adminPage, volunteer, baseUrl }) => {
-    await adminPage.goto(`${baseUrl}/admin/team`)
-    const token = await createAdminInvite(adminPage, baseUrl, volunteer.email)
-
-    // Navigate to a real page first so the volunteer's localStorage is accessible
-    await volunteer.page.goto(`${baseUrl}/dashboard`)
-
-    // Accept invite as the volunteer directly via API
-    const volunteerToken = await volunteer.page.evaluate(() => localStorage.getItem('authToken'))
-    const volunteerApi = createApiClient(baseUrl, volunteerToken)
-    const acceptResult = await volunteerApi.admin.admins.acceptInvite({
-      body: { inviteToken: token },
-    })
-    if (acceptResult.status !== 200)
-      throw new Error(`Accept invite failed: ${JSON.stringify(acceptResult.body)}`)
-
-    // Reload team page to see updated admin list
-    await adminPage.goto(`${baseUrl}/admin/team`)
-    const adminCard = adminPage.locator('#adminList .card').filter({ hasText: volunteer.email })
-    await expect(adminCard).toBeVisible({ timeout: 10_000 })
-
-    await adminCard.getByRole('button', { name: 'Revoke access' }).click()
-    await adminPage.getByRole('dialog').getByRole('button', { name: 'Revoke access' }).click()
-
-    await expect(getAlert(adminPage)).toContainText('Admin access revoked', { timeout: 10_000 })
-    await expect(adminCard).not.toBeVisible({ timeout: 10_000 })
-
-    // Volunteer should no longer have admin access
-    const triageResult = await volunteerApi.admin.triage.list()
-    expect(triageResult.status).toBe(403)
+    expect(me.access.role).toBe('DEPUTY')
+    expect(me.chapter?.country).toBe(COUNTRY)
   })
 })

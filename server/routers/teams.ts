@@ -72,23 +72,27 @@ function serializeTeam(
   }
 }
 
+async function findTeam(teamId: number) {
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { id: true, nationalChapterId: true },
+  })
+  if (!team) throw new ORPCError('NOT_FOUND', { message: 'Team not found' })
+  return team
+}
+
 /**
  * Team leader (of this team), its chapter's staff or a global admin — who may review join
  * requests and manage membership.
  */
 async function assertCanManageTeam(
-  teamId: number,
+  team: { id: number; nationalChapterId: number | null },
   volunteer: { id: number },
   access: ChapterAccess,
 ) {
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    select: { nationalChapterId: true },
-  })
-  if (!team) throw new ORPCError('NOT_FOUND', { message: 'Team not found' })
   if (canAdminChapter(access, team.nationalChapterId)) return
   const membership = await prisma.teamMembership.findUnique({
-    where: { teamId_volunteerId: { teamId, volunteerId: volunteer.id } },
+    where: { teamId_volunteerId: { teamId: team.id, volunteerId: volunteer.id } },
   })
   if (membership?.role !== TeamMembershipRole.leader) {
     throw new ORPCError('FORBIDDEN', { message: 'Only a team leader or admin can do this' })
@@ -187,7 +191,6 @@ export const teamsRouter = {
   getManageable: approvedProcedure
     .input(z.object({ id: z.number().int() }))
     .handler(async ({ input, context }) => {
-      await assertCanManageTeam(input.id, context.volunteer, context.access)
       const team = await prisma.team.findUnique({
         where: { id: input.id },
         include: {
@@ -195,6 +198,7 @@ export const teamsRouter = {
         },
       })
       if (!team) throw new ORPCError('NOT_FOUND', { message: 'Team not found' })
+      await assertCanManageTeam(team, context.volunteer, context.access)
       return {
         id: team.id,
         name: team.name,
@@ -216,9 +220,7 @@ export const teamsRouter = {
   update: approvedProcedure
     .input(z.object({ id: z.number().int() }).merge(TeamBodySchema))
     .handler(async ({ input, context }) => {
-      await assertCanManageTeam(input.id, context.volunteer, context.access)
-      const existing = await prisma.team.findUnique({ where: { id: input.id } })
-      if (!existing) throw new ORPCError('NOT_FOUND', { message: 'Team not found' })
+      await assertCanManageTeam(await findTeam(input.id), context.volunteer, context.access)
 
       const team = await prisma.team.update({
         where: { id: input.id },
@@ -311,7 +313,7 @@ export const teamsRouter = {
   listJoinRequests: approvedProcedure
     .input(z.object({ teamId: z.number().int() }))
     .handler(async ({ input, context }) => {
-      await assertCanManageTeam(input.teamId, context.volunteer, context.access)
+      await assertCanManageTeam(await findTeam(input.teamId), context.volunteer, context.access)
       const requests = await prisma.teamJoinRequest.findMany({
         where: { teamId: input.teamId, status: TeamJoinRequestStatus.pending },
         orderBy: { createdAt: 'asc' },
@@ -332,7 +334,7 @@ export const teamsRouter = {
     .handler(async ({ input, context }) => {
       const request = await prisma.teamJoinRequest.findUnique({ where: { id: input.id } })
       if (!request) throw new ORPCError('NOT_FOUND', { message: 'Request not found' })
-      await assertCanManageTeam(request.teamId, context.volunteer, context.access)
+      await assertCanManageTeam(await findTeam(request.teamId), context.volunteer, context.access)
 
       if (request.status !== TeamJoinRequestStatus.pending) {
         throw new ORPCError('BAD_REQUEST', { message: 'Request already reviewed' })
@@ -389,7 +391,7 @@ export const teamsRouter = {
       }),
     )
     .handler(async ({ input, context }) => {
-      await assertCanManageTeam(input.teamId, context.volunteer, context.access)
+      await assertCanManageTeam(await findTeam(input.teamId), context.volunteer, context.access)
       const volunteer = await prisma.volunteer.findUnique({ where: { id: input.volunteerId } })
       if (!volunteer) throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
       const team = await prisma.team.findUniqueOrThrow({ where: { id: input.teamId } })
@@ -424,7 +426,7 @@ export const teamsRouter = {
       }),
     )
     .handler(async ({ input, context }) => {
-      await assertCanManageTeam(input.teamId, context.volunteer, context.access)
+      await assertCanManageTeam(await findTeam(input.teamId), context.volunteer, context.access)
       const membership = await prisma.teamMembership.findUnique({
         where: { teamId_volunteerId: { teamId: input.teamId, volunteerId: input.volunteerId } },
       })
@@ -440,7 +442,7 @@ export const teamsRouter = {
   removeMember: approvedProcedure
     .input(z.object({ teamId: z.number().int(), volunteerId: z.number().int() }))
     .handler(async ({ input, context }) => {
-      await assertCanManageTeam(input.teamId, context.volunteer, context.access)
+      await assertCanManageTeam(await findTeam(input.teamId), context.volunteer, context.access)
       await prisma.teamMembership.deleteMany({
         where: { teamId: input.teamId, volunteerId: input.volunteerId },
       })

@@ -160,6 +160,30 @@ describe('projects directory', () => {
     expect(links).toEqual(['Sorted newer', 'Sorted older'])
   })
 
+  it('clears the local group filter when a global admin switches chapters', async () => {
+    const [chapterA, chapterB] = [await createChapter(), await createChapter()]
+    const london = await createLocalGroup({
+      name: 'London',
+      country: chapterA.country,
+      nationalChapterId: chapterA.id,
+    })
+    await createProject({
+      nationalChapterId: chapterA.id,
+      reach: 'LOCAL',
+      localGroupId: london.id,
+    })
+    await renderApp(<ProjectsPage />, {
+      as: await createSuperAdmin(),
+      url: `/projects?chapter=${chapterA.id}`,
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Local group filter' }))
+    await userEvent.click(screen.getByRole('option', { name: 'London' }))
+    expect(window.location.search).toContain('group=')
+    await userEvent.click(screen.getByRole('button', { name: 'Chapter filter' }))
+    await userEvent.click(await screen.findByRole('option', { name: chapterB.name }))
+    await waitFor(() => expect(window.location.search).not.toContain('group='))
+  })
+
   it('shows admin alerts, the all-teams filter, and the email confirmation error', async () => {
     const admin = await createSuperAdmin()
     await createProject({ status: 'pending_review' })

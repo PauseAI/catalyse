@@ -1,10 +1,9 @@
 import { test, expect, getAlert } from '../fixtures'
 import { selectFilterDropdown } from '../actions/ui'
 
-// 27-remote-eligibility.spec.ts covers the notify_remote_projects checkbox and its effect on
-// match alerts. 18-gdpr-privacy.spec.ts covers directory visibility and the contact request
-// end-to-end via another volunteer's search. This file covers what neither exercises: the email
-// digest dropdown itself, and the directory checkbox saving.
+// 18-gdpr-privacy.spec.ts covers directory visibility and the contact request end-to-end via
+// another volunteer's search. This file covers what it does not exercise: the email digest
+// dropdown itself, and the directory checkbox saving.
 
 test.describe('Settings: Notifications tab', () => {
   test('Email digest preference persists after save and reload', async ({ volunteer, baseUrl }) => {

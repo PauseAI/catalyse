@@ -36,7 +36,6 @@ export const adminVolunteersRouter = {
   getById: staffProcedure
     .input(z.object({ id: z.number().int() }))
     .handler(async ({ input, context }) => {
-      await assertRunsVolunteer(context.access, input.id)
       const vol = await prisma.volunteer.findUnique({
         where: { id: input.id },
         include: {
@@ -54,7 +53,9 @@ export const adminVolunteersRouter = {
         },
       })
 
-      if (!vol) throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
+      if (!vol || !canAdminChapter(context.access, vol.nationalChapterId)) {
+        throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
+      }
 
       const [adminNotes, endorsements, quickTasks, projectHistory] = await Promise.all([
         prisma.adminNote.findMany({

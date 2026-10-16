@@ -273,27 +273,17 @@ test.describe('Volunteer Profile', () => {
     await expect(getAlert(volunteer.page)).toContainText('Profile updated!', { timeout: 10_000 })
   })
 
-  test('Volunteer sets location: country with no local groups skips dropdown, city input appears directly', async ({
+  test('The profile shows the country and its chapter, which change only by asking to move', async ({
     volunteer,
     baseUrl,
   }) => {
     await volunteer.page.goto(`${baseUrl}/profile`)
     await expect(volunteer.page.getByLabel('Your name')).toBeVisible({ timeout: 10_000 })
 
-    // Select Germany — no local groups exist for it, so dropdown should be skipped
-    await selectFilterDropdown(volunteer.page, 'Select country', 'Germany')
-    await expect(volunteer.page.getByLabel('Select local group', { exact: true })).not.toBeVisible()
-    await expect(volunteer.page.getByLabel('City / area')).toBeVisible({ timeout: 5_000 })
-
-    // Fill city and save
-    await volunteer.page.getByLabel('City / area').fill('Berlin')
-    await volunteer.page.getByRole('button', { name: 'Save changes' }).click()
-    await expect(getAlert(volunteer.page)).toContainText('Profile updated!', { timeout: 10_000 })
-
-    // Reload and verify city persisted
-    await volunteer.page.goto(`${baseUrl}/profile`)
-    await expect(volunteer.page.getByLabel('Your name')).toBeVisible({ timeout: 10_000 })
-    await expect(volunteer.page.getByLabel('City / area')).toBeVisible({ timeout: 5_000 })
-    await expect(volunteer.page.getByLabel('City / area')).toHaveValue('Berlin')
+    await expect(volunteer.page.getByText('United Kingdom · United Kingdom chapter')).toBeVisible()
+    await expect(volunteer.page.getByLabel('Select country', { exact: true })).toHaveCount(0)
+    await expect(
+      volunteer.page.getByRole('button', { name: 'Moving to another country?' }),
+    ).toBeVisible()
   })
 })

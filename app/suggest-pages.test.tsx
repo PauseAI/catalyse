@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma'
 import {
   createVolunteer,
   createAdmin,
+  createChapter,
+  createMember,
   createProject,
   createTeam,
   createLocalGroup,
@@ -135,6 +137,16 @@ describe('/suggest-local-group', () => {
     localStorage.setItem('authToken', 'stale')
     await userEvent.click(screen.getByRole('button', { name: 'Submit suggestion' }))
     await screen.findByText('Unauthorized')
+  })
+
+  it('offers only its own country to a member in a chapter', async () => {
+    const chapter = await createChapter()
+    const member = await createMember(chapter)
+    await renderApp(<SuggestLocalGroupPage />, { as: member })
+    await screen.findByLabelText('Local group name')
+    await userEvent.click(screen.getByRole('button', { name: 'Select country/group' }))
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+    expect(screen.getByRole('option', { name: chapter.name })).toBeInTheDocument()
   })
 })
 

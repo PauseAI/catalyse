@@ -193,6 +193,17 @@ describe('admin team detail — chapters', () => {
     )
   })
 
+  it('reports a failed chapter move', async () => {
+    const chapter = await createChapter()
+    const team = await createTeam({ name: 'Stuck' })
+    await mount(team.id, await createAdmin())
+    await screen.findByRole('heading', { name: 'Stuck' })
+    await userEvent.click(screen.getByRole('button', { name: 'Team chapter' }))
+    localStorage.setItem('authToken', 'stale')
+    await userEvent.click(await screen.findByRole('option', { name: chapter.name }))
+    await screen.findByText('Unauthorized')
+  })
+
   it("shows the team's staff the team, without the chapter picker", async () => {
     const chapter = await createChapter()
     const team = await createTeam({ name: 'Ours', nationalChapterId: chapter.id })

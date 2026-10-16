@@ -173,7 +173,10 @@ export async function createStaffInvite(
     Pick<Prisma.AdminInviteUncheckedCreateInput, 'email' | 'invitedById'>,
 ) {
   const n = nextSeq()
-  const nationalChapterId = overrides.nationalChapterId ?? (await createChapter()).id
+  const nationalChapterId =
+    overrides.nationalChapterId === undefined
+      ? (await createChapter()).id
+      : overrides.nationalChapterId
   return prisma.adminInvite.create({
     data: {
       inviteToken: `invite-token-${n}`,

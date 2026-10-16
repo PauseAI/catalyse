@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
@@ -13,7 +14,7 @@ import { countryLabel } from '@/lib/filter-options'
 import { SECTION_CARD } from '@/lib/ui-classes'
 
 /** Members asking to move into the viewer's chapter, or for a global admin, any chapter. */
-export default function AdminTransfersPage() {
+function AdminTransfersPageContent() {
   const { user, loading } = useRequireStaff()
   const showToast = useToast()
   const queryClient = useQueryClient()
@@ -87,5 +88,14 @@ export default function AdminTransfersPage() {
         </ul>
       )}
     </main>
+  )
+}
+
+// The chapter filter lives in the URL, which needs a Suspense boundary to read.
+export default function AdminTransfersPage() {
+  return (
+    <Suspense>
+      <AdminTransfersPageContent />
+    </Suspense>
   )
 }

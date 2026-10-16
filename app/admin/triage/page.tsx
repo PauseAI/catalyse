@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useRequireStaff } from '@/lib/hooks/auth'
 import { useUrlParam } from '@/lib/hooks/url-filters'
 import ChapterFilter, { chapterSelection } from '@/components/ChapterFilter'
@@ -23,7 +23,7 @@ import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
 import { InterestStatus, ProjectStatus } from '@/generated/prisma/enums'
 
-export default function TriagePage() {
+function TriagePageContent() {
   const { user, loading } = useRequireStaff()
   const showToast = useToast()
   const queryClient = useQueryClient()
@@ -373,5 +373,14 @@ export default function TriagePage() {
         )}
       </main>
     </>
+  )
+}
+
+// The chapter filter lives in the URL, which needs a Suspense boundary to read.
+export default function TriagePage() {
+  return (
+    <Suspense>
+      <TriagePageContent />
+    </Suspense>
   )
 }

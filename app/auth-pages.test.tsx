@@ -174,7 +174,7 @@ describe('verify email', () => {
 describe('accept invite', () => {
   it('walks through login prompt, acceptance and error states', async () => {
     await renderApp(<AcceptInvitePage />, { url: '/accept-invite?token=abc' })
-    expect(await screen.findByText('Admin invite')).toBeInTheDocument()
+    expect(await screen.findByText('Chapter staff invite')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute(
       'href',
       expect.stringContaining('redirect='),

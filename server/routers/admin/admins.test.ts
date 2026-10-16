@@ -107,17 +107,13 @@ describe('admin.admins.acceptInvite', () => {
     const who = await createVolunteer({ email: 'who@example.com' })
     const refusals: [Parameters<typeof createStaffInvite>[0], string][] = [
       [{ email: who.email!, invitedById: admin.id, status: 'revoked' }, 'withdrawn'],
+      // An invite with no role, or from before chapters with no chapter either.
       [{ email: who.email!, invitedById: admin.id, role: null }, 'withdrawn'],
+      [{ email: who.email!, invitedById: admin.id, nationalChapterId: null }, 'withdrawn'],
       [{ email: who.email!, invitedById: admin.id, expiresAt: new Date(0) }, 'expired'],
     ]
     for (const [data, message] of refusals) {
       const invite = await createStaffInvite(data)
-      if (data.role === null) {
-        await prisma.adminInvite.update({
-          where: { id: invite.id },
-          data: { nationalChapterId: null },
-        })
-      }
       await expect(
         clientAs(who).admin.admins.acceptInvite({ inviteToken: invite.inviteToken }),
       ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: expect.stringContaining(message) })

@@ -65,4 +65,35 @@ describe('moving chapter', () => {
     await renderApp(<AdminTransfersPage />, { as: await createAdmin() })
     expect(await screen.findByRole('button', { name: 'Chapter filter' })).toBeInTheDocument()
   })
+
+  it('reports a failed request to move', async () => {
+    const [from, to] = [await createChapter(), await createChapter()]
+    const member = await createMember(from)
+    await renderApp(<ChapterMove country={from.country} />, { as: member })
+    await userEvent.click(await screen.findByRole('button', { name: 'Moving to another country?' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Country you are moving to' }))
+    await userEvent.click(await screen.findByRole('option', { name: to.name }))
+    localStorage.setItem('authToken', 'stale')
+    await userEvent.click(screen.getByRole('button', { name: 'Ask to move' }))
+    await screen.findByText('Unauthorized')
+  })
+
+  it('reports a failed decision on a move request', async () => {
+    const [from, to] = [await createChapter(), await createChapter()]
+    const lead = await createChapterLead(to)
+    const mover = await createMember(from, { name: 'Mo Mover' })
+    await prisma.chapterTransferRequest.create({
+      data: {
+        volunteerId: mover.id,
+        fromChapterId: from.id,
+        toChapterId: to.id,
+        toCountry: to.country,
+      },
+    })
+    await renderApp(<AdminTransfersPage />, { as: lead })
+    await screen.findByRole('button', { name: `Approve move for ${mover.name}` })
+    localStorage.setItem('authToken', 'stale')
+    await userEvent.click(screen.getByRole('button', { name: `Approve move for ${mover.name}` }))
+    await screen.findByText('Unauthorized')
+  })
 })

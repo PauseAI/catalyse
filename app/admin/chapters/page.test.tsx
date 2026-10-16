@@ -54,6 +54,16 @@ describe('national chapters list', () => {
     )
   })
 
+  it('reports a failed open', async () => {
+    const admin = await createAdmin()
+    await renderApp(<AdminChaptersPage />, { as: admin })
+    await screen.findByRole('button', { name: 'Open chapter' })
+    await pick('Country', 'Belgium')
+    localStorage.setItem('authToken', 'stale')
+    await userEvent.click(screen.getByRole('button', { name: 'Open chapter' }))
+    await screen.findByText('Unauthorized')
+  })
+
   it('turns away anyone but a global admin', async () => {
     await renderApp(<AdminChaptersPage />, { as: await createChapterLead(await createChapter()) })
     await waitFor(() =>
@@ -140,5 +150,29 @@ describe('one chapter', () => {
     const lead = await createChapterLead(await createChapter())
     await renderApp(chapterPage((await createChapter()).id), { as: lead })
     expect(await screen.findByRole('heading', { name: 'Chapter not found' })).toBeInTheDocument()
+  })
+
+  it('reports a failed appointment', async () => {
+    const admin = await createAdmin()
+    const chapter = await createChapter()
+    await createMember(chapter, { name: 'Ann' })
+    await renderApp(chapterPage(chapter.id), { as: admin })
+    await screen.findByRole('heading', { name: `${chapter.name} chapter` })
+    localStorage.setItem('authToken', 'stale')
+    await pick('Appoint a lead', 'Ann')
+    await screen.findByText('Unauthorized')
+  })
+
+  it('does nothing when the placeholder "Move to…" option is picked', async () => {
+    const admin = await createAdmin()
+    const chapter = await createChapter()
+    const member = await createMember(chapter, { name: 'Mo' })
+    await renderApp(chapterPage(chapter.id), { as: admin })
+    await screen.findByRole('link', { name: 'Mo' })
+    await pick('Move Mo to', 'Move to…')
+    expect(screen.queryByText('Moved')).toBeNull()
+    expect(
+      (await prisma.volunteer.findUniqueOrThrow({ where: { id: member.id } })).nationalChapterId,
+    ).toBe(chapter.id)
   })
 })

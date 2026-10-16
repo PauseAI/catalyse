@@ -134,10 +134,12 @@ export async function adminCreateProjectViaApi(
   baseUrl: string,
   title: string,
   description: string,
+  { chapterId }: { chapterId?: number } = {},
 ): Promise<number> {
   const adminApi = createApiClient(baseUrl, readAdminToken(baseUrl))
   const created = await adminApi.admin.projects.create({
     body: {
+      ...(chapterId !== undefined && { chapterId }),
       title,
       description,
       projectType: null,
@@ -145,9 +147,6 @@ export async function adminCreateProjectViaApi(
       timeCommitmentHoursPerWeek: null,
       urgency: 'medium',
       collaborationLink: null,
-      country: null,
-      localGroup: null,
-      remoteEligibility: 'NONE',
       isSeekingHelp: true,
       skillIds: [],
       skillRequiredMap: {},

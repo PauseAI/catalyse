@@ -27,4 +27,14 @@ describe('admin team', () => {
       ).toBe(false),
     )
   })
+
+  it('reports a failed toggle', async () => {
+    const sa = await createSuperAdmin()
+    await createAdmin({ name: 'Flaky Admin' })
+    await renderApp(<AdminTeamPage />, { as: sa })
+    const card = (await screen.findByText('Flaky Admin')).closest<HTMLElement>('.card')!
+    localStorage.setItem('authToken', 'stale')
+    await userEvent.click(within(card).getByRole('checkbox'))
+    await screen.findByText('Unauthorized')
+  })
 })
