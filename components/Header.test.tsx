@@ -1,10 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
-import { screen, waitFor, act, within } from '@testing-library/react'
+import { screen, waitFor, act, within, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MutationObserver } from '@tanstack/react-query'
 import { prisma } from '@/lib/prisma'
 import { queryClient } from '@/lib/query-client'
-import { createVolunteer, createAdmin, createSuperAdmin } from '@/test/factories'
+import {
+  createVolunteer,
+  createSuperAdmin,
+  createChapter,
+  createChapterLead,
+  createMember,
+} from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { navigation } from '@/test/next-navigation'
 import Header from './Header'
@@ -62,12 +68,12 @@ describe('Header', () => {
     expect(screen.getByRole('link', { name: 'Catalyse' })).toHaveAttribute('href', '/dashboard')
     expect(screen.queryByText('Confirm your location')).toBeNull()
     await userEvent.click(nameButton)
-    expect(screen.getByRole('link', { name: 'Superadmin panel' })).toHaveAttribute('href', '/admin')
+    expect(screen.getByRole('link', { name: 'Global admin' })).toHaveAttribute('href', '/admin')
     await userEvent.click(screen.getByRole('link', { name: 'Settings' }))
     expect(screen.queryByRole('link', { name: 'Settings' })).toBeNull()
     // Mobile menu for an admin, then sign out from it.
     await userEvent.click(screen.getByLabelText('Open menu'))
-    expect(screen.getByText('Super admin')).toBeInTheDocument()
+    expect(screen.getByText('Admin')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     await waitFor(() => expect(navigation.push).toHaveBeenCalledWith('/login'))
   })
@@ -220,14 +226,21 @@ describe('Header', () => {
     expect(screen.queryByRole('link', { name: 'Privacy & data' })).toBeNull()
   })
 
-  it('shows a plain admin panel link for non-super admins', async () => {
-    const admin = await createAdmin({ locationConfirmedAt: new Date() })
-    await mount(admin, '/dashboard')
-    await userEvent.click(await screen.findByRole('button', { name: admin.name }))
-    expect(screen.getByRole('link', { name: 'Admin panel' })).toBeInTheDocument()
+  it("names a chapter's admin area for its staff, and offers none to a member", async () => {
+    const chapter = await createChapter()
+    const lead = await createChapterLead(chapter, { locationConfirmedAt: new Date() })
+    await mount(lead, '/dashboard')
+    await userEvent.click(await screen.findByRole('button', { name: lead.name }))
+    const label = `${chapter.name} chapter admin`
+    expect(screen.getByRole('link', { name: label })).toHaveAttribute('href', '/admin')
     await userEvent.click(screen.getByLabelText('Open menu'))
-    expect(screen.getByText('Admin')).toBeInTheDocument()
-    expect(screen.getAllByRole('link', { name: 'Admin panel' })).toHaveLength(2)
+    expect(screen.getAllByRole('link', { name: label })).toHaveLength(2)
+
+    cleanup()
+    const member = await createMember(chapter, { locationConfirmedAt: new Date() })
+    await mount(member, '/dashboard')
+    await userEvent.click(await screen.findByRole('button', { name: member.name }))
+    expect(screen.queryByRole('link', { name: label })).toBeNull()
   })
 
   it('closes the mobile menu on navigation', async () => {

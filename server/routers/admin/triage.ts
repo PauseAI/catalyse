@@ -2,17 +2,25 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { withProjectExtras, projectInclude, EnrichedProject } from '@/lib/work-item'
-import { notifyAdmins, notifyUser } from '@/lib/notify'
+import { notifyChapterStaff, notifyUser } from '@/lib/notify'
 import { updateWorkItem } from '@/lib/work-item-events'
 import { html } from '@/lib/email'
-import { adminProcedure } from '../../procedures'
+import { staffProcedure } from '../../procedures'
+import { canAdminChapter } from '@/lib/chapter-access'
+import { chapterFilter } from '@/lib/chapter-access-server'
 import { ProjectStatus, WorkItemType } from '@/generated/prisma/enums'
 
+const chapterInput = z
+  .object({ chapter: z.union([z.number().int(), z.literal('pool')]).optional() })
+  .optional()
+
+/** Proposals to review, held to the caller's chapter; a global admin may pick one or the pool. */
 export const adminTriageRouter = {
-  list: adminProcedure.handler(async () => {
+  list: staffProcedure.input(chapterInput).handler(async ({ input, context }) => {
     const projects = await prisma.workItem.findMany({
       where: {
         type: WorkItemType.PROJECT,
+        nationalChapterId: chapterFilter(context.access, input?.chapter),
         status: { in: [ProjectStatus.pending_review, ProjectStatus.needs_discussion] },
       },
       include: projectInclude,
@@ -21,7 +29,7 @@ export const adminTriageRouter = {
     return projects.map((p) => withProjectExtras(p as EnrichedProject))
   }),
 
-  drafts: adminProcedure.handler(async () => {
+  drafts: staffProcedure.input(chapterInput).handler(async ({ input, context }) => {
     // Volunteer-authored drafts not yet submitted for review. Org drafts have their
     // own "My Drafts" list on the Org Projects admin page and are excluded here.
     // Template-originated drafts are also excluded: their owner self-publishes without
@@ -33,6 +41,7 @@ export const adminTriageRouter = {
         status: ProjectStatus.draft,
         isOrgProposed: false,
         templateOriginId: null,
+        nationalChapterId: chapterFilter(context.access, input?.chapter),
       },
       include: projectInclude,
       orderBy: { createdAt: 'desc' },
@@ -40,7 +49,7 @@ export const adminTriageRouter = {
     return projects.map((p) => withProjectExtras(p as EnrichedProject))
   }),
 
-  submitDraft: adminProcedure
+  submitDraft: staffProcedure
     .input(z.object({ id: z.number().int() }))
     .handler(async ({ input, context }) => {
       const admin = context.volunteer
@@ -48,7 +57,9 @@ export const adminTriageRouter = {
         where: { id: input.id, type: WorkItemType.PROJECT },
         include: { creator: { select: { name: true } } },
       })
-      if (!project) throw new ORPCError('NOT_FOUND', { message: 'Draft not found' })
+      if (!project || !canAdminChapter(context.access, project.nationalChapterId)) {
+        throw new ORPCError('NOT_FOUND', { message: 'Draft not found' })
+      }
       if (
         project.status !== ProjectStatus.draft ||
         project.isOrgProposed ||
@@ -72,7 +83,8 @@ export const adminTriageRouter = {
         { actorId: admin.id, kind: 'status' },
       )
 
-      await notifyAdmins(
+      await notifyChapterStaff(
+        project.nationalChapterId,
         'new_project_proposal',
         `New project proposal: ${project.title}`,
         `Proposed by ${project.creator?.name ?? 'a volunteer'}, submitted by ${admin.name}`,

@@ -1,7 +1,8 @@
 import { os, ORPCError } from '@orpc/server'
 import { ApprovalStatus } from '@/generated/prisma/enums'
 import { touchLastActive } from '@/lib/activity'
-import { isStaff } from '@/lib/chapter-access'
+import { actingOn, isStaff, type ChapterAccess } from '@/lib/chapter-access'
+import { prisma } from '@/lib/prisma'
 import { inputLimitViolation } from '@/lib/input-limits'
 import { canBypassMaintenance, isMaintenanceMode } from '@/lib/maintenance'
 import { MAINTENANCE_MESSAGE } from '@/lib/maintenance-message'
@@ -73,3 +74,19 @@ export const staffProcedure = base.use(({ context, next }) => {
   if (!context.access.globalAdmin && !isStaff(context.access)) throw new ORPCError('FORBIDDEN')
   return next({ context: { volunteer: context.volunteer } })
 })
+
+/**
+ * Makes `context.volunteer.isAdmin` mean "an admin over this project": a global admin, or a
+ * staff member of the project's chapter (`actingOn`, lib/chapter-access.ts). The project
+ * procedures' admin checks then hold for a chapter's staff on its own projects, and nowhere else.
+ */
+export const asProjectAdmin = os
+  .$context<{ volunteer: NonNullable<Context['volunteer']>; access: ChapterAccess }>()
+  .middleware(async ({ context, next }, projectId: number) => {
+    const project = await prisma.workItem.findUnique({
+      where: { id: projectId },
+      select: { nationalChapterId: true },
+    })
+    const chapterId = project?.nationalChapterId ?? null
+    return next({ context: { volunteer: actingOn(context.volunteer, context.access, chapterId) } })
+  })

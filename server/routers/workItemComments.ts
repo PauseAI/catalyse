@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
+import { canAdminChapter, type ChapterAccess } from '@/lib/chapter-access'
+import { chapterStaffIds, globalAdminWhere } from '@/lib/chapter-access-server'
 import { notifyUser } from '@/lib/notify'
 import {
   canViewWorkItem,
@@ -75,6 +77,19 @@ function threadLink(item: LoadedWorkItem): string {
   return commentLink(item)
 }
 
+/** The chapter an item is in: a task's is its project's. */
+function chapterOf(item: LoadedWorkItem, parent: LoadedWorkItem | null): number | null {
+  return item.type === WorkItemType.TASK
+    ? (parent?.nationalChapterId ?? null)
+    : item.nationalChapterId
+}
+
+/** Whether the caller is an admin over the item: a global admin, or its chapter's staff. */
+const adminOver = (
+  access: ChapterAccess,
+  loaded: { item: LoadedWorkItem; parent: LoadedWorkItem | null },
+) => canAdminChapter(access, chapterOf(loaded.item, loaded.parent))
+
 function projectIdOf(item: LoadedWorkItem): number | null {
   if (item.type === WorkItemType.PROJECT) return item.id
   if (item.type === WorkItemType.TASK) return item.parentId
@@ -103,7 +118,7 @@ async function resolveCanPost(
 }
 
 // Who can be @mentioned: the item's creator, owner and assignee, the project's accepted
-// helpers, and any admin already in the thread.
+// helpers, and any admin over it (global, or its chapter's staff) already in the thread.
 async function mentionableMembers(
   item: LoadedWorkItem,
   parent: LoadedWorkItem | null,
@@ -120,8 +135,13 @@ async function mentionableMembers(
     })
     for (const h of helpers) ids.add(h.volunteerId)
   }
+  const chapterId = chapterOf(item, parent)
+  const staff = chapterId === null ? [] : await chapterStaffIds(chapterId)
   const adminAuthors = await prisma.workItemComment.findMany({
-    where: { workItemId: item.id, author: { isAdmin: true } },
+    where: {
+      workItemId: item.id,
+      author: { OR: [globalAdminWhere(), { id: { in: staff } }] },
+    },
     select: { authorId: true },
     distinct: ['authorId'],
   })
@@ -218,7 +238,7 @@ export const workItemCommentsRouter = {
 
       const viewer = {
         id: context.volunteer.id,
-        isAdmin: Boolean(context.volunteer.isAdmin),
+        isAdmin: adminOver(context.access, loaded),
         isApproved: context.volunteer.approvalStatus === ApprovalStatus.approved,
         nationalChapterId: context.volunteer.nationalChapterId,
       }
@@ -290,7 +310,7 @@ export const workItemCommentsRouter = {
       const loaded = await loadWithParent(input.workItemId)
       if (!loaded) throw new ORPCError('NOT_FOUND', { message: 'Work item not found' })
 
-      const viewer = { id: volunteer.id, isAdmin: Boolean(volunteer.isAdmin) }
+      const viewer = { id: volunteer.id, isAdmin: adminOver(context.access, loaded) }
       if (!(await resolveCanPost(loaded.item, loaded.parent, viewer))) {
         throw new ORPCError('FORBIDDEN', { message: 'Not authorized to comment here' })
       }
@@ -366,7 +386,7 @@ export const workItemCommentsRouter = {
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const { comment, loaded } = await loadComment(input.id)
-      const viewer = { id: volunteer.id, isAdmin: Boolean(volunteer.isAdmin) }
+      const viewer = { id: volunteer.id, isAdmin: adminOver(context.access, loaded) }
       if (
         comment.authorId !== volunteer.id ||
         !(await resolveCanPost(loaded.item, loaded.parent, viewer))
@@ -387,8 +407,8 @@ export const workItemCommentsRouter = {
     .input(z.object({ id: z.number().int() }))
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
-      const { comment } = await loadComment(input.id)
-      if (comment.authorId !== volunteer.id && !volunteer.isAdmin) {
+      const { comment, loaded } = await loadComment(input.id)
+      if (comment.authorId !== volunteer.id && !adminOver(context.access, loaded)) {
         throw new ORPCError('FORBIDDEN', { message: 'You can only delete your own comments' })
       }
       await prisma.workItemComment.update({

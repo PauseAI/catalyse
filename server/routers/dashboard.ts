@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { isStaff, type ChapterAccess } from '@/lib/chapter-access'
 import { loadTaskStatusViews, projectScopeWhere, type ProjectViewer } from '@/lib/work-item'
 import type { TaskDisplayStatus, TaskRef } from '@/lib/task-status'
 import { authedProcedure } from '../procedures'
@@ -110,7 +111,7 @@ const FIND_ROW_SIZE = 3
 /** A project task someone holds and has not handed in: claimed, whether or not started. */
 const HELD_TASK_STATUSES: TaskStatus[] = [TaskStatus.not_started, TaskStatus.in_progress]
 
-type Viewer = ProjectViewer & { id: number; localGroupId: number | null }
+type Viewer = ProjectViewer & { id: number; localGroupId: number | null; access: ChapterAccess }
 
 /** Where a claimed task is worked on; a project task with no project has nowhere better. */
 function taskHref(t: { id: number; type: string; parentId: number | null }): string {
@@ -158,15 +159,22 @@ async function attentionFor(viewer: Viewer): Promise<AttentionItem[]> {
         where: { volunteerId: viewer.id, type: 'mention', readAt: null },
         orderBy: { createdAt: 'desc' },
       }),
-      // Quick Tasks I set, or any nobody set when I'm an admin; tasks on projects I own or
-      // am a deputy on.
+      // Quick Tasks I set, or any nobody set when I'm an admin over them (a global admin, or my
+      // chapter's staff); tasks on projects I own or am a deputy on.
       prisma.workItem.findMany({
         where: {
           status: QuickTaskStatus.under_review,
           OR: [
             {
               type: WorkItemType.QUICK_TASK,
-              OR: [{ creatorId: viewer.id }, ...(viewer.isAdmin ? [{ creatorId: null }] : [])],
+              OR: [
+                { creatorId: viewer.id },
+                ...(viewer.access.globalAdmin
+                  ? [{ creatorId: null }]
+                  : isStaff(viewer.access)
+                    ? [{ creatorId: null, nationalChapterId: viewer.access.chapterId }]
+                    : []),
+              ],
             },
             {
               type: WorkItemType.TASK,
@@ -702,6 +710,7 @@ export const dashboardRouter = {
       isAdmin: Boolean(volunteer.isAdmin),
       nationalChapterId: volunteer.nationalChapterId,
       localGroupId: volunteer.localGroupId,
+      access: context.access,
     }
 
     const me = await prisma.volunteer.findUnique({

@@ -1016,7 +1016,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   const { data: volunteersData } = useQuery({
     ...orpc.volunteers.list.queryOptions({ input: { limit: 100 } }),
-    enabled: !!project && (!!user?.isAdmin || project.ownerId === user?.id || project.isDeputy),
+    enabled:
+      !!project && (project.viewerCanAdmin || project.ownerId === user?.id || project.isDeputy),
   })
   const volunteers = volunteersData?.volunteers ?? []
   const inviteSearch = useVolunteerSearch(volunteers.length > 0 && tab === 'people')
@@ -1277,7 +1278,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   if (project.status === 'draft') return null
 
   const isOwner = project.ownerId !== null && project.ownerId === user.id
-  const isAdmin = user.isAdmin
+  // An admin over this project: a global admin, or its chapter's staff.
+  const isAdmin = project.viewerCanAdmin
   // Org-proposed projects are attributed to the org, not to the admin who filed them.
   const proposer = proposerDisplay(project)
   const isOwnerOrAdmin = isOwner || isAdmin

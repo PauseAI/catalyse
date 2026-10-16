@@ -190,7 +190,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
     setAutoAccept(data.autoAcceptTasks)
     setWantToOwn(data.ownerId === user?.id)
     const isOwner = data.ownerId === user?.id || data.proposedById === user?.id
-    setCanEdit(isOwner || (user?.isAdmin ?? false))
+    setCanEdit(isOwner || data.viewerCanAdmin)
     setPermissionChecked(true)
   }, [projectData, initialized, user])
 
@@ -839,7 +839,8 @@ export default function ProjectEditor(props: ProjectEditorProps) {
                   commitField({ deadline: fromDateInputValue(projectDeadline) })
                 }}
                 disabled={
-                  !canEdit || !(user?.isAdmin || projectData?.ownerId === user?.id || isDraft)
+                  !canEdit ||
+                  !(projectData?.viewerCanAdmin || projectData?.ownerId === user?.id || isDraft)
                 }
               />
             </div>
@@ -1128,7 +1129,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
             </Button>
           )}
 
-          {projectId !== undefined && user?.isAdmin && projectData && !isDraft && (
+          {projectId !== undefined && projectData?.viewerCanAdmin && !isDraft && (
             <Button
               type="button"
               variant="danger"

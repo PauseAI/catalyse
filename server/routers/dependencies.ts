@@ -14,6 +14,7 @@ import { loadProjectEdges, loadTaskEdges } from '@/lib/project-schedule'
 import { findDependencyCycle, type ScheduleEdge } from '@/lib/schedule'
 import { recordEvent, type EventValues } from '@/lib/work-item-events'
 import { approvedProcedure } from '../procedures'
+import { actingOn, canAdminChapter, type ChapterAccess } from '@/lib/chapter-access'
 import { ApprovalStatus, WorkItemType } from '@/generated/prisma/enums'
 
 const ENDPOINT_SELECT = {
@@ -66,6 +67,7 @@ async function resolveLink(
     approvalStatus: string
     nationalChapterId: number | null
   },
+  access: ChapterAccess,
 ): Promise<{ predecessor: Endpoint; successor: Endpoint }> {
   if (predecessorId === successorId) {
     throw new ORPCError('BAD_REQUEST', { message: 'A task cannot depend on itself' })
@@ -95,9 +97,10 @@ async function resolveLink(
     })
   }
 
+  // Each end is managed, or seen, with the admin rights its own chapter gives (actingOn).
   const viewer: Viewer = {
     id: volunteer.id,
-    isAdmin: Boolean(volunteer.isAdmin),
+    isAdmin: canAdminChapter(access, predecessor.nationalChapterId),
     isApproved: volunteer.approvalStatus === ApprovalStatus.approved,
     nationalChapterId: volunteer.nationalChapterId,
   }
@@ -111,9 +114,8 @@ async function resolveLink(
         })
       : null
     if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
-    if (
-      !canManageProjectTasks(project, volunteer, await isProjectDeputy(project.id, volunteer.id))
-    ) {
+    const actor = actingOn(volunteer, access, project.nationalChapterId)
+    if (!canManageProjectTasks(project, actor, await isProjectDeputy(project.id, volunteer.id))) {
       throw new ORPCError('FORBIDDEN', {
         message: 'Only the project owner, a deputy or an admin can link its tasks',
       })
@@ -121,7 +123,7 @@ async function resolveLink(
     assertProjectEditable(project)
     assertTaskEditable(successor)
   } else {
-    if (!canManageProject(successor, volunteer)) {
+    if (!canManageProject(successor, actingOn(volunteer, access, successor.nationalChapterId))) {
       throw new ORPCError('FORBIDDEN', {
         message: 'Only the owner or an admin of the dependent project can add this link',
       })
@@ -153,10 +155,11 @@ async function loadManageableDependency(
     approvalStatus: string
     nationalChapterId: number | null
   },
+  access: ChapterAccess,
 ) {
   const dep = await prisma.workItemDependency.findUnique({ where: { id: dependencyId } })
   if (!dep) throw new ORPCError('NOT_FOUND', { message: 'Dependency not found' })
-  const { predecessor } = await resolveLink(dep.predecessorId, dep.successorId, volunteer)
+  const { predecessor } = await resolveLink(dep.predecessorId, dep.successorId, volunteer, access)
   return { dep, predecessor }
 }
 
@@ -176,6 +179,7 @@ export const dependenciesRouter = {
       input.predecessorId,
       input.successorId,
       volunteer,
+      context.access,
     )
 
     const existing = await edgesInScope(successor)
@@ -247,6 +251,7 @@ export const dependenciesRouter = {
       const { dep, predecessor } = await loadManageableDependency(
         input.dependencyId,
         context.volunteer,
+        context.access,
       )
       await prisma.$transaction(async (tx) => {
         const saved = await tx.workItemDependency.update({
@@ -276,6 +281,7 @@ export const dependenciesRouter = {
       const { dep, predecessor } = await loadManageableDependency(
         input.dependencyId,
         context.volunteer,
+        context.access,
       )
       await prisma.$transaction(async (tx) => {
         await tx.workItemDependency.delete({ where: { id: dep.id } })

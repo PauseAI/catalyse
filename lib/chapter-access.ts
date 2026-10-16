@@ -46,3 +46,12 @@ export function actingOn<V extends { isAdmin: boolean | null }>(
 ): V {
   return { ...volunteer, isAdmin: canAdminChapter(access, chapterId) }
 }
+
+/** What the admin area is called for someone who has one: global, or their own chapter's. */
+export function adminAreaName(
+  access: ChapterAccess,
+  chapter: { name: string } | null,
+): string | null {
+  if (access.globalAdmin) return 'Global admin'
+  return access.role !== null && chapter ? `${chapter.name} chapter admin` : null
+}

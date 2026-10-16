@@ -3,12 +3,12 @@ import { screen, waitFor, fireEvent, cleanup, within } from '@testing-library/re
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import {
+  createChapterDeputy,
   createChapter,
   createMember,
   createLocalGroup,
   createVolunteer,
   createSuperAdmin,
-  createAdmin,
   createProject,
   createSkill,
   createTeam,
@@ -201,26 +201,27 @@ describe('projects directory', () => {
   it('says once, dismissibly, that an admin page turned the viewer away', async () => {
     const me = await createVolunteer()
     await renderApp(<ProjectsPage />, { as: me, url: '/projects?notice=no-access' })
-    const notice = await screen.findByText('That page is for admins.')
+    const notice = await screen.findByText("That page is for a chapter's organisers.")
     await waitFor(() => expect(window.location.search).toBe(''))
     await userEvent.click(
       within(notice.closest('[role=status]') as HTMLElement).getByLabelText('Dismiss'),
     )
-    expect(screen.queryByText('That page is for admins.')).toBeNull()
+    expect(screen.queryByText("That page is for a chapter's organisers.")).toBeNull()
   })
 
-  it('says a super-admin page is for super admins, and only they are offered its link', async () => {
-    const admin = await createAdmin()
-    await createVolunteer({ approvalStatus: 'pending' })
-    await renderApp(<ProjectsPage />, { as: admin, url: '/projects?notice=super-admin-only' })
-    await screen.findByText('That page is for super admins.')
+  it("says a global admin page is for global admins, and offers staff their chapter's queues", async () => {
+    const chapter = await createChapter()
+    const deputy = await createChapterDeputy(chapter)
+    await createMember(chapter, { approvalStatus: 'pending' })
+    await renderApp(<ProjectsPage />, { as: deputy, url: '/projects?notice=global-admin-only' })
+    await screen.findByText('That page is for global admins.')
     await waitFor(() => expect(window.location.search).toBe(''))
-    expect(screen.queryByText('That page is for admins.')).toBeNull()
-    // A regular admin is not offered the applications page they cannot open.
-    expect(screen.queryByRole('link', { name: /Review applications/ })).toBeNull()
-    cleanup()
-    await renderApp(<ProjectsPage />, { as: await createSuperAdmin(), url: '/projects' })
+    // Their chapter's applicant is theirs to review.
     expect(await screen.findByRole('link', { name: /Review applications/ })).toBeInTheDocument()
+    cleanup()
+    await renderApp(<ProjectsPage />, { as: await createVolunteer(), url: '/projects' })
+    await screen.findByRole('heading', { name: 'Projects' })
+    expect(screen.queryByRole('link', { name: /Review applications/ })).toBeNull()
   })
 
   it('switches between List and Timeline, and offers templates only once one exists', async () => {

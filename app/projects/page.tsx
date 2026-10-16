@@ -67,13 +67,14 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
   const [teamFilter, setTeamFilter] = useUrlParam('team')
   const [sortBy, setSortBy] = useUrlParam('sort')
   // Set when an admin page turned the viewer away (NO_ACCESS_NOTICE_URL).
-  const [adminOnlyNotice, dismissAdminOnlyNotice] = useOneTimeNotice('no-access')
-  const [superAdminOnlyNotice, dismissSuperAdminOnlyNotice] = useOneTimeNotice('super-admin-only')
-  const turnedAway = superAdminOnlyNotice
-    ? { text: 'That page is for super admins.', dismiss: dismissSuperAdminOnlyNotice }
-    : adminOnlyNotice
-      ? { text: 'That page is for admins.', dismiss: dismissAdminOnlyNotice }
+  const [staffOnlyNotice, dismissStaffOnlyNotice] = useOneTimeNotice('no-access')
+  const [globalOnlyNotice, dismissGlobalOnlyNotice] = useOneTimeNotice('global-admin-only')
+  const turnedAway = globalOnlyNotice
+    ? { text: 'That page is for global admins.', dismiss: dismissGlobalOnlyNotice }
+    : staffOnlyNotice
+      ? { text: "That page is for a chapter's organisers.", dismiss: dismissStaffOnlyNotice }
       : null
+  const isStaffOrGlobal = isGlobal || user.access.role !== null
   const [pageParam, setPageParam] = useUrlParam('page')
   const page = Math.max(1, parseInt(pageParam, 10) || 1)
   const router = useRouter()
@@ -110,13 +111,13 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
 
   const { data: pendingTriageList = [] } = useQuery({
     ...orpc.admin.triage.list.queryOptions(),
-    enabled: !!user?.isAdmin,
+    enabled: isStaffOrGlobal,
   })
   const pendingCount = pendingTriageList.length
 
   const { data: pendingApplicationsList = [] } = useQuery({
     ...orpc.admin.applications.list.queryOptions({ input: { filter: 'mine' } }),
-    enabled: !!user?.isSuperAdmin,
+    enabled: isStaffOrGlobal,
   })
   const pendingApplicationsCount = pendingApplicationsList.length
 
@@ -302,7 +303,7 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
           </div>
         )}
 
-        {user.isAdmin && pendingCount > 0 && (
+        {isStaffOrGlobal && pendingCount > 0 && (
           <div className="flex items-center gap-3 p-4 rounded-lg mb-4 bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-900 dark:text-amber-200 dark:border-amber-600">
             <strong>
               {pendingCount} project{pendingCount !== 1 ? 's' : ''} pending review.
@@ -312,7 +313,7 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
             </Link>
           </div>
         )}
-        {user.isSuperAdmin && pendingApplicationsCount > 0 && (
+        {isStaffOrGlobal && pendingApplicationsCount > 0 && (
           <div className="flex items-center gap-3 p-4 rounded-lg mb-4 bg-violet-100 text-violet-800 border border-violet-300 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-600">
             <strong>
               {pendingApplicationsCount} application{pendingApplicationsCount !== 1 ? 's' : ''}{' '}
@@ -455,7 +456,7 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
                 <ProjectList
                   projects={projects}
                   userSkillIds={userSkillIds}
-                  viewerIsAdmin={Boolean(user.isAdmin)}
+                  viewerIsAdmin={isStaffOrGlobal}
                 />
                 {flatTotalPages > 1 && (
                   <div className="flex items-center justify-center gap-4 mt-6">
@@ -530,7 +531,7 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
                           <ProjectList
                             projects={g.projects}
                             userSkillIds={userSkillIds}
-                            viewerIsAdmin={Boolean(user.isAdmin)}
+                            viewerIsAdmin={isStaffOrGlobal}
                           />
                           {overflow > 0 && g.viewAllHref && (
                             <div className="mt-3">

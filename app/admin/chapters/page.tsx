@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import FilterDropdown from '@/components/FilterDropdown'
-import { useRequireSuperAdmin } from '@/lib/hooks/auth'
+import { useRequireAdmin } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
@@ -15,12 +15,12 @@ const POOL = 'pool'
 
 /** Every national chapter, opening one for a new country, and placing the holding pool. */
 export default function AdminChaptersPage() {
-  const { user, loading } = useRequireSuperAdmin()
+  const { user, loading } = useRequireAdmin()
   const showToast = useToast()
   const queryClient = useQueryClient()
   const [country, setCountry] = useState('')
 
-  const enabled = !!user?.isSuperAdmin
+  const enabled = !!user?.isAdmin
   const { data } = useQuery({ ...orpc.admin.chapters.list.queryOptions(), enabled })
   const { data: pool = [] } = useQuery({ ...orpc.admin.chapters.pool.queryOptions(), enabled })
 
@@ -53,7 +53,7 @@ export default function AdminChaptersPage() {
     onError,
   })
 
-  if (loading || !user?.isSuperAdmin || !data) return null
+  if (loading || !user?.isAdmin || !data) return null
 
   const chapterOptions = data.chapters.map((c) => ({ value: String(c.id), label: c.name }))
 

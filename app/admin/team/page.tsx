@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRequireSuperAdmin } from '@/lib/hooks/auth'
+import { useRequireAdmin } from '@/lib/hooks/auth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
@@ -9,13 +9,13 @@ import { SECTION_CARD } from '@/lib/ui-classes'
 
 /** The global admins, who are set by ADMIN_EMAILS and so are listed here, not managed. */
 export default function AdminTeamPage() {
-  const { user, loading } = useRequireSuperAdmin()
+  const { user, loading } = useRequireAdmin()
   const showToast = useToast()
   const queryClient = useQueryClient()
 
   const { data: admins = [], isLoading } = useQuery({
     ...orpc.admin.admins.list.queryOptions(),
-    enabled: !!user?.isSuperAdmin,
+    enabled: !!user?.isAdmin,
   })
 
   const setTechnicalAdminMutation = useMutation({
@@ -29,7 +29,7 @@ export default function AdminTeamPage() {
     },
   })
 
-  if (loading || !user?.isSuperAdmin) return null
+  if (loading || !user?.isAdmin) return null
 
   return (
     <main className="container py-5 pb-15">

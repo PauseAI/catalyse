@@ -1,16 +1,25 @@
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { adminProcedure } from '../../procedures'
+import { staffProcedure } from '../../procedures'
+import { chapterFilter } from '@/lib/chapter-access-server'
 import { InterestStatus, WorkItemType } from '@/generated/prisma/enums'
 
 export const adminInterestsRouter = {
-  list: adminProcedure
-    .input(z.object({ status: z.nativeEnum(InterestStatus).optional() }))
-    .handler(async ({ input }) => {
+  list: staffProcedure
+    .input(
+      z.object({
+        status: z.nativeEnum(InterestStatus).optional(),
+        chapter: z.union([z.number().int(), z.literal('pool')]).optional(),
+      }),
+    )
+    .handler(async ({ input, context }) => {
       const interests = await prisma.workItemInterest.findMany({
         // A project's applications and members; a task's helpers are the task's business.
         where: {
-          workItem: { type: WorkItemType.PROJECT },
+          workItem: {
+            type: WorkItemType.PROJECT,
+            nationalChapterId: chapterFilter(context.access, input.chapter),
+          },
           ...(input.status ? { status: input.status } : {}),
         },
         include: {

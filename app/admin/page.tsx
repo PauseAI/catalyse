@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useRequireAdmin } from '@/lib/hooks/auth'
+import { useRequireStaff } from '@/lib/hooks/auth'
+import { adminAreaName } from '@/lib/chapter-access'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
 import { Badge } from '@/components/Badge'
@@ -10,7 +11,8 @@ import Button from '@/components/Button'
 interface AdminLink {
   href: string
   label: string
-  superAdminOnly?: boolean
+  /** For global admins only; a chapter's staff run just their own chapter. */
+  globalOnly?: boolean
   count?: number
 }
 
@@ -20,22 +22,22 @@ interface AdminGroup {
 }
 
 export default function AdminLandingPage() {
-  const { user, loading } = useRequireAdmin()
+  const { user, loading } = useRequireStaff()
   const queryClient = useQueryClient()
 
   const { data: counts } = useQuery({
     ...orpc.admin.overview.counts.queryOptions(),
-    enabled: !!user?.isAdmin,
+    enabled: !!user,
   })
 
   const { data: stats, isLoading: loadingStats } = useQuery({
     ...orpc.admin.stats.get.queryOptions(),
-    enabled: !!user?.isAdmin,
+    enabled: !!user,
   })
 
   const { data: notifications = [], isLoading: loadingNotifications } = useQuery({
     ...orpc.admin.notifications.list.queryOptions(),
-    enabled: !!user?.isAdmin,
+    enabled: !!user,
   })
 
   const readAllMutation = useMutation({
@@ -54,7 +56,7 @@ export default function AdminLandingPage() {
     },
   })
 
-  if (loading || !user?.isAdmin) return null
+  if (loading || !user) return null
 
   const unreadCount = notifications.filter((n) => !n.readAt).length
 
@@ -65,11 +67,13 @@ export default function AdminLandingPage() {
         {
           href: '/admin/applications',
           label: 'Manage applications',
-          superAdminOnly: true,
           count: counts?.pendingApplications,
         },
-        { href: '/admin/chapters', label: 'National chapters', superAdminOnly: true },
-        { href: '/admin/team', label: 'Global admins', superAdminOnly: true },
+        ...(user.chapter && user.access.role
+          ? [{ href: `/admin/chapters/${user.chapter.id}`, label: `${user.chapter.name} chapter` }]
+          : []),
+        { href: '/admin/chapters', label: 'National chapters', globalOnly: true },
+        { href: '/admin/team', label: 'Global admins', globalOnly: true },
       ],
     },
     {
@@ -82,28 +86,34 @@ export default function AdminLandingPage() {
     {
       title: 'Content & support',
       links: [
-        { href: '/admin/skills', label: 'Manage skills' },
+        { href: '/admin/skills', label: 'Manage skills', globalOnly: true },
         { href: '/admin/local-groups', label: 'Manage local groups' },
         { href: '/admin/teams', label: 'Manage teams' },
-        { href: '/admin/bugs', label: 'Bug reports', count: counts?.openBugReports },
+        {
+          href: '/admin/bugs',
+          label: 'Bug reports',
+          count: counts?.openBugReports,
+          globalOnly: true,
+        },
         {
           href: '/admin/people-for-a-pause-protest-journalist-outreach',
           label: 'Journalist outreach',
+          globalOnly: true,
         },
       ],
     },
     {
       title: 'Platform',
       links: [
-        { href: '/admin/platform-settings', label: 'Platform settings', superAdminOnly: true },
-        { href: '/admin/cron-runs', label: 'Cron job runs', superAdminOnly: true },
+        { href: '/admin/platform-settings', label: 'Platform settings', globalOnly: true },
+        { href: '/admin/cron-runs', label: 'Cron job runs', globalOnly: true },
       ],
     },
   ]
 
   return (
     <main className="container-wide py-5 pb-15">
-      <h1>{user.isSuperAdmin ? 'Super admin' : 'Admin'}</h1>
+      <h1>{adminAreaName(user.access, user.chapter)}</h1>
 
       {!loadingStats && stats && (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6 max-[500px]:grid-cols-1">
@@ -237,7 +247,7 @@ export default function AdminLandingPage() {
 
         <div className="grid gap-5 content-start">
           {groups.map((group) => {
-            const links = group.links.filter((l) => !l.superAdminOnly || user.isSuperAdmin)
+            const links = group.links.filter((l) => !l.globalOnly || user.isAdmin)
             if (links.length === 0) return null
             return (
               <div key={group.title} className="border border-brand-border rounded-lg p-5 h-fit">

@@ -57,7 +57,7 @@ describe('national chapters list', () => {
   it('turns away anyone but a global admin', async () => {
     await renderApp(<AdminChaptersPage />, { as: await createChapterLead(await createChapter()) })
     await waitFor(() =>
-      expect(navigation.replace).toHaveBeenCalledWith('/projects?notice=super-admin-only'),
+      expect(navigation.replace).toHaveBeenCalledWith('/projects?notice=global-admin-only'),
     )
   })
 })

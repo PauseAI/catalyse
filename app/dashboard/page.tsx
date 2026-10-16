@@ -280,7 +280,10 @@ export default function HomePage() {
         className={ROW_CLASSES}
         status={
           w.statusKey && (
-            <ProjectStatusBadge status={w.statusKey} viewerIsAdmin={Boolean(user.isAdmin)} />
+            <ProjectStatusBadge
+              status={w.statusKey}
+              viewerIsAdmin={Boolean(user.isAdmin || user.access.role)}
+            />
           )
         }
         title={title}

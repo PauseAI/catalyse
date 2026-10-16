@@ -17,14 +17,22 @@ import {
   TeamMembershipRole,
 } from '@/generated/prisma/enums'
 import type { Prisma } from '@/generated/prisma/client'
+import { isStaff, type ChapterAccess } from '@/lib/chapter-access'
 import { loadWorkItemSummaries, workItemIdFromLink } from '@/lib/work-item-summary'
 
 type Viewer = { id: number; isAdmin: boolean | null }
 
-/** A viewer's own notifications, optionally one category; admin-only types stay in admin pages. */
-function mineWhere(viewer: Viewer, category?: NotificationCategory): Prisma.NotificationWhereInput {
+/**
+ * A viewer's own notifications, optionally one category. For a global admin or a chapter's staff,
+ * admin-only types stay in the admin pages.
+ */
+function mineWhere(
+  viewer: Viewer,
+  access: ChapterAccess,
+  category?: NotificationCategory,
+): Prisma.NotificationWhereInput {
   const and: Prisma.NotificationWhereInput[] = []
-  if (viewer.isAdmin) and.push({ type: { notIn: ADMIN_NOTIFICATION_TYPES } })
+  if (viewer.isAdmin || isStaff(access)) and.push({ type: { notIn: ADMIN_NOTIFICATION_TYPES } })
   if (category === 'update') and.push({ type: { notIn: NON_UPDATE_TYPES } })
   else if (category) and.push({ type: { in: typesIn(category) } })
   return { volunteerId: viewer.id, AND: and }
@@ -125,7 +133,7 @@ export const notificationsRouter = {
       }),
     )
     .handler(async ({ input, context }) => {
-      const mine = mineWhere(context.volunteer, input.category)
+      const mine = mineWhere(context.volunteer, context.access, input.category)
       const unreadWhere = { ...mine, readAt: null }
       const readWhere = { ...mine, readAt: { not: null } }
       const newestFirst = { createdAt: 'desc' } as const
@@ -184,7 +192,9 @@ export const notificationsRouter = {
   counts: authedProcedure.handler(async ({ context }) => {
     const [needs_action, update, message] = await Promise.all(
       NOTIFICATION_CATEGORIES.map((c) =>
-        prisma.notification.count({ where: { ...mineWhere(context.volunteer, c), readAt: null } }),
+        prisma.notification.count({
+          where: { ...mineWhere(context.volunteer, context.access, c), readAt: null },
+        }),
       ),
     )
     return { needs_action, update, message }
@@ -194,7 +204,7 @@ export const notificationsRouter = {
     .input(z.object({ category: categoryInput }).optional())
     .handler(async ({ input, context }) => {
       await prisma.notification.updateMany({
-        where: { ...mineWhere(context.volunteer, input?.category), readAt: null },
+        where: { ...mineWhere(context.volunteer, context.access, input?.category), readAt: null },
         data: { readAt: new Date() },
       })
       return { message: 'All marked as read' }

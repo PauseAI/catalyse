@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/lib/auth-context'
+import { adminAreaName } from '@/lib/chapter-access'
 import { useLocationModal } from '@/lib/location-modal-context'
 import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
@@ -104,6 +105,7 @@ function WaitingBadge({ count, updates }: { count: number; updates: boolean }) {
 
 export default function Header() {
   const { user, loading, logout } = useAuth()
+  const adminArea = user ? adminAreaName(user.access, user.chapter) : null
   const { show: showLocationModal } = useLocationModal()
   const pathname = usePathname()
   const queryClient = useQueryClient()
@@ -236,12 +238,12 @@ export default function Header() {
                       >
                         Settings
                       </Link>
-                      {user.isAdmin && (
+                      {adminArea && (
                         <Link
                           href="/admin"
                           className="block px-4 py-3 text-brand-text no-underline border-t border-brand-border mt-1 font-semibold"
                         >
-                          {user.isSuperAdmin ? 'Superadmin panel' : 'Admin panel'}
+                          {adminArea}
                         </Link>
                       )}
                       <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-text-light border-t border-brand-border mt-1">
@@ -393,14 +395,10 @@ export default function Header() {
                   <MobileNavLink href={`/volunteers/${user.id}`}>My profile</MobileNavLink>
                   <MobileNavLink href="/settings">Settings</MobileNavLink>
 
-                  {user.isAdmin && (
+                  {adminArea && (
                     <>
-                      <MobileNavSection admin>
-                        {user.isSuperAdmin ? 'Super admin' : 'Admin'}
-                      </MobileNavSection>
-                      <MobileNavLink href="/admin">
-                        {user.isSuperAdmin ? 'Superadmin panel' : 'Admin panel'}
-                      </MobileNavLink>
+                      <MobileNavSection admin>Admin</MobileNavSection>
+                      <MobileNavLink href="/admin">{adminArea}</MobileNavLink>
                     </>
                   )}
 

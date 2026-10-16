@@ -28,7 +28,7 @@ export default function SuggestPage() {
   if (loading || !user || draftsPending || drafts.length === 0) return <PageLoading />
 
   // Admins are not held to the draft limit; see projects.create.
-  const atDraftLimit = !user.isAdmin && drafts.length >= MAX_VOLUNTEER_DRAFTS
+  const atDraftLimit = !user.isAdmin && !user.access.role && drafts.length >= MAX_VOLUNTEER_DRAFTS
 
   return (
     <main className="container py-5 pb-15">

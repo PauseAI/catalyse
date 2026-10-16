@@ -16,7 +16,7 @@ import {
   type CurrentState,
   type LocalRef,
 } from '@/lib/project-porting'
-import { approvedProcedure } from '../procedures'
+import { approvedProcedure, asProjectAdmin } from '../procedures'
 import { ApprovalStatus, TaskStatus, WorkItemType } from '@/generated/prisma/enums'
 
 /** A re-uploaded file is a small text blob; cap it so a bad upload can't stall the handler. */
@@ -97,6 +97,7 @@ export const projectPortingRouter = {
   /** Serialise a project + its tasks + intra-project dependencies to a JSON payload. */
   exportPlan: approvedProcedure
     .input(z.object({ projectId: z.number().int() }))
+    .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const loaded = await loadState(input.projectId)
       if (!loaded) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
@@ -112,6 +113,7 @@ export const projectPortingRouter = {
         file: z.string().max(MAX_FILE_BYTES),
       }),
     )
+    .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const loaded = await loadState(input.projectId)
       if (!loaded) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
@@ -137,6 +139,7 @@ export const projectPortingRouter = {
         confirmedDeleteIds: z.array(z.number().int()).optional().default([]),
       }),
     )
+    .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const loaded = await loadState(input.projectId)

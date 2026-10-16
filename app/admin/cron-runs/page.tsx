@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRequireSuperAdmin } from '@/lib/hooks/auth'
+import { useRequireAdmin } from '@/lib/hooks/auth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
 import { formatDateTime } from '@/lib/format-date'
@@ -35,14 +35,14 @@ function duration(startedAt: string | Date, finishedAt: string | Date | null): s
 }
 
 export default function AdminCronRunsPage() {
-  const { user, loading } = useRequireSuperAdmin()
+  const { user, loading } = useRequireAdmin()
   const showToast = useToast()
   const queryClient = useQueryClient()
   const [selectedRun, setSelectedRun] = useState<CronRun | null>(null)
 
   const { data: runs = [], isLoading: loadingData } = useQuery({
     ...orpc.admin.cronRuns.list.queryOptions({ input: {} }),
-    enabled: !!user?.isSuperAdmin,
+    enabled: !!user?.isAdmin,
   })
 
   const runMutation = useMutation({
@@ -54,7 +54,7 @@ export default function AdminCronRunsPage() {
     onError: (_error, variables) => showToast(`${variables.jobName} failed`, 'error'),
   })
 
-  if (loading || !user?.isSuperAdmin) return null
+  if (loading || !user?.isAdmin) return null
 
   return (
     <main className="container py-5 pb-15">

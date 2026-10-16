@@ -2,7 +2,8 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { redactVolunteer } from '@/lib/auth'
-import { adminProcedure } from '../../procedures'
+import { staffProcedure } from '../../procedures'
+import { canAdminChapter, type ChapterAccess } from '@/lib/chapter-access'
 import { WorkItemType } from '@/generated/prisma/enums'
 
 const MAX_DETAIL_ROWS = 100
@@ -19,140 +20,159 @@ const EndorsementInputSchema = z.object({
   notes: z.string().optional().nullable(),
 })
 
+/** Throws unless the volunteer is in a chapter the caller runs. */
+async function assertRunsVolunteer(access: ChapterAccess, volunteerId: number) {
+  const target = await prisma.volunteer.findUnique({
+    where: { id: volunteerId },
+    select: { nationalChapterId: true },
+  })
+  if (!target || !canAdminChapter(access, target.nationalChapterId)) {
+    throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
+  }
+}
+
+/** A volunteer as their chapter's staff, or a global admin, see them. */
 export const adminVolunteersRouter = {
-  getById: adminProcedure.input(z.object({ id: z.number().int() })).handler(async ({ input }) => {
-    const vol = await prisma.volunteer.findUnique({
-      where: { id: input.id },
-      include: {
-        group: { select: { name: true } },
-        skills: {
-          include: { skill: { include: { category: true } } },
-          orderBy: [{ skill: { category: { sortOrder: 'asc' } } }, { skill: { sortOrder: 'asc' } }],
-        },
-        skillEndorsementsReceived: {
-          include: { skill: true },
-        },
-      },
-    })
-
-    if (!vol) throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
-
-    const [adminNotes, endorsements, quickTasks, projectHistory] = await Promise.all([
-      prisma.adminNote.findMany({
-        where: { volunteerId: input.id },
-        include: { author: { select: { name: true } } },
-        orderBy: { createdAt: 'desc' },
-        take: MAX_DETAIL_ROWS,
-      }),
-      prisma.skillEndorsement.findMany({
-        where: { volunteerId: input.id },
+  getById: staffProcedure
+    .input(z.object({ id: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      await assertRunsVolunteer(context.access, input.id)
+      const vol = await prisma.volunteer.findUnique({
+        where: { id: input.id },
         include: {
-          skill: { include: { category: true } },
-          endorsedBy: { select: { name: true } },
+          group: { select: { name: true } },
+          skills: {
+            include: { skill: { include: { category: true } } },
+            orderBy: [
+              { skill: { category: { sortOrder: 'asc' } } },
+              { skill: { sortOrder: 'asc' } },
+            ],
+          },
+          skillEndorsementsReceived: {
+            include: { skill: true },
+          },
         },
-        orderBy: { createdAt: 'desc' },
-        take: MAX_DETAIL_ROWS,
-      }),
-      prisma.workItem.findMany({
-        where: { type: WorkItemType.QUICK_TASK, assigneeId: input.id },
-        include: { skill: { select: { name: true } } },
-        orderBy: { createdAt: 'desc' },
-        take: MAX_DETAIL_ROWS,
-      }),
-      prisma.workItem.findMany({
-        where: {
-          type: WorkItemType.PROJECT,
-          OR: [{ assigneeId: input.id }, { creatorId: input.id }],
-        },
-        orderBy: { createdAt: 'desc' },
-        take: MAX_DETAIL_ROWS,
-      }),
-    ])
+      })
 
-    const skills = vol.skills.map((vs) => ({
-      id: vs.skill.id,
-      categoryId: vs.skill.categoryId,
-      name: vs.skill.name,
-      description: vs.skill.description,
-      sortOrder: vs.skill.sortOrder,
-      createdAt: vs.skill.createdAt,
-      categoryName: vs.skill.category.name,
-      proficiencyLevel: vs.proficiencyLevel,
-    }))
-    const publicEndorsements = vol.skillEndorsementsReceived.map((se) => ({
-      skillId: se.skillId,
-      rating: se.rating,
-      skillName: se.skill.name,
-    }))
+      if (!vol) throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
 
-    return {
-      ...redactVolunteer(vol, {
-        showContact: true,
-        skills,
-        endorsements: publicEndorsements,
-      }),
-      adminNotes: adminNotes.map((n) => ({
-        id: n.id,
-        volunteerId: n.volunteerId,
-        authorId: n.authorId,
-        content: n.content,
-        category: n.category,
-        relatedProjectId: n.relatedWorkItemId,
-        createdAt: n.createdAt,
-        updatedAt: n.updatedAt,
-        authorName: n.author.name,
-      })),
-      endorsements: endorsements.map((e) => ({
-        id: e.id,
-        volunteerId: e.volunteerId,
-        skillId: e.skillId,
-        endorsedById: e.endorsedById,
-        source: e.source,
-        sourceId: e.sourceId,
-        rating: e.rating,
-        notes: e.notes,
-        createdAt: e.createdAt,
-        skillName: e.skill.name,
-        skillCategory: e.skill.category.name,
-        endorsedByName: e.endorsedBy.name,
-      })),
-      quickTasks: quickTasks.map((t) => ({
-        id: t.id,
-        projectId: t.contextProjectId,
-        title: t.title,
-        description: t.description,
-        skillId: t.skillId,
-        assignedToId: t.assigneeId,
-        assignedById: t.creatorId,
-        status: t.status,
-        reviewRating: t.reviewRating,
-        reviewNotes: t.reviewNotes,
-        reviewedById: t.reviewedById,
-        reviewedAt: t.reviewedAt,
-        estimatedHours: t.estimatedHours,
-        createdAt: t.createdAt,
-        updatedAt: t.updatedAt,
-        skillName: t.skill?.name ?? null,
-      })),
-      projectHistory: projectHistory.map((p) => ({
-        id: p.id,
-        title: p.title,
-        description: p.description,
-        status: p.status,
-        ownerId: p.assigneeId,
-        proposedById: p.creatorId,
-        outcome: p.outcome,
-        outcomeNotes: p.outcomeNotes,
-        completedAt: p.completedAt,
-        createdAt: p.createdAt,
-        updatedAt: p.updatedAt,
-      })),
-    }
-  }),
+      const [adminNotes, endorsements, quickTasks, projectHistory] = await Promise.all([
+        prisma.adminNote.findMany({
+          where: { volunteerId: input.id },
+          include: { author: { select: { name: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: MAX_DETAIL_ROWS,
+        }),
+        prisma.skillEndorsement.findMany({
+          where: { volunteerId: input.id },
+          include: {
+            skill: { include: { category: true } },
+            endorsedBy: { select: { name: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: MAX_DETAIL_ROWS,
+        }),
+        prisma.workItem.findMany({
+          where: { type: WorkItemType.QUICK_TASK, assigneeId: input.id },
+          include: { skill: { select: { name: true } } },
+          orderBy: { createdAt: 'desc' },
+          take: MAX_DETAIL_ROWS,
+        }),
+        prisma.workItem.findMany({
+          where: {
+            type: WorkItemType.PROJECT,
+            OR: [{ assigneeId: input.id }, { creatorId: input.id }],
+          },
+          orderBy: { createdAt: 'desc' },
+          take: MAX_DETAIL_ROWS,
+        }),
+      ])
 
-  listEndorsements: adminProcedure
+      const skills = vol.skills.map((vs) => ({
+        id: vs.skill.id,
+        categoryId: vs.skill.categoryId,
+        name: vs.skill.name,
+        description: vs.skill.description,
+        sortOrder: vs.skill.sortOrder,
+        createdAt: vs.skill.createdAt,
+        categoryName: vs.skill.category.name,
+        proficiencyLevel: vs.proficiencyLevel,
+      }))
+      const publicEndorsements = vol.skillEndorsementsReceived.map((se) => ({
+        skillId: se.skillId,
+        rating: se.rating,
+        skillName: se.skill.name,
+      }))
+
+      return {
+        ...redactVolunteer(vol, {
+          showContact: true,
+          skills,
+          endorsements: publicEndorsements,
+        }),
+        adminNotes: adminNotes.map((n) => ({
+          id: n.id,
+          volunteerId: n.volunteerId,
+          authorId: n.authorId,
+          content: n.content,
+          category: n.category,
+          relatedProjectId: n.relatedWorkItemId,
+          createdAt: n.createdAt,
+          updatedAt: n.updatedAt,
+          authorName: n.author.name,
+        })),
+        endorsements: endorsements.map((e) => ({
+          id: e.id,
+          volunteerId: e.volunteerId,
+          skillId: e.skillId,
+          endorsedById: e.endorsedById,
+          source: e.source,
+          sourceId: e.sourceId,
+          rating: e.rating,
+          notes: e.notes,
+          createdAt: e.createdAt,
+          skillName: e.skill.name,
+          skillCategory: e.skill.category.name,
+          endorsedByName: e.endorsedBy.name,
+        })),
+        quickTasks: quickTasks.map((t) => ({
+          id: t.id,
+          projectId: t.contextProjectId,
+          title: t.title,
+          description: t.description,
+          skillId: t.skillId,
+          assignedToId: t.assigneeId,
+          assignedById: t.creatorId,
+          status: t.status,
+          reviewRating: t.reviewRating,
+          reviewNotes: t.reviewNotes,
+          reviewedById: t.reviewedById,
+          reviewedAt: t.reviewedAt,
+          estimatedHours: t.estimatedHours,
+          createdAt: t.createdAt,
+          updatedAt: t.updatedAt,
+          skillName: t.skill?.name ?? null,
+        })),
+        projectHistory: projectHistory.map((p) => ({
+          id: p.id,
+          title: p.title,
+          description: p.description,
+          status: p.status,
+          ownerId: p.assigneeId,
+          proposedById: p.creatorId,
+          outcome: p.outcome,
+          outcomeNotes: p.outcomeNotes,
+          completedAt: p.completedAt,
+          createdAt: p.createdAt,
+          updatedAt: p.updatedAt,
+        })),
+      }
+    }),
+
+  listEndorsements: staffProcedure
     .input(z.object({ volunteerId: z.number().int() }))
-    .handler(async ({ input }) => {
+    .handler(async ({ input, context }) => {
+      await assertRunsVolunteer(context.access, input.volunteerId)
       const endorsements = await prisma.skillEndorsement.findMany({
         where: { volunteerId: input.volunteerId },
         include: {
@@ -178,9 +198,10 @@ export const adminVolunteersRouter = {
       }))
     }),
 
-  addEndorsement: adminProcedure
+  addEndorsement: staffProcedure
     .input(z.object({ volunteerId: z.number().int() }).merge(EndorsementInputSchema))
     .handler(async ({ input, context }) => {
+      await assertRunsVolunteer(context.access, input.volunteerId)
       const { skillId, rating, source, sourceId, notes } = input
       await prisma.skillEndorsement.upsert({
         where: {

@@ -163,7 +163,12 @@ export default function QuickTasksPage() {
 
   if (loading || !user) return <PageLoading />
 
-  return user.isAdmin ? <AdminQuickTasksView /> : <VolunteerQuickTasksView user={user} />
+  // A chapter's staff run its quick tasks, as a global admin runs everyone's.
+  return user.isAdmin || user.access.role ? (
+    <AdminQuickTasksView />
+  ) : (
+    <VolunteerQuickTasksView user={user} />
+  )
 }
 
 type ApprovedUser = NonNullable<ReturnType<typeof useRequireApproved>['user']>

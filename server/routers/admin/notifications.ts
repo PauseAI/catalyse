@@ -1,11 +1,11 @@
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
-import { adminProcedure } from '../../procedures'
+import { staffProcedure } from '../../procedures'
 import { ADMIN_NOTIFICATION_TYPES } from '@/lib/admin-notifications'
 
 export const adminNotificationsRouter = {
-  list: adminProcedure.handler(async ({ context }) => {
+  list: staffProcedure.handler(async ({ context }) => {
     const notifications = await prisma.notification.findMany({
       where: { volunteerId: context.volunteer.id, type: { in: ADMIN_NOTIFICATION_TYPES } },
       orderBy: { createdAt: 'desc' },
@@ -22,7 +22,7 @@ export const adminNotificationsRouter = {
     }))
   }),
 
-  readAll: adminProcedure.handler(async ({ context }) => {
+  readAll: staffProcedure.handler(async ({ context }) => {
     await prisma.notification.updateMany({
       where: {
         volunteerId: context.volunteer.id,
@@ -34,7 +34,7 @@ export const adminNotificationsRouter = {
     return { message: 'All marked as read' }
   }),
 
-  markRead: adminProcedure
+  markRead: staffProcedure
     .input(z.object({ id: z.number().int() }))
     .handler(async ({ input, context }) => {
       const result = await prisma.notification.updateMany({

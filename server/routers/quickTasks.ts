@@ -225,6 +225,7 @@ export const quickTasksRouter = {
         projectTitle: task.contextProject?.title ?? null,
         skillName: task.skill?.name ?? null,
         reviewedByName: task.reviewedBy?.name ?? null,
+        viewerCanAdmin: canAdminChapter(context.access, task.nationalChapterId),
       }
     }),
 

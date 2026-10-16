@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { useRequireAdmin } from '@/lib/hooks/auth'
+import { useRequireStaff } from '@/lib/hooks/auth'
+import { useUrlParam } from '@/lib/hooks/url-filters'
+import ChapterFilter, { chapterSelection } from '@/components/ChapterFilter'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import Button from '@/components/Button'
@@ -22,7 +24,7 @@ import { formatDate } from '@/lib/format-date'
 import { InterestStatus, ProjectStatus } from '@/generated/prisma/enums'
 
 export default function TriagePage() {
-  const { user, loading } = useRequireAdmin()
+  const { user, loading } = useRequireStaff()
   const showToast = useToast()
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<
@@ -44,26 +46,29 @@ export default function TriagePage() {
     'pending',
   )
 
+  const [chapterParam, setChapterParam] = useUrlParam('chapter')
+  const chapter = chapterSelection(chapterParam)
+
   const { data: projects = [], isLoading: loadingProjects } = useQuery({
-    ...orpc.admin.triage.list.queryOptions(),
-    enabled: !!user?.isAdmin,
+    ...orpc.admin.triage.list.queryOptions({ input: { chapter } }),
+    enabled: !!user,
   })
 
   const { data: staleProjects = [], isLoading: loadingStale } = useQuery({
     ...orpc.admin.projects.staleInProgress.queryOptions(),
-    enabled: !!user?.isAdmin,
+    enabled: !!user,
   })
 
   const { data: draftProjects = [], isLoading: loadingDrafts } = useQuery({
-    ...orpc.admin.triage.drafts.queryOptions(),
-    enabled: !!user?.isAdmin,
+    ...orpc.admin.triage.drafts.queryOptions({ input: { chapter } }),
+    enabled: !!user,
   })
 
   const { data: interests = [], isLoading: loadingInterests } = useQuery({
     ...orpc.admin.interests.list.queryOptions({
-      input: interestStatusFilter ? { status: interestStatusFilter } : {},
+      input: { chapter, ...(interestStatusFilter ? { status: interestStatusFilter } : {}) },
     }),
-    enabled: !!user?.isAdmin,
+    enabled: !!user,
   })
 
   const respondInterestMutation = useMutation({
@@ -112,6 +117,11 @@ export default function TriagePage() {
     <>
       <main className="container py-5 pb-15">
         <h1>Project triage</h1>
+        {user.isAdmin && (
+          <div className="mb-4">
+            <ChapterFilter value={chapterParam} onChange={setChapterParam} />
+          </div>
+        )}
 
         <Tabs
           tabs={[

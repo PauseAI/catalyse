@@ -15,7 +15,7 @@ export function ViewAsToggle({ className }: { className?: string }) {
   const router = useRouter()
   const [switching, setSwitching] = useState(false)
 
-  if (!user || !(user.isAdmin || user.viewingAsVolunteer)) return null
+  if (!user || !(user.isAdmin || user.access.role || user.viewingAsVolunteer)) return null
   const asVolunteer = user.viewingAsVolunteer
 
   async function toggle() {
