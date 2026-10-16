@@ -1,6 +1,6 @@
 import { createHash } from 'crypto'
 import { prisma } from '@/lib/prisma'
-import { isSuperAdmin } from '@/lib/auth'
+import { globalAdminWhere } from '@/lib/chapter-access-server'
 import { sendPendingApplicationsSummaryEmail } from '@/lib/email'
 import { APPLICATION_ANONYMISATION_MS } from '@/lib/applications'
 import { ApprovalStatus } from '@/generated/prisma/enums'
@@ -25,12 +25,10 @@ export async function runApplicationsSummaryJob(): Promise<Record<string, unknow
 
   if (!count) return { skipped: true, reason: 'no pending applications' }
 
-  const admins = (
-    await prisma.volunteer.findMany({
-      where: { isAdmin: true, deletedAt: null },
-      select: { name: true, email: true, emailConfirmed: true },
-    })
-  ).filter((a) => isSuperAdmin(a))
+  const admins = await prisma.volunteer.findMany({
+    where: globalAdminWhere(),
+    select: { name: true, email: true },
+  })
 
   let sent = 0
   for (const admin of admins) {

@@ -14,8 +14,6 @@ import {
   deleteOtherSessions,
   getCurrentVolunteer,
   redactVolunteer,
-  requireAdmin,
-  requireSuperAdmin,
   isSuperAdmin,
   checkAdminBootstrap,
   acceptPendingInvite,
@@ -108,6 +106,25 @@ describe('sessions', () => {
   })
 })
 
+describe('getCurrentVolunteer and the global admin flag', () => {
+  const flagOf = async (id: number) =>
+    (await prisma.volunteer.findUniqueOrThrow({ where: { id } })).isAdmin
+
+  it('keeps isAdmin in step with ADMIN_EMAILS, whatever the stored flag says', async () => {
+    const listed = await createVolunteer({ email: 'admin15@example.com', isAdmin: false })
+    const signedIn = await getCurrentVolunteer(await createSession(listed.id))
+    expect(signedIn?.isAdmin).toBe(true)
+    expect(await flagOf(listed.id)).toBe(true)
+
+    const stale = await createVolunteer({ isAdmin: true })
+    expect((await getCurrentVolunteer(await createSession(stale.id)))?.isAdmin).toBe(false)
+    expect(await flagOf(stale.id)).toBe(false)
+
+    const plain = await createVolunteer()
+    expect((await getCurrentVolunteer(await createSession(plain.id)))?.isAdmin).toBe(false)
+  })
+})
+
 describe('redactVolunteer', () => {
   it('hides contact fields unless showContact, and reports super-admin status', async () => {
     const vol = await createVolunteer({ email: 'admin@example.com', discordHandle: 'd' })
@@ -124,26 +141,9 @@ describe('redactVolunteer', () => {
   })
 })
 
-describe('requireAdmin / requireSuperAdmin', () => {
-  it('returns 401, 403 or the volunteer', async () => {
-    expect((await requireAdmin(null)).error?.status).toBe(401)
-    const vol = await createVolunteer()
-    const t = await createSession(vol.id)
-    expect((await requireAdmin(t)).error?.status).toBe(403)
-    const admin = await createAdmin()
-    const at = await createSession(admin.id)
-    expect((await requireAdmin(at)).volunteer?.id).toBe(admin.id)
-    expect((await requireSuperAdmin(at)).error?.status).toBe(403)
-    expect((await requireSuperAdmin(t)).error?.status).toBe(403)
-    const superAdmin = await createAdmin({ email: 'Admin@Example.com' })
-    const st = await createSession(superAdmin.id)
-    expect((await requireSuperAdmin(st)).volunteer?.id).toBe(superAdmin.id)
-  })
-
+describe('isSuperAdmin', () => {
   it('refuses an admin whose listed address is unconfirmed', async () => {
     const squatter = await createAdmin({ email: 'admin18@example.com', emailConfirmed: false })
-    const token = await createSession(squatter.id)
-    expect((await requireSuperAdmin(token)).error?.status).toBe(403)
     expect(redactVolunteer(squatter).isSuperAdmin).toBe(false)
   })
 

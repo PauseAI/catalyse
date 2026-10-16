@@ -2,6 +2,7 @@ import { ORPCError } from '@orpc/server'
 import { randomBytes, createHash } from 'crypto'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { globalAdminWhere } from '@/lib/chapter-access-server'
 import {
   verifyPassword,
   hashPassword,
@@ -103,7 +104,7 @@ async function sendAccountDeletionNotifications(deletedId: number, deletedName: 
   const ownerless = ownedProjects.map((p) => ({ projectId: p.id, projectTitle: p.title }))
   if (ownerless.length) {
     const admins = await prisma.volunteer.findMany({
-      where: { isAdmin: true, deletedAt: null, id: { not: deletedId } },
+      where: { ...globalAdminWhere(), id: { not: deletedId } },
       select: { id: true, name: true, email: true },
     })
     for (const admin of admins) {

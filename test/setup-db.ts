@@ -8,6 +8,7 @@ import { emails } from './fakes/email'
 import { google } from './fakes/google'
 import { rateLimit } from './fakes/rate-limit'
 import { cronJobs } from './fakes/cron-jobs'
+import { GLOBAL_ADMIN_SLOTS, globalAdminEmail } from './admin-emails'
 
 /**
  * Gives the current test file its own private copy of the schema (see `test/pg.ts`). vitest
@@ -34,10 +35,11 @@ process.env.STUB_GOOGLE = 'true'
 process.env.GOOGLE_CLIENT_ID = 'test-google-client'
 // Read at module load by Analytics, so it must be set before any import.
 process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID = 'G-TEST'
-// Several listed addresses so a test file can create more than one super-admin.
-process.env.ADMIN_EMAILS = Array.from({ length: 20 }, (_, i) => `admin${i || ''}@example.com`).join(
-  ',',
-)
+// The addresses createSuperAdmin and createAdmin (test/factories.ts) give their global admins.
+process.env.ADMIN_EMAILS = [
+  ...Array.from({ length: 20 }, (_, i) => `admin${i || ''}@example.com`),
+  ...Array.from({ length: GLOBAL_ADMIN_SLOTS }, (_, i) => globalAdminEmail(i)),
+].join(',')
 process.env.APP_URL = 'http://localhost:3000'
 process.env.CRON_SECRET = 'cron-secret'
 // The network edge is faked: outgoing email lands in the in-memory outbox `emails`, Google

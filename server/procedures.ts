@@ -1,6 +1,5 @@
 import { os, ORPCError } from '@orpc/server'
 import { ApprovalStatus } from '@/generated/prisma/enums'
-import { isSuperAdmin } from '@/lib/auth'
 import { touchLastActive } from '@/lib/activity'
 import { isStaff } from '@/lib/chapter-access'
 import { inputLimitViolation } from '@/lib/input-limits'
@@ -58,6 +57,7 @@ export const confirmedProcedure = approvedProcedure.use(({ context, next }) => {
   return next({ context })
 })
 
+/** A global admin: `isAdmin` holds only for an address in ADMIN_EMAILS (lib/auth.ts). */
 export const adminProcedure = base.use(({ context, next }) => {
   if (!context.volunteer) throw new ORPCError('UNAUTHORIZED')
   if (!context.volunteer.isAdmin) throw new ORPCError('FORBIDDEN')
@@ -71,12 +71,5 @@ export const adminProcedure = base.use(({ context, next }) => {
 export const staffProcedure = base.use(({ context, next }) => {
   if (!context.volunteer) throw new ORPCError('UNAUTHORIZED')
   if (!context.access.globalAdmin && !isStaff(context.access)) throw new ORPCError('FORBIDDEN')
-  return next({ context: { volunteer: context.volunteer } })
-})
-
-export const superAdminProcedure = base.use(({ context, next }) => {
-  if (!context.volunteer) throw new ORPCError('UNAUTHORIZED')
-  if (!context.volunteer.isAdmin) throw new ORPCError('FORBIDDEN')
-  if (!isSuperAdmin(context.volunteer)) throw new ORPCError('FORBIDDEN')
   return next({ context: { volunteer: context.volunteer } })
 })

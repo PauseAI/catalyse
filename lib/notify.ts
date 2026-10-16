@@ -156,7 +156,7 @@ export async function notifyAdmins(
   entityId?: number | null,
 ): Promise<void> {
   const admins = await prisma.volunteer.findMany({
-    where: { isAdmin: true, deletedAt: null },
+    where: globalAdminWhere(),
     select: { id: true },
   })
   await Promise.all(

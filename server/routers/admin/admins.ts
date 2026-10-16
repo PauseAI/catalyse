@@ -4,7 +4,7 @@ import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { sendAdminInviteEmail } from '@/lib/email'
 import { InviteAdminSchema } from '@/lib/schemas'
-import { adminProcedure, authedProcedure, superAdminProcedure } from '../../procedures'
+import { adminProcedure, authedProcedure } from '../../procedures'
 import { env } from '@/lib/env'
 import { ApprovalStatus, InviteStatus } from '@/generated/prisma/enums'
 
@@ -24,7 +24,7 @@ export const adminAdminsRouter = {
     }))
   }),
 
-  setTechnicalAdmin: superAdminProcedure
+  setTechnicalAdmin: adminProcedure
     .input(z.object({ id: z.number().int(), isTechnicalAdmin: z.boolean() }))
     .handler(async ({ input }) => {
       const target = await prisma.volunteer.findFirst({
@@ -44,7 +44,7 @@ export const adminAdminsRouter = {
       }
     }),
 
-  revoke: superAdminProcedure
+  revoke: adminProcedure
     .input(z.object({ id: z.number().int() }))
     .handler(async ({ input, context }) => {
       if (input.id === context.volunteer.id) {
@@ -81,7 +81,7 @@ export const adminAdminsRouter = {
     }))
   }),
 
-  invite: superAdminProcedure.input(InviteAdminSchema).handler(async ({ input, context }) => {
+  invite: adminProcedure.input(InviteAdminSchema).handler(async ({ input, context }) => {
     const admin = context.volunteer
     const email = input.email.trim().toLowerCase()
 
@@ -127,7 +127,7 @@ export const adminAdminsRouter = {
     return result
   }),
 
-  revokeInvite: superAdminProcedure
+  revokeInvite: adminProcedure
     .input(z.object({ id: z.number().int() }))
     .handler(async ({ input }) => {
       const invite = await prisma.adminInvite.findFirst({

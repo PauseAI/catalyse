@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { createVolunteer, createAdmin, createSuperAdmin } from '@/test/factories'
+import {
+  createVolunteer,
+  createAdmin,
+  createSuperAdmin,
+  createChapter,
+  createChapterLead,
+} from '@/test/factories'
 import { clientAs, anon } from '@/test/rpc'
 
 /**
@@ -46,24 +52,19 @@ describe('procedure gates', () => {
     })
   })
 
-  it('superAdminProcedure needs an email listed in ADMIN_EMAILS', async () => {
-    await expect(anon().admin.platformSettings.get()).rejects.toMatchObject({
-      code: 'UNAUTHORIZED',
-    })
-    await expect(
-      clientAs(await createVolunteer()).admin.platformSettings.get(),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
-    await expect(clientAs(await createAdmin()).admin.platformSettings.get()).rejects.toMatchObject({
-      code: 'FORBIDDEN',
-    })
-    const sa = await createSuperAdmin()
-    expect(await clientAs(sa).admin.platformSettings.get()).toEqual({
+  it('adminProcedure needs an address listed in ADMIN_EMAILS, not just the flag or a chapter role', async () => {
+    const forbidden = { code: 'FORBIDDEN' }
+    const stale = await createVolunteer({ isAdmin: true })
+    await expect(clientAs(stale).admin.platformSettings.get()).rejects.toMatchObject(forbidden)
+    const lead = await createChapterLead(await createChapter())
+    await expect(clientAs(lead).admin.platformSettings.get()).rejects.toMatchObject(forbidden)
+    expect(await clientAs(await createSuperAdmin()).admin.platformSettings.get()).toEqual({
       requireApplicationApproval: true,
       maintenanceMode: false,
     })
   })
 
-  it('superAdminProcedure refuses an admin who changed to a listed address without confirming it', async () => {
+  it('adminProcedure refuses an admin who changed to a listed address without confirming it', async () => {
     const squatter = await createSuperAdmin({ emailConfirmed: false })
     await expect(clientAs(squatter).admin.platformSettings.get()).rejects.toMatchObject({
       code: 'FORBIDDEN',
@@ -88,12 +89,12 @@ describe('maintenance mode', () => {
     expect(await anon().skills.list()).toEqual(expect.any(Array))
   })
 
-  it('refuses every procedure but the sign-in set for non-super-admins', () =>
+  it('refuses every procedure but the sign-in set for anyone but a global admin', () =>
     withMaintenance(async () => {
       const down = { code: 'SERVICE_UNAVAILABLE', message: expect.stringContaining('maintenance') }
       expect(await anon().maintenance.status()).toEqual({ active: true })
       await expect(anon().skills.list()).rejects.toMatchObject(down)
-      const admin = await createAdmin()
+      const admin = await createChapterLead(await createChapter())
       await expect(clientAs(admin).skills.list()).rejects.toMatchObject(down)
       await expect(
         anon().auth.signup({
@@ -106,7 +107,7 @@ describe('maintenance mode', () => {
           availabilityHoursPerWeek: 2,
         }),
       ).rejects.toMatchObject(down)
-      await expect(clientAs(admin).admin.overview.counts()).rejects.toMatchObject(down)
+      await expect(clientAs(admin).my.quickTasks()).rejects.toMatchObject(down)
       // The sign-in set still answers, so the client can learn who is asking.
       expect(await clientAs(admin).auth.me()).toMatchObject({ id: admin.id })
       expect(await anon().version.get()).toMatchObject({ sha: expect.any(String) })

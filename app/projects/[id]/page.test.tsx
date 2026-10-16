@@ -2207,7 +2207,10 @@ describe('project page — a completed project', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Reopen project' }))
     const ask = await screen.findByRole('dialog', { name: "Reopen 'Finished campaign'?" })
     // Taken off the admin list in the meantime.
-    await prisma.volunteer.update({ where: { id: admin.id }, data: { isAdmin: false } })
+    await prisma.volunteer.update({
+      where: { id: admin.id },
+      data: { email: 'former-admin@example.com' },
+    })
     await userEvent.click(within(ask).getByRole('button', { name: 'Reopen' }))
     await screen.findByText('Not authorized to edit this project')
     expect(await row(project.id)).toMatchObject({ status: 'completed' })

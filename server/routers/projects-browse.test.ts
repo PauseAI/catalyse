@@ -16,7 +16,7 @@ import { notifyMatchingVolunteers } from '@/lib/project-match-notify'
 const ids = (projects: { id: number }[]) => projects.map((p) => p.id).sort((a, b) => a - b)
 
 describe('projects.list', () => {
-  it('requires a confirmed email unless admin', async () => {
+  it('requires a confirmed email', async () => {
     const unconfirmed = await createVolunteer({ emailConfirmed: false })
     await expect(clientAs(unconfirmed).projects.list({})).rejects.toMatchObject({
       code: 'FORBIDDEN',
@@ -24,8 +24,6 @@ describe('projects.list', () => {
     await expect(clientAs(unconfirmed).projects.listGrouped({})).rejects.toMatchObject({
       code: 'FORBIDDEN',
     })
-    const admin = await createAdmin({ emailConfirmed: false })
-    expect((await clientAs(admin).projects.list({})).total).toBe(0)
   })
 
   it('applies every filter and hides team projects from outsiders', async () => {
@@ -482,7 +480,5 @@ describe('direct links', () => {
         interestType: 'want_to_contribute',
       }),
     ).rejects.toMatchObject(refused)
-    const admin = clientAs(await createAdmin({ emailConfirmed: false }))
-    expect((await admin.projects.getById({ id: project.id })).id).toBe(project.id)
   })
 })

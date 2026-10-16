@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { globalAdminWhere } from '@/lib/chapter-access-server'
 import { isEmailConfigured, sendDailySummaryEmail } from '@/lib/email'
 import { createNotification, refreshNotification } from '@/lib/notify'
 import { lateProjects, loadProjectTaskSchedule } from '@/lib/project-schedule'
@@ -351,7 +352,7 @@ export async function runDeadlineRemindersJob(now: Date = new Date()) {
   })
   const admins = (
     await prisma.volunteer.findMany({
-      where: { isAdmin: true, deletedAt: null },
+      where: globalAdminWhere(),
       select: { id: true },
     })
   ).map((a) => a.id)

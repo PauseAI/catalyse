@@ -10,12 +10,12 @@ import {
 } from '@/lib/email'
 import { APPLICATION_ANONYMISATION_MS } from '@/lib/applications'
 import { ApplicationActionSchema } from '@/lib/schemas'
-import { superAdminProcedure } from '../../procedures'
+import { adminProcedure } from '../../procedures'
 import { ApprovalStatus } from '@/generated/prisma/enums'
 import { clearNotifications, createNotification } from '@/lib/notify'
 
 export const adminApplicationsRouter = {
-  list: superAdminProcedure
+  list: adminProcedure
     .input(
       z.object({
         filter: z
@@ -138,79 +138,74 @@ export const adminApplicationsRouter = {
       })
     }),
 
-  getById: superAdminProcedure
-    .input(z.object({ id: z.number().int() }))
-    .handler(async ({ input }) => {
-      const v = await prisma.volunteer.findFirst({
-        where: { id: input.id, deletedAt: null },
-        include: {
-          skills: {
-            include: { skill: { include: { category: true } } },
-            orderBy: [
-              { skill: { category: { sortOrder: 'asc' } } },
-              { skill: { sortOrder: 'asc' } },
-            ],
-          },
-          reviewer: { select: { id: true, name: true } },
+  getById: adminProcedure.input(z.object({ id: z.number().int() })).handler(async ({ input }) => {
+    const v = await prisma.volunteer.findFirst({
+      where: { id: input.id, deletedAt: null },
+      include: {
+        skills: {
+          include: { skill: { include: { category: true } } },
+          orderBy: [{ skill: { category: { sortOrder: 'asc' } } }, { skill: { sortOrder: 'asc' } }],
         },
-      })
+        reviewer: { select: { id: true, name: true } },
+      },
+    })
 
-      if (!v) throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
+    if (!v) throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
 
-      const emailHash = v.email
-        ? createHash('sha256').update(v.email.toLowerCase().trim()).digest('hex')
-        : null
+    const emailHash = v.email
+      ? createHash('sha256').update(v.email.toLowerCase().trim()).digest('hex')
+      : null
 
-      const previousRejections = emailHash
-        ? await prisma.rejectedApplication.findMany({
-            where: { emailHash },
-            orderBy: { rejectedAt: 'desc' },
-            select: { rejectedAt: true, adminNotes: true, applicantNotes: true },
-          })
-        : []
+    const previousRejections = emailHash
+      ? await prisma.rejectedApplication.findMany({
+          where: { emailHash },
+          orderBy: { rejectedAt: 'desc' },
+          select: { rejectedAt: true, adminNotes: true, applicantNotes: true },
+        })
+      : []
 
-      return {
-        id: v.id,
-        name: v.name,
-        email: v.email,
-        bio: v.bio,
-        applicationMessage: v.applicationMessage,
-        approvalStatus: v.approvalStatus,
-        createdAt: v.createdAt,
-        rejectedAt: v.rejectedAt,
-        anonymiseAt: v.rejectedAt
-          ? new Date(v.rejectedAt.getTime() + APPLICATION_ANONYMISATION_MS).toISOString()
-          : null,
-        adminNotes: v.applicationAdminNotes,
-        applicantNotes: v.applicationApplicantNotes,
-        reviewer: v.reviewer ? { id: v.reviewer.id, name: v.reviewer.name } : null,
-        previousRejections: previousRejections.map((r) => ({
-          rejectedAt: r.rejectedAt,
-          adminNotes: r.adminNotes,
-          applicantNotes: r.applicantNotes,
-        })),
-        availabilityHoursPerWeek: v.availabilityHoursPerWeek,
-        location: v.location,
-        country: v.country,
-        localGroup: v.localGroup,
-        signalNumber: v.signalNumber,
-        whatsappNumber: v.whatsappNumber,
-        discordHandle: v.discordHandle,
-        contactNotes: v.contactNotes,
-        skills: v.skills.map((vs) => ({
-          id: vs.skill.id,
-          categoryId: vs.skill.categoryId,
-          name: vs.skill.name,
-          description: vs.skill.description,
-          sortOrder: vs.skill.sortOrder,
-          createdAt: vs.skill.createdAt,
-          categoryName: vs.skill.category.name,
-          proficiencyLevel: vs.proficiencyLevel,
-        })),
-      }
-    }),
+    return {
+      id: v.id,
+      name: v.name,
+      email: v.email,
+      bio: v.bio,
+      applicationMessage: v.applicationMessage,
+      approvalStatus: v.approvalStatus,
+      createdAt: v.createdAt,
+      rejectedAt: v.rejectedAt,
+      anonymiseAt: v.rejectedAt
+        ? new Date(v.rejectedAt.getTime() + APPLICATION_ANONYMISATION_MS).toISOString()
+        : null,
+      adminNotes: v.applicationAdminNotes,
+      applicantNotes: v.applicationApplicantNotes,
+      reviewer: v.reviewer ? { id: v.reviewer.id, name: v.reviewer.name } : null,
+      previousRejections: previousRejections.map((r) => ({
+        rejectedAt: r.rejectedAt,
+        adminNotes: r.adminNotes,
+        applicantNotes: r.applicantNotes,
+      })),
+      availabilityHoursPerWeek: v.availabilityHoursPerWeek,
+      location: v.location,
+      country: v.country,
+      localGroup: v.localGroup,
+      signalNumber: v.signalNumber,
+      whatsappNumber: v.whatsappNumber,
+      discordHandle: v.discordHandle,
+      contactNotes: v.contactNotes,
+      skills: v.skills.map((vs) => ({
+        id: vs.skill.id,
+        categoryId: vs.skill.categoryId,
+        name: vs.skill.name,
+        description: vs.skill.description,
+        sortOrder: vs.skill.sortOrder,
+        createdAt: vs.skill.createdAt,
+        categoryName: vs.skill.category.name,
+        proficiencyLevel: vs.proficiencyLevel,
+      })),
+    }
+  }),
 
-  action: superAdminProcedure
+  action: adminProcedure
     .input(z.object({ id: z.number().int() }).merge(ApplicationActionSchema))
     .handler(async ({ input, context }) => {
       const admin = context.volunteer

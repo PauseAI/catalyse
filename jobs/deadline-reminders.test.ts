@@ -155,7 +155,7 @@ describe('runDeadlineRemindersJob', () => {
 
   it('tapers overdue Quick Task reminders, sends them to admins when nobody set it, and respects preferences', async () => {
     await remindersRunningSince(addDays(today, -30))
-    await createAdmin({ email: 'admin9@example.org' })
+    const admin = await createAdmin()
     const quiet = await createVolunteer({ email: 'quiet@example.org', dailySummary: 'in_app_only' })
     const off = await createVolunteer({ email: 'off@example.org', dailySummary: 'off' })
     const late = await createQuickTask({
@@ -183,10 +183,8 @@ describe('runDeadlineRemindersJob', () => {
     expect(await notes(off.id, 'finish_by_overdue')).toHaveLength(0)
     expect(emails.to('off@example.org')).toHaveLength(0)
     // Nobody set these, so the admins hear.
-    expect(emails.lastTo('admin9@example.org')!.html).toContain('Quick Tasks')
-    expect(emails.lastTo('admin9@example.org')!.html).toContain(
-      '“Proofread leaflet” is 2 days overdue',
-    )
+    expect(emails.lastTo(admin.email!)!.html).toContain('Quick Tasks')
+    expect(emails.lastTo(admin.email!)!.html).toContain('“Proofread leaflet” is 2 days overdue')
 
     // Day 8 of the overdue clock has no reminder; day 10 does, refreshed in place.
     await runDeadlineRemindersJob(addDays(now, 6))

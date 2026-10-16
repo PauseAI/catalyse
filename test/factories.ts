@@ -3,6 +3,7 @@ import { hashPassword } from '@/lib/auth'
 import { ApprovalStatus, WorkItemType, ProjectStatus } from '@/generated/prisma/enums'
 import type { Prisma } from '@/generated/prisma/client'
 import { COUNTRIES } from '@/lib/countries'
+import { globalAdminEmail } from './admin-emails'
 
 let seq = 0
 export const nextSeq = () => ++seq
@@ -32,11 +33,13 @@ export async function createVolunteer(
   })
 }
 
+let adminSeq = 0
+/** A global admin: an address listed in ADMIN_EMAILS (see test/setup-db.ts). */
 export const createAdmin = (overrides: Partial<Prisma.VolunteerUncheckedCreateInput> = {}) =>
-  createVolunteer({ isAdmin: true, ...overrides })
+  createVolunteer({ isAdmin: true, email: globalAdminEmail(adminSeq++), ...overrides })
 
 let superSeq = 0
-/** An admin whose email is in ADMIN_EMAILS (see test/setup-db.ts) — a super-admin. */
+/** A global admin at admin@example.com, admin1@example.com and so on. */
 export const createSuperAdmin = (overrides: Partial<Prisma.VolunteerUncheckedCreateInput> = {}) =>
   createAdmin({ email: `admin${superSeq++ || ''}@example.com`, ...overrides })
 

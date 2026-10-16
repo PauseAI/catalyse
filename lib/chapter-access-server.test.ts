@@ -7,7 +7,6 @@ import {
   loadAccess,
 } from './chapter-access-server'
 import {
-  createAdmin,
   createChapter,
   createChapterDeputy,
   createChapterLead,
@@ -56,7 +55,7 @@ describe('loadAccess', () => {
 
   it('counts only an admin listed in ADMIN_EMAILS as a global admin', async () => {
     expect((await loadAccess(await createSuperAdmin())).globalAdmin).toBe(true)
-    expect((await loadAccess(await createAdmin())).globalAdmin).toBe(false)
+    expect((await loadAccess(await createVolunteer({ isAdmin: true }))).globalAdmin).toBe(false)
   })
 })
 
@@ -101,7 +100,7 @@ describe('globalAdminWhere', () => {
       emailConfirmed: false,
     })
     const deleted = await createVolunteer({ email: 'admin17@example.com', deletedAt: new Date() })
-    const unlisted = await createAdmin()
+    const unlisted = await createVolunteer({ isAdmin: true })
 
     const ids = (await prisma.volunteer.findMany({ where: globalAdminWhere() })).map((v) => v.id)
     expect(ids).toEqual(expect.arrayContaining([listed.id, shouting.id]))

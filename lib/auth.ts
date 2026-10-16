@@ -92,7 +92,7 @@ export async function getCurrentVolunteer(authorization: string | null | undefin
     prisma.session
       .update({ where: { id: session.id }, data: { lastUsedAt: new Date() } })
       .catch(() => {})
-    return session.volunteer
+    return withGlobalAdmin(session.volunteer)
   }
 
   // Legacy fallback: a session opened before #225, still living on the old single-token
@@ -112,7 +112,20 @@ export async function getCurrentVolunteer(authorization: string | null | undefin
       },
     })
     .catch(() => {})
-  return legacyVolunteer
+  return withGlobalAdmin(legacyVolunteer)
+}
+
+/**
+ * `isAdmin` means global admin, which is decided by ADMIN_EMAILS: the flag is brought into step
+ * with the list, and a stale one grants nothing. Chapter staff powers are in ChapterAccess.
+ */
+async function withGlobalAdmin(volunteer: Volunteer): Promise<Volunteer> {
+  const listed = isSuperAdmin(volunteer)
+  if (listed && !volunteer.isAdmin) await checkAdminBootstrap(volunteer)
+  if (!listed && volunteer.isAdmin) {
+    await prisma.volunteer.update({ where: { id: volunteer.id }, data: { isAdmin: false } })
+  }
+  return { ...volunteer, isAdmin: listed }
 }
 
 // showContact controls whether email and direct contact fields are included.
@@ -172,28 +185,6 @@ export function redactVolunteer(
   }
 }
 
-export async function requireAdmin(
-  authorization: string | null | undefined,
-): Promise<
-  | { volunteer: NonNullable<Awaited<ReturnType<typeof getCurrentVolunteer>>>; error: null }
-  | { volunteer: null; error: Response }
-> {
-  const volunteer = await getCurrentVolunteer(authorization)
-  if (!volunteer) {
-    return {
-      volunteer: null,
-      error: Response.json({ detail: 'Authentication required' }, { status: 401 }),
-    }
-  }
-  if (!volunteer.isAdmin) {
-    return {
-      volunteer: null,
-      error: Response.json({ detail: 'Admin access required' }, { status: 403 }),
-    }
-  }
-  return { volunteer, error: null }
-}
-
 /** The fields admin entitlement is decided from. */
 export type EmailIdentity = Pick<Volunteer, 'email' | 'emailConfirmed'>
 
@@ -210,23 +201,6 @@ export function adminEmails(): string[] {
   return env.ADMIN_EMAILS.split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean)
-}
-
-export async function requireSuperAdmin(
-  authorization: string | null | undefined,
-): Promise<
-  | { volunteer: NonNullable<Awaited<ReturnType<typeof getCurrentVolunteer>>>; error: null }
-  | { volunteer: null; error: Response }
-> {
-  const result = await requireAdmin(authorization)
-  if (result.error) return result
-  if (!isSuperAdmin(result.volunteer)) {
-    return {
-      volunteer: null,
-      error: Response.json({ detail: 'Super-admin access required' }, { status: 403 }),
-    }
-  }
-  return result
 }
 
 /** The fields promotion decisions are made from. */

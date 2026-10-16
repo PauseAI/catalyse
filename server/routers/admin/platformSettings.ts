@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { PlatformSettingsSchema } from '@/lib/schemas'
-import { superAdminProcedure } from '../../procedures'
+import { adminProcedure } from '../../procedures'
 
 const SINGLETON_ID = 1
 
@@ -10,14 +10,14 @@ const pick = (s: { requireApplicationApproval: boolean; maintenanceMode: boolean
 })
 
 export const adminPlatformSettingsRouter = {
-  get: superAdminProcedure.handler(async () => {
+  get: adminProcedure.handler(async () => {
     const settings = await prisma.platformSettings.findUniqueOrThrow({
       where: { id: SINGLETON_ID },
     })
     return pick(settings)
   }),
 
-  update: superAdminProcedure.input(PlatformSettingsSchema).handler(async ({ input }) => {
+  update: adminProcedure.input(PlatformSettingsSchema).handler(async ({ input }) => {
     const settings = await prisma.platformSettings.update({
       where: { id: SINGLETON_ID },
       data: input,

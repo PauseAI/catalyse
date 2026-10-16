@@ -186,7 +186,7 @@ describe('notifyChapterStaff', () => {
 
   it('alerts the global admins about the pool, or a chapter with no staff', async () => {
     const admin = await createSuperAdmin()
-    const unlisted = await createAdmin()
+    const unlisted = await createVolunteer({ isAdmin: true })
     await notifyChapterStaff(null, 'pool_alert', 'T', null, null, {
       message: 'm',
       ctaLabel: 'L',

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
+import { globalAdminWhere } from '@/lib/chapter-access-server'
 import { createNotification, notifyUser } from '@/lib/notify'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { canViewBugReport } from '@/lib/bug-report-access'
@@ -88,7 +89,7 @@ export const bugReportsRouter = {
     })
 
     const admins = await prisma.volunteer.findMany({
-      where: { isAdmin: true, id: { not: volunteer.id } },
+      where: { ...globalAdminWhere(), id: { not: volunteer.id } },
       select: { id: true, isTechnicalAdmin: true },
     })
     const notifyTitle = `New ${input.category ?? 'bug'}: ${input.title.trim()}`

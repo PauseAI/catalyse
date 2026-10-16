@@ -1,10 +1,10 @@
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
-import { superAdminProcedure } from '../../procedures'
+import { adminProcedure } from '../../procedures'
 
 export const adminRejectedApplicationsRouter = {
-  list: superAdminProcedure.handler(async () => {
+  list: adminProcedure.handler(async () => {
     const records = await prisma.rejectedApplication.findMany({
       orderBy: { rejectedAt: 'desc' },
     })
@@ -31,7 +31,7 @@ export const adminRejectedApplicationsRouter = {
     }))
   }),
 
-  allowReapply: superAdminProcedure
+  allowReapply: adminProcedure
     .input(z.object({ emailHash: z.string().min(1) }))
     .handler(async ({ input }) => {
       const anonymisedEmail = await prisma.anonymisedEmail.findUnique({
