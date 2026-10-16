@@ -1,6 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { createVolunteer, createProject, createTeam, connect } from '@/test/factories'
+import {
+  createVolunteer,
+  createProject,
+  createTeam,
+  connect,
+  createChapter,
+  createAdmin,
+} from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 import { rateLimit } from '@/test/fakes/rate-limit'
 import { env } from '@/lib/env'
@@ -200,5 +207,40 @@ describe('message threads', () => {
     await expect(clientAs(bob).messages.reply({ threadId, message: 'x' })).rejects.toMatchObject({
       code: 'TOO_MANY_REQUESTS',
     })
+  })
+
+  it('keeps a conversation from across chapters readable, but closed to replies', async () => {
+    const ann = await createVolunteer({ name: 'Ann Away' })
+    const bob = await createVolunteer()
+    await connect(ann, bob)
+    const { threadId } = await clientAs(ann).messages.send({
+      recipientId: bob.id,
+      subject: 's',
+      message: 'm',
+    })
+    const away = await createChapter()
+    const moved = await prisma.volunteer.update({
+      where: { id: ann.id },
+      data: { nationalChapterId: away.id },
+    })
+    const thread = await clientAs(bob).messages.thread({ id: threadId })
+    expect(thread).toMatchObject({
+      canReply: false,
+      messages: [expect.objectContaining({ body: 'm' })],
+    })
+    await expect(clientAs(bob).messages.reply({ threadId, message: 'hi' })).rejects.toMatchObject({
+      message: 'Ann Away is in another national chapter, so you can no longer message them',
+    })
+    await expect(
+      clientAs(bob).messages.send({ recipientId: ann.id, subject: 's', message: 'm' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    // A global admin answers anyone.
+    const admin = await createAdmin()
+    const fromAdmin = await clientAs(admin).messages.send({
+      recipientId: moved.id,
+      subject: 's',
+      message: 'm',
+    })
+    expect((await clientAs(admin).messages.thread({ id: fromAdmin.threadId })).canReply).toBe(true)
   })
 })

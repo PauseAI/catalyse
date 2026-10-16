@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { notifyUser, clearNotifications } from '@/lib/notify'
 import { html } from '@/lib/email'
 import { canReach } from '@/lib/contact'
+import { chapterFilter } from '@/lib/chapter-access-server'
 import { authedProcedure, confirmedProcedure } from '../procedures'
 import { ContactRequestStatus } from '@/generated/prisma/enums'
 
@@ -14,7 +15,7 @@ const DECLINED_COOLDOWN_DAYS = 30
 const DAY = 24 * 60 * 60 * 1000
 
 export const contactsRouter = {
-  /** Asks someone in the directory, who does not work with the sender, to connect. */
+  /** Asks someone in the sender's chapter's directory, who does not work with them, to connect. */
   request: confirmedProcedure
     .input(
       z.object({
@@ -36,11 +37,12 @@ export const contactsRouter = {
           id: input.toVolunteerId,
           deletedAt: null,
           consentMakeProfileVisibleInDirectory: true,
+          nationalChapterId: chapterFilter(context.access),
         },
         select: { id: true, name: true },
       })
       if (!target) throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
-      if (await canReach(me, target.id)) {
+      if (await canReach(me, context.access, target.id)) {
         throw new ORPCError('BAD_REQUEST', { message: 'You can already message them' })
       }
 

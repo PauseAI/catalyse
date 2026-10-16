@@ -9,6 +9,8 @@ import {
   createSkill,
   createLocalGroup,
   createChapter,
+  createChapterDeputy,
+  createMember,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 
@@ -42,8 +44,6 @@ describe('volunteers.list', () => {
     expect(await names({ skillIds: [skill.id] })).toEqual(['Ann Searchable'])
     expect(await names({ skillIds: [] })).toHaveLength(3)
     expect((await names({ search: 'Searchable' })).sort()).toEqual(['Ann Searchable', 'Bob'])
-    expect(await names({ country: 'UK' })).toEqual(['Ann Searchable'])
-    expect(await names({ country: 'France' })).toEqual(['Bob'])
     expect(await names({ localGroup: 'Lambeth North' })).toEqual(['Ann Searchable'])
     expect(await names({ localGroup: 'Paris' })).toEqual(['Bob'])
     expect((await c.volunteers.list({ limit: 1, offset: 1 })).volunteers).toHaveLength(1)
@@ -54,10 +54,63 @@ describe('volunteers.list', () => {
     const admin = await createAdmin()
     const adminView = await clientAs(admin).volunteers.list({ search: 'Hidden' })
     expect(adminView.volunteers[0].hiddenFromDirectory).toBe(true)
-    const tech = await createVolunteer({ isTechnicalAdmin: true })
-    expect((await clientAs(tech).volunteers.list({ search: 'Hidden' })).total).toBe(1)
     void ann
     void bob
+  })
+
+  it("shows each member their own chapter's directory, and its staff the hidden profiles", async () => {
+    const [home, away] = [await createChapter(), await createChapter()]
+    const me = await createMember(home)
+    const neighbour = await createMember(home, { name: 'Nell Neighbour' })
+    const hidden = await createMember(home, {
+      name: 'Hal Hidden',
+      consentMakeProfileVisibleInDirectory: false,
+    })
+    const abroad = await createMember(away, { name: 'Abe Abroad' })
+    const pooled = await createVolunteer({ name: 'Pat Pooled' })
+    const ids = async (viewer: typeof me, input = {}) =>
+      (await clientAs(viewer).volunteers.list(input)).volunteers.map((v) => v.id)
+
+    const mine = await ids(me)
+    expect(mine).toContain(neighbour.id)
+    for (const id of [hidden.id, abroad.id, pooled.id]) expect(mine).not.toContain(id)
+    // Asking for another chapter changes nothing for a member.
+    expect(await ids(me, { chapter: away.id })).toEqual(mine)
+    expect(await ids(await createChapterDeputy(home))).toContain(hidden.id)
+
+    const admin = await createAdmin()
+    expect(await ids(admin, { chapter: away.id })).toEqual([abroad.id])
+    const pool = await ids(admin, { chapter: 'pool' })
+    expect(pool).toContain(pooled.id)
+    expect(pool).not.toContain(neighbour.id)
+    expect(await ids(admin)).toEqual(expect.arrayContaining([neighbour.id, abroad.id, pooled.id]))
+  })
+})
+
+describe('volunteers.getById across chapters', () => {
+  it('hides someone in another chapter, unless the two already work on a project together', async () => {
+    const [home, away] = [await createChapter(), await createChapter()]
+    const me = await createMember(home)
+    const abroad = await createMember(away)
+    const c = clientAs(me)
+    await expect(c.volunteers.getById({ id: abroad.id })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    })
+    const project = await createProject({ assigneeId: abroad.id })
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: project.id,
+        volunteerId: me.id,
+        interestType: 'want_to_contribute',
+        status: 'accepted',
+      },
+    })
+    const profile = await c.volunteers.getById({ id: abroad.id })
+    // Seen, but not reachable: contact stays within a chapter.
+    expect(profile).toMatchObject({ id: abroad.id, canMessage: false, canRequestContact: true })
+    expect(await clientAs(await createAdmin()).volunteers.getById({ id: abroad.id })).toMatchObject(
+      { id: abroad.id, canMessage: true },
+    )
   })
 })
 
@@ -139,7 +192,7 @@ describe('volunteers.getById', () => {
     })
   })
 
-  it('reveals a hidden profile only to themselves, admins, or an involving project owner', async () => {
+  it('reveals a hidden profile only to themselves, global admins, or an involving project owner', async () => {
     const hidden = await createVolunteer({ consentMakeProfileVisibleInDirectory: false })
     const stranger = await createVolunteer()
     const owner = await createVolunteer()
@@ -150,13 +203,9 @@ describe('volunteers.getById', () => {
       code: 'NOT_FOUND',
     })
     expect((await clientAs(hidden).volunteers.getById({ id: hidden.id })).id).toBe(hidden.id)
-    expect(
-      (
-        await clientAs(await createVolunteer({ isTechnicalAdmin: true })).volunteers.getById({
-          id: hidden.id,
-        })
-      ).id,
-    ).toBe(hidden.id)
+    expect((await clientAs(await createAdmin()).volunteers.getById({ id: hidden.id })).id).toBe(
+      hidden.id,
+    )
     const project = await createProject({ assigneeId: owner.id })
     await prisma.workItemInterest.create({
       data: { workItemId: project.id, volunteerId: hidden.id, interestType: 'want_to_contribute' },

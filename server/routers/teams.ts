@@ -105,7 +105,7 @@ export const teamsRouter = {
       : []
     const pendingByTeam = new Map(pendingRequests.map((r) => [r.teamId, r.status]))
     const viewerIsAdmin = Boolean(context.volunteer?.isAdmin)
-    const relations = await contactRelations(context.volunteer, leaderIds(teams))
+    const relations = await contactRelations(context.volunteer, context.access, leaderIds(teams))
     return {
       teams: teams.map((t) =>
         serializeTeam(t, relations, viewerId, pendingByTeam.get(t.id) ?? null, viewerIsAdmin),
@@ -146,7 +146,7 @@ export const teamsRouter = {
         : null
       return serializeTeam(
         team,
-        await contactRelations(context.volunteer, leaderIds([team])),
+        await contactRelations(context.volunteer, context.access, leaderIds([team])),
         viewerId,
         pending?.status ?? null,
         Boolean(context.volunteer?.isAdmin),

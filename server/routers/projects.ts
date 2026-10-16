@@ -1459,7 +1459,7 @@ export const projectsRouter = {
         canMessageOwner:
           project.assigneeId !== null &&
           project.assigneeId !== volunteer.id &&
-          (await canReach(volunteer, project.assigneeId)),
+          (await canReach(volunteer, context.access, project.assigneeId)),
         reviewRequests,
       }
     }),
@@ -2588,7 +2588,7 @@ export const projectsRouter = {
         canManage: !locked && manages,
         assignedToName: task.assignee?.name ?? null,
         assigneeContactable:
-          task.assigneeId !== null && (await canReach(volunteer, task.assigneeId)),
+          task.assigneeId !== null && (await canReach(volunteer, context.access, task.assigneeId)),
         createdByName: task.creator?.name ?? null,
         requestedByName: task.requestedBy?.name ?? null,
         featuredAsQuickTask: task.featuredAsQuickTask ?? false,
