@@ -269,7 +269,7 @@ test.describe('Volunteer Profile', () => {
     await expect(volunteer.page.getByLabel('City / area')).not.toBeVisible()
 
     // Save and verify
-    await volunteer.page.getByRole('button', { name: 'Save changes' }).click()
+    await volunteer.page.getByRole('button', { name: 'Save location' }).click()
     await expect(getAlert(volunteer.page)).toContainText('Profile updated!', { timeout: 10_000 })
   })
 

@@ -29,7 +29,7 @@ GitHub issue. An entry here is about the work itself: something in the code
 structure, tooling, tests, docs or diagnostics that made a task slower or more
 confusing than it needed to be, and that will do so again.
 
-## 9x
+## 10x
 
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
       and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
@@ -63,6 +63,10 @@ confusing than it needed to be, and that will do so again.
       past the node project's five-second default under load; that project now allows 20 s. Main's
       first CI run after the merge hit e2e `30`: `transferProjectOwnership` waited for any alert,
       and the approval toast still up on the same page satisfied it before the transfer saved.
+      The settings-page reorganisation hit it a tenth time: three full `check-all` runs in a row
+      each failed one unrelated unit file — `ProjectEditor.test.tsx`, `app/quick-tasks/page.test.tsx`,
+      then `server/routers/quickTasks.test.ts` — each passing alone in under 40 s, before a fourth
+      run went clean.
 
 ## 6x
 

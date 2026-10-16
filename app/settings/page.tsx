@@ -381,6 +381,11 @@ function SettingsPageContent() {
       {updateMutation.isPending ? 'Saving…' : 'Save changes'}
     </Button>
   )
+  const saveLocationButton = (
+    <Button type="submit" disabled={updateMutation.isPending}>
+      {updateMutation.isPending ? 'Saving…' : 'Save location'}
+    </Button>
+  )
 
   return (
     <main className="container py-5 pb-15">
@@ -448,6 +453,7 @@ function SettingsPageContent() {
           className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word max-w-4xl`}
           onSubmit={handleSave}
         >
+          <h3 className="mt-0 mb-4">Details</h3>
           <div className="mb-5">
             <label htmlFor="name" className="required">
               Your name
@@ -533,7 +539,7 @@ function SettingsPageContent() {
             />
           </div>
 
-          <h3 className="mt-6 mb-4">Availability</h3>
+          <h3 className="mt-6 mb-4">Skills &amp; availability</h3>
           <div className="mb-5">
             <label htmlFor="hours">Hours per week</label>
             <input
@@ -545,7 +551,43 @@ function SettingsPageContent() {
               onChange={(e) => setHours(e.target.value)}
             />
           </div>
-          {!me?.country && (
+          <div className="mb-5">
+            <SkillPicker value={skills} onChange={setSkills} />
+          </div>
+          <div className="mb-5">
+            <label htmlFor="other_skills">Other skills</label>
+            <input
+              type="text"
+              id="other_skills"
+              placeholder="Any skills not listed above…"
+              value={otherSkills}
+              onChange={(e) => setOtherSkills(e.target.value)}
+            />
+          </div>
+
+          {saveButton}
+        </form>
+      )}
+
+      {activeTab === 'profile' && (
+        // Its own form: the country, once set, decides the chapter and is changed only by
+        // asking to move, not by this form's submit — ChapterMove's own buttons are plain
+        // buttons so they don't trigger it.
+        <form
+          className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word max-w-4xl`}
+          onSubmit={handleSave}
+        >
+          <h3 className="mt-0 mb-4">Location</h3>
+          {me?.country ? (
+            <div className="mb-5">
+              <span className="block font-semibold mb-1">Country</span>
+              <p className="m-0">
+                {countryLabel(me.country)} ·{' '}
+                {me.chapter ? `${me.chapter.name} chapter` : 'Holding pool'}
+              </p>
+              <ChapterMove country={me.country} />
+            </div>
+          ) : (
             <div className="mb-5">
               <FilterDropdown
                 id="locationCountry"
@@ -582,49 +624,16 @@ function SettingsPageContent() {
               />
             </div>
           )}
+          <p className="text-sm text-text-light mb-4">
+            Don&apos;t see your local group?{' '}
+            <Link href="/suggest-local-group" className="underline">
+              Suggest one
+            </Link>
+            .
+          </p>
 
-          <h3 className="mt-6 mb-4">Your skills</h3>
-          <div className="mb-5">
-            <SkillPicker value={skills} onChange={setSkills} />
-          </div>
-          <div className="mb-5">
-            <label htmlFor="other_skills">Other skills</label>
-            <input
-              type="text"
-              id="other_skills"
-              placeholder="Any skills not listed above…"
-              value={otherSkills}
-              onChange={(e) => setOtherSkills(e.target.value)}
-            />
-          </div>
-
-          {saveButton}
+          {saveLocationButton}
         </form>
-      )}
-
-      {activeTab === 'profile' && me?.country && (
-        // The country decides the chapter, so it is changed by transfer, not edited here —
-        // this sits outside the form above because it saves itself, on its own action.
-        <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word max-w-4xl`}>
-          <h3 className="mt-0">Country &amp; chapter</h3>
-          <p className="m-0">
-            {countryLabel(me.country)} ·{' '}
-            {me.chapter ? `${me.chapter.name} chapter` : 'Holding pool'}
-          </p>
-          <ChapterMove country={me.country} />
-        </div>
-      )}
-
-      {activeTab === 'profile' && (
-        <div className={`${SECTION_CARD} mb-4 border-2 border-brand-border max-w-4xl`}>
-          <h3>Local groups</h3>
-          <p className="text-text-light mb-4">
-            Don&apos;t see your local group listed? Suggest a new one.
-          </p>
-          <Button href="/suggest-local-group" variant="outline">
-            Suggest a local group
-          </Button>
-        </div>
       )}
 
       {activeTab === 'account' && (

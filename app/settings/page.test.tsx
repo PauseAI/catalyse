@@ -34,17 +34,11 @@ describe('settings — profile tab', () => {
     await userEvent.click(screen.getByRole('option', { name: 'Discord' }))
     await userEvent.type(screen.getByLabelText('Contact notes'), 'evenings')
     await userEvent.type(screen.getByLabelText('Hours per week'), '4')
-    await userEvent.click(screen.getByRole('button', { name: 'Select country' }))
-    await userEvent.click(await screen.findByRole('option', { name: 'United Kingdom' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Select local group' }))
-    await userEvent.click(await screen.findByRole('option', { name: 'Settings Town' }))
-    expect(screen.queryByLabelText('City / area')).toBeNull()
     await userEvent.type(screen.getByLabelText('Other skills'), 'juggling')
     await userEvent.click(await screen.findByLabelText(skill.name))
     await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
     await screen.findByText('Profile updated!')
-    const row = await me(vol.id)
-    expect(row).toMatchObject({
+    expect(await me(vol.id)).toMatchObject({
       name: 'Samantha',
       discordHandle: 'sam#1',
       signalNumber: '+1',
@@ -52,14 +46,27 @@ describe('settings — profile tab', () => {
       contactPreference: 'discord',
       contactNotes: 'evenings',
       availabilityHoursPerWeek: 4,
-      country: 'UK',
-      nationalChapterId: town.nationalChapterId,
-      localGroupId: town.id,
       otherSkills: 'juggling',
     })
     expect(
       await prisma.volunteerSkill.count({ where: { volunteerId: vol.id, skillId: skill.id } }),
     ).toBe(1)
+
+    // Location is its own section, saved on its own.
+    await userEvent.click(screen.getByRole('button', { name: 'Select country' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'United Kingdom' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Select local group' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Settings Town' }))
+    expect(screen.queryByLabelText('City / area')).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Save location' }))
+    await waitFor(() => expect(screen.getAllByText('Profile updated!')).toHaveLength(2))
+    await waitFor(async () =>
+      expect(await me(vol.id)).toMatchObject({
+        country: 'UK',
+        nationalChapterId: town.nationalChapterId,
+        localGroupId: town.id,
+      }),
+    )
 
     // "None of these" reveals the city input; a failed save is reported.
     await userEvent.click(screen.getByRole('button', { name: 'Select local group' }))
@@ -71,7 +78,7 @@ describe('settings — profile tab', () => {
     expect(await screen.findByText('United Kingdom · United Kingdom chapter')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Select country' })).toBeNull()
     localStorage.setItem('authToken', 'stale')
-    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save location' }))
     await screen.findByText('Unauthorized')
   })
 
