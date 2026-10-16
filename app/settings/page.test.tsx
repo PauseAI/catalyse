@@ -12,7 +12,7 @@ const me = (id: number) => prisma.volunteer.findUniqueOrThrow({ where: { id } })
 
 describe('settings — profile tab', () => {
   it('loads the profile, edits every field and saves', async () => {
-    await createLocalGroup({ name: 'Settings Town', country: 'UK' })
+    const town = await createLocalGroup({ name: 'Settings Town', country: 'UK' })
     const skill = await createSkill()
     const vol = await createVolunteer({
       name: 'Sam Settings',
@@ -53,7 +53,8 @@ describe('settings — profile tab', () => {
       contactNotes: 'evenings',
       availabilityHoursPerWeek: 4,
       country: 'UK',
-      localGroup: 'Settings Town',
+      nationalChapterId: town.nationalChapterId,
+      localGroupId: town.id,
       otherSkills: 'juggling',
     })
     expect(
@@ -66,9 +67,9 @@ describe('settings — profile tab', () => {
       await screen.findByRole('option', { name: "None of these, I'll enter my city" }),
     )
     await userEvent.type(screen.getByLabelText('City / area'), 'Leeds')
-    await userEvent.click(screen.getByRole('button', { name: 'Select country' }))
-    await userEvent.click(await screen.findByRole('option', { name: 'Serbia' }))
-    expect(screen.getByLabelText('City / area')).toBeInTheDocument()
+    // Once given, the country is no longer edited here: it decides the chapter.
+    expect(await screen.findByText('United Kingdom · United Kingdom chapter')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Select country' })).toBeNull()
     localStorage.setItem('authToken', 'stale')
     await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
     await screen.findByText('Unauthorized')

@@ -6,7 +6,6 @@ import Modal from '@/components/ui/Modal'
 import Button from '@/components/Button'
 import FilterDropdown from '@/components/FilterDropdown'
 import {
-  BASE_LOCATION_OPTIONS,
   COUNTRY_OPTIONS,
   NO_LOCAL_GROUP,
   buildLocalGroupOptionsForCountry,
@@ -24,8 +23,8 @@ export default function ConfirmLocationModal() {
   const [localGroupValue, setLocalGroupValue] = useState(user?.localGroup ?? '')
   const [initialized, setInitialized] = useState(false)
 
-  const hasValidCountry =
-    !!user?.country && BASE_LOCATION_OPTIONS.some((o) => o.value === user.country)
+  // A country once given decides the chapter, so only someone without one picks it here.
+  const hasValidCountry = !!user?.country
   const effectiveCountry = hasValidCountry ? user!.country! : countryValue
 
   const { data: localGroupsData } = useQuery({

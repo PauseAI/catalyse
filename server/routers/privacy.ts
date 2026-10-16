@@ -10,6 +10,7 @@ export const privacyRouter = {
       prisma.volunteer.findUnique({
         where: { id: context.volunteer.id },
         include: {
+          group: { select: { name: true } },
           skills: { include: { skill: { include: { category: true } } } },
         },
       }),

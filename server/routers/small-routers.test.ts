@@ -11,6 +11,7 @@ import {
   createTask,
   chapterFor,
   createMember,
+  createChapter,
 } from '@/test/factories'
 import { clientAs, anon } from '@/test/rpc'
 
@@ -33,6 +34,17 @@ describe('admin.platformSettings', () => {
     expect(await c.admin.platformSettings.get()).toEqual({
       requireApplicationApproval: false,
       maintenanceMode: false,
+    })
+  })
+})
+
+describe('chapters.list', () => {
+  it('lists the countries with a chapter, to anyone', async () => {
+    const chapter = await createChapter()
+    expect(await anon().chapters.list()).toContainEqual({
+      id: chapter.id,
+      country: chapter.country,
+      name: chapter.name,
     })
   })
 })

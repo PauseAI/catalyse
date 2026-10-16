@@ -47,9 +47,11 @@ export function buildLocalGroupOptionsForCountry(
   ]
 }
 
+/** The countries a person can say they live in. */
 export const COUNTRY_OPTIONS: FilterOption[] = [
   { value: '', label: 'Select…' },
-  ...BASE_LOCATION_OPTIONS.filter((o) => o.value !== '' && !o.indent),
+  ...COUNTRIES,
+  { value: OTHER_COUNTRY, label: 'Other' },
 ]
 
 // Stored country values are short codes/names (e.g. "UK"); this resolves the

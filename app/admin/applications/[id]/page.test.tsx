@@ -4,7 +4,7 @@ import { screen, waitFor, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import { APPLICATION_ANONYMISATION_MS } from '@/lib/applications'
-import { createVolunteer, createSuperAdmin, createSkill } from '@/test/factories'
+import { createLocalGroup, createVolunteer, createSuperAdmin, createSkill } from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { navigation } from '@/test/next-navigation'
 import ApplicationReviewPage from './page'
@@ -21,7 +21,7 @@ describe('application review', () => {
       name: 'Full Applicant',
       approvalStatus: 'under_review',
       reviewerId: sa.id,
-      localGroup: 'Bristol',
+      localGroupId: (await createLocalGroup({ name: 'Bristol' })).id,
       country: 'UK',
       bio: 'Full bio',
       availabilityHoursPerWeek: 3,

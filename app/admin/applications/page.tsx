@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRequireSuperAdmin } from '@/lib/hooks/auth'
+import { useRequireStaff } from '@/lib/hooks/auth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import Button from '@/components/Button'
@@ -35,13 +35,13 @@ const SECTIONS: { key: Filter; label: string; color: string; collapsedByDefault?
 
 export default function ApplicationsPage() {
   const router = useRouter()
-  const { user, loading } = useRequireSuperAdmin()
+  const { user, loading } = useRequireStaff()
   const showToast = useToast()
   const [startingReview, setStartingReview] = useState<number | null>(null)
   const [approvedOpen, setApprovedOpen] = useState(false)
   const [anonymisedOpen, setAnonymisedOpen] = useState(false)
 
-  const enabled = !!user?.isAdmin
+  const enabled = !!user
 
   const mine = useQuery({
     ...orpc.admin.applications.list.queryOptions({ input: { filter: 'mine' } }),

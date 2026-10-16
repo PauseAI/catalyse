@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
+import { groupIn, placement } from '@/lib/chapter-placement'
 import { redactVolunteer } from '@/lib/auth'
 import { UpdateVolunteerSchema } from '@/lib/schemas'
 import { projectScopeWhere } from '@/lib/work-item'
@@ -52,7 +53,7 @@ export const volunteersRouter = {
       if (input.localGroup) {
         const like = `%${input.localGroup}%`
         textConditions.push(
-          Prisma.sql`(local_group = ${input.localGroup} OR (local_group IS NULL AND public.unaccent(COALESCE(location, '')) ILIKE public.unaccent(${like})))`,
+          Prisma.sql`(local_group_id IN (SELECT id FROM local_groups WHERE name = ${input.localGroup}) OR (local_group_id IS NULL AND public.unaccent(COALESCE(location, '')) ILIKE public.unaccent(${like})))`,
         )
       }
       const matchingIds = textConditions.length
@@ -84,7 +85,7 @@ export const volunteersRouter = {
             location: true,
             country: true,
             otherSkills: true,
-            localGroup: true,
+            group: { select: { name: true } },
             createdAt: true,
             lastActiveAt: true,
             consentMakeProfileVisibleInDirectory: true,
@@ -119,7 +120,7 @@ export const volunteersRouter = {
           location: v.location,
           country: v.country,
           otherSkills: v.otherSkills,
-          localGroup: v.localGroup,
+          localGroup: v.group?.name ?? null,
           createdAt: v.createdAt,
           hiddenFromDirectory: isAdmin ? !v.consentMakeProfileVisibleInDirectory : false,
           skills: v.skills.map((vs) => ({
@@ -146,6 +147,7 @@ export const volunteersRouter = {
       const vol = await prisma.volunteer.findFirst({
         where: { id: input.id, deletedAt: null },
         include: {
+          group: { select: { name: true } },
           skills: {
             include: { skill: { include: { category: true } } },
             orderBy: [
@@ -349,8 +351,6 @@ export const volunteersRouter = {
       'contactNotes',
       'availabilityHoursPerWeek',
       'location',
-      'country',
-      'localGroup',
       'otherSkills',
       'emailDigest',
       'emailMutedCategories',
@@ -364,11 +364,21 @@ export const volunteersRouter = {
       }
     }
 
-    if (
-      Object.prototype.hasOwnProperty.call(input, 'location') ||
-      Object.prototype.hasOwnProperty.call(input, 'country') ||
-      Object.prototype.hasOwnProperty.call(input, 'localGroup')
-    ) {
+    // Country decides chapter, so changing it is a transfer request. Only someone who never
+    // gave one (an account from before signup asked) names it here, as signup would.
+    const hasCountry = Object.prototype.hasOwnProperty.call(input, 'country')
+    const hasLocalGroup = Object.prototype.hasOwnProperty.call(input, 'localGroup')
+    if (hasCountry && input.country && input.country !== volunteer.country) {
+      if (volunteer.country || volunteer.nationalChapterId !== null) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: 'To move to another country, ask to transfer chapter from your settings',
+        })
+      }
+      Object.assign(data, await placement(input.country, input.localGroup))
+    } else if (hasLocalGroup) {
+      Object.assign(data, await groupIn(volunteer.nationalChapterId, input.localGroup))
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'location') || hasCountry || hasLocalGroup) {
       data.locationConfirmedAt = new Date()
     }
 
@@ -395,6 +405,7 @@ export const volunteersRouter = {
         where: { id: volunteer.id },
         data,
         include: {
+          group: { select: { name: true } },
           skills: {
             include: { skill: { include: { category: true } } },
             orderBy: [
@@ -418,6 +429,7 @@ export const volunteersRouter = {
         const fresh = await tx.volunteer.findUnique({
           where: { id: volunteer.id },
           include: {
+            group: { select: { name: true } },
             skills: {
               include: { skill: { include: { category: true } } },
               orderBy: [

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { DragEndEvent } from '@dnd-kit/core'
 import { prisma } from '@/lib/prisma'
 import {
+  createLocalGroup,
   connect,
   createVolunteer,
   createAdmin,
@@ -1351,7 +1352,7 @@ describe('project page — admin', () => {
     const proposer = await createVolunteer({ name: 'Pat Proposer' })
     const newOwner = await createVolunteer({
       name: 'Nina New',
-      localGroup: 'Oslo',
+      localGroupId: (await createLocalGroup({ name: 'Oslo', country: 'Norway' })).id,
       country: 'Norway',
     })
     const otherOwner = await createVolunteer({ name: 'Oli Other' })

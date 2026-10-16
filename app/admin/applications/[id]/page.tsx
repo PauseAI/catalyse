@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRequireSuperAdmin } from '@/lib/hooks/auth'
+import { useRequireStaff } from '@/lib/hooks/auth'
 import { useParams, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
@@ -15,7 +15,7 @@ import { ApprovalStatus } from '@/generated/prisma/enums'
 export default function ApplicationReviewPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { user, loading } = useRequireSuperAdmin()
+  const { user, loading } = useRequireStaff()
   const showToast = useToast()
   const queryClient = useQueryClient()
 
@@ -28,7 +28,7 @@ export default function ApplicationReviewPage() {
 
   const { data: app, isPending: loadingData } = useQuery({
     ...orpc.admin.applications.getById.queryOptions({ input: { id: Number(id) } }),
-    enabled: !!user?.isSuperAdmin,
+    enabled: !!user,
   })
 
   useEffect(() => {

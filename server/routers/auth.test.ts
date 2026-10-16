@@ -9,6 +9,9 @@ import {
   createSkill,
   TEST_PASSWORD,
   createStaffInvite,
+  createChapter,
+  createChapterDeputy,
+  createLocalGroup,
 } from '@/test/factories'
 import { clientAs, anon } from '@/test/rpc'
 import { rateLimit } from '@/test/fakes/rate-limit'
@@ -201,9 +204,9 @@ describe('auth.signup', () => {
         requiresPasswordReset: true,
       })
       expect(await prisma.volunteer.findUniqueOrThrow({ where: { id: res.id } })).toMatchObject({
-        // The listed address becomes a global admin; the invitee, the chapter's deputy.
+        // The listed address becomes a global admin; the invitee joins the inviting chapter.
         isAdmin: address === 'admin6@example.com',
-        nationalChapterId: address === 'admin6@example.com' ? null : invite.nationalChapterId,
+        ...(address === 'inv@example.com' && { nationalChapterId: invite.nationalChapterId }),
         approvalStatus: 'approved',
         emailConfirmed: true,
       })
@@ -245,6 +248,64 @@ describe('auth.signup', () => {
       expect(error).toHaveBeenCalledWith('[SIGNUP NOTIFY]', expect.any(Error))
     })
     vi.restoreAllMocks()
+  })
+})
+
+describe('auth.signup placement', () => {
+  it("places a new volunteer in their country's chapter, with its group, and tells its staff", async () => {
+    const chapter = await createChapter()
+    const deputy = await createChapterDeputy(chapter)
+    const admin = await createAdmin()
+    const group = await createLocalGroup({
+      country: chapter.country,
+      nationalChapterId: chapter.id,
+    })
+    const res = await anon().auth.signup(
+      signupInput('placed@example.com', { country: chapter.country, localGroup: group.name }),
+    )
+    expect(await prisma.volunteer.findUniqueOrThrow({ where: { id: res.id } })).toMatchObject({
+      country: chapter.country,
+      nationalChapterId: chapter.id,
+      localGroupId: group.id,
+    })
+    const alerted = (id: number) =>
+      prisma.notification.count({ where: { volunteerId: id, type: 'new_volunteer_signup' } })
+    expect(await alerted(deputy.id)).toBe(1)
+    expect(await alerted(admin.id)).toBe(0)
+  })
+
+  it('puts someone from a country without a chapter, or Other, in the holding pool', async () => {
+    const admin = await createAdmin()
+    for (const [email, country] of [
+      ['ghana@example.com', 'Ghana'],
+      ['other@example.com', 'Other'],
+    ]) {
+      const res = await anon().auth.signup(signupInput(email, { country }))
+      expect(await prisma.volunteer.findUniqueOrThrow({ where: { id: res.id } })).toMatchObject({
+        country,
+        nationalChapterId: null,
+      })
+    }
+    expect(
+      await prisma.notification.count({
+        where: { volunteerId: admin.id, type: 'new_volunteer_signup' },
+      }),
+    ).toBe(2)
+  })
+
+  it('refuses a country off the list, or a local group from elsewhere', async () => {
+    await expect(
+      anon().auth.signup(signupInput('atlantis@example.com', { country: 'Atlantis' })),
+    ).rejects.toMatchObject({ message: 'Choose your country from the list' })
+    const elsewhere = await createLocalGroup({ country: 'Germany' })
+    await expect(
+      anon().auth.signup(signupInput('mixed@example.com', { localGroup: elsewhere.name })),
+    ).rejects.toMatchObject({ message: "Choose one of your country's local groups" })
+    await expect(
+      anon().auth.signup(
+        signupInput('pooled@example.com', { country: 'Ghana', localGroup: elsewhere.name }),
+      ),
+    ).rejects.toMatchObject({ message: "Choose one of your country's local groups" })
   })
 })
 

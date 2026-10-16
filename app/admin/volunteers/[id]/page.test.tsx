@@ -3,6 +3,7 @@ import { screen, waitFor, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import {
+  createLocalGroup,
   createAdmin,
   createVolunteer,
   createProject,
@@ -24,7 +25,7 @@ describe('admin volunteer detail', () => {
       name: 'Detailed Vol',
       bio: 'Life story',
       location: 'Leeds',
-      localGroup: 'Leeds North',
+      localGroupId: (await createLocalGroup({ name: 'Leeds North' })).id,
       availabilityHoursPerWeek: 4,
       discordHandle: 'dv#1',
       signalNumber: '+445',

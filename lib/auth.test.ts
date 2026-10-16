@@ -127,8 +127,12 @@ describe('getCurrentVolunteer and the global admin flag', () => {
 
 describe('redactVolunteer', () => {
   it('hides contact fields unless showContact, and reports super-admin status', async () => {
-    const vol = await createVolunteer({ email: 'admin@example.com', discordHandle: 'd' })
+    const vol = {
+      ...(await createVolunteer({ email: 'admin@example.com', discordHandle: 'd' })),
+      group: { name: 'Leeds' },
+    }
     const hidden = redactVolunteer(vol)
+    expect(hidden.localGroup).toBe('Leeds')
     expect(hidden.email).toBeUndefined()
     expect(hidden.discordHandle).toBeUndefined()
     expect(hidden.isSuperAdmin).toBe(true)
@@ -144,7 +148,7 @@ describe('redactVolunteer', () => {
 describe('isSuperAdmin', () => {
   it('refuses an admin whose listed address is unconfirmed', async () => {
     const squatter = await createAdmin({ email: 'admin18@example.com', emailConfirmed: false })
-    expect(redactVolunteer(squatter).isSuperAdmin).toBe(false)
+    expect(redactVolunteer({ ...squatter, group: null }).isSuperAdmin).toBe(false)
   })
 
   it('isSuperAdmin is case-insensitive, false for empty and false until confirmed', () => {

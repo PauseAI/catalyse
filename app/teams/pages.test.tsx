@@ -171,8 +171,8 @@ describe('team detail', () => {
 
 describe('local group adoption', () => {
   it('sets the group as mine, or declines; handles unknown groups', async () => {
-    const me = await createVolunteer()
     const group = await createLocalGroup({ name: 'Adopt Town', country: 'UK' })
+    const me = await createVolunteer({ country: 'UK', nationalChapterId: group.nationalChapterId })
     await renderApp(<LocalGroupAdoptPage params={Promise.resolve({ id: String(group.id) })} />, {
       as: me,
     })
@@ -182,7 +182,7 @@ describe('local group adoption', () => {
     await screen.findByText('Local group updated!')
     await waitFor(() => expect(navigation.push).toHaveBeenCalledWith('/settings'))
     expect(await prisma.volunteer.findUniqueOrThrow({ where: { id: me.id } })).toMatchObject({
-      localGroup: 'Adopt Town',
+      localGroupId: group.id,
       country: 'UK',
     })
     cleanup()
@@ -194,8 +194,8 @@ describe('local group adoption', () => {
   })
 
   it('reports a failed update', async () => {
-    const me = await createVolunteer()
     const group = await createLocalGroup({ name: 'Fail Town', country: 'UK' })
+    const me = await createVolunteer({ country: 'UK', nationalChapterId: group.nationalChapterId })
     await renderApp(<LocalGroupAdoptPage params={Promise.resolve({ id: String(group.id) })} />, {
       as: me,
     })

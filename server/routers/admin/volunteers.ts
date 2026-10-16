@@ -24,6 +24,7 @@ export const adminVolunteersRouter = {
     const vol = await prisma.volunteer.findUnique({
       where: { id: input.id },
       include: {
+        group: { select: { name: true } },
         skills: {
           include: { skill: { include: { category: true } } },
           orderBy: [{ skill: { category: { sortOrder: 'asc' } } }, { skill: { sortOrder: 'asc' } }],

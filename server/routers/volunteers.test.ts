@@ -7,6 +7,8 @@ import {
   createTask,
   createQuickTask,
   createSkill,
+  createLocalGroup,
+  createChapter,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 
@@ -16,9 +18,9 @@ describe('volunteers.list', () => {
     const skill = await createSkill()
     const ann = await createVolunteer({
       name: 'Ann Searchable',
+      localGroupId: (await createLocalGroup({ name: 'Lambeth North' })).id,
       bio: 'x',
       country: 'UK',
-      localGroup: 'London',
       skills: { create: [{ skillId: skill.id }] },
     })
     const bob = await createVolunteer({
@@ -42,7 +44,7 @@ describe('volunteers.list', () => {
     expect((await names({ search: 'Searchable' })).sort()).toEqual(['Ann Searchable', 'Bob'])
     expect(await names({ country: 'UK' })).toEqual(['Ann Searchable'])
     expect(await names({ country: 'France' })).toEqual(['Bob'])
-    expect(await names({ localGroup: 'London' })).toEqual(['Ann Searchable'])
+    expect(await names({ localGroup: 'Lambeth North' })).toEqual(['Ann Searchable'])
     expect(await names({ localGroup: 'Paris' })).toEqual(['Bob'])
     expect((await c.volunteers.list({ limit: 1, offset: 1 })).volunteers).toHaveLength(1)
     expect(
@@ -189,6 +191,36 @@ describe('application procedures', () => {
     await expect(clientAs(approved).volunteers.resubmitApplication()).rejects.toMatchObject({
       message: 'Cannot resubmit a approved application',
     })
+  })
+})
+
+describe('volunteers.updateMe and chapters', () => {
+  it('lets someone with no country name one, but changes of country go by transfer', async () => {
+    const chapter = await createChapter()
+    const group = await createLocalGroup({
+      country: chapter.country,
+      nationalChapterId: chapter.id,
+    })
+    const fresh = await createVolunteer({ country: null })
+    const out = await clientAs(fresh).volunteers.updateMe({
+      country: chapter.country,
+      localGroup: group.name,
+    })
+    expect(out).toMatchObject({ country: chapter.country, localGroup: group.name })
+    const placed = await prisma.volunteer.findUniqueOrThrow({ where: { id: fresh.id } })
+    expect(placed).toMatchObject({ nationalChapterId: chapter.id, localGroupId: group.id })
+
+    // Sending the same country again is harmless; a different one is refused.
+    expect(
+      await clientAs(placed).volunteers.updateMe({ country: chapter.country, localGroup: null }),
+    ).toMatchObject({ localGroup: null })
+    await expect(clientAs(placed).volunteers.updateMe({ country: 'Ghana' })).rejects.toMatchObject({
+      message: expect.stringContaining('transfer'),
+    })
+    const other = await createLocalGroup({ country: 'Kenya' })
+    await expect(
+      clientAs(placed).volunteers.updateMe({ localGroup: other.name }),
+    ).rejects.toMatchObject({ message: "Choose one of your country's local groups" })
   })
 })
 

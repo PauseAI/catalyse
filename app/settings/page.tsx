@@ -26,6 +26,7 @@ import {
   COUNTRY_OPTIONS,
   NO_LOCAL_GROUP,
   buildLocalGroupOptionsForCountry,
+  countryLabel,
   type LocalGroupOption,
 } from '@/lib/filter-options'
 
@@ -546,17 +547,28 @@ function SettingsPageContent() {
               onChange={(e) => setHours(e.target.value)}
             />
           </div>
-          <div className="mb-5">
-            <FilterDropdown
-              id="locationCountry"
-              label="Country"
-              ariaLabel="Select country"
-              value={countryValue}
-              options={COUNTRY_OPTIONS}
-              onChange={handleCountryChange}
-              searchable
-            />
-          </div>
+          {me?.country ? (
+            // The country decides the chapter, so it is changed by transfer, not edited here.
+            <div className="mb-5">
+              <span className="block font-semibold mb-1">Country</span>
+              <p className="m-0">
+                {countryLabel(me.country)} ·{' '}
+                {me.chapter ? `${me.chapter.name} chapter` : 'Holding pool'}
+              </p>
+            </div>
+          ) : (
+            <div className="mb-5">
+              <FilterDropdown
+                id="locationCountry"
+                label="Country"
+                ariaLabel="Select country"
+                value={countryValue}
+                options={COUNTRY_OPTIONS}
+                onChange={handleCountryChange}
+                searchable
+              />
+            </div>
+          )}
           {countryValue && hasLocalGroups && (
             <div className="mb-5">
               <FilterDropdown

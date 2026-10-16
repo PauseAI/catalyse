@@ -27,7 +27,8 @@ import {
 } from '@/lib/email'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { verifyGoogleToken } from '@/lib/google-auth'
-import { notifyAdmins } from '@/lib/notify'
+import { notifyChapterStaff } from '@/lib/notify'
+import { placement } from '@/lib/chapter-placement'
 import {
   SignupSchema,
   CompleteGoogleSignupSchema,
@@ -292,6 +293,7 @@ export const authRouter = {
       })
     }
 
+    const placed = await placement(input.country, input.localGroup)
     const volunteer = await prisma.volunteer.create({
       data: {
         name: input.name,
@@ -306,8 +308,7 @@ export const authRouter = {
         contactNotes: input.contactNotes ?? null,
         availabilityHoursPerWeek: input.availabilityHoursPerWeek ?? null,
         location: input.location ?? null,
-        country: input.country ?? null,
-        localGroup: input.localGroup ?? null,
+        ...placed,
         locationConfirmedAt: new Date(),
         otherSkills: input.otherSkills ?? null,
         consentMakeProfileVisibleInDirectory: input.consentMakeProfileVisibleInDirectory ?? true,
@@ -355,7 +356,8 @@ export const authRouter = {
     const isApproved = !platformSettings.requireApplicationApproval
     if (!isApproved) {
       // Awaited so an approval that follows at once finds the row to clear.
-      await notifyAdmins(
+      await notifyChapterStaff(
+        volunteer.nationalChapterId,
         'new_volunteer_signup',
         'New volunteer application',
         `${volunteer.name} has applied to join Catalyse`,
@@ -400,6 +402,7 @@ export const authRouter = {
         },
         skillEndorsementsReceived: { include: { skill: true } },
         chapter: { select: { id: true, name: true, country: true } },
+        group: { select: { name: true } },
       },
     })
     if (!vol) throw new ORPCError('NOT_FOUND')
@@ -889,6 +892,7 @@ export const authRouter = {
         })
       }
 
+      const placed = await placement(input.country, input.localGroup)
       const volunteer = await prisma.volunteer.create({
         data: {
           name,
@@ -903,8 +907,7 @@ export const authRouter = {
           contactNotes: input.contactNotes ?? null,
           availabilityHoursPerWeek: input.availabilityHoursPerWeek,
           location: input.location ?? null,
-          country: input.country,
-          localGroup: input.localGroup ?? null,
+          ...placed,
           locationConfirmedAt: new Date(),
           otherSkills: input.otherSkills ?? null,
           consentMakeProfileVisibleInDirectory: input.consentMakeProfileVisibleInDirectory ?? true,

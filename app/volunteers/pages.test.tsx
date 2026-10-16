@@ -21,13 +21,13 @@ describe('volunteer directory', () => {
   it('lists, filters, pages and clears', async () => {
     const skill = await createSkill()
     const extra = await Promise.all(Array.from({ length: 6 }, () => createSkill()))
-    await createLocalGroup({ name: 'Dir Town', country: 'UK' })
+    const dirTown = await createLocalGroup({ name: 'Dir Town', country: 'UK' })
     const me = await createVolunteer()
     const ann = await createVolunteer({
       name: 'Ann Directory',
       bio: 'x'.repeat(120),
       country: 'UK',
-      localGroup: 'Dir Town',
+      localGroupId: dirTown.id,
       availabilityHoursPerWeek: 4,
       skills: { create: [skill, ...extra].map((s) => ({ skillId: s.id })) },
     })
@@ -83,7 +83,7 @@ describe('volunteer profile', () => {
       name: 'Profiled',
       email: 'profiled@example.org',
       location: 'Leeds',
-      localGroup: 'North',
+      localGroupId: (await createLocalGroup({ name: 'North' })).id,
       otherSkills: 'juggling',
       availabilityHoursPerWeek: 3,
       discordHandle: 'd#1',
