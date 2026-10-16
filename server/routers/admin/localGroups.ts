@@ -60,7 +60,8 @@ const NOTIFICATION_TITLES: Record<string, (name: string) => string> = {
 export const adminLocalGroupsRouter = {
   list: staffProcedure.handler(async ({ context }) => {
     const groups = await prisma.localGroup.findMany({
-      where: { nationalChapterId: chapterFilter(context.access) },
+      // A global admin sees every chapter's (undefined); staff always have a chapter.
+      where: { nationalChapterId: chapterFilter(context.access) ?? undefined },
       orderBy: [{ country: 'asc' }, { name: 'asc' }],
     })
     return { groups }

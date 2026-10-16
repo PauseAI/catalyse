@@ -46,12 +46,6 @@ enum TemplateSourceType {
   QUICK_TASK
 }
 
-enum RemoteEligibility {
-  NONE
-  COUNTRY
-  GLOBAL
-}
-
 /// Where a project or quick task happens, always within its chapter's country.
 enum ProjectReach {
   COUNTRY_WIDE
@@ -522,23 +516,20 @@ model WorkItem {
   // and inactivity clocks count from here rather than from `startedAt`.
   claimedAt            DateTime?  @map("claimed_at")
 
-  country           String?
-  localGroup        String?           @map("local_group")
-  remoteEligibility RemoteEligibility @default(NONE) @map("remote_eligibility")
   // Optional standing team this PROJECT belongs to (Team is orthogonal to LocalGroup —
   // see Team model). Nullable, TASK/QUICK_TASK don't use it.
-  teamId            Int?              @map("team_id")
+  teamId            Int?         @map("team_id")
   // Set only on a PROJECT created by instantiating a Template. Distinct from isOrgProposed:
   // gates the self-publish-without-triage path in publishDraft and the separate
   // MAX_TEMPLATE_DRAFTS cap, rather than the general volunteer draft pool.
-  templateOriginId  Int?              @map("template_origin_id")
+  templateOriginId  Int?         @map("template_origin_id")
   // PROJECT and QUICK_TASK belong to a chapter (null: the holding pool); a TASK follows its
   // parent. `localGroupId` is set only when `reach` is LOCAL.
-  nationalChapterId Int?              @map("national_chapter_id")
-  reach             ProjectReach      @default(COUNTRY_WIDE)
-  localGroupId      Int?              @map("local_group_id")
-  createdAt         DateTime?         @default(now()) @map("created_at")
-  updatedAt         DateTime?         @default(now()) @map("updated_at")
+  nationalChapterId Int?         @map("national_chapter_id")
+  reach             ProjectReach @default(COUNTRY_WIDE)
+  localGroupId      Int?         @map("local_group_id")
+  createdAt         DateTime?    @default(now()) @map("created_at")
+  updatedAt         DateTime?    @default(now()) @map("updated_at")
 
   creator              Volunteer?             @relation("WorkItemCreator", fields: [creatorId], references: [id], onUpdate: NoAction)
   templateOrigin       Template?              @relation("WorkItemTemplateOrigin", fields: [templateOriginId], references: [id], onDelete: SetNull, onUpdate: NoAction)
@@ -572,8 +563,6 @@ model WorkItem {
   @@index([creatorId], map: "idx_work_items_creator")
   @@index([assigneeId], map: "idx_work_items_assignee")
   @@index([skillId], map: "idx_work_items_skill")
-  @@index([localGroup], map: "idx_work_items_local_group")
-  @@index([country], map: "idx_work_items_country")
   @@index([teamId], map: "idx_work_items_team")
   @@index([templateOriginId], map: "idx_work_items_template_origin")
   @@index([nationalChapterId], map: "idx_work_items_chapter")
@@ -755,10 +744,10 @@ model LocalGroup {
   id                Int                    @id @default(autoincrement())
   /// @zod.string.min(1, { message: "Group name is required" })
   name              String
-  /// @zod.string.min(1, { message: "Country is required" })
+  /// Its chapter's country.
   country           String
-  nationalChapterId Int?                   @map("national_chapter_id")
-  chapter           NationalChapter?       @relation(fields: [nationalChapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  nationalChapterId Int                    @map("national_chapter_id")
+  chapter           NationalChapter        @relation(fields: [nationalChapterId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   suggestions       LocalGroupSuggestion[]
   members           Volunteer[]
   workItems         WorkItem[]
@@ -1076,8 +1065,6 @@ model Volunteer {
   emailMutedCategories                    String[]                 @default([]) @map("email_muted_categories")
   /// How the daily summary of reminders and project activity reaches this person.
   dailySummary                            DailySummaryPreference   @default(email_and_in_app) @map("daily_summary")
-  notifyRemoteProjects                    Boolean                  @default(false) @map("notify_remote_projects")
-  localGroup                              String?                  @map("local_group")
   /// Set from `country`; null is the holding pool. Changing it is a transfer (ChapterTransferRequest).
   nationalChapterId                       Int?                     @map("national_chapter_id")
   localGroupId                            Int?                     @map("local_group_id")
@@ -1142,7 +1129,6 @@ model Volunteer {
   templatesCreated                        Template[]               @relation("TemplateCreatedBy")
   sessions                                Session[]
 
-  @@index([localGroup], map: "idx_volunteers_local_group")
   @@index([country], map: "idx_volunteers_country")
   @@index([nationalChapterId], map: "idx_volunteers_chapter")
   @@index([deletedAt], map: "idx_volunteers_deleted")

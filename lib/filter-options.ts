@@ -1,37 +1,10 @@
 import { InferRouterOutputs } from '@orpc/server'
 import { FilterOption } from '@/components/FilterDropdown'
 import { AppRouter } from '@/server/router'
-import { COUNTRIES, OTHER_COUNTRY } from './countries'
+import { COUNTRIES, OTHER_COUNTRY, countryName } from './countries'
 
 export type LocalGroupOption =
   InferRouterOutputs<AppRouter>['localGroups']['list']['groups'][number]
-
-export const BASE_LOCATION_OPTIONS: FilterOption[] = [
-  { value: '', label: 'Any country' },
-  { value: 'Remote', label: 'Remote' },
-  ...COUNTRIES,
-  { value: OTHER_COUNTRY, label: 'Other' },
-]
-
-export function buildLocationOptions(
-  groups: Pick<LocalGroupOption, 'name' | 'country'>[],
-): FilterOption[] {
-  const result: FilterOption[] = []
-  for (const option of BASE_LOCATION_OPTIONS) {
-    result.push(option)
-    if (!option.indent && option.value) {
-      const countryGroups = groups.filter((g) => g.country === option.value)
-      for (const g of countryGroups) {
-        result.push({
-          value: `${option.value}:${g.name}`,
-          label: `${option.label} - ${g.name}`,
-          indent: true,
-        })
-      }
-    }
-  }
-  return result
-}
 
 export const NO_LOCAL_GROUP = '__none__'
 
@@ -54,12 +27,11 @@ export const COUNTRY_OPTIONS: FilterOption[] = [
   { value: OTHER_COUNTRY, label: 'Other' },
 ]
 
-// Stored country values are short codes/names (e.g. "UK"); this resolves the
-// display label (e.g. "United Kingdom") so raw values are never shown in the UI.
-// Falls back to the raw value for anything not in BASE_LOCATION_OPTIONS.
+// Stored country values are short codes/names (e.g. "UK"); this resolves the display label
+// (e.g. "United Kingdom") so raw values are never shown in the UI. Falls back to the raw value
+// for anything not listed.
 export function countryLabel(value: string | null | undefined): string {
-  if (!value) return ''
-  return BASE_LOCATION_OPTIONS.find((o) => o.value === value)?.label ?? value
+  return value ? countryName(value) : ''
 }
 
 /**

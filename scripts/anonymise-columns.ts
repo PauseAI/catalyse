@@ -92,7 +92,6 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
     password_hash: 'custom',
     country: 'keep',
     email_digest: 'keep',
-    local_group: 'custom',
     application_message: 'redact',
     application_admin_notes: 'redact',
     application_applicant_notes: 'redact',
@@ -118,7 +117,5 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
     collaboration_link: 'keep',
     outcome: 'keep',
     outcome_notes: 'redact',
-    country: 'keep',
-    local_group: 'keep',
   },
 }
