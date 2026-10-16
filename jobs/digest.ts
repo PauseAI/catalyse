@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma'
 import { sendDigestEmail, isEmailConfigured } from '@/lib/email'
-import { isGeoEligible } from '@/lib/matching'
 import { WorkItemType } from '@/generated/prisma/enums'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -28,7 +27,9 @@ export async function runDigestJob(): Promise<Record<string, unknown>> {
   const rawProjects = await prisma.workItem.findMany({
     where: {
       type: WorkItemType.PROJECT,
-      status: { notIn: ['archived', 'pending_review', 'needs_discussion'] },
+      status: { notIn: ['draft', 'archived', 'pending_review', 'needs_discussion'] },
+      // A team's projects are its own, and not advertised.
+      teamId: null,
       createdAt: { gte: cutoff },
     },
     orderBy: { createdAt: 'desc' },
@@ -46,8 +47,7 @@ export async function runDigestJob(): Promise<Record<string, unknown>> {
     description: p.description ?? '',
     skill_names: p.skills.map((ps) => ps.skill.name),
     requiredSkillIds: new Set(p.skills.filter((ps) => ps.isRequired).map((ps) => ps.skillId)),
-    country: p.country,
-    remoteEligibility: p.remoteEligibility,
+    nationalChapterId: p.nationalChapterId,
   }))
 
   const volunteers = await prisma.volunteer.findMany({
@@ -58,21 +58,18 @@ export async function runDigestJob(): Promise<Record<string, unknown>> {
   let digestSent = 0
   for (const vol of volunteers) {
     const volSkillIds = new Set(vol.skills.map((vs) => vs.skillId))
-    const eligible = projectList.filter((p) =>
-      isGeoEligible(vol.country, vol.notifyRemoteProjects, p.country, p.remoteEligibility),
-    )
+    // A project is news only within its own chapter.
+    const eligible = projectList.filter((p) => p.nationalChapterId === vol.nationalChapterId)
     if (!eligible.length) continue
 
-    const enriched = eligible.map(
-      ({ requiredSkillIds, country: _country, remoteEligibility: _remoteEligibility, ...rest }) => {
-        let match_percent: number | undefined
-        if (volSkillIds.size && requiredSkillIds.size) {
-          const matched = [...requiredSkillIds].filter((id) => volSkillIds.has(id)).length
-          match_percent = Math.round((matched / requiredSkillIds.size) * 100)
-        }
-        return { ...rest, match_percent }
-      },
-    )
+    const enriched = eligible.map(({ requiredSkillIds, nationalChapterId: _chapter, ...rest }) => {
+      let match_percent: number | undefined
+      if (volSkillIds.size && requiredSkillIds.size) {
+        const matched = [...requiredSkillIds].filter((id) => volSkillIds.has(id)).length
+        match_percent = Math.round((matched / requiredSkillIds.size) * 100)
+      }
+      return { ...rest, match_percent }
+    })
     enriched.sort((a, b) => (b.match_percent ?? 0) - (a.match_percent ?? 0))
     if (
       await sendDigestEmail({ to: vol.email!, name: vol.name, projects: enriched, isMatch: false })

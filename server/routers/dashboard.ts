@@ -21,6 +21,7 @@ import {
   TaskStatus,
   TeamMembershipRole,
   WorkItemType,
+  ProjectReach,
 } from '@/generated/prisma/enums'
 import type { Prisma } from '@/generated/prisma/client'
 
@@ -109,7 +110,7 @@ const FIND_ROW_SIZE = 3
 /** A project task someone holds and has not handed in: claimed, whether or not started. */
 const HELD_TASK_STATUSES: TaskStatus[] = [TaskStatus.not_started, TaskStatus.in_progress]
 
-type Viewer = ProjectViewer & { id: number }
+type Viewer = ProjectViewer & { id: number; localGroupId: number | null }
 
 /** Where a claimed task is worked on; a project task with no project has nowhere better. */
 function taskHref(t: { id: number; type: string; parentId: number | null }): string {
@@ -599,12 +600,26 @@ async function findFor(
     ...open,
     skills: { some: { skillId: { in: skillIds } } },
   }
-  const nearWhere: Prisma.WorkItemWhereInput = { ...open, country: viewer.country }
+  // Near you: the viewer's chapter's projects, their own local group's first. The holding pool
+  // is nowhere in particular.
+  const nearWhere: Prisma.WorkItemWhereInput = {
+    ...open,
+    nationalChapterId: viewer.nationalChapterId,
+  }
   const quickWhere: Prisma.WorkItemWhereInput = {
     type: WorkItemType.QUICK_TASK,
     status: QuickTaskStatus.open,
     assigneeId: null,
+    nationalChapterId: viewer.nationalChapterId,
   }
+  const hasChapter = viewer.nationalChapterId !== null
+  const nearSelect = {
+    id: true,
+    title: true,
+    reach: true,
+    group: { select: { id: true, name: true } },
+    chapter: { select: { name: true } },
+  } satisfies Prisma.WorkItemSelect
 
   const [quickCount, quick, matchCount, matches, nearCount, near] = await Promise.all([
     prisma.workItem.count({ where: quickWhere }),
@@ -623,16 +638,22 @@ async function findFor(
           take: FIND_ROW_SIZE,
         })
       : [],
-    viewer.country ? prisma.workItem.count({ where: nearWhere }) : 0,
-    viewer.country
+    hasChapter ? prisma.workItem.count({ where: nearWhere }) : 0,
+    hasChapter
       ? prisma.workItem.findMany({
           where: nearWhere,
-          select: { id: true, title: true, localGroup: true },
-          orderBy: { createdAt: 'desc' },
-          take: FIND_ROW_SIZE,
+          select: nearSelect,
+          orderBy: [{ createdAt: 'desc' }],
+          take: 100,
         })
       : [],
   ])
+  const inMyGroup = (p: (typeof near)[number]) =>
+    viewer.localGroupId !== null && p.group?.id === viewer.localGroupId
+  const nearest = [...near.filter(inMyGroup), ...near.filter((p) => !inMyGroup(p))].slice(
+    0,
+    FIND_ROW_SIZE,
+  )
 
   const mine = new Set(skillIds)
   return {
@@ -659,11 +680,15 @@ async function findFor(
     },
     nearYou: {
       count: nearCount,
-      items: near.map((p) => ({
+      items: nearest.map((p) => ({
         id: p.id,
         title: p.title,
         href: `/projects/${p.id}`,
-        reason: p.localGroup ? `${p.localGroup}, ${viewer.country}` : `In ${viewer.country}`,
+        reason: p.group
+          ? `${p.group.name}, ${p.chapter?.name}`
+          : p.reach === ProjectReach.REMOTE
+            ? `Remote, ${p.chapter?.name}`
+            : `Across ${p.chapter?.name}`,
       })),
     },
   }
@@ -675,7 +700,8 @@ export const dashboardRouter = {
     const viewer: Viewer = {
       id: volunteer.id,
       isAdmin: Boolean(volunteer.isAdmin),
-      country: volunteer.country,
+      nationalChapterId: volunteer.nationalChapterId,
+      localGroupId: volunteer.localGroupId,
     }
 
     const me = await prisma.volunteer.findUnique({

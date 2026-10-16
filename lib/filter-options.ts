@@ -77,18 +77,18 @@ export function volunteerLocation(v: {
   return [...new Set(parts)].join(' · ')
 }
 
-// Builds the parts of a project's location line, e.g. ['Remote', 'Global', 'United Kingdom', 'London']
-// for a worldwide-remote project, or ['United Kingdom', 'London'] for an in-person one.
-// Join with ' · ' and prefix with 📍 to render.
+/**
+ * The parts of a project's location line, e.g. ['Remote'] or ['London'], with its chapter's name
+ * first when given (for a global admin, who sees every chapter). Join with ' · ' and prefix with
+ * 📍 to render.
+ */
 export function projectLocationParts(
-  country: string | null | undefined,
+  reach: string,
   localGroup: string | null | undefined,
-  remoteEligibility: string | null | undefined,
+  chapterName?: string | null,
 ): string[] {
-  const parts: string[] = []
-  if (remoteEligibility === 'COUNTRY' || remoteEligibility === 'GLOBAL') parts.push('Remote')
-  if (remoteEligibility === 'GLOBAL') parts.push('Global')
-  if (country) parts.push(countryLabel(country))
+  const parts = chapterName ? [chapterName] : []
+  if (reach === 'REMOTE') parts.push('Remote')
   if (localGroup) parts.push(localGroup)
   return parts
 }

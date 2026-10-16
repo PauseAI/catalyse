@@ -3,6 +3,8 @@ import { screen, waitFor, act, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import {
+  createChapter,
+  createMember,
   createVolunteer,
   createProject,
   createQuickTask,
@@ -91,9 +93,9 @@ describe('home', () => {
 
   it('orders attention, my work, then a folded Find; filters work; acts on items', async () => {
     const skill = await createSkill()
-    const me = await createVolunteer({
+    const chapter = await createChapter()
+    const me = await createMember(chapter, {
       emailDigest: 'match',
-      country: 'UK',
       skills: { create: [{ skillId: skill.id }] },
     })
     const other = await createVolunteer({ name: 'Sam' })
@@ -128,9 +130,10 @@ describe('home', () => {
     await createProject({
       title: 'Skill match',
       status: 'ready',
+      nationalChapterId: chapter.id,
       skills: { create: [{ skillId: skill.id, isRequired: true }] },
     })
-    await createProject({ title: 'Local one', status: 'ready', country: 'UK' })
+    await createProject({ title: 'Local one', status: 'ready', nationalChapterId: chapter.id })
 
     await renderApp(<HomePage />, { as: me, url: '/dashboard' })
     const attention = await screen.findByRole('region', { name: /Needs your attention/ })
@@ -179,7 +182,8 @@ describe('home', () => {
     const toggle = within(find).getByRole('button', { name: /Find something to do/ })
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     await userEvent.click(toggle)
-    expect(within(find).getByRole('link', { name: 'Skill match' })).toBeInTheDocument()
+    // It matches my skills and is in my chapter, so it is offered on both rows.
+    expect(within(find).getAllByRole('link', { name: 'Skill match' })).toHaveLength(2)
     expect(within(find).getByText(/Uses your skills/)).toBeInTheDocument()
     expect(within(find).getByRole('link', { name: 'Local one' })).toBeInTheDocument()
   })

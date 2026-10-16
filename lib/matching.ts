@@ -64,25 +64,3 @@ export function calculateMatchScore(
 export function matchGradeLabel(matchedRequired: number): string | null {
   return MATCH_GRADES.find((g) => matchedRequired >= g.minMatched)?.label ?? null
 }
-
-/**
- * Whether a volunteer should be alerted about a project based on location.
- *
- * Same-country volunteers are always eligible. Out-of-country volunteers are only
- * eligible for GLOBAL-remote projects, and only if they've opted in — otherwise a
- * volunteer in one country gets flooded with alerts for projects on the other side
- * of the world they have no way to help with.
- *
- * Missing country data (on either side) doesn't restrict eligibility — we only
- * narrow the audience once we actually know where both parties are.
- */
-export function isGeoEligible(
-  volunteerCountry: string | null,
-  volunteerNotifyRemoteProjects: boolean,
-  projectCountry: string | null,
-  projectRemoteEligibility: string,
-): boolean {
-  if (!projectCountry || !volunteerCountry) return true
-  if (volunteerCountry === projectCountry) return true
-  return projectRemoteEligibility === 'GLOBAL' && volunteerNotifyRemoteProjects
-}

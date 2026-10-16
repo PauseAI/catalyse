@@ -46,7 +46,7 @@ const ScratchTemplateSchema = z.object({
   timeCommitmentHoursPerWeek: z.number().int().min(0).max(1000).nullable().optional(),
   urgency: z.string().nullable().optional(),
   collaborationLink: HttpUrlSchema.nullable().optional(),
-  remoteEligibility: z.enum(['NONE', 'COUNTRY', 'GLOBAL']).optional(),
+  reach: z.enum(['COUNTRY_WIDE', 'REMOTE']).optional(),
   durationDays: z.number().int().min(0).max(3650).nullable().optional(),
   tasks: z.array(ScratchTaskSchema).max(1000).optional(),
 })
@@ -131,6 +131,7 @@ export const templatesRouter = {
       const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
         where: { id: input.projectId, type: WorkItemType.PROJECT },
+        include: { chapter: { select: { country: true } }, group: { select: { name: true } } },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
 
@@ -176,7 +177,7 @@ export const templatesRouter = {
           timeCommitmentHoursPerWeek: project.timeCommitmentHoursPerWeek,
           urgency: project.urgency,
           collaborationLink: project.collaborationLink,
-          remoteEligibility: project.remoteEligibility,
+          reach: project.reach,
           startDate: project.startDate,
           durationDays: project.durationDays,
         },
@@ -194,8 +195,8 @@ export const templatesRouter = {
           structure: JSON.stringify(structure),
           createdById: volunteer.id,
           sourceProjectId: project.id,
-          sourceCountry: project.country,
-          sourceLocalGroup: project.localGroup,
+          sourceCountry: project.chapter?.country ?? null,
+          sourceLocalGroup: project.group?.name ?? null,
           sourceTeamId: project.teamId,
         },
       })
@@ -227,7 +228,7 @@ export const templatesRouter = {
         timeCommitmentHoursPerWeek: input.template.timeCommitmentHoursPerWeek ?? null,
         urgency: input.template.urgency ?? 'medium',
         collaborationLink: input.template.collaborationLink ?? null,
-        remoteEligibility: input.template.remoteEligibility ?? 'NONE',
+        reach: input.template.reach ?? 'COUNTRY_WIDE',
         startOffsetDays: null,
         durationDays: input.template.durationDays ?? null,
         skills: [],
@@ -362,12 +363,12 @@ export const templatesRouter = {
             timeCommitmentHoursPerWeek: plan.project.timeCommitmentHoursPerWeek,
             urgency: plan.project.urgency,
             // Per-instance, never copied from the template — cleared here even though the
-            // plan carries the template's own value, same reasoning as country/localGroup/team.
+            // plan carries the template's own value, same reasoning as local group and team.
             collaborationLink: null,
-            remoteEligibility: plan.project.remoteEligibility,
+            reach: plan.project.reach,
             ...scheduleData,
-            country: null,
-            localGroup: null,
+            // The copy is the copier's chapter's to run.
+            nationalChapterId: context.access.chapterId,
             teamId: null,
             assigneeId: context.volunteer.id,
             creatorId: context.volunteer.id,

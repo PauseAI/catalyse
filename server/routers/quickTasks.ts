@@ -1,7 +1,9 @@
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
-import { notifyUser, notifyAdmins, clearNotifications } from '@/lib/notify'
+import { notifyUser, notifyChapterStaff, clearNotifications } from '@/lib/notify'
+import { canAdminChapter, inChapter, type ChapterAccess } from '@/lib/chapter-access'
+import { chapterFilter } from '@/lib/chapter-access-server'
 import {
   CreateQuickTaskSchema,
   AssignQuickTaskSchema,
@@ -13,27 +15,40 @@ import {
 import {
   CLAIM_BLOCKING_INTEREST_STATUSES,
   CLEARED_SUBMISSION,
+  projectScopeWhere,
   resolveClaimViewers,
   serializeStarterTask,
   submissionData,
 } from '@/lib/work-item'
 import { recordChange, updateWorkItem } from '@/lib/work-item-events'
-import { adminProcedure, approvedProcedure, authedProcedure } from '../procedures'
+import { approvedProcedure, authedProcedure, staffProcedure } from '../procedures'
 import { TERMINAL_STATUSES } from '@/lib/project-status'
 import { ApprovalStatus, QuickTaskStatus, TaskStatus, WorkItemType } from '@/generated/prisma/enums'
 
+/** A quick task in a chapter the caller runs; any other is not found. */
+async function quickTaskRunBy(access: ChapterAccess, id: number) {
+  const task = await prisma.workItem.findFirst({ where: { id, type: WorkItemType.QUICK_TASK } })
+  if (!task || !canAdminChapter(access, task.nationalChapterId)) {
+    throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
+  }
+  return task
+}
+
+/** Quick tasks belong to a chapter: its members take them, and its staff run them. */
 export const quickTasksRouter = {
-  list: adminProcedure
+  list: staffProcedure
     .input(
       z.object({
         status: z.nativeEnum(QuickTaskStatus).optional(),
         skillId: z.number().int().optional(),
+        chapter: z.union([z.number().int(), z.literal('pool')]).optional(),
       }),
     )
-    .handler(async ({ input }) => {
+    .handler(async ({ input, context }) => {
       const tasks = await prisma.workItem.findMany({
         where: {
           type: WorkItemType.QUICK_TASK,
+          nationalChapterId: chapterFilter(context.access, input.chapter),
           ...(input.status ? { status: input.status } : {}),
           ...(input.skillId ? { skillId: input.skillId } : {}),
         },
@@ -61,9 +76,13 @@ export const quickTasksRouter = {
   // instead of only being able to see it once claimed via `available` (open+unclaimed only).
   // Management (edit/assign/unassign) still happens on the task's own project page — these
   // aren't WorkItemType.QUICK_TASK rows, so the quick-task-specific mutations don't apply.
-  featuredProjectTasks: adminProcedure.handler(async () => {
+  featuredProjectTasks: staffProcedure.handler(async ({ context }) => {
     const tasks = await prisma.workItem.findMany({
-      where: { type: WorkItemType.TASK, featuredAsQuickTask: true },
+      where: {
+        type: WorkItemType.TASK,
+        featuredAsQuickTask: true,
+        parent: { nationalChapterId: chapterFilter(context.access) },
+      },
       include: {
         parent: { select: { id: true, title: true } },
         assignee: { select: { name: true } },
@@ -109,6 +128,7 @@ export const quickTasksRouter = {
           type: WorkItemType.QUICK_TASK,
           status: QuickTaskStatus.open,
           assigneeId: null,
+          nationalChapterId: context.volunteer.nationalChapterId,
         },
         include: {
           skill: { include: { category: true } },
@@ -124,7 +144,12 @@ export const quickTasksRouter = {
           requestedById: null,
           featuredAsQuickTask: true,
           parentId: { not: null, notIn: blockedProjectIds },
-          parent: { status: { notIn: TERMINAL_STATUSES } },
+          // Only from projects the volunteer may see: their chapter's, outside any team of
+          // which they are not a member.
+          parent: {
+            status: { notIn: TERMINAL_STATUSES },
+            AND: [projectScopeWhere({ ...context.volunteer, isAdmin: false })],
+          },
         },
         include: {
           parent: { select: { id: true, title: true, teamId: true, assigneeId: true } },
@@ -183,9 +208,16 @@ export const quickTasksRouter = {
           reviewedBy: { select: { name: true } },
         },
       })
-      if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
+      const isMine = task?.assigneeId === volunteer.id
+      if (!task || (!isMine && !inChapter(context.access, task.nationalChapterId))) {
+        throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
+      }
       const isOpenAndUnclaimed = task.status === QuickTaskStatus.open && task.assigneeId === null
-      if (task.assigneeId !== volunteer.id && !volunteer.isAdmin && !isOpenAndUnclaimed) {
+      if (
+        !isMine &&
+        !canAdminChapter(context.access, task.nationalChapterId) &&
+        !isOpenAndUnclaimed
+      ) {
         throw new ORPCError('FORBIDDEN', { message: 'You do not have access to this task' })
       }
       return {
@@ -196,10 +228,29 @@ export const quickTasksRouter = {
       }
     }),
 
-  create: adminProcedure.input(CreateQuickTaskSchema).handler(async ({ input }) => {
+  /** In the chapter of the project it is for, else the creator's, or a global admin's choice. */
+  create: staffProcedure.input(CreateQuickTaskSchema).handler(async ({ input, context }) => {
+    const project = input.contextProjectId
+      ? await prisma.workItem.findFirst({
+          where: { id: input.contextProjectId, type: WorkItemType.PROJECT },
+          select: { nationalChapterId: true },
+        })
+      : null
+    const nationalChapterId = project
+      ? project.nationalChapterId
+      : input.chapterId !== undefined && context.access.globalAdmin
+        ? input.chapterId
+        : context.access.chapterId
+    if (
+      (input.contextProjectId && !project) ||
+      !canAdminChapter(context.access, nationalChapterId)
+    ) {
+      throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
+    }
     const task = await prisma.workItem.create({
       data: {
         type: WorkItemType.QUICK_TASK,
+        nationalChapterId,
         status: QuickTaskStatus.open,
         title: input.title,
         description: input.description,
@@ -214,7 +265,7 @@ export const quickTasksRouter = {
     return { id: task.id, message: 'Quick Task created' }
   }),
 
-  update: adminProcedure
+  update: staffProcedure
     .input(
       z.object({
         id: z.number().int(),
@@ -227,10 +278,7 @@ export const quickTasksRouter = {
       }),
     )
     .handler(async ({ input, context }) => {
-      const task = await prisma.workItem.findFirst({
-        where: { id: input.id, type: WorkItemType.QUICK_TASK },
-      })
-      if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
+      const task = await quickTaskRunBy(context.access, input.id)
 
       await updateWorkItem(
         task,
@@ -250,32 +298,32 @@ export const quickTasksRouter = {
       return { id: task.id, message: 'Task updated' }
     }),
 
-  delete: adminProcedure.input(z.object({ id: z.number().int() })).handler(async ({ input }) => {
-    const task = await prisma.workItem.findFirst({
-      where: { id: input.id, type: WorkItemType.QUICK_TASK },
-    })
-    if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
+  delete: staffProcedure
+    .input(z.object({ id: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      await quickTaskRunBy(context.access, input.id)
+      await prisma.skillEndorsement.deleteMany({
+        where: { source: 'quick_task', sourceId: input.id },
+      })
+      await prisma.workItem.delete({ where: { id: input.id } })
+      return { message: 'Task deleted' }
+    }),
 
-    await prisma.skillEndorsement.deleteMany({
-      where: { source: 'quick_task', sourceId: input.id },
-    })
-    await prisma.workItem.delete({ where: { id: input.id } })
-    return { message: 'Task deleted' }
-  }),
-
-  assign: adminProcedure
+  assign: staffProcedure
     .input(z.object({ id: z.number().int() }).merge(AssignQuickTaskSchema))
     .handler(async ({ input, context }) => {
       const admin = context.volunteer
-      const task = await prisma.workItem.findFirst({
-        where: { id: input.id, type: WorkItemType.QUICK_TASK },
-      })
-      if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
+      const task = await quickTaskRunBy(context.access, input.id)
 
       const assignee = await prisma.volunteer.findFirst({
         where: { id: input.volunteerId, deletedAt: null },
       })
       if (!assignee) throw new ORPCError('BAD_REQUEST', { message: 'Volunteer not found' })
+      if (!context.access.globalAdmin && assignee.nationalChapterId !== task.nationalChapterId) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: "Assign it to someone in the task's chapter",
+        })
+      }
       if (assignee.approvalStatus !== ApprovalStatus.approved) {
         throw new ORPCError('BAD_REQUEST', {
           message: 'Cannot assign a task to a volunteer who is not yet approved',
@@ -313,7 +361,9 @@ export const quickTasksRouter = {
       const task = await prisma.workItem.findFirst({
         where: { id: input.id, type: WorkItemType.QUICK_TASK },
       })
-      if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
+      if (!task || !inChapter(context.access, task.nationalChapterId)) {
+        throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
+      }
       // Guarded update rather than check-then-write: two volunteers claiming at the same
       // moment must not both succeed, with the second silently taking the task.
       const data = {
@@ -337,13 +387,10 @@ export const quickTasksRouter = {
       return { message: 'Task claimed' }
     }),
 
-  unassign: adminProcedure
+  unassign: staffProcedure
     .input(z.object({ id: z.number().int() }))
     .handler(async ({ input, context }) => {
-      const task = await prisma.workItem.findFirst({
-        where: { id: input.id, type: WorkItemType.QUICK_TASK },
-      })
-      if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
+      const task = await quickTaskRunBy(context.access, input.id)
 
       await updateWorkItem(
         task,
@@ -385,7 +432,7 @@ export const quickTasksRouter = {
       )
       await clearNotifications('task_changes_requested', input.id)
 
-      // A task someone claimed has no creator, so any admin may review it.
+      // A task someone claimed has no creator, so its chapter's staff review it.
       const notice = [
         'quick_task_submitted',
         `Submitted for review: '${task.title}'`,
@@ -393,19 +440,16 @@ export const quickTasksRouter = {
         `/quick-tasks/${input.id}`,
       ] as const
       if (task.creatorId) notifyUser(task.creatorId, ...notice, undefined, input.id)
-      else notifyAdmins(...notice, undefined, input.id)
+      else notifyChapterStaff(task.nationalChapterId, ...notice, undefined, input.id)
 
       return { message: 'Task submitted for review' }
     }),
 
-  requestChanges: adminProcedure
+  requestChanges: staffProcedure
     .input(z.object({ id: z.number().int() }).merge(RequestChangesSchema))
     .handler(async ({ input, context }) => {
       const admin = context.volunteer
-      const task = await prisma.workItem.findFirst({
-        where: { id: input.id, type: WorkItemType.QUICK_TASK },
-      })
-      if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
+      const task = await quickTaskRunBy(context.access, input.id)
       if (task.status !== QuickTaskStatus.under_review)
         throw new ORPCError('BAD_REQUEST', { message: 'Task is not awaiting review' })
 
@@ -435,14 +479,11 @@ export const quickTasksRouter = {
       return { message: 'Changes requested' }
     }),
 
-  review: adminProcedure
+  review: staffProcedure
     .input(z.object({ id: z.number().int() }).merge(ReviewQuickTaskSchema))
     .handler(async ({ input, context }) => {
       const admin = context.volunteer
-      const task = await prisma.workItem.findFirst({
-        where: { id: input.id, type: WorkItemType.QUICK_TASK },
-      })
-      if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
+      const task = await quickTaskRunBy(context.access, input.id)
       if (task.status !== QuickTaskStatus.under_review)
         throw new ORPCError('BAD_REQUEST', { message: 'Task is not awaiting review' })
 

@@ -205,7 +205,6 @@ describe('settings — notifications and privacy tabs', () => {
       await screen.findByRole('button', { name: 'Keep me in the loop about new projects' }),
     )
     await userEvent.click(screen.getByRole('option', { name: 'Send me a fortnightly digest' }))
-    await userEvent.click(screen.getByLabelText(/remote/i))
     // Both email categories start on; turn updates off, then needs-action off and on again.
     const needs = screen.getByLabelText(/^Things that need me/)
     const updates = screen.getByLabelText(/^Updates:/)
@@ -220,7 +219,6 @@ describe('settings — notifications and privacy tabs', () => {
     await screen.findByText('Profile updated!')
     expect(await me(vol.id)).toMatchObject({
       emailDigest: 'fortnightly',
-      notifyRemoteProjects: true,
       emailMutedCategories: ['update'],
       dailySummary: 'in_app_only',
     })

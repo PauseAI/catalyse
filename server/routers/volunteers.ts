@@ -362,7 +362,6 @@ export const volunteersRouter = {
       'emailDigest',
       'emailMutedCategories',
       'dailySummary',
-      'notifyRemoteProjects',
       'applicationMessage',
     ] as const
     for (const field of scalarFields) {

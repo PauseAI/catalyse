@@ -1,4 +1,4 @@
-import type { Prisma, Volunteer } from '@/generated/prisma/client'
+import { Prisma, type Volunteer } from '@/generated/prisma/client'
 import { adminEmails, isSuperAdmin } from './auth'
 import { NO_ACCESS, type ChapterAccess } from './chapter-access'
 import { prisma } from './prisma'
@@ -48,6 +48,30 @@ export function chapterFilter(
 ): number | null | undefined {
   if (!access.globalAdmin) return access.chapterId
   return requested === 'pool' ? null : requested
+}
+
+/**
+ * A global admin's narrowing of a project list to one chapter or the pool; null when there is
+ * none. Everyone else's lists are held to their own chapter by the project scope rule already.
+ */
+export function chapterNarrowing(
+  access: ChapterAccess,
+  requested: ChapterSelection,
+): { nationalChapterId: number | null } | null {
+  if (!access.globalAdmin || requested === undefined) return null
+  return { nationalChapterId: requested === 'pool' ? null : requested }
+}
+
+/** `chapterNarrowing` as a raw SQL condition on `work_items`. */
+export function chapterNarrowingSql(
+  access: ChapterAccess,
+  requested: ChapterSelection,
+): Prisma.Sql | null {
+  const narrowing = chapterNarrowing(access, requested)
+  if (!narrowing) return null
+  return narrowing.nationalChapterId === null
+    ? Prisma.sql`national_chapter_id IS NULL`
+    : Prisma.sql`national_chapter_id = ${narrowing.nationalChapterId}`
 }
 
 /** The live accounts of a chapter's lead and deputies. */

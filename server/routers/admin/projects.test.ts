@@ -59,7 +59,7 @@ describe('admin.projects.create / myDrafts', () => {
       tasks: [{ title: 'T1', description: 'd' }, { title: 'T2' }],
       startDate: new Date('2026-06-01T00:00:00Z'),
       durationDays: 10,
-      remoteEligibility: 'GLOBAL',
+      reach: 'REMOTE',
     })
     expect(live.message).toBe('Org project created')
     const row = await prisma.workItem.findUniqueOrThrow({
@@ -71,7 +71,7 @@ describe('admin.projects.create / myDrafts', () => {
       assigneeId: admin.id,
       isOrgProposed: true,
       urgency: 'high',
-      remoteEligibility: 'GLOBAL',
+      reach: 'REMOTE',
       durationDays: 10,
     })
     expect(row.scheduleUpdatedAt).not.toBeNull()
@@ -97,7 +97,6 @@ describe('admin.projects.create / myDrafts', () => {
       projectType: null,
       estimatedDuration: null,
       timeCommitmentHoursPerWeek: null,
-      country: null,
     })
     expect(await prisma.workItem.findUniqueOrThrow({ where: { id: unowned.id } })).toMatchObject({
       status: 'ready',

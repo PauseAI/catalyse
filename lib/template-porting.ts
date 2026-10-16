@@ -74,7 +74,10 @@ const ProjectTemplateStructureSchema = z.object({
   timeCommitmentHoursPerWeek: z.number().int().min(0).max(1000).nullable().default(null),
   urgency: z.string().nullable().default('medium'),
   collaborationLink: HttpUrlSchema.nullable().default(null),
-  remoteEligibility: z.enum(['NONE', 'COUNTRY', 'GLOBAL']).default('NONE'),
+  /** Where the work happens. A local group is per-instance, so a template is never LOCAL. */
+  reach: z.enum(['COUNTRY_WIDE', 'REMOTE']).optional(),
+  /** Read only from templates saved before `reach`: remote of either kind is now REMOTE. */
+  remoteEligibility: z.enum(['NONE', 'COUNTRY', 'GLOBAL']).optional(),
   /** Project's own scheduled start, relative to itself: always 0 when set, null if unscheduled. */
   startOffsetDays: z.number().int().min(0).max(0).nullable().default(null),
   durationDays: z.number().int().min(0).max(3650).nullable().default(null),
@@ -110,7 +113,7 @@ export type SourceProject = {
   timeCommitmentHoursPerWeek: number | null
   urgency: string | null
   collaborationLink: string | null
-  remoteEligibility: string
+  reach: string
   startDate: Date | null
   durationDays: number | null
 }
@@ -158,7 +161,7 @@ export function serializeProjectAsTemplate(
     timeCommitmentHoursPerWeek: project.timeCommitmentHoursPerWeek,
     urgency: project.urgency ?? 'medium',
     collaborationLink: project.collaborationLink,
-    remoteEligibility: (project.remoteEligibility as 'NONE' | 'COUNTRY' | 'GLOBAL') ?? 'NONE',
+    reach: project.reach === 'REMOTE' ? 'REMOTE' : 'COUNTRY_WIDE',
     startOffsetDays: anchor !== null && project.startDate !== null ? 0 : null,
     durationDays: project.durationDays,
     skills: projectSkills,
@@ -203,7 +206,7 @@ export type InstantiateProjectFields = {
   timeCommitmentHoursPerWeek: number | null
   urgency: string
   collaborationLink: string | null
-  remoteEligibility: 'NONE' | 'COUNTRY' | 'GLOBAL'
+  reach: 'COUNTRY_WIDE' | 'REMOTE'
   startDate: Date | null
   durationDays: number | null
 }
@@ -284,7 +287,11 @@ export function buildInstantiatePlan(
       timeCommitmentHoursPerWeek: structure.timeCommitmentHoursPerWeek,
       urgency: structure.urgency ?? 'medium',
       collaborationLink: structure.collaborationLink,
-      remoteEligibility: structure.remoteEligibility,
+      reach:
+        structure.reach ??
+        (structure.remoteEligibility === 'COUNTRY' || structure.remoteEligibility === 'GLOBAL'
+          ? 'REMOTE'
+          : 'COUNTRY_WIDE'),
       startDate: resolveDate(structure.startOffsetDays),
       durationDays: structure.durationDays,
     },

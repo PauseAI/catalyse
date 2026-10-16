@@ -48,7 +48,7 @@ import { loadWorkItemSummaries, toWorkItemSummary } from '@/lib/work-item-summar
 import {
   createNotification,
   notifyUser,
-  notifyAdmins,
+  notifyChapterStaff,
   notifyTeamOfProject,
   clearNotifications,
 } from '@/lib/notify'
@@ -69,6 +69,10 @@ import { formatDateShort } from '@/lib/format-date'
 import { awaitsOwnerReview } from '@/lib/task-review'
 import { handedIn } from '@/lib/overdue'
 import { canReach } from '@/lib/contact'
+import { projectLocation } from '@/lib/project-location'
+import { chapterNarrowing, chapterNarrowingSql } from '@/lib/chapter-access-server'
+import { audit } from '@/lib/chapter-roles'
+import type { ChapterAccess } from '@/lib/chapter-access'
 import {
   CreateProjectSchema,
   UpdateProjectSchema,
@@ -100,21 +104,32 @@ import {
   TaskStatus,
   WorkItemType,
   TaskTiming,
+  ChapterAuditAction,
 } from '@/generated/prisma/enums'
 
-/** Is the project within this volunteer's scope (team and country)? See lib/work-item.ts. */
+/** Is the project within this volunteer's scope (team and chapter)? See lib/work-item.ts. */
 async function canReachProject(
   project: {
     id: number
     teamId: number | null
     creatorId: number | null
     assigneeId: number | null
-    country: string | null
-    remoteEligibility: string
+    nationalChapterId: number | null
   },
-  volunteer: { id: number; isAdmin: boolean | null; country: string | null },
+  volunteer: { id: number; isAdmin: boolean | null; nationalChapterId: number | null },
 ): Promise<boolean> {
   return canSeeProjectScope(project, volunteer)
+}
+
+/** Throws unless `person` belongs to the project's chapter; a global admin brings in anyone. */
+function assertInProjectChapter(
+  access: ChapterAccess,
+  person: { nationalChapterId: number | null },
+  project: { nationalChapterId: number | null },
+): void {
+  if (!access.globalAdmin && person.nationalChapterId !== project.nationalChapterId) {
+    throw new ORPCError('BAD_REQUEST', { message: 'They are in another national chapter' })
+  }
 }
 
 /**
@@ -691,8 +706,8 @@ export const projectsRouter = {
         skillIds: z.array(z.number().int()).optional(),
         search: z.string().optional(),
         urgency: z.string().optional(),
-        country: z.string().optional(),
-        localGroup: z.string().optional(),
+        chapter: z.union([z.number().int(), z.literal('pool')]).optional(),
+        localGroupId: z.number().int().optional(),
         teamId: z.number().int().optional(),
         isOrgProposed: z.boolean().optional(),
         isSeekingHelp: z.boolean().optional(),
@@ -751,8 +766,9 @@ export const projectsRouter = {
       }
 
       if (input.urgency) conditions.push(Prisma.sql`urgency = ${input.urgency}`)
-      if (input.country) conditions.push(Prisma.sql`country = ${input.country}`)
-      if (input.localGroup) conditions.push(Prisma.sql`local_group = ${input.localGroup}`)
+      const narrowing = chapterNarrowingSql(context.access, input.chapter)
+      if (narrowing) conditions.push(narrowing)
+      if (input.localGroupId) conditions.push(Prisma.sql`local_group_id = ${input.localGroupId}`)
       if (input.teamId) conditions.push(Prisma.sql`team_id = ${input.teamId}`)
 
       if (input.isOrgProposed !== undefined) {
@@ -843,8 +859,8 @@ export const projectsRouter = {
         skillIds: z.array(z.number().int()).optional(),
         search: z.string().optional(),
         urgency: z.string().optional(),
-        country: z.string().optional(),
-        localGroup: z.string().optional(),
+        chapter: z.union([z.number().int(), z.literal('pool')]).optional(),
+        localGroupId: z.number().int().optional(),
         teamId: z.number().int().optional(),
         isOrgProposed: z.boolean().optional(),
         previewLimit: z.number().int().min(1).max(100).optional().default(50),
@@ -883,8 +899,11 @@ export const projectsRouter = {
         )
       }
       if (input.urgency) sharedConditions.push(Prisma.sql`urgency = ${input.urgency}`)
-      if (input.country) sharedConditions.push(Prisma.sql`country = ${input.country}`)
-      if (input.localGroup) sharedConditions.push(Prisma.sql`local_group = ${input.localGroup}`)
+      const narrowing = chapterNarrowingSql(context.access, input.chapter)
+      if (narrowing) sharedConditions.push(narrowing)
+      if (input.localGroupId) {
+        sharedConditions.push(Prisma.sql`local_group_id = ${input.localGroupId}`)
+      }
       if (input.teamId) sharedConditions.push(Prisma.sql`team_id = ${input.teamId}`)
       if (input.isOrgProposed !== undefined) {
         sharedConditions.push(Prisma.sql`is_org_proposed = ${input.isOrgProposed}`)
@@ -995,6 +1014,7 @@ export const projectsRouter = {
       durationDays: input.durationDays ?? null,
     })
 
+    const { chapterChanged: _, ...location } = await projectLocation(context.access, input)
     const project = await prisma.$transaction(async (tx) => {
       const newProject = await tx.workItem.create({
         data: {
@@ -1011,10 +1031,8 @@ export const projectsRouter = {
           timeCommitmentHoursPerWeek: input.timeCommitmentHoursPerWeek ?? null,
           urgency: input.urgency ?? 'medium',
           collaborationLink: input.collaborationLink ?? null,
-          country: input.country ?? null,
           ...scheduleOnCreate,
-          localGroup: input.localGroup ?? null,
-          remoteEligibility: input.remoteEligibility ?? 'NONE',
+          ...location,
           isSeekingHelp: input.isSeekingHelp !== false,
           teamId: input.teamId ?? null,
         },
@@ -1045,7 +1063,8 @@ export const projectsRouter = {
     })
 
     if (!saveAsDraft) {
-      await notifyAdmins(
+      await notifyChapterStaff(
+        project.nationalChapterId,
         'new_project_proposal',
         `New project proposal: ${project.title}`,
         `Proposed by ${volunteer.name}`,
@@ -1137,7 +1156,8 @@ export const projectsRouter = {
         { actorId: volunteer.id, kind: 'status' },
       )
 
-      await notifyAdmins(
+      await notifyChapterStaff(
+        project.nationalChapterId,
         'new_project_proposal',
         `New project proposal: ${project.title}`,
         `Proposed by ${volunteer.name}`,
@@ -1495,7 +1515,7 @@ export const projectsRouter = {
       })
       await clearNotifications('project_needs_discussion', project.id)
 
-      // The admin who asked hears back; with nobody to tell, every admin does.
+      // The admin who asked hears back; with nobody to tell, the chapter's staff do.
       const args = [
         'project_resubmitted',
         `Resubmitted: '${project.title}' is ready for another look`,
@@ -1506,7 +1526,7 @@ export const projectsRouter = {
       ] as const
       const requester = open?.requestedBy
       if (requester && !requester.deletedAt) await notifyUser(requester.id, ...args)
-      else await notifyAdmins(...args)
+      else await notifyChapterStaff(project.nationalChapterId, ...args)
 
       return { message: 'Project resubmitted for review' }
     }),
@@ -1583,9 +1603,6 @@ export const projectsRouter = {
         'estimatedDuration',
         'urgency',
         'collaborationLink',
-        'country',
-        'localGroup',
-        'remoteEligibility',
         'outcome',
         'outcomeNotes',
       ] as const
@@ -1618,6 +1635,16 @@ export const projectsRouter = {
       for (const field of stringFields) {
         if (body[field] !== undefined) data[field] = body[field]
       }
+      let movedChapter = false
+      if (
+        body.reach !== undefined ||
+        body.localGroupId !== undefined ||
+        body.chapterId !== undefined
+      ) {
+        const { chapterChanged, ...location } = await projectLocation(context.access, body, project)
+        Object.assign(data, location)
+        movedChapter = chapterChanged
+      }
       if (body.timeCommitmentHoursPerWeek !== undefined)
         data.timeCommitmentHoursPerWeek = body.timeCommitmentHoursPerWeek
       applyScheduleWrite(data, { startDate: body.startDate, durationDays: body.durationDays })
@@ -1642,9 +1669,15 @@ export const projectsRouter = {
         if (body.assigneeId !== null) {
           const newOwner = await prisma.volunteer.findFirst({
             where: { id: body.assigneeId, deletedAt: null },
-            select: { approvalStatus: true },
+            select: { approvalStatus: true, nationalChapterId: true },
           })
           if (!newOwner) throw new ORPCError('BAD_REQUEST', { message: 'Volunteer not found' })
+          assertInProjectChapter(context.access, newOwner, {
+            nationalChapterId:
+              data.nationalChapterId === undefined
+                ? project.nationalChapterId
+                : (data.nationalChapterId as number | null),
+          })
           if (newOwner.approvalStatus !== ApprovalStatus.approved) {
             throw new ORPCError('BAD_REQUEST', {
               message: 'Cannot assign a project to a volunteer who is not yet approved',
@@ -1699,6 +1732,14 @@ export const projectsRouter = {
         actorId: volunteer.id,
         kind: reopening ? 'reopened' : undefined,
       })
+      if (movedChapter) {
+        await audit(prisma, ChapterAuditAction.PROJECT_CHAPTER_CHANGED, {
+          actorId: volunteer.id,
+          chapterId: data.nationalChapterId as number | null,
+          workItemId: project.id,
+          details: { fromChapterId: project.nationalChapterId },
+        })
+      }
 
       // Tagging a team onto a project that's already visible alerts that team right away;
       // tagging one still in review waits until it goes live (see admin/projects.ts).
@@ -2084,6 +2125,7 @@ export const projectsRouter = {
           message: 'Cannot invite a volunteer who is not yet approved',
         })
       }
+      assertInProjectChapter(context.access, target, project)
 
       const existing = await prisma.workItemInterest.findFirst({
         where: { workItemId: input.projectId, volunteerId: input.volunteerId },
@@ -2255,6 +2297,7 @@ export const projectsRouter = {
           message: 'Cannot assign a project to a volunteer who is not yet approved',
         })
       }
+      assertInProjectChapter(context.access, targetVolunteer, project)
 
       // One row per person and project, whatever happened before.
       const existing = await prisma.workItemInterest.findFirst({
@@ -2351,7 +2394,7 @@ export const projectsRouter = {
             id: volunteer.id,
             isAdmin: Boolean(volunteer.isAdmin),
             isApproved: volunteer.approvalStatus === ApprovalStatus.approved,
-            country: volunteer.country,
+            nationalChapterId: volunteer.nationalChapterId,
           },
           undefined,
           await resolveProjectPrivy(project, volunteer),
@@ -2460,7 +2503,7 @@ export const projectsRouter = {
             id: volunteer.id,
             isAdmin: Boolean(volunteer.isAdmin),
             isApproved: volunteer.approvalStatus === ApprovalStatus.approved,
-            country: volunteer.country,
+            nationalChapterId: volunteer.nationalChapterId,
           },
           project,
           await resolveProjectPrivy(project, volunteer),
@@ -2749,8 +2792,8 @@ export const projectsRouter = {
       z.object({
         statuses: z.array(z.string()).optional(),
         teamId: z.number().int().optional(),
-        country: z.string().optional(),
-        localGroup: z.string().optional(),
+        chapter: z.union([z.number().int(), z.literal('pool')]).optional(),
+        localGroupId: z.number().int().optional(),
       }),
     )
     .handler(async ({ input, context }) => {
@@ -2769,8 +2812,8 @@ export const projectsRouter = {
           type: WorkItemType.PROJECT,
           status: { in: statuses },
           ...(input.teamId ? { teamId: input.teamId } : {}),
-          ...(input.country ? { country: input.country } : {}),
-          ...(input.localGroup ? { localGroup: input.localGroup } : {}),
+          ...chapterNarrowing(context.access, input.chapter),
+          ...(input.localGroupId ? { localGroupId: input.localGroupId } : {}),
           AND: [projectScopeWhere(volunteer)],
         },
         select: { id: true, title: true, status: true },

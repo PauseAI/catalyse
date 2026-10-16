@@ -7,10 +7,10 @@ import { publicProcedure, approvedProcedure } from '../procedures'
 export const localGroupsRouter = {
   /** Public, so signup can offer the groups of the country someone picks. */
   list: publicProcedure
-    .input(z.object({ country: z.string().optional() }))
+    .input(z.object({ country: z.string().optional(), chapterId: z.number().int().optional() }))
     .handler(async ({ input }) => {
       const groups = await prisma.localGroup.findMany({
-        where: input.country ? { country: input.country } : undefined,
+        where: { country: input.country, nationalChapterId: input.chapterId },
         orderBy: [{ country: 'asc' }, { name: 'asc' }],
       })
       return { groups }

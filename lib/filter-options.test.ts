@@ -50,14 +50,12 @@ describe('countryLabel', () => {
 
 describe('projectLocationParts', () => {
   it('builds the location line parts', () => {
-    expect(projectLocationParts('UK', 'London', 'GLOBAL')).toEqual([
-      'Remote',
-      'Global',
+    expect(projectLocationParts('LOCAL', 'London')).toEqual(['London'])
+    expect(projectLocationParts('REMOTE', null, 'United Kingdom')).toEqual([
       'United Kingdom',
-      'London',
+      'Remote',
     ])
-    expect(projectLocationParts('UK', null, 'COUNTRY')).toEqual(['Remote', 'United Kingdom'])
-    expect(projectLocationParts(null, null, 'NONE')).toEqual([])
+    expect(projectLocationParts('COUNTRY_WIDE', null)).toEqual([])
   })
 })
 

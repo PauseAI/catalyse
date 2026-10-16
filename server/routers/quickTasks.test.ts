@@ -7,6 +7,10 @@ import {
   createTask,
   createQuickTask,
   createSkill,
+  createChapter,
+  createChapterDeputy,
+  createMember,
+  createTeam,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 
@@ -431,5 +435,93 @@ describe('quickTasks.requestChanges', () => {
       submittedAt: null,
       changesRequestedNote: null,
     })
+  })
+})
+
+describe('quick tasks by chapter', () => {
+  it("offers a member their own chapter's quick tasks and featured tasks only", async () => {
+    const [home, away] = [await createChapter(), await createChapter()]
+    const me = await createMember(home)
+    const ours = await createQuickTask({ title: 'Ours', nationalChapterId: home.id })
+    const theirs = await createQuickTask({ title: 'Theirs', nationalChapterId: away.id })
+    const homeProject = await createProject({ nationalChapterId: home.id })
+    const awayProject = await createProject({ nationalChapterId: away.id })
+    const teamProject = await createProject({
+      nationalChapterId: home.id,
+      teamId: (await createTeam()).id,
+    })
+    const featured = { featuredAsQuickTask: true }
+    const near = await createTask(homeProject.id, { title: 'Near featured', ...featured })
+    const far = await createTask(awayProject.id, { title: 'Far featured', ...featured })
+    const team = await createTask(teamProject.id, { title: 'Team featured', ...featured })
+
+    const offered = (await clientAs(me).quickTasks.available()).map((t) => t.id)
+    expect(offered).toEqual(expect.arrayContaining([ours.id, near.id]))
+    for (const id of [theirs.id, far.id, team.id]) expect(offered).not.toContain(id)
+
+    const c = clientAs(me)
+    expect((await c.quickTasks.get({ id: ours.id })).title).toBe('Ours')
+    await expect(c.quickTasks.get({ id: theirs.id })).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(c.quickTasks.claim({ id: theirs.id })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    })
+  })
+
+  it("lets a chapter's staff run its quick tasks, and nobody else's", async () => {
+    const [home, away] = [await createChapter(), await createChapter()]
+    const deputy = clientAs(await createChapterDeputy(home))
+    const homeProject = await createProject({ nationalChapterId: home.id })
+    const awayProject = await createProject({ nationalChapterId: away.id })
+    const made = await deputy.quickTasks.create({ title: 'Leaflets', description: 'd' })
+    const forProject = await deputy.quickTasks.create({
+      title: 'For the project',
+      description: 'd',
+      contextProjectId: homeProject.id,
+    })
+    for (const { id } of [made, forProject]) {
+      expect((await prisma.workItem.findUniqueOrThrow({ where: { id } })).nationalChapterId).toBe(
+        home.id,
+      )
+    }
+    await expect(
+      deputy.quickTasks.create({ title: 'x', description: 'd', contextProjectId: awayProject.id }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    // A deputy cannot pick another chapter for it; a global admin can.
+    const admin = clientAs(await createAdmin())
+    expect(
+      (
+        await prisma.workItem.findUniqueOrThrow({
+          where: {
+            id: (
+              await deputy.quickTasks.create({ title: 'y', description: 'd', chapterId: away.id })
+            ).id,
+          },
+        })
+      ).nationalChapterId,
+    ).toBe(home.id)
+    const placed = await admin.quickTasks.create({
+      title: 'z',
+      description: 'd',
+      chapterId: away.id,
+    })
+    expect(
+      (await prisma.workItem.findUniqueOrThrow({ where: { id: placed.id } })).nationalChapterId,
+    ).toBe(away.id)
+
+    const listed = (await deputy.quickTasks.list({})).map((t) => t.id)
+    expect(listed).toContain(made.id)
+    expect(listed).not.toContain(placed.id)
+    await expect(deputy.quickTasks.delete({ id: placed.id })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    })
+    const abroad = await createMember(away)
+    await expect(
+      deputy.quickTasks.assign({ id: made.id, volunteerId: abroad.id }),
+    ).rejects.toMatchObject({ message: "Assign it to someone in the task's chapter" })
+    const featured = await createTask(homeProject.id, { featuredAsQuickTask: true })
+    const elsewhere = await createTask(awayProject.id, { featuredAsQuickTask: true })
+    const shown = (await deputy.quickTasks.featuredProjectTasks()).map((t) => t.id)
+    expect(shown).toContain(featured.id)
+    expect(shown).not.toContain(elsewhere.id)
   })
 })

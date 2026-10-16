@@ -175,7 +175,7 @@ export default function AdminLocalGroupsPage() {
 
   const { data: deleteTargetProjectsData, isFetching: loadingDeleteProjects } = useQuery({
     ...orpc.projects.list.queryOptions({
-      input: { localGroup: deleteTarget?.name ?? '', limit: 100 },
+      input: { localGroupId: deleteTarget?.id ?? 0, limit: 100 },
     }),
     enabled: !!deleteTarget && deleteTarget.kind === 'group',
   })

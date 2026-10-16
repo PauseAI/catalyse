@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import FilterDropdown from '@/components/FilterDropdown'
-import { buildLocationOptions, type LocalGroupOption } from '@/lib/filter-options'
+import ChapterFilter, { chapterSelection } from '@/components/ChapterFilter'
 import { InferRouterInputs } from '@orpc/server'
 import { orpc } from '@/lib/orpc'
 import { AppRouter } from '@/server/router'
@@ -61,7 +61,9 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
   const [statusFilter, setStatusFilter] = useUrlParam('status')
   const [needsFilter, setNeedsFilter] = useUrlParam('needs')
   const [urgencyFilter, setUrgencyFilter] = useUrlParam('urgency')
-  const [locationFilter, setLocationFilter] = useUrlParam('location')
+  const [locationFilter, setLocationFilter] = useUrlParam('group')
+  const [chapterParam, setChapterParam] = useUrlParam('chapter')
+  const isGlobal = user.access.globalAdmin
   const [teamFilter, setTeamFilter] = useUrlParam('team')
   const [sortBy, setSortBy] = useUrlParam('sort')
   // Set when an admin page turned the viewer away (NO_ACCESS_NOTICE_URL).
@@ -100,6 +102,7 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
     needsFilter,
     urgencyFilter,
     locationFilter,
+    chapterParam,
     teamFilter,
     sortBy,
     setPageParam,
@@ -117,11 +120,15 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
   })
   const pendingApplicationsCount = pendingApplicationsList.length
 
+  // The local groups of the chapter on show: the viewer's own, or the one a global admin picked.
+  const shownChapterId = isGlobal ? (chapterSelection(chapterParam) ?? null) : user.access.chapterId
   const { data: localGroupsData } = useQuery({
-    ...orpc.localGroups.list.queryOptions({ input: {} }),
-    enabled: true,
+    ...orpc.localGroups.list.queryOptions({
+      input: { chapterId: typeof shownChapterId === 'number' ? shownChapterId : undefined },
+    }),
+    enabled: typeof shownChapterId === 'number',
   })
-  const localGroups: LocalGroupOption[] = localGroupsData?.groups ?? []
+  const localGroups = typeof shownChapterId === 'number' ? (localGroupsData?.groups ?? []) : []
 
   const { data: teamsData } = useQuery({ ...orpc.teams.list.queryOptions(), enabled: !!user })
   // The template button only shows once there is a template to start from.
@@ -150,11 +157,8 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
   else if (needsFilter === 'seeking_owner') projectsInput.isSeekingOwner = true
   else if (needsFilter === 'not_seeking') projectsInput.notSeeking = true
   if (urgencyFilter) projectsInput.urgency = urgencyFilter
-  if (locationFilter) {
-    const [country, localGroup] = locationFilter.split(':')
-    projectsInput.country = country
-    if (localGroup) projectsInput.localGroup = localGroup
-  }
+  if (isGlobal && chapterParam) projectsInput.chapter = chapterSelection(chapterParam)
+  if (locationFilter) projectsInput.localGroupId = Number(locationFilter)
   if (teamFilter) projectsInput.teamId = Number(teamFilter)
   if (sortBy) projectsInput.sortBy = sortBy
   if (isFlatView) {
@@ -188,11 +192,8 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
   const groupedInput: InferRouterInputs<AppRouter>['projects']['listGrouped'] = {}
   if (urlSearch) groupedInput.search = urlSearch
   if (urgencyFilter) groupedInput.urgency = urgencyFilter
-  if (locationFilter) {
-    const [country, localGroup] = locationFilter.split(':')
-    groupedInput.country = country
-    if (localGroup) groupedInput.localGroup = localGroup
-  }
+  if (isGlobal && chapterParam) groupedInput.chapter = chapterSelection(chapterParam)
+  if (locationFilter) groupedInput.localGroupId = Number(locationFilter)
   if (teamFilter) groupedInput.teamId = Number(teamFilter)
 
   const { data: groupedData, isPending: loadingGroupedProjects } = useQuery({
@@ -210,6 +211,7 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
     needsFilter ||
     urgencyFilter ||
     locationFilter ||
+    chapterParam ||
     teamFilter ||
     sortBy
 
@@ -363,15 +365,29 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
                   onChange={setUrgencyFilter}
                 />
 
-                <FilterDropdown
-                  id="location-filter"
-                  label="Country/Group"
-                  ariaLabel="Country/Group filter"
-                  value={locationFilter}
-                  options={buildLocationOptions(localGroups)}
-                  onChange={setLocationFilter}
-                  searchable
-                />
+                {isGlobal && (
+                  <ChapterFilter
+                    value={chapterParam}
+                    onChange={(value) => {
+                      setChapterParam(value)
+                      setLocationFilter('')
+                    }}
+                  />
+                )}
+                {localGroups.length > 0 && (
+                  <FilterDropdown
+                    id="location-filter"
+                    label="Local group"
+                    ariaLabel="Local group filter"
+                    value={locationFilter}
+                    options={[
+                      { value: '', label: 'All local groups' },
+                      ...localGroups.map((g) => ({ value: String(g.id), label: g.name })),
+                    ]}
+                    onChange={setLocationFilter}
+                    searchable
+                  />
+                )}
 
                 {(user.isAdmin || myTeams.length > 0) && (
                   <FilterDropdown

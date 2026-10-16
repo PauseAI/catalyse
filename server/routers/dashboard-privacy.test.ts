@@ -8,6 +8,9 @@ import {
   createTask,
   createTeam,
   createVolunteer,
+  createChapter,
+  createMember,
+  createLocalGroup,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 
@@ -434,11 +437,18 @@ describe('dashboard.get', () => {
     expect(await kindOf(admin)).toEqual([])
   })
 
-  it('offers discovery by skill, country and Quick Tasks, skipping my own', async () => {
-    const me = await createVolunteer({ country: 'UK' })
+  it('offers discovery by skill, by chapter and Quick Tasks, skipping my own', async () => {
+    const [chapter, away] = [await createChapter(), await createChapter()]
+    const leeds = await createLocalGroup({
+      name: 'Leeds',
+      country: chapter.country,
+      nationalChapterId: chapter.id,
+    })
+    const me = await createMember(chapter, { localGroupId: leeds.id })
     const skill = await createSkill({ name: 'Design' })
     await prisma.volunteerSkill.create({ data: { volunteerId: me.id, skillId: skill.id } })
-    const wanted = { skills: { create: [{ skillId: skill.id, isRequired: true }] } }
+    const mine = { nationalChapterId: chapter.id }
+    const wanted = { ...mine, skills: { create: [{ skillId: skill.id, isRequired: true }] } }
     const match = await createProject({ status: 'ready', title: 'Match', ...wanted })
     await createProject({ status: 'ready', title: 'Joined', ...wanted }).then((p) =>
       prisma.workItemInterest.create({
@@ -458,37 +468,56 @@ describe('dashboard.get', () => {
       title: 'Other team',
       ...wanted,
     })
+    await createProject({
+      status: 'ready',
+      title: 'Abroad',
+      nationalChapterId: away.id,
+      skills: wanted.skills,
+    })
+    await createProject({ status: 'ready', title: 'Near 2', ...mine })
+    await createProject({ status: 'ready', title: 'Near 3', reach: 'REMOTE', ...mine })
     const near = await createProject({
       status: 'ready',
-      country: 'UK',
       title: 'Near',
-      localGroup: 'Leeds',
+      reach: 'LOCAL',
+      localGroupId: leeds.id,
+      ...mine,
     })
-    await createProject({ status: 'ready', country: 'UK', title: 'Near 2' })
-    const qt = await createQuickTask({ skillId: skill.id, title: 'Open QT' })
-    await createQuickTask({ title: 'Plain QT' })
+    const qt = await createQuickTask({ skillId: skill.id, title: 'Open QT', ...mine })
+    await createQuickTask({ title: 'Plain QT', ...mine })
+    await createQuickTask({ title: 'Abroad QT', nationalChapterId: away.id })
 
     const { find, hasSkills } = await clientAs(me).dashboard.get()
     expect(hasSkills).toBe(true)
     expect(find?.matches.items.map((i) => i.title)).toContain('Match')
     expect(find?.matches.items.map((i) => i.title)).not.toEqual(
-      expect.arrayContaining(['Joined', 'My own', 'Unreviewed', 'Other team']),
+      expect.arrayContaining(['Joined', 'My own', 'Unreviewed', 'Other team', 'Abroad']),
     )
     expect(find?.matches.items.find((i) => i.id === match.id)?.reason).toBe(
       'Uses your skills: Design',
     )
-    expect(find?.nearYou.items.find((i) => i.id === near.id)).toMatchObject({ reason: 'Leeds, UK' })
-    expect(find?.nearYou.items.find((i) => i.title === 'Near 2')).toMatchObject({ reason: 'In UK' })
+    // My own local group's first, though it is the newest.
+    expect(find?.nearYou.items[0]).toMatchObject({
+      id: near.id,
+      reason: `Leeds, ${chapter.name}`,
+    })
+    expect(find?.nearYou.items.find((i) => i.title === 'Near 2')).toMatchObject({
+      reason: `Across ${chapter.name}`,
+    })
+    expect(find?.nearYou.items.find((i) => i.title === 'Near 3')).toMatchObject({
+      reason: `Remote, ${chapter.name}`,
+    })
     expect(find?.quickTasks.items.find((i) => i.id === qt.id)).toMatchObject({
       reason: 'Skill: Design',
     })
     expect(find?.quickTasks.items.find((i) => i.title === 'Plain QT')).toMatchObject({
       reason: null,
     })
-    expect(find?.quickTasks.count).toBeGreaterThanOrEqual(2)
+    expect(find?.quickTasks.items.map((i) => i.title)).not.toContain('Abroad QT')
+    expect(find?.quickTasks.count).toBe(2)
     expect(find?.quickTasks.items.length).toBeLessThanOrEqual(3)
 
-    // No skills and no country: those two rows are empty.
+    // No skills and the holding pool: those two rows are empty.
     const bare = await clientAs(await createVolunteer({ country: null })).dashboard.get()
     expect(bare.hasSkills).toBe(false)
     expect(bare.find?.matches).toEqual({ count: 0, items: [] })

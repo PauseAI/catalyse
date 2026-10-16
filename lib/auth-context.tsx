@@ -128,6 +128,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
+/** The signed-in user, for a component that may also be shown outside the app's providers. */
+export function useOptionalUser() {
+  return useContext(AuthContext)?.user ?? null
+}
+
 export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be used within AuthProvider')

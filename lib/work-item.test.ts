@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { createVolunteer, createProject, createTask, createTeam } from '@/test/factories'
+import {
+  createVolunteer,
+  createProject,
+  createTask,
+  createTeam,
+  createChapter,
+  createMember,
+} from '@/test/factories'
 import {
   canViewWorkItem,
   canPostComment,
@@ -11,7 +18,7 @@ import {
   resolveTeamPrivy,
   resolveProjectPrivy,
   canSeeProjectScope,
-  isOutsideCountry,
+  isOutsideChapter,
   withProjectExtras,
   serializeTask,
   serializeStarterTask,
@@ -22,14 +29,14 @@ import {
   type EnrichedProject,
 } from './work-item'
 
-const admin = { id: 1, isAdmin: true, isApproved: true, country: null }
-const owner = { id: 2, isAdmin: false, isApproved: true, country: null }
-const creator = { id: 3, isAdmin: false, isApproved: true, country: null }
-const other = { id: 4, isAdmin: false, isApproved: true, country: null }
-const pending = { id: 5, isAdmin: false, isApproved: false, country: null }
+const admin = { id: 1, isAdmin: true, isApproved: true, nationalChapterId: null }
+const owner = { id: 2, isAdmin: false, isApproved: true, nationalChapterId: null }
+const creator = { id: 3, isAdmin: false, isApproved: true, nationalChapterId: null }
+const other = { id: 4, isAdmin: false, isApproved: true, nationalChapterId: null }
+const pending = { id: 5, isAdmin: false, isApproved: false, nationalChapterId: null }
 
-// Where a work item is: no country, so no country scope.
-const anywhere = { country: null, remoteEligibility: 'NONE' }
+// Where a work item is: the holding pool, like the viewers above.
+const anywhere = { nationalChapterId: null }
 const project = { type: 'PROJECT', status: 'ready', creatorId: 3, assigneeId: 2, ...anywhere }
 
 describe('canViewWorkItem', () => {
@@ -45,25 +52,22 @@ describe('canViewWorkItem', () => {
   it('restricts a team project to participants and team-privy viewers', () => {
     const teamProject = { ...project, teamId: 9 }
     expect(canViewWorkItem(teamProject, other)).toBe(false)
-    expect(canViewWorkItem(teamProject, other, undefined, { team: true, country: true })).toBe(true)
+    expect(canViewWorkItem(teamProject, other, undefined, { team: true, chapter: true })).toBe(true)
     expect(canViewWorkItem(teamProject, owner)).toBe(true)
     expect(canViewWorkItem(teamProject, admin)).toBe(true)
     expect(canViewWorkItem(teamProject, null)).toBe(false)
   })
 
-  it('keeps a country-scoped project to its country, its participants and the privy', () => {
-    const swedish = { ...project, country: 'SE', remoteEligibility: 'NONE' }
-    const inUk = { ...other, country: 'UK' }
+  it('keeps a project to its chapter, its participants and the privy', () => {
+    const swedish = { ...project, nationalChapterId: 7 }
+    const inUk = { ...other, nationalChapterId: 8 }
     expect(canViewWorkItem(swedish, inUk)).toBe(false)
-    expect(canViewWorkItem(swedish, { ...other, country: 'SE' })).toBe(true)
-    // No country given: not held to the rule.
-    expect(canViewWorkItem(swedish, other)).toBe(true)
-    expect(canViewWorkItem(swedish, { ...owner, country: 'UK' })).toBe(true)
-    expect(canViewWorkItem(swedish, { ...admin, country: 'UK' })).toBe(true)
-    expect(canViewWorkItem(swedish, inUk, undefined, { team: false, country: true })).toBe(true)
-    // Remote within Sweden is still Sweden's; remote anywhere is everyone's.
-    expect(canViewWorkItem({ ...swedish, remoteEligibility: 'COUNTRY' }, inUk)).toBe(false)
-    expect(canViewWorkItem({ ...swedish, remoteEligibility: 'GLOBAL' }, inUk)).toBe(true)
+    expect(canViewWorkItem(swedish, { ...other, nationalChapterId: 7 })).toBe(true)
+    // The holding pool is a chapter of its own.
+    expect(canViewWorkItem(swedish, other)).toBe(false)
+    expect(canViewWorkItem(swedish, { ...owner, nationalChapterId: 8 })).toBe(true)
+    expect(canViewWorkItem(swedish, { ...admin, nationalChapterId: 8 })).toBe(true)
+    expect(canViewWorkItem(swedish, inUk, undefined, { team: false, chapter: true })).toBe(true)
     const task = {
       type: 'TASK',
       status: 'not_started',
@@ -72,8 +76,9 @@ describe('canViewWorkItem', () => {
       ...anywhere,
     }
     expect(canViewWorkItem(task, inUk, swedish)).toBe(false)
-    expect(isOutsideCountry(swedish, 'UK')).toBe(true)
-    expect(isOutsideCountry(swedish, null)).toBe(false)
+    expect(isOutsideChapter(swedish, 8)).toBe(true)
+    expect(isOutsideChapter(swedish, null)).toBe(true)
+    expect(isOutsideChapter(project, null)).toBe(false)
   })
 
   it('a task follows its parent project, or is admin-only without one', () => {
@@ -195,41 +200,46 @@ describe('resolveTeamPrivy', () => {
 })
 
 describe('resolveProjectPrivy and canSeeProjectScope', () => {
-  it('exempt from the country rule: anyone who applied, was added, holds a task, or is in the team', async () => {
-    const owner = await createVolunteer({ country: 'SE' })
-    const outsider = await createVolunteer({ country: 'UK' })
-    const proj = await createProject({ country: 'SE', assigneeId: owner.id })
-    const viewer = { id: outsider.id, isAdmin: false, country: 'UK' }
-    expect(await resolveProjectPrivy(proj, viewer)).toEqual({ team: false, country: false })
+  it('exempt from the chapter rule: anyone who applied, was added, holds a task, or is in the team', async () => {
+    const [se, uk] = [await createChapter(), await createChapter()]
+    const owner = await createMember(se)
+    const outsider = await createMember(uk)
+    const proj = await createProject({ nationalChapterId: se.id, assigneeId: owner.id })
+    const viewer = { id: outsider.id, isAdmin: false, nationalChapterId: uk.id }
+    expect(await resolveProjectPrivy(proj, viewer)).toEqual({ team: false, chapter: false })
     expect(await canSeeProjectScope(proj, viewer)).toBe(false)
-    expect(await canSeeProjectScope(proj, { ...viewer, country: 'SE' })).toBe(true)
+    expect(await canSeeProjectScope(proj, { ...viewer, nationalChapterId: se.id })).toBe(true)
     expect(await canSeeProjectScope(proj, { ...viewer, isAdmin: true })).toBe(true)
-    expect(await canSeeProjectScope(proj, { id: owner.id, isAdmin: false, country: 'UK' })).toBe(
-      true,
-    )
+    expect(
+      await canSeeProjectScope(proj, { id: owner.id, isAdmin: false, nationalChapterId: uk.id }),
+    ).toBe(true)
 
     await prisma.workItemInterest.create({
       data: { workItemId: proj.id, volunteerId: outsider.id, interestType: 'help' },
     })
     expect(await canSeeProjectScope(proj, viewer)).toBe(true)
 
-    const tasked = await createVolunteer({ country: 'UK' })
+    const tasked = await createMember(uk)
     await createTask(proj.id, { assigneeId: tasked.id })
-    expect(await canSeeProjectScope(proj, { id: tasked.id, isAdmin: false, country: 'UK' })).toBe(
-      true,
-    )
+    expect(
+      await canSeeProjectScope(proj, { id: tasked.id, isAdmin: false, nationalChapterId: uk.id }),
+    ).toBe(true)
 
     const team = await createTeam()
-    const teamProj = await createProject({ country: 'SE', teamId: team.id })
-    const member = await createVolunteer({ country: 'UK' })
-    const memberView = { id: member.id, isAdmin: false, country: 'UK' }
+    const teamProj = await createProject({ nationalChapterId: se.id, teamId: team.id })
+    const member = await createMember(uk)
+    const memberView = { id: member.id, isAdmin: false, nationalChapterId: uk.id }
     expect(await canSeeProjectScope(teamProj, memberView)).toBe(false)
     await prisma.teamMembership.create({ data: { teamId: team.id, volunteerId: member.id } })
-    expect(await resolveProjectPrivy(teamProj, memberView)).toEqual({ team: true, country: true })
+    expect(await resolveProjectPrivy(teamProj, memberView)).toEqual({ team: true, chapter: true })
     expect(await canSeeProjectScope(teamProj, memberView)).toBe(true)
-    // In the right country but not in the team.
+    // In the right chapter but not in the team.
     expect(
-      await canSeeProjectScope(teamProj, { id: outsider.id, isAdmin: false, country: 'SE' }),
+      await canSeeProjectScope(teamProj, {
+        id: outsider.id,
+        isAdmin: false,
+        nationalChapterId: se.id,
+      }),
     ).toBe(false)
   })
 })

@@ -2018,9 +2018,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const wide = tab === 'timeline'
 
   const locationParts = projectLocationParts(
-    project.country,
+    project.reach,
     project.localGroup,
-    project.remoteEligibility,
+    user?.access.globalAdmin ? (project.chapterName ?? 'Holding pool') : null,
   )
   const subtitle = (locationParts.length > 0 || project.team) && (
     <>

@@ -9,6 +9,7 @@ import {
 } from '@/lib/work-item'
 import { notifyUser, notifyTeamOfProject, clearNotifications } from '@/lib/notify'
 import { updateWorkItem } from '@/lib/work-item-events'
+import { projectLocation } from '@/lib/project-location'
 import { html } from '@/lib/email'
 import { notifyMatchingVolunteers } from '@/lib/project-match-notify'
 import { AdminCreateProjectSchema, ReviewProjectSchema, OutcomeProjectSchema } from '@/lib/schemas'
@@ -47,6 +48,7 @@ export const adminProjectsRouter = {
       durationDays: input.durationDays ?? null,
     })
 
+    const { chapterChanged: _, ...location } = await projectLocation(context.access, input)
     const project = await prisma.$transaction(async (tx) => {
       const newProject = await tx.workItem.create({
         data: {
@@ -69,9 +71,7 @@ export const adminProjectsRouter = {
           timeCommitmentHoursPerWeek: input.timeCommitmentHoursPerWeek ?? null,
           urgency: input.urgency ?? 'medium',
           collaborationLink: input.collaborationLink ?? null,
-          country: input.country ?? null,
-          localGroup: input.localGroup ?? null,
-          remoteEligibility: input.remoteEligibility ?? 'NONE',
+          ...location,
           isSeekingHelp: input.isSeekingHelp !== false,
           teamId: input.teamId ?? null,
           ...scheduleOnCreate,

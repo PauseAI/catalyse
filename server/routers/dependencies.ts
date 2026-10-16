@@ -25,8 +25,7 @@ const ENDPOINT_SELECT = {
   creatorId: true,
   assigneeId: true,
   teamId: true,
-  country: true,
-  remoteEligibility: true,
+  nationalChapterId: true,
 } as const
 
 type Endpoint = {
@@ -38,11 +37,15 @@ type Endpoint = {
   creatorId: number | null
   assigneeId: number | null
   teamId: number | null
-  country: string | null
-  remoteEligibility: string
+  nationalChapterId: number | null
 }
 
-type Viewer = { id: number; isAdmin: boolean; isApproved: boolean; country: string | null }
+type Viewer = {
+  id: number
+  isAdmin: boolean
+  isApproved: boolean
+  nationalChapterId: number | null
+}
 
 /**
  * Resolves the two work items a link would join and proves the caller may create it.
@@ -61,7 +64,7 @@ async function resolveLink(
     id: number
     isAdmin: boolean | null
     approvalStatus: string
-    country: string | null
+    nationalChapterId: number | null
   },
 ): Promise<{ predecessor: Endpoint; successor: Endpoint }> {
   if (predecessorId === successorId) {
@@ -96,7 +99,7 @@ async function resolveLink(
     id: volunteer.id,
     isAdmin: Boolean(volunteer.isAdmin),
     isApproved: volunteer.approvalStatus === ApprovalStatus.approved,
-    country: volunteer.country,
+    nationalChapterId: volunteer.nationalChapterId,
   }
 
   if (predecessor.type === WorkItemType.TASK) {
@@ -148,7 +151,7 @@ async function loadManageableDependency(
     id: number
     isAdmin: boolean | null
     approvalStatus: string
-    country: string | null
+    nationalChapterId: number | null
   },
 ) {
   const dep = await prisma.workItemDependency.findUnique({ where: { id: dependencyId } })

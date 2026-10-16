@@ -3,6 +3,9 @@ import { screen, waitFor, fireEvent, cleanup, within } from '@testing-library/re
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import {
+  createChapter,
+  createMember,
+  createLocalGroup,
   createVolunteer,
   createSuperAdmin,
   createAdmin,
@@ -61,8 +64,14 @@ describe('projects directory', () => {
   })
 
   it('filters via the URL, pages the flat view, and clears filters', async () => {
-    const me = await createVolunteer()
-    const owner = await createVolunteer()
+    const chapter = await createChapter()
+    const london = await createLocalGroup({
+      name: 'London',
+      country: chapter.country,
+      nationalChapterId: chapter.id,
+    })
+    const me = await createMember(chapter)
+    const owner = await createMember(chapter)
     const team = await createTeam()
     await prisma.teamMembership.create({ data: { teamId: team.id, volunteerId: me.id } })
     for (let i = 0; i < 51; i++)
@@ -72,12 +81,14 @@ describe('projects directory', () => {
         status: 'in_progress',
         isSeekingHelp: false,
         urgency: 'low',
+        nationalChapterId: chapter.id,
       })
     await createProject({
       title: 'Urgent UK',
       urgency: 'high',
-      country: 'UK',
-      localGroup: 'London',
+      nationalChapterId: chapter.id,
+      reach: 'LOCAL',
+      localGroupId: london.id,
       teamId: team.id,
       isOrgProposed: true,
     })
@@ -114,8 +125,8 @@ describe('projects directory', () => {
     await screen.findByRole('link', { name: 'Urgent UK' })
     await userEvent.click(screen.getByRole('button', { name: 'Needs filter' }))
     await userEvent.click(screen.getByRole('option', { name: 'Not seeking' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Country/Group filter' }))
-    await userEvent.click(screen.getByRole('option', { name: 'United Kingdom - London' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Local group filter' }))
+    await userEvent.click(screen.getByRole('option', { name: 'London' }))
     await userEvent.click(screen.getByRole('button', { name: 'Team filter' }))
     await userEvent.click(screen.getByRole('option', { name: team.name }))
     await userEvent.click(screen.getByRole('button', { name: 'Sort filter' }))

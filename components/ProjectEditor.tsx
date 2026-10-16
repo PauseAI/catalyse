@@ -14,7 +14,6 @@ import SkillPicker from '@/components/SkillPicker'
 import Modal from '@/components/ui/Modal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import ChangesRequestedBanner from '@/components/ChangesRequestedBanner'
-import { buildLocationOptions, type LocalGroupOption } from '@/lib/filter-options'
 import { useToast } from '@/lib/toast'
 import { toDateInputValue, fromDateInputValue } from '@/lib/format-date'
 import { orpc } from '@/lib/orpc'
@@ -45,11 +44,13 @@ const PROJECT_TYPES = [
   { value: 'one_off', label: 'One-off task - Single deliverable, minimal coordination' },
 ]
 
-const REMOTE_ELIGIBILITY_OPTIONS = [
-  { value: 'NONE', label: 'No - in-person / local only' },
-  { value: 'COUNTRY', label: 'Yes - remote OK, within the same country' },
-  { value: 'GLOBAL', label: 'Yes - remote OK, from any country' },
+type Reach = 'COUNTRY_WIDE' | 'LOCAL' | 'REMOTE'
+const REACH_OPTIONS: { value: Reach; label: string }[] = [
+  { value: 'COUNTRY_WIDE', label: 'Across the country' },
+  { value: 'LOCAL', label: 'In a local group' },
+  { value: 'REMOTE', label: 'Remote' },
 ]
+const POOL = 'pool'
 
 type CreateProjectInput = InferRouterInputs<AppRouter>['projects']['create']
 type UpdateProjectInput = InferRouterInputs<AppRouter>['projects']['update']
@@ -111,9 +112,11 @@ export default function ProjectEditor(props: ProjectEditorProps) {
   const [projectType, setProjectType] = useState('')
   const [hoursPerWeek, setHoursPerWeek] = useState('')
   const [urgency, setUrgency] = useState('medium')
-  const [locationValue, setLocationValue] = useState('') // 'UK' or 'UK:London'
+  const [reach, setReach] = useState<Reach>('COUNTRY_WIDE')
+  const [localGroupId, setLocalGroupId] = useState('')
+  // A global admin's choice of chapter; everyone else's projects are in their own.
+  const [chapterValue, setChapterValue] = useState('')
   const [teamId, setTeamId] = useState('')
-  const [remoteEligibility, setRemoteEligibility] = useState<'NONE' | 'COUNTRY' | 'GLOBAL'>('NONE')
   const [duration, setDuration] = useState('')
   const [startDate, setStartDate] = useState('')
   // Set by a Submit with no tasks; the error under Tasks shows until one is added.
@@ -126,8 +129,11 @@ export default function ProjectEditor(props: ProjectEditorProps) {
   const [autoAccept, setAutoAccept] = useState(true)
   const [wantToOwn, setWantToOwn] = useState(false)
 
-  const { data: localGroupsData } = useQuery(orpc.localGroups.list.queryOptions({ input: {} }))
-  const allLocalGroups: LocalGroupOption[] = localGroupsData?.groups ?? []
+  const isGlobal = Boolean(user?.access.globalAdmin)
+  const { data: chapters = [] } = useQuery({
+    ...orpc.chapters.list.queryOptions(),
+    enabled: isGlobal,
+  })
 
   const { data: teamsData } = useQuery(orpc.teams.list.queryOptions())
   const teams = teamsData?.teams ?? []
@@ -136,6 +142,19 @@ export default function ProjectEditor(props: ProjectEditorProps) {
     ...orpc.projects.getById.queryOptions({ input: { id: projectId ?? 0 } }),
     enabled: !!user && projectId !== undefined,
   })
+
+  // Its local groups are those of the chapter it is in, or that a global admin is moving it to.
+  const chapterInView =
+    isGlobal && chapterValue !== ''
+      ? chapterValue === POOL
+        ? null
+        : Number(chapterValue)
+      : (projectData?.nationalChapterId ?? user?.access.chapterId ?? null)
+  const { data: localGroupsData } = useQuery({
+    ...orpc.localGroups.list.queryOptions({ input: { chapterId: chapterInView ?? undefined } }),
+    enabled: chapterInView !== null,
+  })
+  const chapterGroups = chapterInView === null ? [] : (localGroupsData?.groups ?? [])
 
   const isDraft = projectId === undefined ? true : projectData?.status === 'draft'
   const taskCount = projectData?.tasks.length ?? 0
@@ -159,11 +178,10 @@ export default function ProjectEditor(props: ProjectEditorProps) {
     setProjectType(data.projectType ?? '')
     setHoursPerWeek(data.timeCommitmentHoursPerWeek?.toString() ?? '')
     setUrgency(data.urgency ?? 'medium')
-    const country = data.country ?? ''
-    const localGroup = data.localGroup ?? ''
-    setLocationValue(country && localGroup ? `${country}:${localGroup}` : country)
+    setReach(data.reach)
+    setLocalGroupId(data.localGroupId ? String(data.localGroupId) : '')
+    setChapterValue(data.nationalChapterId === null ? POOL : String(data.nationalChapterId))
     setTeamId(data.teamId ? String(data.teamId) : '')
-    setRemoteEligibility(data.remoteEligibility ?? 'NONE')
     setDuration(data.estimatedDuration ?? '')
     setStartDate(toDateInputValue(data.startDate))
     setDurationDays(data.durationDays !== null ? String(data.durationDays) : '')
@@ -300,17 +318,20 @@ export default function ProjectEditor(props: ProjectEditorProps) {
     deleteTaskMutation.isPending
 
   function buildCreatePayload(): CreateProjectInput {
-    const [country, localGroup] = locationValue.split(':')
+    const local = reach === 'LOCAL' && localGroupId !== ''
     return {
       title: title.trim() || 'Untitled draft',
       description: description.trim(),
       projectType: projectType || null,
       timeCommitmentHoursPerWeek: hoursPerWeek ? Number(hoursPerWeek) : null,
       urgency,
-      country: country || null,
-      localGroup: localGroup || null,
+      // A local project is only one once it has its group.
+      reach: local || reach !== 'LOCAL' ? reach : 'COUNTRY_WIDE',
+      localGroupId: local ? Number(localGroupId) : null,
+      ...(isGlobal && chapterValue !== ''
+        ? { chapterId: chapterValue === POOL ? null : Number(chapterValue) }
+        : {}),
       teamId: teamId ? Number(teamId) : null,
-      remoteEligibility: remoteEligibility as CreateProjectInput['remoteEligibility'],
       estimatedDuration: duration.trim() || null,
       collaborationLink: collaborationLink.trim() || null,
       startDate: fromDateInputValue(startDate),
@@ -682,27 +703,69 @@ export default function ProjectEditor(props: ProjectEditorProps) {
           </div>
         )}
 
+        {isGlobal && (
+          <div className="mb-5">
+            <FilterDropdown
+              id="project-chapter"
+              label="Chapter"
+              ariaLabel="Select chapter"
+              value={chapterValue}
+              placeholderLabel="Holding pool"
+              options={[
+                ...chapters.map((c) => ({ value: String(c.id), label: c.name })),
+                { value: POOL, label: 'Holding pool' },
+              ]}
+              onChange={(v) => {
+                setChapterValue(v)
+                setLocalGroupId('')
+                if (reach === 'LOCAL') setReach('COUNTRY_WIDE')
+                commitField({ chapterId: v === POOL ? null : Number(v) })
+              }}
+              searchable
+            />
+            <p className="text-sm text-text-light mt-1">
+              Only its chapter&apos;s members see a project.
+            </p>
+          </div>
+        )}
+
         <div className="mb-5">
           <FilterDropdown
-            id="country"
-            label="Country/Group"
-            ariaLabel="Select country/group"
-            value={locationValue}
-            options={buildLocationOptions(allLocalGroups)}
+            id="reach"
+            label="Where"
+            ariaLabel="Select where the project happens"
+            value={reach}
+            options={REACH_OPTIONS.filter((o) => o.value !== 'LOCAL' || chapterGroups.length > 0)}
             onChange={(v) => {
-              setLocationValue(v)
-              const [country, localGroup] = v.split(':')
-              commitField({ country: country || null, localGroup: localGroup || null })
+              setReach(v)
+              // A local project is saved once its group is picked.
+              if (v !== 'LOCAL') commitField({ reach: v, localGroupId: null })
             }}
-            searchable
           />
-          <p className="text-sm text-text-light mt-1">
-            Where is this project based? Local groups appear indented under their country.{' '}
-            <a href="/suggest-local-group" className="underline">
-              Don&apos;t see your group? Suggest one.
-            </a>
-          </p>
         </div>
+
+        {reach === 'LOCAL' && (
+          <div className="mb-5">
+            <FilterDropdown
+              id="local-group"
+              label="Local group"
+              ariaLabel="Select local group"
+              value={localGroupId}
+              placeholderLabel="Choose a local group"
+              options={chapterGroups.map((g) => ({ value: String(g.id), label: g.name }))}
+              onChange={(v) => {
+                setLocalGroupId(v)
+                commitField({ reach: 'LOCAL', localGroupId: Number(v) })
+              }}
+              searchable
+            />
+            <p className="text-sm text-text-light mt-1">
+              <a href="/suggest-local-group" className="underline">
+                Don&apos;t see your group? Suggest one.
+              </a>
+            </p>
+          </div>
+        )}
 
         <div className="mb-5">
           <FilterDropdown
@@ -722,23 +785,6 @@ export default function ProjectEditor(props: ProjectEditorProps) {
           />
           <p className="text-sm text-text-light mt-1">
             Assigning a team restricts visibility to that team, plus the owner and proposer.
-          </p>
-        </div>
-
-        <div className="mb-5">
-          <FilterDropdown
-            id="remote-eligibility"
-            label="Can this be done remotely?"
-            ariaLabel="Select remote eligibility"
-            value={remoteEligibility}
-            options={REMOTE_ELIGIBILITY_OPTIONS}
-            onChange={(v) => {
-              setRemoteEligibility(v as 'NONE' | 'COUNTRY' | 'GLOBAL')
-              commitField({ remoteEligibility: v as UpdateProjectInput['remoteEligibility'] })
-            }}
-          />
-          <p className="text-sm text-text-light mt-1">
-            Controls who gets project-match alerts outside the country above.
           </p>
         </div>
 

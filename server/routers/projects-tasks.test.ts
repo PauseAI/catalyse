@@ -6,6 +6,7 @@ import {
   createProject,
   createTask,
   createTeam,
+  createLocalGroup,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 import { startOfUtcDay } from '@/lib/schedule'
@@ -279,11 +280,12 @@ describe('projects.ganttOverview', () => {
   it('places visible projects with their edges and task counts', async () => {
     const me = await createVolunteer()
     const team = await createTeam()
+    const group = await createLocalGroup({ name: 'Gantt Town' })
     const a = await createProject({
       title: 'gantt a',
       durationDays: 3,
-      country: 'UK',
-      localGroup: 'L',
+      reach: 'LOCAL',
+      localGroupId: group.id,
     })
     const b = await createProject({ title: 'gantt b', status: 'in_progress', assigneeId: me.id })
     await createTask(b.id)
@@ -323,7 +325,7 @@ describe('projects.ganttOverview', () => {
       ),
     ).toEqual([done.id])
     expect(
-      (await clientAs(me).projects.ganttOverview({ country: 'UK', localGroup: 'L' })).projects.map(
+      (await clientAs(me).projects.ganttOverview({ localGroupId: group.id })).projects.map(
         (p) => p.id,
       ),
     ).toEqual([a.id])

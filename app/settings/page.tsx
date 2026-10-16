@@ -110,7 +110,6 @@ function SettingsPageContent() {
     ],
     'none',
   )
-  const [notifyRemoteProjects, setNotifyRemoteProjects] = useState(false)
   const [emailMutedCategories, setEmailMutedCategories] = useState<MutableEmailCategory[]>([])
   const [dailySummary, setDailySummary] = useState<DailySummaryChoice>('email_and_in_app')
   const [consentMakeProfileVisibleInDirectory, setConsentMakeProfileVisibleInDirectory] =
@@ -200,7 +199,6 @@ function SettingsPageContent() {
     setContactPreference(me.contactPreference ?? '')
     setContactNotes(me.contactNotes ?? '')
     setEmailDigest(me.emailDigest ?? 'none')
-    setNotifyRemoteProjects(!!me.notifyRemoteProjects)
     setEmailMutedCategories(
       MUTABLE_EMAIL_CATEGORIES.filter((c) => me.emailMutedCategories?.includes(c)),
     )
@@ -323,7 +321,6 @@ function SettingsPageContent() {
       contactPreference: contactPreference || null,
       contactNotes: contactNotes.trim() || null,
       emailDigest,
-      notifyRemoteProjects,
       emailMutedCategories,
       dailySummary,
       otherSkills: otherSkills.trim() || null,
@@ -741,19 +738,6 @@ function SettingsPageContent() {
               options={emailDigestOptions}
               onChange={setEmailDigest}
             />
-          </div>
-          <div className="mb-5">
-            <Checkbox
-              id="notify_remote_projects"
-              checked={notifyRemoteProjects}
-              onChange={(e) => setNotifyRemoteProjects(e.target.checked)}
-            >
-              Also alert me about remote-friendly projects outside my own country
-            </Checkbox>
-            <p className="text-sm text-text-light mt-1 ml-7">
-              By default you only hear about projects based in your own country. Turn this on to
-              also get alerts for projects elsewhere that are marked remote-friendly worldwide.
-            </p>
           </div>
           <fieldset className="mb-5 border-0 p-0">
             <legend className="font-medium mb-2">Also email me</legend>

@@ -7,6 +7,7 @@ import {
   createTask,
   createSkill,
   createTeam,
+  createLocalGroup,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 
@@ -33,11 +34,12 @@ describe('projects.list', () => {
     const team = await createTeam()
     const c = clientAs(me)
 
+    const group = await createLocalGroup({ name: 'Browse Town' })
     const ready = await createProject({
       title: 'Alpha ready',
       urgency: 'high',
-      country: 'UK',
-      localGroup: 'London',
+      reach: 'LOCAL',
+      localGroupId: group.id,
       skills: { create: [{ skillId: skill.id, isRequired: true }] },
     })
     const owned = await createProject({
@@ -66,8 +68,7 @@ describe('projects.list', () => {
     expect(ids((await c.projects.list({ skillIds: [skill.id] })).projects)).toEqual([ready.id])
     expect(ids((await c.projects.list({ search: 'needle' })).projects)).toEqual([quiet.id])
     expect(ids((await c.projects.list({ urgency: 'high' })).projects)).toEqual([ready.id])
-    expect(ids((await c.projects.list({ country: 'UK' })).projects)).toEqual([ready.id])
-    expect(ids((await c.projects.list({ localGroup: 'London' })).projects)).toEqual([ready.id])
+    expect(ids((await c.projects.list({ localGroupId: group.id })).projects)).toEqual([ready.id])
     expect(ids((await c.projects.list({ isOrgProposed: true })).projects)).toEqual([owned.id])
     expect(ids((await c.projects.list({ isSeekingHelp: false })).projects)).toEqual(
       ids([ready, quiet]),
@@ -156,12 +157,12 @@ describe('projects.listGrouped', () => {
     await prisma.teamMembership.create({ data: { teamId: team.id, volunteerId: me.id } })
     const skill = await createSkill()
     const G = 'grouped'
+    const groupL = await createLocalGroup({ name: 'Grouped Town' })
     const seeking = await createProject({
       title: `${G} seek`,
       skills: { create: [{ skillId: skill.id }] },
       urgency: 'high',
-      country: 'UK',
-      localGroup: 'L',
+      localGroupId: groupL.id,
       isOrgProposed: true,
       teamId: team.id,
     })
@@ -198,8 +199,7 @@ describe('projects.listGrouped', () => {
         skillIds: [skill.id],
         search: G,
         urgency: 'high',
-        country: 'UK',
-        localGroup: 'L',
+        localGroupId: groupL.id,
         teamId: team.id,
         isOrgProposed: true,
         previewLimit: 5,
@@ -227,8 +227,6 @@ describe('projects.create / drafts', () => {
     timeCommitmentHoursPerWeek: 2,
     urgency: 'medium',
     collaborationLink: null,
-    country: null,
-    localGroup: null,
     isSeekingHelp: true,
   }
 
@@ -250,7 +248,7 @@ describe('projects.create / drafts', () => {
       skillIds: [skill.id],
       skillRequiredMap: { [skill.id]: false },
       startDate: new Date('2026-05-01T00:00:00Z'),
-      remoteEligibility: 'COUNTRY',
+      reach: 'REMOTE',
       isSeekingHelp: false,
     })
     expect(res.message).toBe('Project submitted for review')
@@ -262,7 +260,7 @@ describe('projects.create / drafts', () => {
       status: 'pending_review',
       assigneeId: me.id,
       isOrgProposed: false,
-      remoteEligibility: 'COUNTRY',
+      reach: 'REMOTE',
       isSeekingHelp: false,
     })
     expect(row.skills[0].isRequired).toBe(false)

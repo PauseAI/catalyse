@@ -23,8 +23,7 @@ const WORK_ITEM_SELECT = {
   creatorId: true,
   assigneeId: true,
   teamId: true,
-  country: true,
-  remoteEligibility: true,
+  nationalChapterId: true,
 } as const
 
 type LoadedWorkItem = {
@@ -36,8 +35,7 @@ type LoadedWorkItem = {
   creatorId: number | null
   assigneeId: number | null
   teamId: number | null
-  country: string | null
-  remoteEligibility: string
+  nationalChapterId: number | null
 }
 
 type Viewer = { id: number; isAdmin: boolean }
@@ -222,7 +220,7 @@ export const workItemCommentsRouter = {
         id: context.volunteer.id,
         isAdmin: Boolean(context.volunteer.isAdmin),
         isApproved: context.volunteer.approvalStatus === ApprovalStatus.approved,
-        country: context.volunteer.country,
+        nationalChapterId: context.volunteer.nationalChapterId,
       }
       // Only a project, and a task through its project, has a scope to be exempt from.
       const project =
