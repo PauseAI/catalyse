@@ -23,6 +23,8 @@ npm run demo -- <flow>
 
 Builds the app, spins up a local server with a fresh SQLite DB, records the flow in a headed browser, then compiles clips into `demo/output/<flow>.webm`. Because no snapshot exists yet, it automatically saves one.
 
+The text-to-speech engine has its own `demo/package.json`, so the site's install never carries it: the first `npm run demo` (or `demo:fast`) installs it into `demo/node_modules` (about 740 MB, mostly ONNX Runtime) via `predemo`, and the recording then downloads the Kokoro model (~90 MB) from Hugging Face into it.
+
 ### Subsequent runs
 
 Re-record after making changes:
