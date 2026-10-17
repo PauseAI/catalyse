@@ -79,7 +79,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['app/**', 'components/**', 'lib/**', 'server/**'],
-      exclude: ['**/*.test.{ts,tsx}', '**/*.d.ts'],
+      exclude: ['**/*.test.{ts,tsx}', '**/*.d.ts', '**/*.stories.{ts,tsx}'],
       // `npm run test:unit` lists the uncovered lines when only coverage fails.
       reporter: [quiet ? 'text-summary' : 'text', 'html', 'lcov', 'json', 'json-summary'],
       // CI reads the summary even from a failed run, to show what was missed alongside the failure.

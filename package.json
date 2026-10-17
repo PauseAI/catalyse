@@ -43,7 +43,9 @@
     "predemo:fast": "npm run predemo",
     "demo:fast": "tsx demo/index.ts --fast",
     "demo:snapshot": "tsx demo/snapshot.ts",
-    "demo:compare": "tsx demo/compare.ts"
+    "demo:compare": "tsx demo/compare.ts",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -69,6 +71,10 @@
   "devDependencies": {
     "@faker-js/faker": "^10.4.0",
     "@playwright/test": "^1.44.0",
+    "@storybook/addon-docs": "^10.6.2",
+    "@storybook/addon-themes": "^10.6.2",
+    "@storybook/nextjs": "^10.6.2",
+    "@storybook/react": "^10.6.2",
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^7.0.1",
@@ -84,6 +90,7 @@
     "jsdom": "^30.0.1",
     "pg": "^8.23.0",
     "prettier": "^3.8.3",
+    "storybook": "^10.6.2",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
     "typescript": "^5",
