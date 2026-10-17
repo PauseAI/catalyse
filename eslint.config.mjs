@@ -22,6 +22,13 @@ const eslintConfig = defineConfig([
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
+  {
+    // server/** and lib/** route everything through lib/logger.ts instead.
+    files: ['server/**', 'lib/**'],
+    rules: {
+      'no-console': 'error',
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
