@@ -320,6 +320,45 @@ export async function sendPasswordResetEmail({
   return sendEmail(to, 'Reset your Catalyse password', buildPasswordResetHtml(resetUrl, name))
 }
 
+export const ACCOUNT_MERGE_SUBJECT = 'Confirm merging your Catalyse accounts'
+
+/**
+ * Sent to the address of the account being merged in, so a merge happens only once whoever
+ * asked for it from the other account also holds this one's mailbox.
+ */
+export function buildAccountMergeHtml(
+  confirmUrl: string,
+  name: string,
+  keptAddress: string,
+): string {
+  const n = escapeHtml(name)
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${baseStyle}</style></head>
+<body><div class="container">
+  <h2>Merge your Catalyse accounts</h2>
+  <p>Hi ${n},</p>
+  <p>Someone signed in to another Catalyse account asked to merge it with the account for this address. Your projects, tasks, teams and messages would all move to one account, and you would sign in as <strong>${escapeHtml(keptAddress)}</strong>.</p>
+  <p style="text-align: center; margin: 32px 0;"><a href="${confirmUrl}" class="button">Review the merge</a></p>
+  <p>This link will expire in <strong>24 hours</strong>.</p>
+  <p>If you didn't ask for this, ignore this email and nothing will change.</p>
+  ${footer([['Review the merge', confirmUrl]])}
+</div></body></html>`
+}
+
+export async function sendAccountMergeEmail({
+  to,
+  name,
+  token,
+  keptAddress,
+}: {
+  to: string
+  name: string
+  token: string
+  keptAddress: string
+}): Promise<boolean> {
+  const confirmUrl = `${env.APP_URL}/merge-accounts?token=${token}`
+  return sendEmail(to, ACCOUNT_MERGE_SUBJECT, buildAccountMergeHtml(confirmUrl, name, keptAddress))
+}
+
 export function buildOutreachLoginHtml(loginUrl: string): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${baseStyle}</style></head>
 <body><div class="container">

@@ -878,9 +878,7 @@ describe('google sign-in (stubbed)', () => {
     const { email: _e, password: _p, name: _n, ...form } = signupInput('unused@example.com')
     google.accept('mixed-new', { email: ' New.Person@Example.com', name: 'New' })
     await anon().auth.completeGoogleSignup({ ...form, credential: 'mixed-new' })
-    expect(
-      await prisma.volunteer.count({ where: { email: 'new.person@example.com' } }),
-    ).toBe(1)
+    expect(await prisma.volunteer.count({ where: { email: 'new.person@example.com' } })).toBe(1)
   })
 
   it('completes a Google signup into a pending application (or straight to admin)', async () => {

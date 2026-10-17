@@ -21,6 +21,8 @@ import { templatesRouter } from './routers/templates'
 import { workItemCommentsRouter } from './routers/workItemComments'
 import { bugReportCommentsRouter } from './routers/bugReportComments'
 import { myRouter } from './routers/my'
+import { accountMergesRouter } from './routers/accountMerges'
+import { requiredActionsRouter } from './routers/requiredActions'
 import { privacyRouter } from './routers/privacy'
 import { contactRouter } from './routers/contact'
 import { adminApplicationsRouter } from './routers/admin/applications'
@@ -71,6 +73,8 @@ export const appRouter = {
   schedule: scheduleRouter,
   workItemComments: workItemCommentsRouter,
   my: myRouter,
+  requiredActions: requiredActionsRouter,
+  accountMerges: accountMergesRouter,
   privacy: privacyRouter,
   contact: contactRouter,
   version: versionRouter,

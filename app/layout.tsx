@@ -3,14 +3,14 @@ import { Montserrat, Roboto_Slab, Saira_Condensed } from 'next/font/google'
 import { AuthProvider } from '@/lib/auth-context'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { ToastProvider } from '@/lib/toast'
-import { LocationModalProvider } from '@/lib/location-modal-context'
+import { RequiredActionsProvider } from '@/lib/required-actions-context'
 import Providers from '@/components/Providers'
 import FloatingActions from '@/components/FloatingActions'
 import Header from '@/components/Header'
 import MaintenanceGate from '@/components/MaintenanceGate'
 import Footer from '@/components/Footer'
 import Analytics from '@/components/Analytics'
-import ConfirmLocationModal from '@/components/ConfirmLocationModal'
+import RequiredActions from '@/components/required-actions/RequiredActions'
 import Script from 'next/script'
 import './globals.css'
 
@@ -68,16 +68,16 @@ export default function RootLayout({
           <ThemeProvider>
             <AuthProvider>
               <ToastProvider>
-                <LocationModalProvider>
+                <RequiredActionsProvider>
                   <MaintenanceGate>
                     <Header />
+                    <RequiredActions />
                     <main id="main-content">{children}</main>
                     <Footer />
                     <FloatingActions />
                     <Analytics />
-                    <ConfirmLocationModal />
                   </MaintenanceGate>
-                </LocationModalProvider>
+                </RequiredActionsProvider>
               </ToastProvider>
             </AuthProvider>
           </ThemeProvider>

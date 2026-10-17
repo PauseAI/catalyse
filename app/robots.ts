@@ -23,6 +23,7 @@ export default function robots(): MetadataRoute.Robots {
         '/verify-email',
         '/reset-password',
         '/accept-invite',
+        '/merge-accounts',
       ],
     },
     sitemap: `${env.APP_URL}/sitemap.xml`,

@@ -6,7 +6,8 @@ import { usePathname } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/lib/auth-context'
 import { adminAreaName } from '@/lib/chapter-access'
-import { useLocationModal } from '@/lib/location-modal-context'
+import { useRequiredActions } from '@/lib/required-actions-context'
+import { viewOf } from '@/components/required-actions/registry'
 import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { ThemeToggle } from './ThemeToggle'
@@ -106,7 +107,8 @@ function WaitingBadge({ count, updates }: { count: number; updates: boolean }) {
 export default function Header() {
   const { user, loading, logout } = useAuth()
   const adminArea = user ? adminAreaName(user.access, user.chapter) : null
-  const { show: showLocationModal } = useLocationModal()
+  const { actions: requiredActions, show: showRequiredAction } = useRequiredActions()
+  const firstAction = requiredActions[0]
   const pathname = usePathname()
   const queryClient = useQueryClient()
   const [mounted, setMounted] = useState(false)
@@ -198,14 +200,14 @@ export default function Header() {
               !loading &&
               (user ? (
                 <div className="relative flex items-center gap-2">
-                  {!user.locationConfirmedAt && (
+                  {firstAction && (
                     <Button
                       variant="primary"
                       size="sm"
-                      onClick={showLocationModal}
+                      onClick={() => showRequiredAction(firstAction.id)}
                       className="animate-pulse"
                     >
-                      Confirm your location
+                      {viewOf(firstAction).label}
                     </Button>
                   )}
                   <button
@@ -309,7 +311,7 @@ export default function Header() {
               {mounted &&
                 !loading &&
                 user &&
-                (!user.locationConfirmedAt || waiting > 0 || newUpdates) && (
+                (requiredActions.length > 0 || waiting > 0 || newUpdates) && (
                   <span
                     className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-primary"
                     aria-hidden="true"
@@ -381,17 +383,18 @@ export default function Header() {
                     <PersonInitials name={user.name} size="md" />
                     {user.name}
                   </div>
-                  {!user.locationConfirmedAt && (
+                  {requiredActions.map((action) => (
                     <button
+                      key={action.id}
                       onClick={() => {
-                        showLocationModal()
+                        showRequiredAction(action.id)
                         setMobileMenuOpen(false)
                       }}
                       className="block w-full text-left px-5 py-4 text-primary font-medium text-base border-b border-brand-border hover:bg-brand-bg cursor-pointer bg-transparent"
                     >
-                      Confirm your location
+                      {viewOf(action).label}
                     </button>
-                  )}
+                  ))}
                   <MobileNavLink href={`/volunteers/${user.id}`}>My profile</MobileNavLink>
                   <MobileNavLink href="/settings">Settings</MobileNavLink>
 

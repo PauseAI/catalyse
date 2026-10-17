@@ -16,6 +16,9 @@ export type Treatment = 'keep' | 'redact' | 'null' | 'token' | 'custom' | 'rows-
 export const REDACTED = '[redacted]'
 
 export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
+  // A merge's conflicts hold both accounts' profile values.
+  account_merges: { conflicts: 'rows-deleted' },
+  account_merge_requests: { token: 'rows-deleted' },
   admin_invites: { email: 'custom', invite_token: 'token' },
   admin_notes: { content: 'redact', category: 'keep' },
   anonymised_emails: { email_hash: 'token' },
