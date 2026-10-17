@@ -1734,6 +1734,9 @@ describe('project page — timeline tab', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Set original plan' }))
     await userEvent.click(screen.getAllByRole('button', { name: 'Set original plan' })[1])
     await screen.findByText('Original plan updated')
+    // The toast comes before the timeline's refetch; one landing after the delete below would
+    // drop the task, and its panel with it.
+    await screen.findByRole('button', { name: 'Replace original plan' })
 
     // Failures: an anchor change and a reschedule on a task that vanished.
     await userEvent.click(screen.getByRole('button', { name: /^Loose one:/ }))
