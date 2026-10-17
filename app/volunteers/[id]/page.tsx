@@ -123,6 +123,21 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
               {volunteer.activeRecently && <ActiveDot />}
             </div>
 
+            {user.access.globalAdmin && (
+              <p className="text-sm mt-0 mb-2">
+                {volunteer.duplicateOf && (
+                  <>
+                    Duplicate account of{' '}
+                    <Link href={`/volunteers/${volunteer.duplicateOf.id}`}>
+                      {volunteer.duplicateOf.name}
+                    </Link>
+                    {' · '}
+                  </>
+                )}
+                <Link href={`/admin/volunteers/${volunteer.id}`}>Admin page</Link>
+              </p>
+            )}
+
             {volunteerLocation(volunteer) && (
               <p className="text-text-light mb-4 text-sm">📍 {volunteerLocation(volunteer)}</p>
             )}
@@ -167,6 +182,11 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
                 <div id="contactInfo">
                   <h4 className="text-text-light">Contact</h4>
                   <div>
+                    {volunteer.email && (
+                      <div>
+                        Email: <a href={`mailto:${volunteer.email}`}>{volunteer.email}</a>
+                      </div>
+                    )}
                     {volunteer.discordHandle && <div>Discord: {volunteer.discordHandle}</div>}
                     {volunteer.signalNumber && <div>Signal: {volunteer.signalNumber}</div>}
                     {volunteer.whatsappNumber && <div>WhatsApp: {volunteer.whatsappNumber}</div>}

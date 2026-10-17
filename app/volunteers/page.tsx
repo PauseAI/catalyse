@@ -208,6 +208,13 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
                       </Tooltip>
                     )}
                   </h3>
+                  {v.email && <p className="text-xs text-text-light m-0 mb-2">{v.email}</p>}
+                  {v.duplicateOf && (
+                    <p className="text-xs text-text-light m-0 mb-2">
+                      Duplicate account of{' '}
+                      <Link href={`/volunteers/${v.duplicateOf.id}`}>{v.duplicateOf.name}</Link>
+                    </p>
+                  )}
                   {(volunteerLocation(v) || v.availabilityHoursPerWeek) && (
                     <div className="flex items-center gap-3 flex-wrap text-xs text-text-light mb-2">
                       {volunteerLocation(v) && (

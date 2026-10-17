@@ -8,6 +8,7 @@ import Button from '@/components/Button'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import Tabs from '@/components/Tabs'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import DuplicateAccounts, { type Account } from '@/components/DuplicateAccounts'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
@@ -68,6 +69,8 @@ interface VolunteerDetail {
   adminNotes: AdminNote[]
   quickTasks: QuickTask[]
   projectHistory: ProjectHistory[]
+  duplicateOf: Account | null
+  duplicates: Account[]
 }
 
 const NOTE_CATEGORIES = [
@@ -269,6 +272,12 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
           </div>
           {vol.bio && <p className="mb-0 whitespace-pre-wrap">{vol.bio}</p>}
         </div>
+
+        <DuplicateAccounts
+          volunteer={vol}
+          canMark={user.access.globalAdmin}
+          onChange={invalidateVol}
+        />
 
         {/* Skills and contact info */}
         <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>

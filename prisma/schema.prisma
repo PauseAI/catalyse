@@ -109,6 +109,23 @@ model NationalChapter {
   @@map("national_chapters")
 }
 
+/// Two accounts a global admin has said belong to different people, so the duplicate check
+/// stops pairing them. The lower id is always `volunteerAId`.
+model DistinctAccountPair {
+  volunteerAId  Int      @map("volunteer_a_id")
+  volunteerBId  Int      @map("volunteer_b_id")
+  dismissedById Int?     @map("dismissed_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  volunteerA  Volunteer  @relation("DistinctAccountPairA", fields: [volunteerAId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  volunteerB  Volunteer  @relation("DistinctAccountPairB", fields: [volunteerBId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  dismissedBy Volunteer? @relation("DistinctAccountPairDismissedBy", fields: [dismissedById], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@id([volunteerAId, volunteerBId])
+  @@index([volunteerBId], map: "idx_distinct_account_pairs_b")
+  @@map("distinct_account_pairs")
+}
+
 /// A chapter lead's appointed helper: every power the lead has except appointing staff.
 /// `volunteerId` is unique, so a person is deputy of at most one chapter.
 model ChapterDeputy {
@@ -1070,6 +1087,14 @@ model Volunteer {
   localGroupId                            Int?                     @map("local_group_id")
   chapter                                 NationalChapter?         @relation("ChapterMembers", fields: [nationalChapterId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   group                                   LocalGroup?              @relation(fields: [localGroupId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  /// Set by a global admin on a second account of the same person: the account to use instead.
+  /// A duplicate is left out of the directory and of every volunteer picker.
+  duplicateOfId                           Int?                     @map("duplicate_of_id")
+  duplicateOf                             Volunteer?               @relation("DuplicateAccounts", fields: [duplicateOfId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  duplicates                              Volunteer[]              @relation("DuplicateAccounts")
+  distinctPairsAsA                        DistinctAccountPair[]    @relation("DistinctAccountPairA")
+  distinctPairsAsB                        DistinctAccountPair[]    @relation("DistinctAccountPairB")
+  distinctPairsDismissed                  DistinctAccountPair[]    @relation("DistinctAccountPairDismissedBy")
   ledChapter                              NationalChapter?         @relation("ChapterLead")
   chapterDeputyRole                       ChapterDeputy?           @relation("ChapterDeputyVolunteer")
   chapterDeputiesAppointed                ChapterDeputy[]          @relation("ChapterDeputyAppointedBy")
@@ -1131,6 +1156,7 @@ model Volunteer {
 
   @@index([country], map: "idx_volunteers_country")
   @@index([nationalChapterId], map: "idx_volunteers_chapter")
+  @@index([duplicateOfId], map: "idx_volunteers_duplicate_of")
   @@index([deletedAt], map: "idx_volunteers_deleted")
   @@index([authToken], map: "idx_volunteers_auth_token")
   @@index([email], map: "idx_volunteers_email")

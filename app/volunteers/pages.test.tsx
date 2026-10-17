@@ -74,13 +74,16 @@ describe('volunteer directory', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
     expect(navigation.replace).toHaveBeenCalledWith('?', { scroll: false })
     expect(screen.queryByText('Hidden Person')).toBeNull()
-    void ann
+    expect(screen.queryByText(ann.email!)).toBeNull()
 
     cleanup()
     const admin = await createAdmin()
     await renderApp(<VolunteersPage />, { as: admin, url: '/volunteers?q=Hidden' })
-    await screen.findByRole('link', { name: 'Hidden Person' })
+    const hiddenCard = (await screen.findByRole('link', { name: 'Hidden Person' })).closest(
+      '.card',
+    ) as HTMLElement
     expect(screen.getByText('Hidden')).toBeInTheDocument()
+    expect(within(hiddenCard).getByText(/@/)).toBeInTheDocument()
     // A global admin narrows the directory to a chapter, then to one of its groups.
     await userEvent.click(screen.getByRole('button', { name: 'Chapter filter' }))
     await userEvent.click(await screen.findByRole('option', { name: 'Holding pool' }))
@@ -89,6 +92,21 @@ describe('volunteer directory', () => {
     await userEvent.click(await screen.findByRole('option', { name: chapter.name }))
     await screen.findByRole('link', { name: 'Hidden Person' })
     expect(await screen.findByRole('button', { name: 'Local group filter' })).toBeInTheDocument()
+  })
+
+  it('keeps a duplicate account listed, marked for a global admin', async () => {
+    const kept = await createVolunteer({ name: 'Dupe Kept' })
+    await createVolunteer({ name: 'Dupe Old', duplicateOfId: kept.id })
+    await renderApp(<VolunteersPage />, { as: await createAdmin(), url: '/volunteers?q=Dupe' })
+    const oldCard = (await screen.findByRole('link', { name: 'Dupe Old' })).closest(
+      '.card',
+    ) as HTMLElement
+    expect(within(oldCard).getByText(/Duplicate account of/)).toBeInTheDocument()
+    expect(within(oldCard).getByRole('link', { name: 'Dupe Kept' })).toHaveAttribute(
+      'href',
+      `/volunteers/${kept.id}`,
+    )
+    expect(screen.getAllByText(/Duplicate account of/)).toHaveLength(1)
   })
 })
 
@@ -135,8 +153,15 @@ describe('volunteer profile', () => {
     expect(screen.getByText(`${skill.name} ✓`)).toBeInTheDocument()
     expect(screen.getByText('juggling')).toBeInTheDocument()
     expect(screen.getByText('3 hours/week')).toBeInTheDocument()
-    // The login address is never on a profile, even for an admin.
-    expect(screen.queryByText(/profiled@example\.org/)).toBeNull()
+    expect(screen.getByRole('link', { name: 'profiled@example.org' })).toHaveAttribute(
+      'href',
+      'mailto:profiled@example.org',
+    )
+    expect(screen.getByRole('link', { name: 'Admin page' })).toHaveAttribute(
+      'href',
+      `/admin/volunteers/${vol.id}`,
+    )
+    expect(screen.queryByText(/Duplicate account of/)).toBeNull()
     expect(screen.getByText('Discord: d#1')).toBeInTheDocument()
     expect(screen.getByText('evenings')).toBeInTheDocument()
     expect(screen.getByText('Verified skills')).toBeInTheDocument()
@@ -246,6 +271,20 @@ describe('volunteer profile', () => {
     })
     await view(hidden.id)
     await screen.findByText('You can reach them once you work on a project together.')
+  })
+
+  it('tells a global admin which account a duplicate stands for', async () => {
+    const kept = await createVolunteer({ name: 'Kept Account' })
+    const old = await createVolunteer({ name: 'Old Account', duplicateOfId: kept.id })
+    await renderApp(<VolunteerDetailPage params={Promise.resolve({ id: String(old.id) })} />, {
+      as: await createAdmin(),
+    })
+    await screen.findByRole('heading', { name: 'Old Account' })
+    expect(screen.getByText(/Duplicate account of/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Kept Account' })).toHaveAttribute(
+      'href',
+      `/volunteers/${kept.id}`,
+    )
   })
 
   it('shows a minimal profile, and a not-found state', async () => {

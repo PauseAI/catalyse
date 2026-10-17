@@ -32,6 +32,19 @@ async function chapterRunBy(access: ChapterAccess, chapterId: number) {
   return chapter
 }
 
+/** A duplicate account is never given a chapter role; the account it duplicates is. */
+async function assertNotDuplicate(volunteerId: number) {
+  const volunteer = await prisma.volunteer.findUnique({
+    where: { id: volunteerId },
+    select: { name: true, duplicateOf: { select: { name: true } } },
+  })
+  if (volunteer?.duplicateOf) {
+    throw new ORPCError('BAD_REQUEST', {
+      message: `${volunteer.name} is a duplicate account. Appoint ${volunteer.duplicateOf.name} instead.`,
+    })
+  }
+}
+
 function assertCanAppointDeputies(access: ChapterAccess, chapterId: number) {
   if (!canAppointDeputies(access, chapterId)) {
     throw new ORPCError('FORBIDDEN', { message: 'Only the chapter lead appoints deputies' })
@@ -116,7 +129,13 @@ export const adminChaptersRouter = {
     const deputyIds = new Set(deputies.map((d) => d.volunteerId))
     const members = await prisma.volunteer.findMany({
       where: { nationalChapterId: chapter.id, deletedAt: null },
-      select: { id: true, name: true, email: true, approvalStatus: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        approvalStatus: true,
+        duplicateOf: { select: { id: true, name: true } },
+      },
       orderBy: { name: 'asc' },
     })
     const invites = await prisma.adminInvite.findMany({
@@ -155,6 +174,7 @@ export const adminChaptersRouter = {
   }),
 
   appointLead: adminProcedure.input(memberInput).handler(async ({ input, context }) => {
+    await assertNotDuplicate(input.volunteerId)
     const lead = await prisma.$transaction((tx) =>
       appointLead(tx, input.chapterId, input.volunteerId, context.volunteer.id),
     )
@@ -169,6 +189,7 @@ export const adminChaptersRouter = {
   appointDeputy: staffProcedure.input(memberInput).handler(async ({ input, context }) => {
     await chapterRunBy(context.access, input.chapterId)
     assertCanAppointDeputies(context.access, input.chapterId)
+    await assertNotDuplicate(input.volunteerId)
     const deputy = await prisma.$transaction((tx) =>
       appointDeputy(tx, input.chapterId, input.volunteerId, context.volunteer.id),
     )

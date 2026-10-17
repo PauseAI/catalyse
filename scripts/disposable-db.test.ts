@@ -1,17 +1,17 @@
-import { afterEach, describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { Client } from 'pg'
 import { DB_PREFIX, resolveTestDbUrl, withClient } from '@/test/pg'
 import { anonymise } from './anonymise-db'
 import { seedDevAccounts } from './seed-dev-accounts'
 import { assertDisposable, claimDisposable, isDisposable, markDisposable } from './disposable-db'
 
-const scratch: string[] = []
-
-/** A new, unmarked database on the test server, standing in for one nobody has marked. */
+/**
+ * A new, unmarked database on the test server, standing in for one nobody has marked. Its
+ * prefix leaves dropping it to the run's global teardown (`dropStale`), once the server is idle.
+ */
 async function withScratchDb<T>(fn: (db: Client) => Promise<T>): Promise<T> {
   const name = `${DB_PREFIX}scratch_${Math.random().toString(36).slice(2)}`
   await withClient((client) => client.query(`CREATE DATABASE "${name}"`))
-  scratch.push(name)
   const url = new URL(resolveTestDbUrl())
   url.pathname = `/${name}`
   const db = new Client({ connectionString: url.toString() })
@@ -23,15 +23,9 @@ async function withScratchDb<T>(fn: (db: Client) => Promise<T>): Promise<T> {
   }
 }
 
-// Creating or dropping a database makes Postgres checkpoint, which can outlast the default
-// timeouts while the rest of the suite keeps the same server busy.
-const DROP_TIMEOUT_MS = 60_000
+// Creating a database can outlast the default timeout while the rest of the suite keeps the
+// same server busy.
 const SCRATCH_TEST_TIMEOUT_MS = 60_000
-afterEach(async () => {
-  for (const name of scratch.splice(0)) {
-    await withClient((client) => client.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`))
-  }
-}, DROP_TIMEOUT_MS)
 
 const counts = { volunteer: 1, lead: 1, deputy: 1, admin: 1, superadmin: 0 }
 

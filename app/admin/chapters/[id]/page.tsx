@@ -30,6 +30,13 @@ const ACTION_LABELS: Record<ChapterAuditAction, string> = {
 
 const NONE = ''
 
+/** Muted details after a name, such as the email that tells two same-named accounts apart. */
+function Muted({ parts }: { parts: (string | null)[] }) {
+  const shown = parts.filter(Boolean)
+  if (shown.length === 0) return null
+  return <span className="text-text-light text-sm"> · {shown.join(' · ')}</span>
+}
+
 /** One chapter's lead, deputies, members and staff invites, and what has changed. */
 export default function AdminChapterPage({ params }: { params: Promise<{ id: string }> }) {
   const chapterId = Number(use(params).id)
@@ -108,8 +115,8 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
   const lead = chapter.members.find((m) => m.role === 'LEAD')
   const deputies = chapter.members.filter((m) => m.role === 'DEPUTY')
   const memberOptions = chapter.members
-    .filter((m) => m.role === null)
-    .map((m) => ({ value: String(m.id), label: m.name }))
+    .filter((m) => m.role === null && !m.duplicateOf)
+    .map((m) => ({ value: String(m.id), label: m.name, description: m.email ?? undefined }))
   const moveOptions = [
     { value: NONE, label: 'Move to…' },
     ...(list?.chapters ?? [])
@@ -131,7 +138,10 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
         <h2 className="mt-0">Lead</h2>
         {lead ? (
           <div className="flex justify-between items-center gap-4 flex-wrap">
-            <span>{lead.name}</span>
+            <span>
+              {lead.name}
+              <Muted parts={[lead.email]} />
+            </span>
             {isGlobal && (
               <Button
                 size="sm"
@@ -169,7 +179,10 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
           <ul className="list-none p-0 m-0 grid gap-2">
             {deputies.map((d) => (
               <li key={d.id} className="flex justify-between items-center gap-4 flex-wrap">
-                <span>{d.name}</span>
+                <span>
+                  {d.name}
+                  <Muted parts={[d.email]} />
+                </span>
                 {chapter.canAppointDeputies && (
                   <Button
                     size="sm"
@@ -274,12 +287,13 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
             >
               <span>
                 <Link href={`/volunteers/${m.id}`}>{m.name}</Link>
-                {m.role && (
-                  <span className="text-text-light text-sm">
-                    {' '}
-                    · {m.role === 'LEAD' ? 'Lead' : 'Deputy'}
-                  </span>
-                )}
+                <Muted
+                  parts={[
+                    m.email,
+                    m.role && (m.role === 'LEAD' ? 'Lead' : 'Deputy'),
+                    m.duplicateOf && `duplicate of ${m.duplicateOf.name}`,
+                  ]}
+                />
               </span>
               {isGlobal && (
                 <FilterDropdown

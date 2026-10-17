@@ -9,6 +9,9 @@ import {
   createProject,
   createQuickTask,
   createSkill,
+  createChapter,
+  createChapterLead,
+  createMember,
 } from '@/test/factories'
 import { renderApp } from '@/test/render'
 import AdminVolunteerDetailPage from './page'
@@ -195,5 +198,65 @@ describe('admin volunteer detail', () => {
     await mount(999_999, admin)
     await screen.findByText('Volunteer not found.')
     expect(screen.getByRole('link', { name: 'Back' })).toHaveAttribute('href', '/volunteers')
+  })
+})
+
+describe('duplicate accounts', () => {
+  it('lets a global admin mark an account as a duplicate of the one kept, and clear it', async () => {
+    const admin = await createAdmin()
+    const kept = await createVolunteer({ name: 'Kim Kept', email: 'kim-kept@example.com' })
+    const old = await createVolunteer({ name: 'Kim Old', email: 'kim-old@example.com' })
+    await mount(old.id, admin)
+
+    await screen.findByRole('heading', { name: 'Duplicate accounts' })
+    expect(screen.getByText("No other accounts are marked as this person's.")).toBeInTheDocument()
+    expect(await screen.findByText('No other account looks like this one.')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Mark as a duplicate of' }))
+    await userEvent.type(
+      screen.getByRole('searchbox', { name: 'Mark as a duplicate of' }),
+      'kim-kept',
+    )
+    const option = await screen.findByRole('option', { name: 'Kim Kept' })
+    expect(option).toHaveTextContent('kim-kept@example.com')
+    await userEvent.click(option)
+    await userEvent.click(screen.getByRole('button', { name: 'Mark as duplicate' }))
+    await screen.findByText('Kim Old is marked as a duplicate of Kim Kept')
+    expect(await screen.findByRole('link', { name: 'Kim Kept' })).toHaveAttribute(
+      'href',
+      `/admin/volunteers/${kept.id}`,
+    )
+
+    // Cleared elsewhere first, so this one is refused.
+    await prisma.volunteer.update({ where: { id: old.id }, data: { duplicateOfId: null } })
+    await userEvent.click(screen.getByRole('button', { name: 'Not a duplicate' }))
+    await screen.findByText('Kim Old is not marked as a duplicate')
+
+    await prisma.volunteer.update({ where: { id: old.id }, data: { duplicateOfId: kept.id } })
+    await userEvent.click(screen.getByRole('button', { name: 'Not a duplicate' }))
+    await screen.findByText('Kim Old is no longer marked as a duplicate')
+    await screen.findByRole('button', { name: 'Mark as duplicate' })
+  })
+
+  it('shows chapter staff what is marked, without the controls', async () => {
+    const chapter = await createChapter()
+    const lead = await createChapterLead(chapter)
+    const kept = await createMember(chapter, { name: 'Kit Kept' })
+    const old = await createMember(chapter, { name: 'Kit Old', duplicateOfId: kept.id })
+    const plain = await createMember(chapter, { name: 'Pat Plain' })
+
+    await mount(kept.id, lead)
+    await screen.findByText('Other accounts of the same person:')
+    expect(screen.getByRole('link', { name: 'Kit Old' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Mark as duplicate' })).toBeNull()
+
+    cleanup()
+    await mount(old.id, lead)
+    await screen.findByRole('link', { name: 'Kit Kept' })
+    expect(screen.queryByRole('button', { name: 'Not a duplicate' })).toBeNull()
+
+    cleanup()
+    await mount(plain.id, lead)
+    await screen.findByRole('heading', { name: 'Pat Plain' })
+    expect(screen.queryByRole('heading', { name: 'Duplicate accounts' })).toBeNull()
   })
 })

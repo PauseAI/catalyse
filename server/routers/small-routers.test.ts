@@ -91,8 +91,10 @@ describe('admin.cronRuns', () => {
 })
 
 describe('admin.overview.counts', () => {
-  it('counts triage, applications, bugs and unread admin notifications', async () => {
+  it('counts triage, applications, bugs, unread admin notifications and duplicates', async () => {
     const admin = await createAdmin()
+    await createVolunteer({ name: 'Counted Twin' })
+    await createVolunteer({ name: 'Counted Twin' })
     await createProject({ status: 'pending_review' })
     await createProject({ status: 'needs_discussion' })
     await createVolunteer({ approvalStatus: 'pending' })
@@ -112,6 +114,7 @@ describe('admin.overview.counts', () => {
       pendingApplications: 1,
       openBugReports: 1,
       unreadNotifications: 1,
+      possibleDuplicates: 1,
     })
   })
 })

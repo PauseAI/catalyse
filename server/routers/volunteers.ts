@@ -38,11 +38,16 @@ export const volunteersRouter = {
       // The directory is the viewer's chapter's, and its staff see profiles hidden from it.
       const isAdmin = canAdminChapter(context.access, context.access.chapterId)
 
+      // A global admin sees, and searches by, each volunteer's login address, and sees which
+      // accounts are marked as another's duplicate.
+      const { globalAdmin } = context.access
+
       const textConditions: Prisma.Sql[] = []
       if (input.search) {
         const like = `%${input.search}%`
+        const byEmail = globalAdmin ? Prisma.sql` OR email ILIKE ${like}` : Prisma.empty
         textConditions.push(
-          Prisma.sql`(public.unaccent(name) ILIKE public.unaccent(${like}) OR public.unaccent(COALESCE(bio, '')) ILIKE public.unaccent(${like}))`,
+          Prisma.sql`(public.unaccent(name) ILIKE public.unaccent(${like}) OR public.unaccent(COALESCE(bio, '')) ILIKE public.unaccent(${like})${byEmail})`,
         )
       }
       if (input.localGroup) {
@@ -76,12 +81,14 @@ export const volunteersRouter = {
           select: {
             id: true,
             name: true,
+            email: true,
             bio: true,
             availabilityHoursPerWeek: true,
             location: true,
             country: true,
             otherSkills: true,
             group: { select: { name: true } },
+            duplicateOf: { select: { id: true, name: true } },
             createdAt: true,
             lastActiveAt: true,
             consentMakeProfileVisibleInDirectory: true,
@@ -112,6 +119,7 @@ export const volunteersRouter = {
           contactRequested: relations.requested.has(v.id),
           activeRecently: isActiveRecently(v.lastActiveAt),
           name: v.name,
+          ...(globalAdmin ? { email: v.email, duplicateOf: v.duplicateOf } : {}),
           bio: v.bio,
           availabilityHoursPerWeek: v.availabilityHoursPerWeek,
           location: v.location,
@@ -154,6 +162,7 @@ export const volunteersRouter = {
           skillEndorsementsReceived: {
             include: { skill: true },
           },
+          duplicateOf: { select: { id: true, name: true } },
         },
       })
 
@@ -281,15 +290,16 @@ export const volunteersRouter = {
         }),
       ])
 
-      // A profile never carries the login address, whoever is looking: people reach the
-      // volunteer through the message relay, and admins read it on the admin page.
-      const { email: _email, ...profile } = redactVolunteer(vol, {
+      // Only a global admin sees the login address on a profile, and which account this one
+      // duplicates: everyone else reaches the volunteer through the message relay.
+      const { email, ...profile } = redactVolunteer(vol, {
         showContact,
         skills,
         endorsements,
       })
       return {
         ...profile,
+        ...(context.access.globalAdmin ? { email, duplicateOf: vol.duplicateOf } : {}),
         canMessage: vol.id !== currentVolunteer.id && showContact,
         contactRequested: relations.requested.has(vol.id),
         incomingContactRequest: incoming,

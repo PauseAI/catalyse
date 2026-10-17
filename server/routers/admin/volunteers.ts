@@ -2,7 +2,8 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { redactVolunteer } from '@/lib/auth'
-import { staffProcedure } from '../../procedures'
+import { dismissDuplicatePair, findDuplicatePairs } from '@/lib/duplicate-accounts'
+import { adminProcedure, staffProcedure } from '../../procedures'
 import { canAdminChapter, type ChapterAccess } from '@/lib/chapter-access'
 import { WorkItemType } from '@/generated/prisma/enums'
 
@@ -31,6 +32,29 @@ async function assertRunsVolunteer(access: ChapterAccess, volunteerId: number) {
   }
 }
 
+async function liveVolunteer(id: number) {
+  const volunteer = await prisma.volunteer.findFirst({
+    where: { id, deletedAt: null },
+    select: { id: true, name: true, email: true, duplicateOfId: true },
+  })
+  if (!volunteer) throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
+  return volunteer
+}
+
+/** The chapter role a volunteer holds, said as a sentence, or null. */
+async function staffRole(volunteerId: number): Promise<string | null> {
+  const led = await prisma.nationalChapter.findUnique({ where: { leadId: volunteerId } })
+  if (led) return `leads the ${led.name} chapter`
+  const deputy = await prisma.chapterDeputy.findUnique({
+    where: { volunteerId },
+    include: { chapter: { select: { name: true } } },
+  })
+  return deputy ? `is a deputy of the ${deputy.chapter.name} chapter` : null
+}
+
+const sameAs = (v: { name: string; email: string | null }) =>
+  v.email ? `${v.name} (${v.email})` : v.name
+
 /** A volunteer as their chapter's staff, or a global admin, see them. */
 export const adminVolunteersRouter = {
   getById: staffProcedure
@@ -49,6 +73,12 @@ export const adminVolunteersRouter = {
           },
           skillEndorsementsReceived: {
             include: { skill: true },
+          },
+          duplicateOf: { select: { id: true, name: true, email: true } },
+          duplicates: {
+            where: { deletedAt: null },
+            select: { id: true, name: true, email: true },
+            orderBy: { name: 'asc' },
           },
         },
       })
@@ -111,6 +141,8 @@ export const adminVolunteersRouter = {
           skills,
           endorsements: publicEndorsements,
         }),
+        duplicateOf: vol.duplicateOf,
+        duplicates: vol.duplicates,
         adminNotes: adminNotes.map((n) => ({
           id: n.id,
           volunteerId: n.volunteerId,
@@ -224,5 +256,94 @@ export const adminVolunteersRouter = {
         },
       })
       return { message: 'Skill endorsed' }
+    }),
+
+  /** Pairs of accounts that look like one person; with `volunteerId`, that account's only. */
+  possibleDuplicates: adminProcedure
+    .input(z.object({ volunteerId: z.number().int().optional() }))
+    .handler(({ input }) => findDuplicatePairs(input.volunteerId)),
+
+  /** Says two accounts belong to different people, so they are not paired again. */
+  dismissDuplicate: adminProcedure
+    .input(z.object({ ids: z.tuple([z.number().int(), z.number().int()]) }))
+    .handler(async ({ input, context }) => {
+      await Promise.all(input.ids.map(liveVolunteer))
+      await dismissDuplicatePair(input.ids, context.volunteer.id)
+      return { message: 'Marked as different people' }
+    }),
+
+  /**
+   * Marks `id` as a second account of whoever holds `duplicateOfId`, or clears the mark with
+   * null. Accounts already marked as duplicates of `id` move to the new keeper, so a mark always
+   * points at an account in use. Each change leaves an admin note on the accounts involved.
+   */
+  markDuplicate: adminProcedure
+    .input(z.object({ id: z.number().int(), duplicateOfId: z.number().int().nullable() }))
+    .handler(async ({ input, context }) => {
+      const account = await liveVolunteer(input.id)
+      const authorId = context.volunteer.id
+
+      if (input.duplicateOfId === null) {
+        if (account.duplicateOfId === null) {
+          throw new ORPCError('BAD_REQUEST', {
+            message: `${account.name} is not marked as a duplicate`,
+          })
+        }
+        await prisma.$transaction([
+          prisma.volunteer.update({ where: { id: account.id }, data: { duplicateOfId: null } }),
+          prisma.adminNote.create({
+            data: {
+              volunteerId: account.id,
+              authorId,
+              content: 'No longer marked as a duplicate.',
+            },
+          }),
+        ])
+        return { message: `${account.name} is no longer marked as a duplicate` }
+      }
+
+      if (input.duplicateOfId === account.id) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: 'An account cannot be a duplicate of itself',
+        })
+      }
+      const keeper = await liveVolunteer(input.duplicateOfId)
+      if (keeper.duplicateOfId !== null) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: `${keeper.name} is itself marked as a duplicate`,
+        })
+      }
+      const role = await staffRole(account.id)
+      if (role) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: `${account.name} ${role}. Give the role to the account you are keeping first.`,
+        })
+      }
+
+      await prisma.$transaction([
+        prisma.volunteer.updateMany({
+          where: { duplicateOfId: account.id },
+          data: { duplicateOfId: keeper.id },
+        }),
+        prisma.volunteer.update({
+          where: { id: account.id },
+          data: { duplicateOfId: keeper.id },
+        }),
+        prisma.adminNote.createMany({
+          data: [
+            {
+              volunteerId: account.id,
+              authorId,
+              content: `Marked as a duplicate of ${sameAs(keeper)}.`,
+            },
+            {
+              volunteerId: keeper.id,
+              authorId,
+              content: `${sameAs(account)} marked as a duplicate of this account.`,
+            },
+          ],
+        }),
+      ])
+      return { message: `${account.name} is marked as a duplicate of ${keeper.name}` }
     }),
 }
