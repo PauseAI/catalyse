@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/Button'
@@ -12,25 +12,24 @@ import {
   type LocalGroupOption,
 } from '@/lib/filter-options'
 import { useAuth } from '@/lib/auth-context'
-import { useLocationModal } from '@/lib/location-modal-context'
+import { useRequiredActions } from '@/lib/required-actions-context'
 import { orpc } from '@/lib/orpc'
+import type { RequiredActionDialogProps } from './registry'
 
-export default function ConfirmLocationModal() {
+export default function ConfirmLocationDialog({
+  onClose,
+}: RequiredActionDialogProps<'confirm_location'>) {
   const { user, refreshUser } = useAuth()
-  const { open, hide } = useLocationModal()
+  const { refresh } = useRequiredActions()
   const [location, setLocation] = useState(user?.location ?? '')
   const [countryValue, setCountryValue] = useState(user?.country ?? '')
   const [localGroupValue, setLocalGroupValue] = useState(user?.localGroup ?? '')
-  const [initialized, setInitialized] = useState(false)
 
   // A country once given decides the chapter, so only someone without one picks it here.
   const hasValidCountry = !!user?.country
   const effectiveCountry = hasValidCountry ? user!.country! : countryValue
 
-  const { data: localGroupsData } = useQuery({
-    ...orpc.localGroups.list.queryOptions({ input: {} }),
-    enabled: !!user && !user.locationConfirmedAt,
-  })
+  const { data: localGroupsData } = useQuery(orpc.localGroups.list.queryOptions({ input: {} }))
   const allLocalGroups: LocalGroupOption[] = localGroupsData?.groups ?? []
 
   const localGroupOptions = effectiveCountry
@@ -44,19 +43,9 @@ export default function ConfirmLocationModal() {
     ...orpc.volunteers.updateMe.mutationOptions(),
     onSuccess: async () => {
       await refreshUser()
+      await refresh()
     },
   })
-
-  const shouldShow = !!user && !user.locationConfirmedAt && open
-
-  useEffect(() => {
-    if (!shouldShow || initialized) return
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setInitialized(true)
-    setLocation(user!.location ?? '')
-    setCountryValue(user!.country ?? '')
-    setLocalGroupValue(user!.localGroup ?? '')
-  }, [shouldShow, initialized, user])
 
   function handleCountryChange(value: string) {
     setCountryValue(value)
@@ -72,7 +61,7 @@ export default function ConfirmLocationModal() {
   }
 
   return (
-    <Modal id="confirm-location" title="Confirm your location" isOpen={shouldShow} onClose={hide}>
+    <Modal id="confirm-location" title="Confirm your location" isOpen onClose={onClose}>
       <p className="text-text-light mb-4">
         Help us match you with nearby projects and local groups.
       </p>
@@ -117,7 +106,7 @@ export default function ConfirmLocationModal() {
         <Button onClick={handleSubmit} disabled={updateMutation.isPending}>
           {updateMutation.isPending ? 'Saving…' : 'Confirm'}
         </Button>
-        <Button variant="secondary" onClick={hide}>
+        <Button variant="secondary" onClick={onClose}>
           Ask me later
         </Button>
       </div>

@@ -17,10 +17,10 @@ vi.mock('next/script', async () => (await import('@/test/next-stubs')).script)
 vi.mock('next/font/google', async () => (await import('@/test/next-stubs')).fontGoogle)
 
 async function ssr(page: ComponentType) {
-  const [{ AppProviders }, { ThemeProvider }, { LocationModalProvider }] = await Promise.all([
+  const [{ AppProviders }, { ThemeProvider }, { RequiredActionsProvider }] = await Promise.all([
     import('@/test/render'),
     import('@/components/ThemeProvider'),
-    import('@/lib/location-modal-context'),
+    import('@/lib/required-actions-context'),
   ])
   return renderToString(
     createElement(
@@ -29,7 +29,7 @@ async function ssr(page: ComponentType) {
       createElement(
         ThemeProvider,
         null,
-        createElement(LocationModalProvider, null, createElement(page)),
+        createElement(RequiredActionsProvider, null, createElement(page)),
       ),
     ),
   )

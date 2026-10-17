@@ -405,6 +405,8 @@ describe('quick tasks — admin view', () => {
     await waitFor(async () =>
       expect(await row(task.id)).toMatchObject({ assigneeId: null, status: 'not_started' }),
     )
+    // The refetch must land before the project goes, or it brings back a card with no project.
+    await within(card()).findByRole('button', { name: 'Assign volunteer to Featured one' })
 
     // Backdrop / cancel closes each modal.
     await userEvent.click(screen.getByRole('button', { name: 'Create task' }))

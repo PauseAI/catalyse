@@ -15,7 +15,8 @@ import { renderApp } from '@/test/render'
 import { navigation } from '@/test/next-navigation'
 import Header from './Header'
 import { ThemeProvider } from './ThemeProvider'
-import { LocationModalProvider, useLocationModal } from '@/lib/location-modal-context'
+import { RequiredActionsProvider } from '@/lib/required-actions-context'
+import RequiredActions from './required-actions/RequiredActions'
 
 window.matchMedia = vi.fn(() => ({
   matches: false,
@@ -23,18 +24,13 @@ window.matchMedia = vi.fn(() => ({
   removeEventListener() {},
 })) as never
 
-function ModalFlag() {
-  const { open } = useLocationModal()
-  return <span data-testid="modal">{String(open)}</span>
-}
-
 const mount = (as: Awaited<ReturnType<typeof createVolunteer>> | null, url = '/projects') =>
   renderApp(
     <ThemeProvider>
-      <LocationModalProvider>
+      <RequiredActionsProvider>
         <Header />
-        <ModalFlag />
-      </LocationModalProvider>
+        <RequiredActions />
+      </RequiredActionsProvider>
     </ThemeProvider>,
     { as, url },
   )
@@ -81,13 +77,18 @@ describe('Header', () => {
   it('prompts to confirm location, opens the bug dialog, and signs out from the desktop menu', async () => {
     const vol = await createVolunteer({ locationConfirmedAt: null })
     await mount(vol, '/teams')
-    await userEvent.click(await screen.findByRole('button', { name: 'Confirm your location' }))
-    expect(screen.getByTestId('modal')).toHaveTextContent('true')
+    // The prompt opens by itself once; after that the header opens it.
+    await userEvent.click(await screen.findByRole('button', { name: 'Ask me later' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await userEvent.click(screen.getAllByRole('button', { name: 'Confirm your location' })[0])
+    expect(await screen.findByRole('dialog', { name: 'Confirm your location' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Ask me later' }))
     await userEvent.click(screen.getByLabelText('Report a bug or give feedback'))
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
     await userEvent.click(screen.getByLabelText('Close'))
     await userEvent.click(screen.getByLabelText('Open menu'))
     await userEvent.click(screen.getAllByRole('button', { name: 'Confirm your location' })[1])
+    await userEvent.click(await screen.findByRole('button', { name: 'Ask me later' }))
     await userEvent.click(screen.getByLabelText('Open menu'))
     await userEvent.click(screen.getByRole('button', { name: 'Report bug/feedback' }))
     expect(await screen.findByRole('dialog')).toBeInTheDocument()

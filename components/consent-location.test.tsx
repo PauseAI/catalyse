@@ -2,13 +2,10 @@ import { describe, it, expect } from 'vitest'
 import { screen, waitFor, act, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { prisma } from '@/lib/prisma'
 import { createVolunteer, createLocalGroup } from '@/test/factories'
 import { renderApp } from '@/test/render'
 import Analytics from './Analytics'
 import VolunteerSelect from './VolunteerSelect'
-import ConfirmLocationModal from './ConfirmLocationModal'
-import { LocationModalProvider } from '@/lib/location-modal-context'
 
 describe('Analytics', () => {
   it('loads Google Analytics for a visitor who has not declined, and shows no banner', async () => {
@@ -120,94 +117,4 @@ describe('VolunteerSelect', () => {
   })
 })
 
-describe('ConfirmLocationModal', () => {
-  const mount = (as: Awaited<ReturnType<typeof createVolunteer>>) =>
-    renderApp(
-      <LocationModalProvider>
-        <ConfirmLocationModal />
-      </LocationModalProvider>,
-      { as },
-    )
-
-  it('stays hidden for confirmed users, and can be postponed', async () => {
-    const confirmed = await createVolunteer({ locationConfirmedAt: new Date() })
-    await mount(confirmed)
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-    const fresh = await createVolunteer({ locationConfirmedAt: null, country: null })
-    await mount(fresh)
-    expect(await screen.findByRole('dialog')).toBeInTheDocument()
-    await userEvent.click(screen.getByText('Ask me later'))
-    expect(screen.queryByRole('dialog')).toBeNull()
-  })
-
-  it('collects country, local group or city, and saves', async () => {
-    const town = await createLocalGroup({ name: 'Testtown', country: 'UK' })
-    const fresh = await createVolunteer({
-      locationConfirmedAt: null,
-      country: null,
-      location: 'Somewhere',
-    })
-    await mount(fresh)
-    await screen.findByRole('dialog')
-    // No country yet → nothing but the country picker.
-    expect(screen.queryByLabelText('City / Area')).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Select country' }))
-    await userEvent.click(await screen.findByRole('option', { name: 'United Kingdom' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Select local group' }))
-    await userEvent.click(await screen.findByRole('option', { name: 'Testtown' }))
-    expect(screen.queryByLabelText('City / Area')).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
-    await waitFor(async () => {
-      const row = await prisma.volunteer.findUniqueOrThrow({ where: { id: fresh.id } })
-      expect(row).toMatchObject({
-        country: 'UK',
-        nationalChapterId: town.nationalChapterId,
-        localGroupId: town.id,
-        location: 'Somewhere',
-      })
-      expect(row.locationConfirmedAt).not.toBeNull()
-    })
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-  })
-
-  it('handles a known country with no groups, and the "none of these" choice', async () => {
-    const berlin = await createLocalGroup({ name: 'Berlin', country: 'Germany' })
-    const noGroups = await createVolunteer({
-      locationConfirmedAt: null,
-      country: 'Spain',
-      location: null,
-    })
-    await mount(noGroups)
-    await screen.findByRole('dialog')
-    expect(screen.queryByRole('button', { name: 'Select country' })).toBeNull()
-    await userEvent.type(await screen.findByLabelText('City / Area'), '  Madrid ')
-    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
-    await waitFor(async () =>
-      expect(
-        await prisma.volunteer.findUniqueOrThrow({ where: { id: noGroups.id } }),
-      ).toMatchObject({ country: 'Spain', location: 'Madrid', localGroupId: null }),
-    )
-
-    const german = await createVolunteer({
-      locationConfirmedAt: null,
-      country: 'Germany',
-      nationalChapterId: berlin.nationalChapterId,
-      localGroupId: berlin.id,
-    })
-    await mount(german)
-    await screen.findByRole('dialog')
-    await userEvent.click(await screen.findByRole('button', { name: 'Select local group' }))
-    await userEvent.click(
-      await screen.findByRole('option', { name: "None of these, I'll enter my city" }),
-    )
-    await userEvent.type(screen.getByLabelText('City / Area'), 'Hamburg')
-    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
-    await waitFor(async () =>
-      expect(await prisma.volunteer.findUniqueOrThrow({ where: { id: german.id } })).toMatchObject({
-        localGroupId: null,
-        location: 'Hamburg',
-      }),
-    )
-  })
-})
 void act

@@ -1,37 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, act, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { LocationModalProvider, useLocationModal } from './location-modal-context'
 import { ToastProvider, useToast } from './toast'
-
-describe('LocationModalProvider', () => {
-  function Probe() {
-    const { open, show, hide } = useLocationModal()
-    return (
-      <>
-        <span>{open ? 'open' : 'closed'}</span>
-        <button onClick={hide}>hide</button>
-        <button onClick={show}>show</button>
-      </>
-    )
-  }
-  it('starts open and can be hidden and shown', async () => {
-    render(
-      <LocationModalProvider>
-        <Probe />
-      </LocationModalProvider>,
-    )
-    expect(screen.getByText('open')).toBeInTheDocument()
-    await userEvent.click(screen.getByText('hide'))
-    expect(screen.getByText('closed')).toBeInTheDocument()
-    await userEvent.click(screen.getByText('show'))
-    expect(screen.getByText('open')).toBeInTheDocument()
-  })
-  it('throws outside the provider', () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    expect(() => render(<Probe />)).toThrow('useLocationModal must be used within')
-  })
-})
 
 describe('ToastProvider', () => {
   function Probe() {

@@ -810,6 +810,8 @@ export const authRouter = {
         if (!googleUser) throw new ORPCError('UNAUTHORIZED', { message: 'Invalid Google token' })
         ;({ email, name } = googleUser)
       }
+      // Google returns the address as its owner typed it; every stored address is lowercase.
+      email = email.toLowerCase().trim()
 
       const found = await prisma.volunteer.findFirst({ where: { email, deletedAt: null } })
       if (found) {
@@ -875,7 +877,7 @@ export const authRouter = {
           throw new ORPCError('UNAUTHORIZED', {
             message: 'Your Google sign-in has expired, please sign in with Google again',
           })
-        email = googleUser.email
+        email = googleUser.email.toLowerCase().trim()
         name = sanitisePersonName(googleUser.name)
       }
 

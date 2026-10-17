@@ -109,6 +109,45 @@ model NationalChapter {
   @@map("national_chapters")
 }
 
+/// One account folded into another. `conflicts` holds the profile fields the two held with
+/// different values, as `MergeConflict[]` (lib/account-merge-fields.ts), until the person picks
+/// which to keep.
+model AccountMerge {
+  id                  Int       @id @default(autoincrement())
+  keptId              Int       @map("kept_id")
+  mergedId            Int       @map("merged_id")
+  conflicts           Json      @default("[]")
+  conflictsResolvedAt DateTime? @map("conflicts_resolved_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  kept   Volunteer @relation("AccountMergeKept", fields: [keptId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  merged Volunteer @relation("AccountMergeMerged", fields: [mergedId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([keptId], map: "idx_account_merges_kept")
+  @@index([mergedId], map: "idx_account_merges_merged")
+  @@map("account_merges")
+}
+
+/// A signed-in person's request to merge another account into theirs, confirmed by a link sent
+/// to the other account's address.
+model AccountMergeRequest {
+  id          Int       @id @default(autoincrement())
+  requesterId Int       @map("requester_id")
+  otherId     Int       @map("other_id")
+  /// @zod.custom.omit([model])
+  token       String    @unique
+  expiresAt   DateTime  @map("expires_at")
+  usedAt      DateTime? @map("used_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  requester Volunteer @relation("AccountMergeRequester", fields: [requesterId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  other     Volunteer @relation("AccountMergeOther", fields: [otherId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([requesterId], map: "idx_account_merge_requests_requester")
+  @@index([otherId], map: "idx_account_merge_requests_other")
+  @@map("account_merge_requests")
+}
+
 /// Two accounts a global admin has said belong to different people, so the duplicate check
 /// stops pairing them. The lower id is always `volunteerAId`.
 model DistinctAccountPair {
@@ -1092,6 +1131,14 @@ model Volunteer {
   duplicateOfId                           Int?                     @map("duplicate_of_id")
   duplicateOf                             Volunteer?               @relation("DuplicateAccounts", fields: [duplicateOfId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   duplicates                              Volunteer[]              @relation("DuplicateAccounts")
+  /// Set on an account folded into another (lib/account-merge.ts); the account is also deleted.
+  mergedIntoId                            Int?                     @map("merged_into_id")
+  mergedInto                              Volunteer?               @relation("MergedAccounts", fields: [mergedIntoId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  mergedAccounts                          Volunteer[]              @relation("MergedAccounts")
+  mergesKept                              AccountMerge[]           @relation("AccountMergeKept")
+  mergesMerged                            AccountMerge[]           @relation("AccountMergeMerged")
+  mergeRequestsMade                       AccountMergeRequest[]    @relation("AccountMergeRequester")
+  mergeRequestsReceived                   AccountMergeRequest[]    @relation("AccountMergeOther")
   distinctPairsAsA                        DistinctAccountPair[]    @relation("DistinctAccountPairA")
   distinctPairsAsB                        DistinctAccountPair[]    @relation("DistinctAccountPairB")
   distinctPairsDismissed                  DistinctAccountPair[]    @relation("DistinctAccountPairDismissedBy")

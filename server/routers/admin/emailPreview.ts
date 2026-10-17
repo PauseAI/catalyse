@@ -7,6 +7,8 @@ import {
   buildApplicationRejectedHtml,
   buildPendingApplicationsSummaryHtml,
   buildPasswordResetHtml,
+  buildAccountMergeHtml,
+  ACCOUNT_MERGE_SUBJECT,
   buildAdminInviteHtml,
   chapterInviteSubject,
   buildWelcomeHtml,
@@ -132,6 +134,11 @@ const EMAIL_PREVIEW_REGISTRY: Record<string, { subject: string; build: () => str
     subject: 'Reset your Catalyse password',
     build: () =>
       buildPasswordResetHtml(`${env.APP_URL}/reset-password?token=sample-token-abc123`, 'Alex'),
+  },
+  'account-merge': {
+    subject: ACCOUNT_MERGE_SUBJECT,
+    build: () =>
+      buildAccountMergeHtml(`${env.APP_URL}/merge-accounts?token=sample-token-abc123`, 'Alex'),
   },
   'admin-invite': {
     subject: chapterInviteSubject('Jamie Smith', SAMPLE_CHAPTER_INVITE),
