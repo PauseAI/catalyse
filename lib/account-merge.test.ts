@@ -170,6 +170,33 @@ describe('mergeAccounts', () => {
     expect(tombstone).toMatchObject({ email: kept.email, passwordHash: null })
   })
 
+  it('signs in with the lowercase one of an address held in two cases, and drops the other', async () => {
+    const merged = await createVolunteer({ passwordHash: 'lowercase-hash' })
+    const kept = await createVolunteer({ email: merged.email!.toUpperCase() })
+    const { signInEmail } = await mergeAccounts(kept.id, merged.id, kept.id, 'kept')
+    expect(signInEmail).toBe(merged.email)
+    const [keptNow, tombstone] = await Promise.all(
+      [kept.id, merged.id].map((id) => prisma.volunteer.findUniqueOrThrow({ where: { id } })),
+    )
+    expect(keptNow).toMatchObject({ email: merged.email, passwordHash: 'lowercase-hash' })
+    expect(tombstone.email).toBe(null)
+
+    const other = await createVolunteer({ email: merged.email!.toUpperCase() })
+    expect((await mergeAccounts(kept.id, other.id, kept.id, 'merged')).signInEmail).toBe(
+      merged.email,
+    )
+  })
+
+  it('lowercases the address it keeps', async () => {
+    const merged = await createVolunteer()
+    const kept = await createVolunteer({ email: `Mixed.${merged.email}` })
+    const { signInEmail } = await mergeAccounts(kept.id, merged.id, kept.id)
+    expect(signInEmail).toBe(`mixed.${merged.email}`)
+    expect((await prisma.volunteer.findUniqueOrThrow({ where: { id: merged.id } })).email).toBe(
+      merged.email,
+    )
+  })
+
   it('takes the merged address when the kept account has none', async () => {
     const kept = await createVolunteer({ email: null })
     const merged = await createVolunteer()

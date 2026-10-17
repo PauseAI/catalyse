@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { generateAuthToken } from '@/lib/auth'
-import { mergeAccounts } from '@/lib/account-merge'
+import { mergeAccounts, sameMailbox } from '@/lib/account-merge'
 import { MERGE_FIELDS, type MergeConflict } from '@/lib/account-merge-fields'
 import { dismissDuplicatePair } from '@/lib/duplicate-accounts'
 import { sendAccountMergeEmail } from '@/lib/email'
@@ -90,6 +90,8 @@ export const accountMergesRouter = {
         keptEmail: kept.email && maskEmail(kept.email),
         mergedName: merged.name,
         mergedEmail: merged.email && maskEmail(merged.email),
+        /** Whether the two addresses give a choice of how to sign in. */
+        chooseAddress: !!kept.email && !!merged.email && !sameMailbox(kept.email, merged.email),
       }
     }),
 

@@ -85,6 +85,7 @@ describe('accountMerges', () => {
       keptEmail: maskEmail(kept.email!),
       mergedName: merged.name,
       mergedEmail: maskEmail(merged.email!),
+      chooseAddress: true,
     })
     const mergedSession = await prisma.volunteer.findUniqueOrThrow({ where: { id: merged.id } })
     expect(
@@ -201,6 +202,16 @@ describe('accountMerges', () => {
     await expect(
       clientAs(kept).accountMerges.request({ otherId: noAddress.id }),
     ).rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' })
+  })
+
+  it('offers no choice of address between two cases of one mailbox', async () => {
+    const { kept, merged } = await markedPair()
+    await prisma.volunteer.update({
+      where: { id: merged.id },
+      data: { email: kept.email!.toUpperCase() },
+    })
+    const token = await requestLink(kept, merged.id)
+    expect(await anon().accountMerges.preview({ token })).toMatchObject({ chooseAddress: false })
   })
 
   it('clears the mark when the person says the accounts are two people', async () => {

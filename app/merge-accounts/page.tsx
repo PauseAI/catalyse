@@ -69,7 +69,7 @@ function MergeAccountsContent() {
     )
   }
 
-  const { keptName, keptEmail, mergedName, mergedEmail } = preview.data
+  const { keptName, keptEmail, mergedName, mergedEmail, chooseAddress } = preview.data
   return (
     <div className={CARD}>
       <h1>Merge your accounts</h1>
@@ -77,7 +77,7 @@ function MergeAccountsContent() {
         {mergedName} ({mergedEmail}) and {keptName} ({keptEmail}) will become one account, with the
         projects, tasks, teams and messages of both.
       </p>
-      {keptEmail && mergedEmail && (
+      {chooseAddress && (
         <fieldset className="mt-6 text-left">
           <legend className="font-semibold mb-2">Sign in from then on with</legend>
           {(

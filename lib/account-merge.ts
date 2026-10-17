@@ -220,6 +220,24 @@ export function mergeProfiles(kept: Account, merged: Account) {
   return { update, conflicts }
 }
 
+/** Whether two addresses are one mailbox, differing only in case. */
+export function sameMailbox(a: string | null, b: string | null) {
+  return !!a && a.toLowerCase() === b?.toLowerCase()
+}
+
+/**
+ * The account whose address and password the kept one signs in with after a merge: the
+ * person's pick, unless only one of them can be signed in with. Sign-in lowercases the address
+ * it looks up, so of one mailbox in two cases only the lowercase one ever worked.
+ */
+function signInSource(kept: Account, merged: Account, signInWith: 'kept' | 'merged') {
+  if (!kept.email) return merged
+  if (sameMailbox(kept.email, merged.email)) {
+    return kept.email === kept.email.toLowerCase() ? kept : merged
+  }
+  return signInWith === 'merged' ? merged : kept
+}
+
 const describe = (v: { id: number; name: string; email: string | null }) =>
   `${v.name} (${v.email ?? `#${v.id}`})`
 
@@ -227,8 +245,8 @@ const describe = (v: { id: number; name: string; email: string | null }) =>
  * Folds `mergedId` into `keptId`: everything that references the merged account moves to the
  * kept one (see MERGE_REFERENCES), the kept profile fills its blanks from the merged one, and
  * the merged account is deleted, with `mergedIntoId` pointing at the account it became. The
- * kept account signs in with the address and password of `signInWith`; the deleted one holds
- * the other address, so nobody signs up with it again. Refuses while the merged account holds a
+ * kept account signs in with the address and password of `signInWith` (see signInSource),
+ * lowercased; the deleted one holds the other address, so nobody signs up with it again. Refuses while the merged account holds a
  * chapter role.
  */
 export async function mergeAccounts(
@@ -302,21 +320,23 @@ export async function mergeAccounts(
       })
 
       const { update, conflicts } = mergeProfiles(kept, merged)
-      const swap = signInWith === 'merged' || !kept.email
-      if (swap) {
-        // Freed first, as addresses are unique.
-        await tx.volunteer.update({ where: { id: mergedId }, data: { email: null } })
-        Object.assign(update, {
-          email: merged.email,
-          emailConfirmed: merged.emailConfirmed,
-          passwordHash: merged.passwordHash,
-        })
-      }
+      const source = signInSource(kept, merged, signInWith)
+      const signInEmail = source.email?.toLowerCase() ?? null
+      // Freed first, as addresses are unique.
+      await tx.volunteer.update({ where: { id: mergedId }, data: { email: null } })
+      Object.assign(update, {
+        email: signInEmail,
+        emailConfirmed: source.emailConfirmed,
+        passwordHash: source.passwordHash,
+      })
       await tx.volunteer.update({ where: { id: keptId }, data: update })
+      const other = source === kept ? merged : kept
       await tx.volunteer.update({
         where: { id: mergedId },
         data: {
-          ...(swap ? { email: kept.email, emailConfirmed: kept.emailConfirmed } : {}),
+          // The same mailbox is the live account's already.
+          email: sameMailbox(kept.email, merged.email) ? null : other.email,
+          emailConfirmed: other.emailConfirmed,
           mergedIntoId: keptId,
           duplicateOfId: null,
           deletedAt: new Date(),
@@ -342,7 +362,7 @@ export async function mergeAccounts(
           },
         ],
       })
-      return { merge, kept, merged, signInEmail: swap ? merged.email : kept.email }
+      return { merge, kept, merged, signInEmail }
     },
     { timeout: 30_000 },
   )
