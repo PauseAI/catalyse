@@ -154,6 +154,32 @@ describe('mergeAccounts', () => {
     ).toBe(null)
   })
 
+  it("signs in with the merged account's address and password when asked to", async () => {
+    const kept = await createVolunteer({ passwordHash: 'kept-hash' })
+    const merged = await createVolunteer({ passwordHash: 'merged-hash', emailConfirmed: false })
+    const { signInEmail } = await mergeAccounts(kept.id, merged.id, kept.id, 'merged')
+    expect(signInEmail).toBe(merged.email)
+    const [keptNow, tombstone] = await Promise.all(
+      [kept.id, merged.id].map((id) => prisma.volunteer.findUniqueOrThrow({ where: { id } })),
+    )
+    expect(keptNow).toMatchObject({
+      email: merged.email,
+      emailConfirmed: false,
+      passwordHash: 'merged-hash',
+    })
+    expect(tombstone).toMatchObject({ email: kept.email, passwordHash: null })
+  })
+
+  it('takes the merged address when the kept account has none', async () => {
+    const kept = await createVolunteer({ email: null })
+    const merged = await createVolunteer()
+    const { signInEmail } = await mergeAccounts(kept.id, merged.id, kept.id)
+    expect(signInEmail).toBe(merged.email)
+    expect((await prisma.volunteer.findUniqueOrThrow({ where: { id: kept.id } })).email).toBe(
+      merged.email,
+    )
+  })
+
   it("cancels the merged account's transfer request when the kept one has its own", async () => {
     const [kept, merged] = [await createVolunteer(), await createVolunteer()]
     const a = await prisma.chapterTransferRequest.create({
@@ -213,6 +239,8 @@ describe('mergeProfiles', () => {
     id: 1,
     name: 'Sam',
     email: 'sam@example.com',
+    passwordHash: null,
+    emailConfirmed: true,
     deletedAt: null,
     country: null,
     nationalChapterId: null,

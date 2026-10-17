@@ -152,6 +152,8 @@ async function movePairs(tx: Tx, keptId: number, mergedId: number) {
 const ACCOUNT_SELECT = {
   id: true,
   email: true,
+  passwordHash: true,
+  emailConfirmed: true,
   deletedAt: true,
   country: true,
   nationalChapterId: true,
@@ -224,11 +226,17 @@ const describe = (v: { id: number; name: string; email: string | null }) =>
 /**
  * Folds `mergedId` into `keptId`: everything that references the merged account moves to the
  * kept one (see MERGE_REFERENCES), the kept profile fills its blanks from the merged one, and
- * the merged account is deleted, with `mergedIntoId` pointing at the account it became. It
- * keeps its address, so nobody signs up with it again. Refuses while the merged account holds a
+ * the merged account is deleted, with `mergedIntoId` pointing at the account it became. The
+ * kept account signs in with the address and password of `signInWith`; the deleted one holds
+ * the other address, so nobody signs up with it again. Refuses while the merged account holds a
  * chapter role.
  */
-export async function mergeAccounts(keptId: number, mergedId: number, actorId: number) {
+export async function mergeAccounts(
+  keptId: number,
+  mergedId: number,
+  actorId: number,
+  signInWith: 'kept' | 'merged' = 'kept',
+) {
   if (keptId === mergedId) throw refused('An account cannot be merged into itself')
   return prisma.$transaction(
     async (tx) => {
@@ -294,10 +302,21 @@ export async function mergeAccounts(keptId: number, mergedId: number, actorId: n
       })
 
       const { update, conflicts } = mergeProfiles(kept, merged)
+      const swap = signInWith === 'merged' || !kept.email
+      if (swap) {
+        // Freed first, as addresses are unique.
+        await tx.volunteer.update({ where: { id: mergedId }, data: { email: null } })
+        Object.assign(update, {
+          email: merged.email,
+          emailConfirmed: merged.emailConfirmed,
+          passwordHash: merged.passwordHash,
+        })
+      }
       await tx.volunteer.update({ where: { id: keptId }, data: update })
       await tx.volunteer.update({
         where: { id: mergedId },
         data: {
+          ...(swap ? { email: kept.email, emailConfirmed: kept.emailConfirmed } : {}),
           mergedIntoId: keptId,
           duplicateOfId: null,
           deletedAt: new Date(),
@@ -323,7 +342,7 @@ export async function mergeAccounts(keptId: number, mergedId: number, actorId: n
           },
         ],
       })
-      return { merge, kept, merged }
+      return { merge, kept, merged, signInEmail: swap ? merged.email : kept.email }
     },
     { timeout: 30_000 },
   )

@@ -138,11 +138,7 @@ const EMAIL_PREVIEW_REGISTRY: Record<string, { subject: string; build: () => str
   'account-merge': {
     subject: ACCOUNT_MERGE_SUBJECT,
     build: () =>
-      buildAccountMergeHtml(
-        `${env.APP_URL}/merge-accounts?token=sample-token-abc123`,
-        'Alex',
-        'alex@example.com',
-      ),
+      buildAccountMergeHtml(`${env.APP_URL}/merge-accounts?token=sample-token-abc123`, 'Alex'),
   },
   'admin-invite': {
     subject: chapterInviteSubject('Jamie Smith', SAMPLE_CHAPTER_INVITE),

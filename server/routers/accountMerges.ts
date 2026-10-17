@@ -42,7 +42,7 @@ async function claimableRequest(token: string) {
 /**
  * A person settling two accounts a global admin marked as theirs. Signed in to one, they ask
  * for a link to the other's address; following it merges the two into the account the admin
- * chose to keep. Or they say the two are different people, which clears the mark.
+ * chose to keep, signing in with whichever address they pick. Or they say the two are different people, which clears the mark.
  */
 export const accountMergesRouter = {
   request: authedProcedure
@@ -55,7 +55,7 @@ export const accountMergesRouter = {
       if (!allowed) {
         throw new ORPCError('TOO_MANY_REQUESTS', { message: 'Too many links sent; try later' })
       }
-      const { me, other, kept } = await markedPair(context.volunteer.id, input.otherId)
+      const { me, other } = await markedPair(context.volunteer.id, input.otherId)
       if (!other.email) {
         throw new ORPCError('BAD_REQUEST', {
           message: 'That account has no address to confirm with. Ask a global admin to merge it.',
@@ -73,12 +73,7 @@ export const accountMergesRouter = {
           expiresAt: new Date(Date.now() + LINK_TTL_MS),
         },
       })
-      await sendAccountMergeEmail({
-        to: other.email,
-        name: other.name,
-        token,
-        keptAddress: kept.email ?? kept.name,
-      })
+      await sendAccountMergeEmail({ to: other.email, name: other.name, token })
       return {
         message: `We sent a link to ${maskEmail(other.email)}`,
         ...(env.STUB_EMAIL ? { _devMergeUrl: `/merge-accounts?token=${token}` } : {}),
@@ -98,8 +93,9 @@ export const accountMergesRouter = {
       }
     }),
 
+  /** Merges, signing in from then on with the address and password of `signInWith`. */
   confirm: publicProcedure
-    .input(z.object({ token: z.string().min(1) }))
+    .input(z.object({ token: z.string().min(1), signInWith: z.enum(['kept', 'merged']) }))
     .handler(async ({ input, context }) => {
       const { request, kept, merged } = await claimableRequest(input.token)
       const claimed = await prisma.accountMergeRequest.updateMany({
@@ -109,8 +105,14 @@ export const accountMergesRouter = {
       if (!claimed.count) {
         throw new ORPCError('BAD_REQUEST', { message: 'This link has expired or was already used' })
       }
+      let signInEmail: string | null
       try {
-        await mergeAccounts(kept.id, merged.id, request.requesterId)
+        ;({ signInEmail } = await mergeAccounts(
+          kept.id,
+          merged.id,
+          request.requesterId,
+          input.signInWith,
+        ))
       } catch (e) {
         // A refused merge leaves the link good for when its cause is settled.
         await prisma.accountMergeRequest.update({
@@ -120,7 +122,7 @@ export const accountMergesRouter = {
         throw e
       }
       return {
-        keptEmail: kept.email && maskEmail(kept.email),
+        email: signInEmail && maskEmail(signInEmail),
         signedOut: context.volunteer?.id === merged.id,
       }
     }),

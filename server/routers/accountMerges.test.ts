@@ -42,7 +42,7 @@ async function requestLink(from: { id: number }, otherId: number) {
 }
 
 describe('requiredActions.list', () => {
-  it('asks both accounts of a marked pair to merge, naming which is kept', async () => {
+  it('asks both accounts of a marked pair to merge', async () => {
     const { kept, merged } = await markedPair()
     expect(await clientAs(kept).requiredActions.list()).toEqual([
       {
@@ -54,13 +54,11 @@ describe('requiredActions.list', () => {
           email: maskEmail(merged.email!),
           createdAt: merged.createdAt,
         },
-        keep: 'this',
-        keptEmail: kept.email,
         requestedAt: null,
       },
     ])
     const [mergeAction, location] = await clientAs(merged).requiredActions.list()
-    expect(mergeAction).toMatchObject({ keep: 'other', keptEmail: maskEmail(kept.email!) })
+    expect(mergeAction).toMatchObject({ other: { id: kept.id, email: maskEmail(kept.email!) } })
     expect(location).toEqual({ kind: 'confirm_location', id: 'confirm_location' })
 
     await requestLink(merged, kept.id)
@@ -79,7 +77,7 @@ describe('accountMerges', () => {
       message: `We sent a link to ${maskEmail(merged.email!)}`,
     })
     expect(emails.last).toMatchObject({ to: merged.email, subject: ACCOUNT_MERGE_SUBJECT })
-    expect(emails.last.html).toContain(kept.email!)
+    expect(emails.last.html).toContain('choose which of the two addresses')
     const token = linkParam(emails.last, 'token')
 
     expect(await anon().accountMerges.preview({ token })).toEqual({
@@ -89,17 +87,21 @@ describe('accountMerges', () => {
       mergedEmail: maskEmail(merged.email!),
     })
     const mergedSession = await prisma.volunteer.findUniqueOrThrow({ where: { id: merged.id } })
-    expect(await clientAs(mergedSession).accountMerges.confirm({ token })).toEqual({
-      keptEmail: maskEmail(kept.email!),
+    expect(
+      await clientAs(mergedSession).accountMerges.confirm({ token, signInWith: 'kept' }),
+    ).toEqual({
+      email: maskEmail(kept.email!),
       signedOut: true,
     })
     expect(await prisma.teamMembership.count({ where: { volunteerId: kept.id } })).toBe(1)
     expect(
       (await prisma.volunteer.findUniqueOrThrow({ where: { id: merged.id } })).mergedIntoId,
     ).toBe(kept.id)
-    await expect(anon().accountMerges.confirm({ token })).rejects.toMatchObject({
-      message: 'This link has expired or was already used',
-    })
+    await expect(anon().accountMerges.confirm({ token, signInWith: 'kept' })).rejects.toMatchObject(
+      {
+        message: 'This link has expired or was already used',
+      },
+    )
 
     const [reconcile] = await clientAs(kept).requiredActions.list()
     expect(reconcile).toMatchObject({
@@ -143,8 +145,8 @@ describe('accountMerges', () => {
     await expect(anon().accountMerges.preview({ token: first })).rejects.toMatchObject({
       code: 'BAD_REQUEST',
     })
-    expect(await anon().accountMerges.confirm({ token: second })).toEqual({
-      keptEmail: maskEmail(kept.email!),
+    expect(await anon().accountMerges.confirm({ token: second, signInWith: 'merged' })).toEqual({
+      email: maskEmail(merged.email!),
       signedOut: false,
     })
   })
@@ -155,23 +157,27 @@ describe('accountMerges', () => {
     const { kept } = await markedPair()
     await prisma.volunteer.update({ where: { id: deputy.id }, data: { duplicateOfId: kept.id } })
     const token = await requestLink(kept, deputy.id)
-    await expect(anon().accountMerges.confirm({ token })).rejects.toMatchObject({
-      message: expect.stringContaining('holds a chapter role'),
-    })
+    await expect(anon().accountMerges.confirm({ token, signInWith: 'kept' })).rejects.toMatchObject(
+      {
+        message: expect.stringContaining('holds a chapter role'),
+      },
+    )
     await anon().accountMerges.preview({ token })
 
     await prisma.volunteer.update({ where: { id: deputy.id }, data: { duplicateOfId: null } })
-    await expect(anon().accountMerges.confirm({ token })).rejects.toMatchObject({
-      message: 'Those accounts are not marked as yours',
-    })
+    await expect(anon().accountMerges.confirm({ token, signInWith: 'kept' })).rejects.toMatchObject(
+      {
+        message: 'Those accounts are not marked as yours',
+      },
+    )
   })
 
   it('loses the race when two confirmations of one link overlap', async () => {
     const { kept, merged } = await markedPair()
     const token = await requestLink(kept, merged.id)
     const results = await Promise.allSettled([
-      anon().accountMerges.confirm({ token }),
-      anon().accountMerges.confirm({ token }),
+      anon().accountMerges.confirm({ token, signInWith: 'kept' }),
+      anon().accountMerges.confirm({ token, signInWith: 'kept' }),
     ])
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
     expect(results.find((r) => r.status === 'rejected')).toMatchObject({

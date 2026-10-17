@@ -20,19 +20,24 @@ async function mergeLink(merged?: { id: number; name: string }) {
 }
 
 describe('MergeAccountsPage', () => {
-  it('says what will happen, merges on the click, and sends a merged-away session to sign in', async () => {
+  it('says what will happen, merges with the chosen address, and sends a merged-away session to sign in', async () => {
     const { kept, other, url } = await mergeLink()
     const signedIn = await prisma.volunteer.findUniqueOrThrow({ where: { id: other.id } })
     await renderApp(<MergeAccountsPage />, { url, as: signedIn })
-    expect(await screen.findByText(/will be merged into/)).toHaveTextContent(
-      `${other.name} (${maskEmail(signedIn.email!)}) will be merged into ${kept.name} (${maskEmail(kept.email!)})`,
+    expect(await screen.findByText(/will become one account/)).toHaveTextContent(
+      `${other.name} (${maskEmail(signedIn.email!)}) and ${kept.name} (${maskEmail(kept.email!)}) will become one account`,
     )
+    expect(screen.getByRole('radio', { name: maskEmail(kept.email!) })).toBeChecked()
+    await userEvent.click(screen.getByRole('radio', { name: maskEmail(signedIn.email!) }))
     await userEvent.click(screen.getByRole('button', { name: 'Merge accounts' }))
     expect(await screen.findByRole('heading', { name: 'Accounts merged' })).toBeInTheDocument()
+    expect(screen.getByText(/Sign in to it as/)).toHaveTextContent(maskEmail(signedIn.email!))
     expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login')
-    expect(
-      (await prisma.volunteer.findUniqueOrThrow({ where: { id: other.id } })).mergedIntoId,
-    ).toBe(kept.id)
+    const [keptNow, tombstone] = await Promise.all(
+      [kept.id, other.id].map((id) => prisma.volunteer.findUniqueOrThrow({ where: { id } })),
+    )
+    expect(tombstone).toMatchObject({ mergedIntoId: kept.id, email: kept.email })
+    expect(keptNow.email).toBe(signedIn.email)
   })
 
   it('offers the dashboard to someone signed in to the kept account', async () => {

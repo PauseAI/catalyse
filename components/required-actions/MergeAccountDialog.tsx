@@ -13,7 +13,7 @@ export default function MergeAccountDialog({
   action,
   onClose,
 }: RequiredActionDialogProps<'merge_account'>) {
-  const { other, keep, keptEmail, requestedAt } = action
+  const { other, requestedAt } = action
   const { refresh } = useRequiredActions()
   const showToast = useToast()
   const onError = (err: unknown) =>
@@ -49,10 +49,8 @@ export default function MergeAccountDialog({
         )}
       </div>
       <p className="text-text-light mb-3">
-        Merging moves its projects, tasks, teams and messages into one account.{' '}
-        {keep === 'this'
-          ? 'You will keep signing in as you do now.'
-          : `Afterwards you sign in as ${keptEmail ?? other.name}.`}
+        Merging moves its projects, tasks, teams and messages into one account, and you choose which
+        of the two addresses to sign in with.
       </p>
       {requestedAt ? (
         <p className="mb-4" role="status">

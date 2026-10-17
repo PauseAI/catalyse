@@ -76,7 +76,7 @@ describe('MergeAccountDialog', () => {
     await mount(merged)
     const dialog = await screen.findByRole('dialog', { name: 'Merge your accounts' })
     expect(dialog).toHaveTextContent(maskEmail(kept.email!))
-    expect(dialog).toHaveTextContent(`Afterwards you sign in as ${maskEmail(kept.email!)}`)
+    expect(dialog).toHaveTextContent('you choose which of the two addresses to sign in with')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Send the link' }))
     expect(
       await screen.findByText(`We sent a link to ${maskEmail(kept.email!)}`, {
@@ -95,7 +95,6 @@ describe('MergeAccountDialog', () => {
     const { kept, merged } = await markedPair()
     await mount(kept)
     const dialog = await screen.findByRole('dialog', { name: 'Merge your accounts' })
-    expect(dialog).toHaveTextContent('You will keep signing in as you do now.')
     await userEvent.click(within(dialog).getByRole('button', { name: "That account isn't mine" }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(

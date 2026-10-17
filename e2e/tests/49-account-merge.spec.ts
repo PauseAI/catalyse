@@ -8,6 +8,7 @@ import {
 } from '../fixtures'
 import { createApiClient } from '../client'
 import { fake } from '../fake'
+import { maskEmail } from '../../lib/mask-email'
 
 /** Two accounts with one name, the second marked by a global admin as a duplicate of the first. */
 async function markedPair(baseUrl: string) {
@@ -50,12 +51,14 @@ test.describe('Account merging', () => {
       await snap(page, 'link sent')
 
       await page.goto(`${baseUrl}${json._devMergeUrl as string}`)
-      await expect(page.getByText(/will be merged into/)).toBeVisible({ timeout: 10_000 })
+      await expect(page.getByText(/will become one account/)).toBeVisible({ timeout: 10_000 })
+      await page.getByRole('radio', { name: maskEmail(second.email) }).check()
       await snap(page, 'merge to confirm')
       await page.getByRole('button', { name: 'Merge accounts' }).click()
       await expect(page.getByRole('heading', { name: 'Accounts merged' })).toBeVisible({
         timeout: 10_000,
       })
+      await expect(page.getByText(/Sign in to it as/)).toContainText(maskEmail(second.email))
       await expect(page.getByRole('link', { name: 'Sign in', exact: true })).toBeVisible()
     } finally {
       await page.context().close()

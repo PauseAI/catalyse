@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
@@ -16,6 +16,7 @@ const CARD = 'bg-surface rounded-xl shadow p-8 text-center'
 function MergeAccountsContent() {
   const token = useSearchParams().get('token') ?? ''
   const { user, refreshUser } = useAuth()
+  const [signInWith, setSignInWith] = useState<'kept' | 'merged'>('kept')
   const preview = useQuery({
     ...orpc.accountMerges.preview.queryOptions({ input: { token } }),
     enabled: !!token,
@@ -28,13 +29,13 @@ function MergeAccountsContent() {
   })
 
   if (confirm.isSuccess) {
-    const { keptEmail, signedOut } = confirm.data
+    const { email, signedOut } = confirm.data
     const stillSignedIn = !!user && !signedOut
     return (
       <div className={CARD}>
         <h1>Accounts merged</h1>
         <p className="text-text-light mt-4 mb-6">
-          Everything is in one account now. Sign in to it as {keptEmail ?? 'before'}.
+          Everything is in one account now. Sign in to it as {email ?? 'before'}.
         </p>
         {stillSignedIn ? (
           <Button href="/dashboard">Go to your dashboard</Button>
@@ -73,16 +74,41 @@ function MergeAccountsContent() {
     <div className={CARD}>
       <h1>Merge your accounts</h1>
       <p className="text-text-light mt-4">
-        {mergedName} ({mergedEmail}) will be merged into {keptName} ({keptEmail}). Its projects,
-        tasks, teams and messages move across, and you sign in as {keptEmail} from then on.
+        {mergedName} ({mergedEmail}) and {keptName} ({keptEmail}) will become one account, with the
+        projects, tasks, teams and messages of both.
       </p>
+      {keptEmail && mergedEmail && (
+        <fieldset className="mt-6 text-left">
+          <legend className="font-semibold mb-2">Sign in from then on with</legend>
+          {(
+            [
+              ['kept', keptEmail],
+              ['merged', mergedEmail],
+            ] as const
+          ).map(([value, address]) => (
+            <label key={value} className="flex items-center gap-2 py-1">
+              <input
+                type="radio"
+                name="sign-in-with"
+                value={value}
+                checked={signInWith === value}
+                onChange={() => setSignInWith(value)}
+              />
+              {address}
+            </label>
+          ))}
+          <p className="text-text-light text-sm mt-2">
+            With its password, if it has one. The other address stops working.
+          </p>
+        </fieldset>
+      )}
       {confirm.error instanceof Error && (
         <p className="text-error mt-4" role="alert">
           {confirm.error.message}
         </p>
       )}
       <div className="mt-6">
-        <Button onClick={() => confirm.mutate({ token })} disabled={confirm.isPending}>
+        <Button onClick={() => confirm.mutate({ token, signInWith })} disabled={confirm.isPending}>
           {confirm.isPending ? 'Merging…' : 'Merge accounts'}
         </Button>
       </div>

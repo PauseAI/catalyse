@@ -14,10 +14,6 @@ export type RequiredAction =
       kind: 'merge_account'
       id: string
       other: { id: number; name: string; email: string | null; createdAt: Date | null }
-      /** Which account a global admin chose to keep. */
-      keep: 'this' | 'other'
-      /** The kept account's address, masked unless it is the signed-in one. */
-      keptEmail: string | null
       /** When a confirmation link was last sent and is still good, if one was. */
       requestedAt: Date | null
     }
@@ -35,7 +31,7 @@ const mergeAccount: Finder = async (volunteer) => {
       deletedAt: null,
       OR: [{ id: volunteer.duplicateOfId ?? -1 }, { duplicateOfId: volunteer.id }],
     },
-    select: { id: true, name: true, email: true, createdAt: true, duplicateOfId: true },
+    select: { id: true, name: true, email: true, createdAt: true },
     orderBy: { id: 'asc' },
   })
   const requests = await prisma.accountMergeRequest.findMany({
@@ -47,17 +43,12 @@ const mergeAccount: Finder = async (volunteer) => {
     },
     orderBy: { createdAt: 'desc' },
   })
-  return others.map(({ duplicateOfId, ...other }) => {
-    const keep = duplicateOfId === volunteer.id ? 'this' : 'other'
-    return {
-      kind: 'merge_account',
-      id: `merge_account:${other.id}`,
-      other: { ...other, email: other.email && maskEmail(other.email) },
-      keep,
-      keptEmail: keep === 'this' ? volunteer.email : other.email && maskEmail(other.email),
-      requestedAt: requests.find((r) => r.otherId === other.id)?.createdAt ?? null,
-    }
-  })
+  return others.map((other) => ({
+    kind: 'merge_account',
+    id: `merge_account:${other.id}`,
+    other: { ...other, email: other.email && maskEmail(other.email) },
+    requestedAt: requests.find((r) => r.otherId === other.id)?.createdAt ?? null,
+  }))
 }
 
 /** A merge left fields the two accounts filled in differently. */
