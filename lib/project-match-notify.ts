@@ -2,6 +2,7 @@ import { prisma } from './prisma'
 import { sendDigestEmail, isEmailConfigured } from './email'
 import { calculateMatchScore, matchGradeLabel, MATCH_GRADES } from './matching'
 import { WorkItemType } from '@/generated/prisma/enums'
+import { logger } from './logger'
 
 const NOTIFIABLE_GRADES = new Set(MATCH_GRADES.filter((g) => g.notifiable).map((g) => g.label))
 
@@ -56,7 +57,7 @@ export async function notifyMatchingVolunteers(projectId: number): Promise<void>
           },
         ],
         isMatch: true,
-      }).catch((e) => console.error('[MATCH NOTIFY ERROR]', e))
+      }).catch((e) => logger.error(e, '[MATCH NOTIFY ERROR]'))
     }),
   )
 }

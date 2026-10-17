@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { createVolunteer, createProject, createSkill, createChapter } from '@/test/factories'
 
 import { emails } from '@/test/fakes/email'
+import { logger } from './logger'
 import { notifyMatchingVolunteers } from './project-match-notify'
 
 afterEach(() => {
@@ -70,10 +71,10 @@ describe('notifyMatchingVolunteers', () => {
       emailDigest: 'match',
       skills: { create: [{ skillId: b.id }, { skillId: c.id }] },
     })
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger as never)
     emails.failNext()
     await notifyMatchingVolunteers(p2.id)
-    expect(error).toHaveBeenCalledWith('[MATCH NOTIFY ERROR]', expect.any(Error))
+    expect(error).toHaveBeenCalledWith(expect.any(Error), '[MATCH NOTIFY ERROR]')
     expect(await prisma.workItem.count({ where: { id: p2.id } })).toBe(1)
   })
 })

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 import {
   createVolunteer,
   createAdmin,
@@ -116,7 +117,7 @@ describe('projects.update fields and status', () => {
     expect(cleared.skills).toEqual([])
 
     // Tagging a team onto an unpublished project waits for approval; a failed team notify is logged.
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
     const pendingP = await createProject({
       status: 'pending_review',
       creatorId: owner.id,
@@ -131,7 +132,7 @@ describe('projects.update fields and status', () => {
     const live = await createProject({ status: 'in_progress', assigneeId: owner.id })
     vi.spyOn(prisma.teamMembership, 'findMany').mockRejectedValueOnce(new Error('t') as never)
     await clientAs(owner).projects.update({ id: live.id, teamId: team.id })
-    await vi.waitFor(() => expect(error).toHaveBeenCalledWith('[TEAM NOTIFY]', expect.any(Error)))
+    await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.any(Error), '[TEAM NOTIFY]'))
     vi.restoreAllMocks()
   })
 

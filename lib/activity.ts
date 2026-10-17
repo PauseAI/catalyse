@@ -1,5 +1,6 @@
 import { prisma } from './prisma'
 import { ACTIVE_WITHIN_DAYS } from './activity-window'
+import { logger } from './logger'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -16,5 +17,5 @@ export async function touchLastActive(volunteer: {
   if (volunteer.lastActiveAt && now.getTime() - volunteer.lastActiveAt.getTime() < DAY) return
   await prisma.volunteer
     .update({ where: { id: volunteer.id }, data: { lastActiveAt: now } })
-    .catch((e) => console.error('[ACTIVITY ERROR]', e))
+    .catch((e) => logger.error(e, '[ACTIVITY ERROR]'))
 }

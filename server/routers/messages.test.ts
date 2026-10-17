@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import {
   createVolunteer,
@@ -113,10 +114,10 @@ describe('messages.send', () => {
     await clientAs(sender).messages.send({ recipientId: recipient.id, subject: 's', message: 'm' })
     expect(emails.sent).toEqual([])
     emails.setConfigured(true)
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
     emails.failNext()
     await clientAs(sender).messages.send({ recipientId: recipient.id, subject: 's', message: 'm' })
-    await vi.waitFor(() => expect(error).toHaveBeenCalledWith('[EMAIL ERROR]', expect.any(Error)))
+    await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.any(Error), '[EMAIL ERROR]'))
   })
 })
 

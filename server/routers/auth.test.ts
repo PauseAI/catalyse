@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import {
   createVolunteer,
@@ -236,7 +237,7 @@ describe('auth.signup', () => {
   })
 
   it('survives failures in the best-effort steps', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
     vi.spyOn(prisma.platformSettings, 'upsert').mockRejectedValueOnce(
       new Error('settings') as never,
     )
@@ -245,8 +246,8 @@ describe('auth.signup', () => {
     const res = await anon().auth.signup(signupInput('admin7@example.com'))
     expect(res.pending).toBe(true)
     await vi.waitFor(() => {
-      expect(error).toHaveBeenCalledWith('[SIGNUP]', expect.any(Error))
-      expect(error).toHaveBeenCalledWith('[SIGNUP NOTIFY]', expect.any(Error))
+      expect(error).toHaveBeenCalledWith(expect.any(Error), '[SIGNUP]')
+      expect(error).toHaveBeenCalledWith(expect.any(Error), '[SIGNUP NOTIFY]')
     })
     vi.restoreAllMocks()
   })
@@ -396,10 +397,10 @@ describe('changePassword / changeEmail', () => {
     await expect(
       clientAs(noPw).auth.changeEmail({ newEmail: 'y@example.com', password: 'x' }),
     ).rejects.toMatchObject({ message: expect.stringContaining('without a password') })
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
     emails.failNext()
     await c.auth.changeEmail({ newEmail: 'again@example.com', password: TEST_PASSWORD })
-    await vi.waitFor(() => expect(error).toHaveBeenCalledWith('[CHANGE_EMAIL]', expect.any(Error)))
+    await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.any(Error), '[CHANGE_EMAIL]'))
   })
 
   it('rations email changes to three a day per account, and refuses a malformed address', async () => {
@@ -638,7 +639,7 @@ describe('verifyEmail / resendVerification', () => {
   })
 
   it('logs email failures and settings lookup failures on verify', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
     const v1 = await createVolunteer({ emailConfirmed: false })
     vi.spyOn(prisma.platformSettings, 'upsert').mockRejectedValueOnce(new Error('db') as never)
     emails.failNext()
@@ -661,7 +662,7 @@ describe('verifyEmail / resendVerification', () => {
       data: { requireApplicationApproval: true },
     })
     await vi.waitFor(() =>
-      expect(error.mock.calls.filter((c) => c[0] === '[VERIFY_EMAIL]')).toHaveLength(4),
+      expect(error.mock.calls.filter((c) => c[1] === '[VERIFY_EMAIL]')).toHaveLength(4),
     )
     vi.restoreAllMocks()
   })
@@ -682,11 +683,11 @@ describe('verifyEmail / resendVerification', () => {
     await vi.waitFor(() =>
       expect(emails.last).toMatchObject({ to: unconfirmed.email, subject: subjects.confirm }),
     )
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
     emails.failNext()
     await anon().auth.resendVerification({ email: unconfirmed.email! })
     await vi.waitFor(() =>
-      expect(error).toHaveBeenCalledWith('[RESEND_VERIFICATION]', expect.any(Error)),
+      expect(error).toHaveBeenCalledWith(expect.any(Error), '[RESEND_VERIFICATION]'),
     )
     denyNext()
     await expect(anon().auth.resendVerification({})).rejects.toMatchObject({
@@ -802,12 +803,12 @@ describe('deleteAccount', () => {
     const p = await createProject({ assigneeId: owner.id })
     await createQuickTask({ contextProjectId: p.id, assigneeId: me.id })
     await createProject({ assigneeId: me.id })
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
     vi.spyOn(prisma.notification, 'create').mockRejectedValue(new Error('db') as never)
     emails.failAll()
     await clientAs(me).auth.deleteAccount({})
-    expect(error).toHaveBeenCalledWith('[NOTIFY ERROR]', expect.any(Error))
-    expect(error).toHaveBeenCalledWith('[NOTIFY ERROR] email failed:', expect.any(Error))
+    expect(error).toHaveBeenCalledWith(expect.any(Error), '[NOTIFY ERROR]')
+    expect(error).toHaveBeenCalledWith(expect.any(Error), '[NOTIFY ERROR] email failed:')
     vi.restoreAllMocks()
   })
 })
@@ -930,7 +931,7 @@ describe('google sign-in (stubbed)', () => {
 
   it('logs email failures and tolerates bootstrap failures on Google signup', async () => {
     const { email: _e, password: _p, name: _n, ...form } = signupInput('unused@example.com')
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
     // A listed admin email whose bootstrap fails lands as pending.
     google.accept('good', { email: 'admin9@example.com', name: 'F' })
     emails.failNext()
@@ -942,7 +943,7 @@ describe('google sign-in (stubbed)', () => {
     emails.failNext()
     await anon().auth.completeGoogleSignup({ ...form, credential: 'good' })
     await vi.waitFor(() =>
-      expect(error.mock.calls.filter((c) => c[0] === '[GOOGLE_SIGNUP]')).toHaveLength(2),
+      expect(error.mock.calls.filter((c) => c[1] === '[GOOGLE_SIGNUP]')).toHaveLength(2),
     )
     vi.restoreAllMocks()
   })

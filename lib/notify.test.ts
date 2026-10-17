@@ -12,6 +12,7 @@ import {
 } from '@/test/factories'
 
 import { emails } from '@/test/fakes/email'
+import { logger } from './logger'
 import {
   createNotification,
   clearNotifications,
@@ -53,10 +54,10 @@ describe('createNotification / clearNotifications', () => {
   })
 
   it('logs rather than throws when the clear fails', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger as never)
     vi.spyOn(prisma.notification, 'deleteMany').mockRejectedValueOnce(new Error('db') as never)
     await clearNotifications('x', 1)
-    expect(error).toHaveBeenCalledWith('[NOTIFY CLEAR ERROR]', expect.any(Error))
+    expect(error).toHaveBeenCalledWith(expect.any(Error), '[NOTIFY CLEAR ERROR]')
   })
 })
 
@@ -86,10 +87,10 @@ describe('notifyUser email preferences', () => {
       ).not.toBeNull(),
     )
     // An in-app notice that failed to save leaves nothing to stamp.
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger as never)
     vi.spyOn(prisma.notification, 'create').mockRejectedValueOnce(new Error('db') as never)
     await notifyUser(vol.id, 'project_approved', 'Again', null, null, payload)
-    await vi.waitFor(() => expect(error).toHaveBeenCalledWith('[NOTIFY ERROR]', expect.any(Error)))
+    await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.any(Error), '[NOTIFY ERROR]'))
     await vi.waitFor(() => expect(emails.lastTo(vol.email!)).toMatchObject({ subject: 'Again' }))
   })
 })
@@ -122,7 +123,7 @@ describe('notifyUser', () => {
     })
     expect(emails.sent).toEqual([])
 
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger as never)
     const vol = await createVolunteer()
     emails.failNext()
     await notifyUser(vol.id, 'a', 'T', null, null, {
@@ -131,12 +132,12 @@ describe('notifyUser', () => {
       projectTitle: 'P',
     })
     await new Promise((r) => setImmediate(r))
-    expect(error).toHaveBeenCalledWith('[EMAIL ERROR]', expect.any(Error))
+    expect(error).toHaveBeenCalledWith(expect.any(Error), '[EMAIL ERROR]')
 
     vi.spyOn(prisma.notification, 'create').mockRejectedValueOnce(new Error('db') as never)
     await notifyUser(vol.id, 'a', 'T', null, null)
     await new Promise((r) => setImmediate(r))
-    expect(error).toHaveBeenCalledWith('[NOTIFY ERROR]', expect.any(Error))
+    expect(error).toHaveBeenCalledWith(expect.any(Error), '[NOTIFY ERROR]')
   })
 })
 

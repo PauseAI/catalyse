@@ -6,6 +6,7 @@ import { createNotification, notifyUser } from '@/lib/notify'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { canViewBugReport } from '@/lib/bug-report-access'
 import { CreateBugReportSchema } from '@/lib/schemas'
+import { logger } from '@/lib/logger'
 import { authedProcedure } from '../procedures'
 
 export const bugReportsRouter = {
@@ -100,7 +101,7 @@ export const bugReportsRouter = {
       'Bug report submitted',
       `We've received your report: ${input.title.trim()}`,
       `/bugs/${report.id}`,
-    ).catch((e) => console.error('[NOTIFY ERROR]', e))
+    ).catch((e) => logger.error(e, '[NOTIFY ERROR]'))
     await Promise.all(
       admins.map((admin) =>
         admin.isTechnicalAdmin
@@ -117,7 +118,7 @@ export const bugReportsRouter = {
                 ctaUrl: '/admin/bugs',
               },
               report.id,
-            ).catch((e) => console.error('[NOTIFY ERROR]', e))
+            ).catch((e) => logger.error(e, '[NOTIFY ERROR]'))
           : createNotification(
               admin.id,
               'new_bug_report',
@@ -125,7 +126,7 @@ export const bugReportsRouter = {
               notifyBody,
               '/admin/bugs',
               report.id,
-            ).catch((e) => console.error('[NOTIFY ERROR]', e)),
+            ).catch((e) => logger.error(e, '[NOTIFY ERROR]')),
       ),
     )
 

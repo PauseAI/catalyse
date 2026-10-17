@@ -15,6 +15,7 @@ import { ApplicationActionSchema } from '@/lib/schemas'
 import { staffProcedure } from '../../procedures'
 import { ApprovalStatus } from '@/generated/prisma/enums'
 import { clearNotifications, createNotification } from '@/lib/notify'
+import { logger } from '@/lib/logger'
 
 /** An applicant in a chapter the caller runs; anyone else is not found. */
 async function applicantRunBy<T extends { nationalChapterId: number | null }>(
@@ -312,7 +313,7 @@ export const adminApplicationsRouter = {
             to: volunteer.email,
             name: volunteer.name,
             applicantNotes: resolvedApplicantNotes,
-          }).catch((e) => console.error('[APPLICATIONS] Needs-info email failed:', e))
+          }).catch((e) => logger.error(e, '[APPLICATIONS] Needs-info email failed'))
         }
         return { message: 'More information requested' }
       }
@@ -340,7 +341,7 @@ export const adminApplicationsRouter = {
             to: volunteer.email,
             name: volunteer.name,
             applicantNotes: resolvedApplicantNotes,
-          }).catch((e) => console.error('[APPLICATIONS] Reopened email failed:', e))
+          }).catch((e) => logger.error(e, '[APPLICATIONS] Reopened email failed'))
         }
         return { message: 'Application reopened' }
       }
@@ -373,14 +374,14 @@ export const adminApplicationsRouter = {
           applicantNotes ?? volunteer.applicationApplicantNotes ?? undefined
         if (action === 'approve') {
           sendApplicationApprovedEmail({ to: volunteer.email, name: volunteer.name }).catch((e) =>
-            console.error('[APPLICATIONS] Approved email failed:', e),
+            logger.error(e, '[APPLICATIONS] Approved email failed'),
           )
         } else {
           sendApplicationRejectedEmail({
             to: volunteer.email,
             name: volunteer.name,
             applicantNotes: resolvedApplicantNotes,
-          }).catch((e) => console.error('[APPLICATIONS] Rejected email failed:', e))
+          }).catch((e) => logger.error(e, '[APPLICATIONS] Rejected email failed'))
         }
       }
 

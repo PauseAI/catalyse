@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { env } from './env'
+import { logger } from './logger'
 
 function secretsMatch(provided: string, expected: string): boolean {
   const a = Buffer.from(provided)
@@ -13,7 +14,7 @@ function secretsMatch(provided: string, expected: string): boolean {
 export function checkCronAuth(request: NextRequest): NextResponse | null {
   const secret = env.CRON_SECRET
   if (!secret) {
-    console.error('[CRON] CRON_SECRET env var not set')
+    logger.error('[CRON] CRON_SECRET env var not set')
     return NextResponse.json({ error: 'Cron not configured' }, { status: 500 })
   }
   const auth = request.headers.get('authorization')
