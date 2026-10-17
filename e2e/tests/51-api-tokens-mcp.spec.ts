@@ -64,6 +64,7 @@ test.describe('API tokens and the MCP server', () => {
     await adminPage.goto(`${baseUrl}/admin/api-tokens`)
     const row = adminPage.getByRole('listitem', { name: tokenName })
     await expect(row).toContainText('Last used')
+    await snap(adminPage, 'token used')
     await row.getByRole('button', { name: 'Revoke' }).click()
     await adminPage.getByRole('dialog').getByRole('button', { name: 'Revoke' }).click()
     await expect(row).toBeHidden()
