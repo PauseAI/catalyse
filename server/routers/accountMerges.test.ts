@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import {
+  chapterFor,
   createChapter,
   createChapterDeputy,
   createTeam,
@@ -24,6 +25,7 @@ async function markedPair(
     name,
     email: `sam${n}@example.com`,
     locationConfirmedAt: new Date(),
+    nationalChapterId: (await chapterFor('UK')).id,
     ...keptOverrides,
   })
   const merged = await createVolunteer({

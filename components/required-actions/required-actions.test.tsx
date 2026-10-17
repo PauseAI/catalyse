@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
-import { createLocalGroup, createVolunteer } from '@/test/factories'
+import { createChapter, createLocalGroup, createVolunteer } from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { emails } from '@/test/fakes/email'
 import { rateLimit } from '@/test/fakes/rate-limit'
@@ -29,7 +29,8 @@ describe('RequiredActions', () => {
     const region = await banner()
     expect(region).toHaveTextContent('Confirm your location')
     expect(region).toHaveTextContent('Help us match you with nearby projects')
-    await userEvent.click(within(region).getByRole('button', { name: 'Continue' }))
+    expect(region).toHaveTextContent('Join a national chapter')
+    await userEvent.click(within(region).getAllByRole('button', { name: 'Continue' })[0])
     expect(await screen.findByRole('dialog', { name: 'Confirm your location' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Ask me later' }))
     await userEvent.click(within(await banner()).getByRole('button', { name: 'Hide for now' }))
@@ -164,6 +165,42 @@ describe('ReconcileProfileDialog', () => {
     await userEvent.click(within(dialog).getByRole('radio', { name: /No/ }))
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
     expect(await screen.findByText('Nothing left to settle')).toBeInTheDocument()
+  })
+})
+
+describe('ChooseChapterDialog', () => {
+  async function choose(name: string) {
+    const dialog = await screen.findByRole('dialog', { name: 'Join a national chapter' })
+    expect(within(dialog).getByRole('button', { name: 'Join' })).toBeDisabled()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Select chapter' }))
+    await userEvent.click(await screen.findByRole('option', { name }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
+  }
+
+  it('puts someone from the holding pool in the chapter they pick', async () => {
+    const chapter = await createChapter()
+    const vol = await createVolunteer({ locationConfirmedAt: new Date(), country: 'Brazil' })
+    await mount(vol)
+    await choose(chapter.name)
+    expect(
+      await screen.findByText(`You joined ${chapter.name}`, { selector: '[role=alert] *' }),
+    ).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(
+      (await prisma.volunteer.findUniqueOrThrow({ where: { id: vol.id } })).nationalChapterId,
+    ).toBe(chapter.id)
+  })
+
+  it('says why joining failed', async () => {
+    const chapter = await createChapter()
+    const vol = await createVolunteer({ locationConfirmedAt: new Date() })
+    await mount(vol)
+    await screen.findByRole('dialog', { name: 'Join a national chapter' })
+    await prisma.nationalChapter.delete({ where: { id: chapter.id } })
+    await choose(chapter.name)
+    expect(
+      await screen.findByText('Chapter not found', { selector: '[role=alert] *' }),
+    ).toBeInTheDocument()
   })
 })
 

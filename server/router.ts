@@ -27,6 +27,7 @@ import { privacyRouter } from './routers/privacy'
 import { contactRouter } from './routers/contact'
 import { adminApplicationsRouter } from './routers/admin/applications'
 import { adminVolunteersRouter } from './routers/admin/volunteers'
+import { adminRequiredActionsRouter } from './routers/admin/requiredActions'
 import { adminNotesRouter } from './routers/admin/notes'
 import { adminProjectsRouter } from './routers/admin/projects'
 import { adminSkillsRouter } from './routers/admin/skills'
@@ -93,6 +94,7 @@ export const appRouter = {
     bugReports: adminBugReportsRouter,
     admins: adminAdminsRouter,
     chapters: adminChaptersRouter,
+    requiredActions: adminRequiredActionsRouter,
     platformSettings: adminPlatformSettingsRouter,
     stats: adminStatsRouter,
     triage: adminTriageRouter,

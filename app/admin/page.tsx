@@ -80,6 +80,7 @@ export default function AdminLandingPage() {
           count: counts?.possibleDuplicates,
           globalOnly: true,
         },
+        { href: '/admin/required-actions', label: 'Outstanding actions', globalOnly: true },
         { href: '/admin/team', label: 'Global admins', globalOnly: true },
       ],
     },
