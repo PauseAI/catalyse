@@ -89,6 +89,10 @@ describe('admin bugs', () => {
     await userEvent.click(screen.getByRole('option', { name: 'UX Issue' }))
     await screen.findByText('No bug reports found.')
     expect(screen.getByRole('button', { name: 'Export as Markdown' })).toBeDisabled()
+    expect(screen.getByRole('link', { name: 'Connect with MCP' })).toHaveAttribute(
+      'href',
+      '/admin/api-tokens',
+    )
     await userEvent.click(screen.getByRole('button', { name: 'Filter by type' }))
     await userEvent.click(screen.getByRole('option', { name: 'All' }))
     await screen.findByRole('heading', { name: 'Broken button' })

@@ -4,7 +4,36 @@ import { prisma } from '@/lib/prisma'
 import { ApprovalStatus } from '@/generated/prisma/enums'
 import { UpdateBugReportSchema } from '@/lib/schemas'
 import { adminProcedure } from '../../procedures'
-import { clearNotifications } from '@/lib/notify'
+import { clearNotifications, notifyUser } from '@/lib/notify'
+
+/** Tells a report's author, in the app and by email, that it was resolved or won't be fixed. */
+async function notifyReporterOfOutcome(
+  report: { id: number; reporterId: number; title: string; resolutionNotes: string | null },
+  status: 'resolved' | 'wont_fix',
+) {
+  const title =
+    status === 'resolved'
+      ? `Your bug report was resolved: ${report.title}`
+      : `Your bug report won't be fixed: ${report.title}`
+  const link = `/bugs/${report.id}`
+  await notifyUser(
+    report.reporterId,
+    'bug_report_resolved',
+    title,
+    report.resolutionNotes,
+    link,
+    {
+      message:
+        report.resolutionNotes ??
+        (status === 'resolved'
+          ? 'Thank you for reporting it.'
+          : 'Thank you for reporting it. We have decided not to change this.'),
+      ctaLabel: 'View your report',
+      ctaUrl: link,
+    },
+    report.id,
+  )
+}
 
 export const adminBugReportsRouter = {
   list: adminProcedure
@@ -89,6 +118,21 @@ export const adminBugReportsRouter = {
 
       if (input.status === 'resolved' || input.status === 'wont_fix') {
         await clearNotifications('new_bug_report', input.id)
+        if (
+          input.status !== report.status &&
+          report.reporterId &&
+          report.reporterId !== context.volunteer.id
+        ) {
+          await notifyReporterOfOutcome(
+            {
+              id: report.id,
+              reporterId: report.reporterId,
+              title: report.title,
+              resolutionNotes: input.resolutionNotes ?? report.resolutionNotes,
+            },
+            input.status,
+          )
+        }
       }
 
       return { message: 'Bug report updated' }

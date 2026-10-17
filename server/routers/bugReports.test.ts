@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { createVolunteer, createAdmin } from '@/test/factories'
 import { clientAs, anon } from '@/test/rpc'
 import { rateLimit } from '@/test/fakes/rate-limit'
+import { emails } from '@/test/fakes/email'
 
 const denyNextRequest = () => rateLimit.denyNext(1000)
 
@@ -280,6 +281,79 @@ describe('admin.bugReports', () => {
     })
     expect(
       await prisma.notification.count({ where: { type: 'new_bug_report', entityId: id } }),
+    ).toBe(0)
+  })
+
+  it('tells the reporter, once, when their report is resolved or will not be fixed', async () => {
+    const admin = await createAdmin()
+    const reporter = await createVolunteer()
+    const c = clientAs(admin)
+    const outcomes = () =>
+      prisma.notification.findMany({
+        where: { volunteerId: reporter.id, type: 'bug_report_resolved' },
+        orderBy: { id: 'asc' },
+      })
+    const report = (title: string) =>
+      prisma.bugReport.create({
+        data: { reporterId: reporter.id, title, description: 'Ten characters at least' },
+      })
+
+    const fixed = await report('Broken save')
+    await c.admin.bugReports.update({
+      id: fixed.id,
+      status: 'resolved',
+      resolutionNotes: 'Fixed in #400',
+    })
+    expect(await outcomes()).toMatchObject([
+      {
+        title: 'Your bug report was resolved: Broken save',
+        body: 'Fixed in #400',
+        link: `/bugs/${fixed.id}`,
+        entityId: fixed.id,
+      },
+    ])
+    const fixedEmail = await vi.waitFor(() => {
+      const email = emails.lastTo(reporter.email!)
+      expect(email).toBeDefined()
+      return email!
+    })
+    expect(fixedEmail.subject).toBe('Your bug report was resolved: Broken save')
+    expect(fixedEmail.html).toContain('Fixed in #400')
+    expect(fixedEmail.html).toContain(`/bugs/${fixed.id}`)
+
+    // Saving it again as resolved says nothing more.
+    await c.admin.bugReports.update({ id: fixed.id, status: 'resolved', resolutionNotes: 'Also' })
+    expect(await outcomes()).toHaveLength(1)
+
+    const declined = await report('Make it purple')
+    await c.admin.bugReports.update({ id: declined.id, status: 'wont_fix' })
+    expect((await outcomes())[1]).toMatchObject({
+      title: "Your bug report won't be fixed: Make it purple",
+      body: null,
+    })
+    await vi.waitFor(() =>
+      expect(emails.lastTo(reporter.email!)?.html).toContain('We have decided not to change this.'),
+    )
+
+    const unnoted = await report('Typo')
+    await c.admin.bugReports.update({ id: unnoted.id, status: 'resolved' })
+    await vi.waitFor(() =>
+      expect(emails.lastTo(reporter.email!)?.subject).toBe('Your bug report was resolved: Typo'),
+    )
+    expect(emails.lastTo(reporter.email!)?.html).toContain('Thank you for reporting it.')
+
+    const own = await prisma.bugReport.create({
+      data: { reporterId: admin.id, title: 'Mine', description: 'Ten characters at least' },
+    })
+    const anonymous = await prisma.bugReport.create({
+      data: { title: 'Nobody', description: 'Ten characters at least' },
+    })
+    await c.admin.bugReports.update({ id: own.id, status: 'resolved' })
+    await c.admin.bugReports.update({ id: anonymous.id, status: 'wont_fix' })
+    expect(
+      await prisma.notification.count({
+        where: { type: 'bug_report_resolved', entityId: { in: [own.id, anonymous.id] } },
+      }),
     ).toBe(0)
   })
 })

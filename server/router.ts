@@ -35,6 +35,7 @@ import { adminSkillCategoriesRouter } from './routers/admin/skillCategories'
 import { adminLocalGroupsRouter } from './routers/admin/localGroups'
 import { adminTeamsRouter } from './routers/admin/teams'
 import { adminBugReportsRouter } from './routers/admin/bugReports'
+import { adminApiTokensRouter } from './routers/admin/apiTokens'
 import { adminAdminsRouter } from './routers/admin/admins'
 import { adminChaptersRouter } from './routers/admin/chapters'
 import { adminPlatformSettingsRouter } from './routers/admin/platformSettings'
@@ -92,6 +93,7 @@ export const appRouter = {
     localGroups: adminLocalGroupsRouter,
     teams: adminTeamsRouter,
     bugReports: adminBugReportsRouter,
+    apiTokens: adminApiTokensRouter,
     admins: adminAdminsRouter,
     chapters: adminChaptersRouter,
     requiredActions: adminRequiredActionsRouter,

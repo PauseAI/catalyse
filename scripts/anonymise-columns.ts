@@ -21,6 +21,7 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
   account_merge_requests: { token: 'rows-deleted' },
   admin_invites: { email: 'custom', invite_token: 'token' },
   admin_notes: { content: 'redact', category: 'keep' },
+  api_tokens: { name: 'rows-deleted', token_hash: 'rows-deleted' },
   anonymised_emails: { email_hash: 'token' },
   bug_report_comments: { content: 'redact' },
   // Ids and enum values only; never free text.

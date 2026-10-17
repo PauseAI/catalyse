@@ -28,6 +28,7 @@ export const MERGE_REFERENCES = {
   'account_merge_requests.other_id': 'delete',
   'account_merge_requests.requester_id': 'delete',
   'account_merges.kept_id': 'move',
+  'api_tokens.volunteer_id': 'delete',
   'account_merges.merged_id': 'keep',
   'admin_invites.accepted_by_id': 'move',
   'admin_invites.invited_by_id': 'move',
