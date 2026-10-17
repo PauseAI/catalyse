@@ -1201,6 +1201,7 @@ model Volunteer {
   teamJoinRequestsReviewed                TeamJoinRequest[]        @relation("TeamJoinRequestReviewedBy")
   templatesCreated                        Template[]               @relation("TemplateCreatedBy")
   sessions                                Session[]
+  apiTokens                               ApiToken[]
 
   @@index([country], map: "idx_volunteers_country")
   @@index([nationalChapterId], map: "idx_volunteers_chapter")
@@ -1222,6 +1223,24 @@ model Session {
 
   @@index([volunteerId], map: "idx_sessions_volunteer")
   @@map("sessions")
+}
+
+/// A long-lived bearer token a program uses to act as its owner, limited to its scopes
+/// (lib/api-tokens.ts). Stored hashed, like a session; revoking deletes the row.
+model ApiToken {
+  id          Int       @id @default(autoincrement())
+  volunteerId Int       @map("volunteer_id")
+  name        String
+  tokenHash   String    @unique @map("token_hash")
+  scopes      String[]
+  createdAt   DateTime  @default(now()) @map("created_at")
+  lastUsedAt  DateTime? @map("last_used_at")
+  /// Null: never expires.
+  expiresAt   DateTime? @map("expires_at")
+  volunteer   Volunteer @relation(fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([volunteerId], map: "idx_api_tokens_volunteer")
+  @@map("api_tokens")
 }
 
 model RejectedApplication {

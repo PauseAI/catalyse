@@ -120,7 +120,7 @@ export async function getCurrentVolunteer(authorization: string | null | undefin
  * `isAdmin` means global admin, which is decided by ADMIN_EMAILS: the flag is brought into step
  * with the list, and a stale one grants nothing. Chapter staff powers are in ChapterAccess.
  */
-async function withGlobalAdmin(volunteer: Volunteer): Promise<Volunteer> {
+export async function withGlobalAdmin(volunteer: Volunteer): Promise<Volunteer> {
   const listed = isSuperAdmin(volunteer)
   if (listed && !volunteer.isAdmin) await checkAdminBootstrap(volunteer)
   if (!listed && volunteer.isAdmin) {

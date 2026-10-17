@@ -36,6 +36,10 @@ describe('admin landing', () => {
     expect(screen.getByRole('link', { name: 'View' })).toHaveAttribute('href', '/admin/bugs')
     expect(screen.getByRole('link', { name: /Manage applications/ })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Cron job runs/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'API tokens' })).toHaveAttribute(
+      'href',
+      '/admin/api-tokens',
+    )
     await waitFor(() =>
       expect(screen.getByRole('link', { name: /Triage queue/ })).toHaveTextContent('1'),
     )

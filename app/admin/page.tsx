@@ -115,6 +115,7 @@ export default function AdminLandingPage() {
       links: [
         { href: '/admin/platform-settings', label: 'Platform settings', globalOnly: true },
         { href: '/admin/cron-runs', label: 'Cron job runs', globalOnly: true },
+        { href: '/admin/api-tokens', label: 'API tokens', globalOnly: true },
       ],
     },
   ]
