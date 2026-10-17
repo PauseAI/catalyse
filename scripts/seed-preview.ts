@@ -2,6 +2,7 @@ import { execSync } from 'child_process'
 import { Client } from 'pg'
 import { libpqUrl } from '../jobs/backup'
 import { resolveDbUrl } from '../lib/db-url'
+import { logger } from '../lib/logger'
 
 /**
  * Runs at container start, before migrations. Preview environments (Railway PR deploys) get
@@ -29,19 +30,19 @@ async function databaseIsEmpty(): Promise<boolean> {
 
 async function main(): Promise<void> {
   if (isProduction || !hasB2 || process.env.ALLOW_DB_RESTORE !== '1') {
-    console.log(
+    logger.info(
       '[SEED-PREVIEW] Skipped (production, B2 not configured, or ALLOW_DB_RESTORE not set)',
     )
     return
   }
   if (process.env.SEED_PREVIEW_FORCE !== '1' && !(await databaseIsEmpty())) {
-    console.log('[SEED-PREVIEW] Skipped (database already has tables; set SEED_PREVIEW_FORCE=1)')
+    logger.info('[SEED-PREVIEW] Skipped (database already has tables; set SEED_PREVIEW_FORCE=1)')
     return
   }
   execSync('npm run fetch-prod-db', { stdio: 'inherit' })
 }
 
 main().catch((err) => {
-  console.error('[SEED-PREVIEW] Failed:', err)
+  logger.error(err, '[SEED-PREVIEW] Failed:')
   process.exit(1)
 })

@@ -16,6 +16,7 @@ import { execFileSync } from 'node:child_process'
 import { Client } from 'pg'
 import { libpqUrl } from '../jobs/backup'
 import { resolveDbUrl } from '../lib/db-url'
+import { logger } from '../lib/logger'
 import { anonymise } from './anonymise-db'
 import { seedDevAccounts } from './seed-dev-accounts'
 import { claimDisposable } from './disposable-db'
@@ -165,14 +166,14 @@ async function main(): Promise<void> {
 
   // The restore empties the target database first; nothing may ever point this at prod.
   if (process.env.RAILWAY_ENVIRONMENT_NAME === 'production') {
-    console.error('Refusing to run in the production environment')
+    logger.error('Refusing to run in the production environment')
     process.exit(1)
   }
 
   // Any Railway environment must opt in, so a fork of production cannot wipe its database
   // by accident. Only preview environments set this.
   if (process.env.RAILWAY_ENVIRONMENT_NAME && process.env.ALLOW_DB_RESTORE !== '1') {
-    console.error('Refusing to restore: set ALLOW_DB_RESTORE=1 to allow it in this environment')
+    logger.error('Refusing to restore: set ALLOW_DB_RESTORE=1 to allow it in this environment')
     process.exit(1)
   }
 
@@ -181,8 +182,9 @@ async function main(): Promise<void> {
   const bucketName = process.env.B2_BUCKET_NAME
 
   if (!keyId || !appKey || !bucketName) {
-    console.error('Error: B2_KEY_ID, B2_APP_KEY, and B2_BUCKET_NAME must be set')
-    console.error(`       Add them to '${envFile}' or export them as environment variables.`)
+    logger.error(
+      `B2_KEY_ID, B2_APP_KEY, and B2_BUCKET_NAME must be set. Add them to '${envFile}' or export them as environment variables.`,
+    )
     process.exit(1)
   }
 
@@ -190,29 +192,29 @@ async function main(): Promise<void> {
   mkdirSync(resolve(ROOT, 'db'), { recursive: true })
   const dumpPath = resolve(ROOT, 'db/prod.dump')
 
-  console.log('Authorising with B2...')
+  logger.info('Authorising with B2...')
   const auth = await b2Authorize(keyId, appKey)
   const bucketId = await b2GetBucketId(auth, bucketName)
 
-  console.log('Listing backups...')
+  logger.info('Listing backups...')
   const files = (await b2ListFiles(auth, bucketId, 'backups/')).filter((f) =>
     f.fileName.endsWith('.dump'),
   )
   if (!files.length) {
-    console.error('No Postgres backups found in B2.')
+    logger.error('No Postgres backups found in B2.')
     process.exit(1)
   }
 
   const latest = files.reduce((a, b) => (a.uploadTimestamp > b.uploadTimestamp ? a : b))
-  console.log(`Latest backup: ${latest.fileName} (${(latest.contentLength / 1024).toFixed(0)} KB)`)
+  logger.info(`Latest backup: ${latest.fileName} (${(latest.contentLength / 1024).toFixed(0)} KB)`)
 
-  console.log('Downloading...')
+  logger.info('Downloading...')
   await b2DownloadFile(auth, bucketName, latest.fileName, dumpPath)
 
-  console.log(`Restoring into ${new URL(dbUrl).pathname.slice(1)}...`)
+  logger.info(`Restoring into ${new URL(dbUrl).pathname.slice(1)}...`)
   await restoreDump(dumpPath, dbUrl)
 
-  console.log('Anonymising and seeding dev accounts...')
+  logger.info('Anonymising and seeding dev accounts...')
   try {
     await anonymiseDatabase(dbUrl)
   } catch (err) {
@@ -220,15 +222,15 @@ async function main(): Promise<void> {
     throw err
   }
 
-  console.log('Done.')
-  console.log('  volunteer@example.com  / password1')
-  console.log('  admin@example.com      / password1')
-  console.log('  superadmin@example.com / password1')
+  logger.info('Done.')
+  logger.info('  volunteer@example.com  / password1')
+  logger.info('  admin@example.com      / password1')
+  logger.info('  superadmin@example.com / password1')
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch((err) => {
-    console.error(err instanceof Error ? err.message : err)
+    logger.error(err instanceof Error ? err.message : err)
     process.exit(1)
   })
 }

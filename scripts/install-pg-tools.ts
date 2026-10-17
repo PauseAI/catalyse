@@ -11,6 +11,7 @@
 import { execFileSync } from 'node:child_process'
 import { platform } from 'node:os'
 import { fileURLToPath } from 'node:url'
+import { logger } from '../lib/logger'
 
 // Matches the server in docker-compose.yml and production; pg_restore cannot read a dump
 // made by a newer pg_dump.
@@ -80,7 +81,7 @@ function main(): void {
   const major = toolMajor('pg_restore')
   if (major !== null && toolMajor('pg_dump') !== null) {
     if (major < MIN_MAJOR) {
-      console.warn(
+      logger.warn(
         `pg_restore ${major} is older than the Postgres ${MIN_MAJOR} used in production; ` +
           `restoring a prod dump may fail. Install a newer client (https://www.postgresql.org/download/).`,
       )
@@ -90,25 +91,25 @@ function main(): void {
 
   const installer = pickInstaller(platform(), has)
   if (!installer) {
-    console.error(
+    logger.error(
       'pg_dump/pg_restore not found and no supported package manager detected.\n' +
         `Install the Postgres ${MIN_MAJOR} client tools yourself: https://www.postgresql.org/download/`,
     )
     process.exit(1)
   }
 
-  console.log(`Installing Postgres client tools with ${installer.name}...`)
+  logger.info(`Installing Postgres client tools with ${installer.name}...`)
   for (const [cmd, ...args] of installer.commands) {
     execFileSync(cmd, args, { stdio: 'inherit' })
   }
 
   const installed = toolMajor('pg_restore')
   if (installed === null) {
-    console.error('Installed, but pg_restore is still not on PATH. Open a new shell and retry.')
+    logger.error('Installed, but pg_restore is still not on PATH. Open a new shell and retry.')
     process.exit(1)
   }
   if (installed < MIN_MAJOR) {
-    console.warn(
+    logger.warn(
       `Installed pg_restore ${installed}, older than the Postgres ${MIN_MAJOR} used in production. ` +
         'Restoring a prod dump may fail; install a newer client from https://www.postgresql.org/download/.',
     )
@@ -119,7 +120,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
     main()
   } catch (err) {
-    console.error(err instanceof Error ? err.message : err)
+    logger.error(err instanceof Error ? err.message : err)
     process.exit(1)
   }
 }

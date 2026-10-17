@@ -3,6 +3,7 @@
  * step took. Each step's own output streams through untouched.
  */
 import { spawnSync } from 'node:child_process'
+import { logger } from '../lib/logger'
 
 const STEPS = ['typecheck', 'lint', 'format:check', 'test:unit', 'test:e2e']
 
@@ -17,7 +18,7 @@ const startedAt = Date.now()
 let exitCode = 0
 
 for (const step of STEPS) {
-  console.log(`\n▶ npm run ${step}\n`)
+  logger.info(`\n▶ npm run ${step}\n`)
   const stepStart = Date.now()
   const { status } = spawnSync('npm', ['run', step], { stdio: 'inherit' })
   const ok = status === 0
@@ -29,12 +30,12 @@ for (const step of STEPS) {
 }
 
 const width = Math.max(...STEPS.map((s) => s.length))
-console.log('\nTimings')
+logger.info('\nTimings')
 for (const { step, ms, ok } of timings) {
-  console.log(`  ${step.padEnd(width)}  ${formatDuration(ms).padStart(8)}${ok ? '' : '  FAILED'}`)
+  logger.info(`  ${step.padEnd(width)}  ${formatDuration(ms).padStart(8)}${ok ? '' : '  FAILED'}`)
 }
 const skipped = STEPS.slice(timings.length)
-if (skipped.length) console.log(`  not run: ${skipped.join(', ')}`)
-console.log(`  ${'total'.padEnd(width)}  ${formatDuration(Date.now() - startedAt).padStart(8)}`)
+if (skipped.length) logger.info(`  not run: ${skipped.join(', ')}`)
+logger.info(`  ${'total'.padEnd(width)}  ${formatDuration(Date.now() - startedAt).padStart(8)}`)
 
 process.exit(exitCode)

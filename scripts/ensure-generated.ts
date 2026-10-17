@@ -7,6 +7,7 @@
 import { execSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { logger } from '../lib/logger'
 
 const schemaPath = 'prisma/schema.prisma'
 const hashPath = 'generated/prisma/.schema-hash'
@@ -15,7 +16,7 @@ const currentHash = createHash('sha256').update(readFileSync(schemaPath)).digest
 const storedHash = existsSync(hashPath) ? readFileSync(hashPath, 'utf8').trim() : null
 
 if (currentHash !== storedHash) {
-  console.log('schema.prisma changed since the last generate — running migrate + generate')
+  logger.info('schema.prisma changed since the last generate — running migrate + generate')
   execSync('npm run migrate && npm run generate', { stdio: 'inherit' })
   writeFileSync(hashPath, currentHash)
 }

@@ -3,6 +3,7 @@ import { readdirSync, rmdirSync } from 'fs'
 import { join } from 'path'
 import { Client } from 'pg'
 import { resolveDbUrl } from '../lib/db-url'
+import { logger } from '../lib/logger'
 import { libpqUrl, runBackupJob } from '../jobs/backup'
 
 process.env.DATABASE_URL = resolveDbUrl()
@@ -15,9 +16,7 @@ function removeEmptyMigrationDirs() {
     const dir = join(migrationsDir, entry.name)
     const files = readdirSync(dir)
     if (!files.includes('migration.sql')) {
-      console.warn(
-        `[MIGRATE] Warning: migration dir "${entry.name}" has no migration.sql — removing`,
-      )
+      logger.warn(`[MIGRATE] migration dir "${entry.name}" has no migration.sql — removing`)
       rmdirSync(dir)
     }
   }
@@ -45,9 +44,9 @@ async function main() {
   removeEmptyMigrationDirs()
 
   if (process.env.RAILWAY_ENVIRONMENT_NAME === 'production' && (await hasVolunteers())) {
-    console.log('[MIGRATE] Running pre-deploy backup...')
+    logger.info('[MIGRATE] Running pre-deploy backup...')
     await runBackupJob().catch((err: unknown) =>
-      console.error('[MIGRATE] Backup failed (continuing):', err),
+      logger.error(err, '[MIGRATE] Backup failed (continuing):'),
     )
   }
 
@@ -55,6 +54,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('[MIGRATE] Fatal error:', err)
+  logger.error(err, '[MIGRATE] Fatal error:')
   process.exit(1)
 })
