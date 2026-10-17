@@ -152,6 +152,9 @@ export default function AdminBugsPage() {
         >
           Export as Markdown
         </Button>
+        <Button variant="outline" size="sm" href="/admin/api-tokens">
+          Connect with MCP
+        </Button>
       </div>
 
       {loadingData ? (
