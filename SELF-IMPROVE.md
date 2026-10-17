@@ -29,7 +29,7 @@ GitHub issue. An entry here is about the work itself: something in the code
 structure, tooling, tests, docs or diagnostics that made a task slower or more
 confusing than it needed to be, and that will do so again.
 
-## 10x
+## 11x
 
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
       and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
@@ -66,7 +66,9 @@ confusing than it needed to be, and that will do so again.
       The settings-page reorganisation hit it a tenth time: three full `check-all` runs in a row
       each failed one unrelated unit file — `ProjectEditor.test.tsx`, `app/quick-tasks/page.test.tsx`,
       then `server/routers/quickTasks.test.ts` — each passing alone in under 40 s, before a fourth
-      run went clean.
+      run went clean. The chapter-joining PR passed `check-all` locally and failed only in CI: two
+      component tests acted before a query had loaded (a chapter deleted before the dialog listed
+      it; a `getByText` on a list from a second query), which local timing always won.
 
 ## 6x
 
@@ -88,6 +90,18 @@ confusing than it needed to be, and that will do so again.
       each waited for the other to finish before its tests counted. A per-run database prefix and reports directory in
       `test/pg.ts` and `scripts/test-unit.ts` (from an env var or the pid) would let runs overlap.
 
+## 5x
+
+- [ ] **`npm run new-migration` always writes an unrelated `ALTER TABLE "schema_migrations"`
+      line that must be deleted by hand, and if `npm run migrate` runs first it is applied
+      and recorded.** In R-08 a failed rename let migrate apply it; undoing it needed a
+      hand-run `psql` from the owner, because editing an applied migration is blocked. P4-05's
+      enum rename diff carried it again, and so did the national chapters migration, along
+      with a `CREATE EXTENSION` already applied, and both duplicate-account migrations. The
+      chapter-joining enum migration carried it too; running migrate before stripping it failed
+      the migration and left it recorded as failed until `prisma migrate resolve`.
+      `scripts/new-migration.ts` should strip both from the diff it writes.
+
 ## 4x
 
 - [ ] **Component tests that remount a page as a different user read the previous user's
@@ -104,14 +118,6 @@ confusing than it needed to be, and that will do so again.
       the stale tree, so the race hid behind a passing assertion right up to the real one.
       `renderApp` could start each mount with an empty query cache, or `test/render.tsx`
       could say to use `findBy…` after a remount.
-
-- [ ] **`npm run new-migration` always writes an unrelated `ALTER TABLE "schema_migrations"`
-      line that must be deleted by hand, and if `npm run migrate` runs first it is applied
-      and recorded.** In R-08 a failed rename let migrate apply it; undoing it needed a
-      hand-run `psql` from the owner, because editing an applied migration is blocked. P4-05's
-      enum rename diff carried it again, and so did the national chapters migration, along
-      with a `CREATE EXTENSION` already applied, and both duplicate-account migrations.
-      `scripts/new-migration.ts` should strip both from the diff it writes.
 
 ## 2x
 
