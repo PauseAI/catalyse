@@ -169,11 +169,12 @@ describe('ReconcileProfileDialog', () => {
 })
 
 describe('ChooseChapterDialog', () => {
-  async function choose(name: string) {
+  async function choose(name: string, beforeJoining = async () => {}) {
     const dialog = await screen.findByRole('dialog', { name: 'Join a national chapter' })
     expect(within(dialog).getByRole('button', { name: 'Join' })).toBeDisabled()
     await userEvent.click(within(dialog).getByRole('button', { name: 'Select chapter' }))
     await userEvent.click(await screen.findByRole('option', { name }))
+    await beforeJoining()
     await userEvent.click(within(dialog).getByRole('button', { name: 'Join' }))
   }
 
@@ -195,9 +196,9 @@ describe('ChooseChapterDialog', () => {
     const chapter = await createChapter()
     const vol = await createVolunteer({ locationConfirmedAt: new Date() })
     await mount(vol)
-    await screen.findByRole('dialog', { name: 'Join a national chapter' })
-    await prisma.nationalChapter.delete({ where: { id: chapter.id } })
-    await choose(chapter.name)
+    await choose(chapter.name, async () => {
+      await prisma.nationalChapter.delete({ where: { id: chapter.id } })
+    })
     expect(
       await screen.findByText('Chapter not found', { selector: '[role=alert] *' }),
     ).toBeInTheDocument()

@@ -37,7 +37,7 @@ describe('national chapters list', () => {
       `/admin/chapters/${existing.id}`,
     )
     expect(screen.getByText(/Led by Lea Lead · 0 deputies · 1 member$/)).toBeInTheDocument()
-    expect(screen.getByText('Other', { exact: false })).toBeInTheDocument()
+    expect(await screen.findByText('Other', { exact: false })).toBeInTheDocument()
 
     await pick('Country', 'Kenya')
     await userEvent.click(screen.getByRole('button', { name: 'Open chapter' }))
