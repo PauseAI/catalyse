@@ -79,6 +79,7 @@ enum ChapterAuditAction {
   TEAM_CHAPTER_CHANGED
   ROLE_INVITE_SENT
   ROLE_INVITE_ACCEPTED
+  JOINED_FROM_POOL
 }
 
 /// One country's members and the people who run it. A volunteer with no chapter is in the

@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import type { RequiredAction } from '@/lib/required-actions'
+import ChooseChapterDialog from './ChooseChapterDialog'
 import ConfirmLocationDialog from './ConfirmLocationDialog'
 import MergeAccountDialog from './MergeAccountDialog'
 import ReconcileProfileDialog from './ReconcileProfileDialog'
@@ -40,6 +41,11 @@ export const REQUIRED_ACTION_VIEWS: { [K in Kind]: View<K> } = {
         ? 'Your accounts had one detail that differed. Choose which to keep.'
         : `Your accounts had ${a.conflicts.length} details that differed. Choose which to keep.`,
     Dialog: ReconcileProfileDialog,
+  },
+  choose_chapter: {
+    label: 'Join a national chapter',
+    summary: () => 'Choose a chapter to see its projects, teams and local groups.',
+    Dialog: ChooseChapterDialog,
   },
 }
 
