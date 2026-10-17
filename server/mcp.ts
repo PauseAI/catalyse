@@ -107,7 +107,8 @@ export function createMcpServer(caller: ApiCaller, request: Request): McpServer 
       {
         description:
           'Change a bug report’s status and/or resolution notes. Resolving or marking it ' +
-          '"wont_fix" records the token owner as the resolver.',
+          '"wont_fix" records the token owner as the resolver and tells the reporter, with ' +
+          'the resolution notes, in the app and by email.',
         inputSchema: {
           id: z.number().int(),
           status: statusSchema.optional(),
