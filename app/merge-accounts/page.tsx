@@ -49,8 +49,10 @@ function MergeAccountsContent() {
     return (
       <div className={CARD}>
         <h1>This link doesn&#39;t work</h1>
-        <p className="text-text-light mt-4 mb-6">
-          {preview.error instanceof Error ? preview.error.message : 'The link is missing its code.'}{' '}
+        <p className="text-text-light mt-4">
+          {preview.error instanceof Error ? preview.error.message : 'The link is missing its code'}.
+        </p>
+        <p className="text-text-light mt-2 mb-6">
           Sign in and ask for a new one from the prompt to merge your accounts.
         </p>
         <Button href="/login">Sign in</Button>
