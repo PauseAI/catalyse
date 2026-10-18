@@ -844,6 +844,19 @@ describe('project page — Overview status bar and Discussion', () => {
     expect(follows(bar(), discussion)).toBe(true)
   })
 
+  it("shows the project's own deadline lateness in its status bar", async () => {
+    const owner = await createVolunteer()
+    const project = await createProject({
+      status: 'in_progress',
+      assigneeId: owner.id,
+      deadline: new Date(Date.now() - 2 * DAY),
+    })
+    await mount(project.id, owner)
+    await screen.findByRole('heading', { name: project.title })
+    const bar = screen.getByRole('toolbar', { name: 'Status and actions' })
+    expect(within(bar).getByText(/days late$/)).toBeInTheDocument()
+  })
+
   it("shows a project's changes in the Discussion among its comments, to a helper too", async () => {
     const owner = await createVolunteer({ name: 'Olive' })
     const helper = await createVolunteer({ name: 'Hal' })

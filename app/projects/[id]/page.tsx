@@ -52,9 +52,15 @@ import SubmissionAskFields, {
   NEW_SUBMISSION_ASK,
   submissionAskPayload,
 } from '@/components/SubmissionAskFields'
+import { lateness } from '@/lib/lateness'
 import { awaitsOwnerReview } from '@/lib/task-review'
 import { isHttpUrl } from '@/lib/url'
-import { DueChip, ProjectStatusBadge, WorkStatusBadge } from '@/components/StatusBadges'
+import {
+  DueChip,
+  LatenessBadge,
+  ProjectStatusBadge,
+  WorkStatusBadge,
+} from '@/components/StatusBadges'
 import Modal from '@/components/ui/Modal'
 import { EmptyPersonChip, PersonChip } from '@/components/ui/PersonChip'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
@@ -2148,6 +2154,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     </WorkItemPerson>
   )
 
+  // Matches a task's WorkViewer: the project's "assignee" is its owner, and whoever can
+  // replan a task here can also replan the project (owner, deputy or admin).
+  const projectViewer = { isAssignee: isOwner, canReview: isOwnerOrAdmin || isDeputy }
+
   const statusBlock = (
     <>
       {canPickStatus ? (
@@ -2164,6 +2174,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           aria-label="project status"
         />
       )}
+      <LatenessBadge
+        lateness={lateness({
+          deadline: project.deadline,
+          pastPlanDays: project.daysLate,
+          done: locked,
+        })}
+        viewer={projectViewer}
+      />
       {locked && isOwnerOrAdmin && (
         <ReopenProjectButton projectId={project.id} title={project.title} />
       )}
