@@ -29,14 +29,8 @@ through separate trees:
   - **Cosmetic, by design**: the Project header has `tabs` (Overview/Tasks/Timeline/People) and a
     `subtitle` (location/team); the Task header has neither. A task is a single page, a project
     has sections — this difference should stay.
-  - **Not cosmetic — a real inconsistency**: the Task header's status group includes a
-    `LatenessBadge`; the Project header's does not, even though `ProjectCard` (the same project,
-    on the projects list) _does_ show a `LatenessBadge` for it. A project can read "3 days late"
-    on the projects list and show nothing about lateness on its own page. Worth fixing on its own,
-    independent of any larger merge.
-  - Both pages also separately call `lateness()` (`lib/lateness.ts`) for this purpose — the Task
-    page's status block does; the Project page's does not, which is the same gap from the other
-    direction.
+  - **Fixed**: the Project header's status group now includes a `LatenessBadge`, matching both
+    the Task header and `ProjectCard` on the projects list.
 
 - **Unified**: `MemberPicker` and `VolunteerSelect` are now `LocalVolunteerSelect`
   (`components/ui/LocalVolunteerSelect.tsx`, filters a list the caller already fetched) and
