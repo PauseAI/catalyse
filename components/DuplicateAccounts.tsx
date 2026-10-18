@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import DuplicatePairs from '@/components/DuplicatePairs'
-import VolunteerSelect from '@/components/VolunteerSelect'
+import FullVolunteerSelect from '@/components/FullVolunteerSelect'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
@@ -108,7 +108,7 @@ export default function DuplicateAccounts({
                 mark.mutate({ id: volunteer.id, duplicateOfId: Number(keeperId) })
               }}
             >
-              <VolunteerSelect
+              <FullVolunteerSelect
                 id="duplicate-of"
                 label="Mark as a duplicate of"
                 ariaLabel="Mark as a duplicate of"

@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { createVolunteer, createLocalGroup } from '@/test/factories'
 import { renderApp } from '@/test/render'
 import Analytics from './Analytics'
-import VolunteerSelect from './VolunteerSelect'
+import FullVolunteerSelect from './FullVolunteerSelect'
 
 describe('Analytics', () => {
   it('loads Google Analytics for a visitor who has not declined, and shows no banner', async () => {
@@ -44,7 +44,7 @@ describe('Analytics', () => {
   })
 })
 
-describe('VolunteerSelect', () => {
+describe('FullVolunteerSelect', () => {
   it('searches volunteers server-side and remembers the picked option', async () => {
     const me = await createVolunteer()
     const ann = await createVolunteer({
@@ -58,7 +58,7 @@ describe('VolunteerSelect', () => {
       const [value, setValue] = useState('')
       return (
         <>
-          <VolunteerSelect
+          <FullVolunteerSelect
             id="vs"
             label="Volunteer"
             ariaLabel="Volunteer"
@@ -101,7 +101,7 @@ describe('VolunteerSelect', () => {
   it('does nothing when disabled', async () => {
     const me = await createVolunteer()
     await renderApp(
-      <VolunteerSelect
+      <FullVolunteerSelect
         id="vs"
         label="V"
         ariaLabel="V"

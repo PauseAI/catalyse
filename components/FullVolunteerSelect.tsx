@@ -21,12 +21,12 @@ interface Props {
   enabled?: boolean
 }
 
-// Reusable volunteer picker: typeahead over a server-side search (name/bio) rather than a
-// client-side filter over a preloaded page, since the volunteer list can grow far past
-// what's reasonable to fetch upfront. Each option shows name plus location context
-// (local group or country) so admins can make location-aware assignments, and to a global
-// admin the email and any duplicate mark too.
-export default function VolunteerSelect({
+// Typeahead over a server-side search (name/bio) of the whole volunteer base, rather than
+// LocalVolunteerSelect's filter over a list the caller already has — for picking one volunteer
+// out of however many there are. Each option shows name plus location context (local group or
+// country) so admins can make location-aware assignments, and to a global admin the email and
+// any duplicate mark too.
+export default function FullVolunteerSelect({
   id,
   label,
   ariaLabel,

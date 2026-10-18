@@ -55,7 +55,8 @@ import { DueChip, ProjectStatusBadge, WorkStatusBadge } from '@/components/Statu
 import Modal from '@/components/ui/Modal'
 import { EmptyPersonChip, PersonChip } from '@/components/ui/PersonChip'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
-import MemberPicker from '@/components/ui/MemberPicker'
+import LocalVolunteerSelect from '@/components/ui/LocalVolunteerSelect'
+import FullVolunteerSelect from '@/components/FullVolunteerSelect'
 import { useVolunteerSearch } from '@/lib/hooks/useVolunteerSearch'
 import ReopenTaskDialog, { type ReopenTarget } from '@/components/ReopenTaskDialog'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
@@ -886,7 +887,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const ownerControlPress = useRef(false)
 
   // Invite or add directly
-  const [invitee, setInvitee] = useState<{ id: number; name: string } | null>(null)
+  const [inviteeId, setInviteeId] = useState('')
   const [inviteNote, setInviteNote] = useState('')
 
   // Record outcome
@@ -1020,7 +1021,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       !!project && (project.viewerCanAdmin || project.ownerId === user?.id || project.isDeputy),
   })
   const volunteers = volunteersData?.volunteers ?? []
-  const inviteSearch = useVolunteerSearch(volunteers.length > 0 && tab === 'people')
 
   const ownerId = project?.ownerId ?? null
   const ownerCandidates = ownerSearch.candidates.filter((v) => v.id !== ownerId)
@@ -1172,7 +1172,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     ...orpc.projects.assign.mutationOptions(),
     onSuccess: () => {
       showToast(VOLUNTEER_ADDED_MESSAGE, 'success')
-      setInvitee(null)
+      setInviteeId('')
       setInviteNote('')
       void invalidateProject()
     },
@@ -1184,7 +1184,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     ...orpc.projects.invite.mutationOptions(),
     onSuccess: (data) => {
       showToast(data.message, 'success')
-      setInvitee(null)
+      setInviteeId('')
       setInviteNote('')
       void invalidateProject()
     },
@@ -1588,10 +1588,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   function handleInvite(e: React.FormEvent) {
     e.preventDefault()
-    if (!invitee) return
+    if (!inviteeId) return
     inviteMutation.mutate({
       projectId: parseInt(idParam, 10),
-      volunteerId: invitee.id,
+      volunteerId: parseInt(inviteeId, 10),
       message: inviteNote.trim() || null,
     })
   }
@@ -1741,26 +1741,17 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             >
               <div className="flex gap-2 items-center flex-wrap">
                 <span className="text-text-light text-sm shrink-0">+ Invite</span>
-                {invitee ? (
-                  <PersonChip
-                    name={invitee.name}
-                    onRemove={() => setInvitee(null)}
-                    removeLabel={`Clear ${invitee.name}`}
+                <div className="flex-1 min-w-40 max-w-80">
+                  <FullVolunteerSelect
+                    id="invite-volunteer"
+                    label="Volunteer to invite"
+                    ariaLabel="Volunteer to invite"
+                    value={inviteeId}
+                    onChange={setInviteeId}
+                    placeholder="Search volunteers…"
+                    hideLabel
                   />
-                ) : (
-                  <div className="flex-1 min-w-40 max-w-80">
-                    <MemberPicker
-                      id="invite-volunteer"
-                      label="Volunteer to invite"
-                      ariaLabel="Volunteer to invite"
-                      candidates={inviteSearch.candidates}
-                      onAdd={(id, { name }) => setInvitee({ id, name })}
-                      onQueryChange={inviteSearch.setQuery}
-                      placeholder="Search volunteers…"
-                      hideLabel
-                    />
-                  </div>
-                )}
+                </div>
               </div>
               <input
                 type="text"
@@ -1770,7 +1761,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 onChange={(e) => setInviteNote(e.target.value)}
               />
               <div className="flex gap-2 flex-wrap">
-                <Button type="submit" size="sm" disabled={!invitee || inviteMutation.isPending}>
+                <Button type="submit" size="sm" disabled={!inviteeId || inviteMutation.isPending}>
                   {inviteMutation.isPending ? 'Inviting…' : 'Invite'}
                 </Button>
                 {isAdmin && (
@@ -1778,8 +1769,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     type="button"
                     size="sm"
                     variant="secondary"
-                    disabled={!invitee || assignMutation.isPending}
-                    onClick={() => invitee && handleAddNow(invitee.id)}
+                    disabled={!inviteeId || assignMutation.isPending}
+                    onClick={() => inviteeId && handleAddNow(parseInt(inviteeId, 10))}
                   >
                     {assignMutation.isPending ? 'Adding…' : 'Add now'}
                   </Button>
@@ -2127,7 +2118,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 Remove ownership
               </button>
             )}
-            <MemberPicker
+            <LocalVolunteerSelect
               id="owner-picker"
               label={ownerPickerLabel}
               ariaLabel="New owner"

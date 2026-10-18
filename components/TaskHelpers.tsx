@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
-import MemberPicker from '@/components/ui/MemberPicker'
+import LocalVolunteerSelect from '@/components/ui/LocalVolunteerSelect'
 import { PersonChip } from '@/components/ui/PersonChip'
 import { ADD_HELPER, LEAVE_HELPING, REMOVE_HELPER } from '@/lib/action-labels'
 import { helperSummary } from '@/lib/helper-summary'
@@ -116,7 +116,7 @@ export default function TaskHelpers({
       )}
       {state.canAddHelpers && state.eligibleHelpers.length > 0 && (
         <div className="mt-2 max-w-56">
-          <MemberPicker
+          <LocalVolunteerSelect
             id="task-add-helper"
             label="Add a member as a helper"
             ariaLabel="Add a member as a helper"

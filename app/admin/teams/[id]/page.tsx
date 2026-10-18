@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ORPCError } from '@orpc/client'
 import Button from '@/components/Button'
-import VolunteerSelect from '@/components/VolunteerSelect'
+import FullVolunteerSelect from '@/components/FullVolunteerSelect'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
@@ -321,7 +321,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
 
         <div className="mb-5 pb-5 border-b border-brand-border flex items-end gap-2">
           <div className="flex-1">
-            <VolunteerSelect
+            <FullVolunteerSelect
               id="assign-volunteer"
               label="Add a volunteer directly"
               ariaLabel="Select volunteer to add"

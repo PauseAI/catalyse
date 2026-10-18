@@ -22,12 +22,12 @@ interface Props {
 }
 
 /**
- * Typeahead over a candidate list the caller supplies — unlike `VolunteerSelect`, which holds
- * a selection. Typing filters the list; Enter or a click on a result adds that candidate
- * immediately, so nothing is held as a persisted selection and the trigger always reads as
- * `placeholder`.
+ * Typeahead over a candidate list the caller already has — unlike `FullVolunteerSelect`, which
+ * searches the server. Typing filters the list; Enter or a click on a result adds that
+ * candidate immediately, so nothing is held as a persisted selection and the trigger always
+ * reads as `placeholder`.
  */
-export default function MemberPicker({
+export default function LocalVolunteerSelect({
   id,
   label,
   ariaLabel,

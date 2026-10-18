@@ -8,7 +8,7 @@ const DEBOUNCE_MS = 300
 const RESULT_LIMIT = 20
 
 /**
- * A page of directory matches for a `MemberPicker`, searched on the server as the user types.
+ * A page of directory matches for a `LocalVolunteerSelect`, searched on the server as the user types.
  * Each candidate's description is their local group and country, or their free-text location,
  * to tell two people of the same name apart.
  */
