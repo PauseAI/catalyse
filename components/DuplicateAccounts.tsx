@@ -9,6 +9,8 @@ import FullVolunteerSelect from '@/components/FullVolunteerSelect'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
+import { H3, H4 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 export interface Account {
   id: number
@@ -19,7 +21,9 @@ export interface Account {
 function AccountLink({ account }: { account: Account }) {
   return (
     <>
-      <Link href={`/admin/volunteers/${account.id}`}>{account.name}</Link>
+      <Link className="text-primary-text underline" href={`/admin/volunteers/${account.id}`}>
+        {account.name}
+      </Link>
       {account.email && <span className="text-text-light text-sm"> · {account.email}</span>}
     </>
   )
@@ -55,13 +59,13 @@ export default function DuplicateAccounts({
 
   return (
     <section className={`${SECTION_CARD} mb-6`}>
-      <h3 className="mt-0">Duplicate accounts</h3>
+      <H3 className="mt-0">Duplicate accounts</H3>
       {duplicateOf ? (
         <div className="flex justify-between items-center gap-4 flex-wrap">
-          <p className="m-0">
+          <P className="m-0">
             A second account of <AccountLink account={duplicateOf} />. It cannot be given a chapter
             role.
-          </p>
+          </P>
           {canMark && (
             <Button
               size="sm"
@@ -77,7 +81,7 @@ export default function DuplicateAccounts({
         <>
           {duplicates.length > 0 ? (
             <>
-              <p className="mt-0 mb-2">Other accounts of the same person:</p>
+              <P className="mt-0 mb-2">Other accounts of the same person:</P>
               <ul className="list-none p-0 mt-0 mb-4 grid gap-1">
                 {duplicates.map((d) => (
                   <li key={d.id}>
@@ -87,13 +91,13 @@ export default function DuplicateAccounts({
               </ul>
             </>
           ) : (
-            <p className="text-text-light mt-0">
+            <P className="text-text-light mt-0">
               No other accounts are marked as this person&apos;s.
-            </p>
+            </P>
           )}
           {canMark && (
             <div className="mb-4">
-              <h4 className="mt-0 mb-2">Possibly the same person</h4>
+              <H4 className="mt-0 mb-2">Possibly the same person</H4>
               <DuplicatePairs
                 volunteerId={volunteer.id}
                 emptyText="No other account looks like this one."

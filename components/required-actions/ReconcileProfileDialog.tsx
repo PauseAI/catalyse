@@ -5,6 +5,7 @@ import { useMutation } from '@tanstack/react-query'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/Button'
 import Radio from '@/components/Radio'
+import { P } from '@/components/Text'
 import {
   CONSENT_FIELDS,
   MERGE_FIELD_LABELS,
@@ -55,10 +56,10 @@ export default function ReconcileProfileDialog({
 
   return (
     <Modal id="reconcile-profile" title="Finish merging your profile" isOpen onClose={onClose}>
-      <p className="text-text-light text-sm mb-3">
+      <P className="text-text-light text-sm mb-3">
         {conflicts.length > 1 ? `${step + 1} of ${conflicts.length}: ` : ''}
         Your two accounts had different answers here.
-      </p>
+      </P>
       <fieldset className="mb-5">
         <legend className="font-semibold mb-3">{MERGE_FIELD_LABELS[conflict.field]}</legend>
         <div className="flex flex-col gap-3">

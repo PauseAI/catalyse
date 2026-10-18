@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/Button'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
+import { P } from '@/components/Text'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDateShort, fromDateInputValue, toDateInputValue } from '@/lib/format-date'
@@ -100,9 +103,9 @@ export default function ReplanDialog({
           })
         }}
       >
-        <p className="mt-0">
+        <P className="mt-0">
           It was due <strong>{formatDateShort(plannedEnd)}</strong>. When is it due now?
-        </p>
+        </P>
         <div className="mb-1 flex flex-wrap items-center gap-2">
           {REPLAN_STEPS.map((s) => {
             const stepped = toDateInputValue(steppedEnd(plannedEnd, s.days))
@@ -119,10 +122,10 @@ export default function ReplanDialog({
               </Button>
             )
           })}
-          <label className="sr-only" htmlFor="replan-end">
+          <FormLabel className="sr-only" htmlFor="replan-end">
             New deadline
-          </label>
-          <input
+          </FormLabel>
+          <Input
             id="replan-end"
             type="date"
             value={end}
@@ -130,12 +133,12 @@ export default function ReplanDialog({
             className="w-auto"
           />
         </div>
-        <p className="text-text-light mt-0 mb-3 text-xs">
+        <P className="text-text-light mt-0 mb-3 text-xs">
           Counted from {formatDateShort(stepBase(plannedEnd))}, since the deadline has passed.
-        </p>
+        </P>
         <div className="mb-1 flex flex-wrap items-center gap-2">
-          <label htmlFor="replan-days">Days</label>
-          <input
+          <FormLabel htmlFor="replan-days">Days</FormLabel>
+          <Input
             id="replan-days"
             type="number"
             min={0}
@@ -150,15 +153,15 @@ export default function ReplanDialog({
             </span>
           )}
         </div>
-        <p className="text-text-light mt-0 mb-3 text-xs">
+        <P className="text-text-light mt-0 mb-3 text-xs">
           The bar moves and keeps its length. Change the days only if the work turned out bigger or
           smaller.
-        </p>
+        </P>
 
-        <label htmlFor="replan-reason" className="required">
+        <FormLabel htmlFor="replan-reason" required>
           Why is the plan changing?
-        </label>
-        <input
+        </FormLabel>
+        <Input
           id="replan-reason"
           type="text"
           required
@@ -167,13 +170,13 @@ export default function ReplanDialog({
           placeholder="e.g. waiting on the venue"
           onChange={(e) => setReason(e.target.value)}
         />
-        <p className="text-text-light mt-1 mb-3 text-xs">
+        <P className="text-text-light mt-1 mb-3 text-xs">
           Posted in the task&rsquo;s discussion, and sent to the people whose tasks move.
-        </p>
+        </P>
 
         <section aria-label="What changes" className="mb-4 text-sm">
           {!preview ? (
-            <p className="text-text-light m-0">Working out what moves…</p>
+            <P className="text-text-light m-0">Working out what moves…</P>
           ) : (
             <ul className="m-0 list-disc space-y-1 pl-5">
               {preview.moved.length === 0 ? (

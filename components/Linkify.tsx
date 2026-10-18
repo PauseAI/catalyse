@@ -1,4 +1,5 @@
 import React from 'react'
+import TextLink from '@/components/TextLink'
 
 // Only http(s) URLs become links, so a `javascript:` or `data:` scheme stays plain text.
 // The first character after `//` must be part of a host, so trimming punctuation off the
@@ -16,9 +17,9 @@ export default function Linkify({ text }: { text: string | null }) {
     const url = match[0].replace(TRAILING_PUNCTUATION, '')
     parts.push(text.slice(last, match.index))
     parts.push(
-      <a key={match.index} href={url} target="_blank" rel="noopener noreferrer">
+      <TextLink key={match.index} href={url} target="_blank" rel="noopener noreferrer">
         {url}
-      </a>,
+      </TextLink>,
     )
     last = match.index + url.length
   }

@@ -3,7 +3,11 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import FormLabel from '@/components/FormLabel'
+import { H3 } from '@/components/Heading'
 import Modal from '@/components/ui/Modal'
+import { P } from '@/components/Text'
+import Textarea from '@/components/ui/Textarea'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 
@@ -57,16 +61,16 @@ export default function QuickTaskReviewDialog({
 
   return (
     <Modal id={`review-task-${task.id}`} title="Review task" isOpen onClose={onClose}>
-      <h3 className="mb-1">{task.title}</h3>
+      <H3 className="mb-1">{task.title}</H3>
       {task.assignedToName && (
-        <p className="text-text-light mb-4">Submitted by: {task.assignedToName}</p>
+        <P className="text-text-light mb-4">Submitted by: {task.assignedToName}</P>
       )}
       <form onSubmit={handleSubmit}>
         <fieldset className="mb-5">
           <legend>Rating</legend>
           <div className="flex flex-col gap-2 mt-2">
             {RATINGS.map((r) => (
-              <label key={r.value} className="flex items-center gap-2 cursor-pointer">
+              <FormLabel key={r.value} className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="radio"
                   name={`rating-${task.id}`}
@@ -77,13 +81,13 @@ export default function QuickTaskReviewDialog({
                 <span>
                   <strong>{r.label}</strong>: {r.hint}
                 </span>
-              </label>
+              </FormLabel>
             ))}
           </div>
         </fieldset>
         <div className="mb-5">
-          <label htmlFor={`rv-notes-${task.id}`}>Internal notes (admin only)</label>
-          <textarea
+          <FormLabel htmlFor={`rv-notes-${task.id}`}>Internal notes (admin only)</FormLabel>
+          <Textarea
             id={`rv-notes-${task.id}`}
             rows={2}
             value={notes}
@@ -92,10 +96,10 @@ export default function QuickTaskReviewDialog({
           />
         </div>
         <div className="mb-5">
-          <label htmlFor={`rv-feedback-${task.id}`}>
+          <FormLabel htmlFor={`rv-feedback-${task.id}`}>
             {"Feedback to volunteer (they'll see this)"}
-          </label>
-          <textarea
+          </FormLabel>
+          <Textarea
             id={`rv-feedback-${task.id}`}
             rows={3}
             value={feedback}

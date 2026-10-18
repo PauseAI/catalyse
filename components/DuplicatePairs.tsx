@@ -7,6 +7,7 @@ import type { DuplicateReason } from '@/lib/duplicate-accounts'
 import { formatDate } from '@/lib/format-date'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
+import { P } from '@/components/Text'
 
 const REASON_LABELS: Record<DuplicateReason, string> = {
   name: 'Same name',
@@ -49,15 +50,15 @@ export default function DuplicatePairs({
   const busy = mark.isPending || dismiss.isPending
 
   if (!pairs) return null
-  if (pairs.length === 0) return <p className="text-text-light m-0">{emptyText}</p>
+  if (pairs.length === 0) return <P className="text-text-light m-0">{emptyText}</P>
 
   return (
     <ul className="list-none p-0 m-0 grid gap-4">
       {pairs.map(({ a, b, reasons }) => (
         <li key={`${a.id}-${b.id}`} className="border border-brand-border rounded-lg p-4">
-          <p className="text-sm text-text-light mt-0 mb-3">
+          <P className="text-sm text-text-light mt-0 mb-3">
             {reasons.map((r) => REASON_LABELS[r]).join(' · ')}
-          </p>
+          </P>
           <div className="grid gap-3 sm:grid-cols-2">
             {[
               [a, b],
@@ -69,7 +70,12 @@ export default function DuplicatePairs({
                 aria-label={account.email ?? account.name}
                 className="flex flex-col items-start gap-1 overflow-hidden wrap-break-word"
               >
-                <Link href={`/admin/volunteers/${account.id}`}>{account.name}</Link>
+                <Link
+                  className="text-primary-text underline"
+                  href={`/admin/volunteers/${account.id}`}
+                >
+                  {account.name}
+                </Link>
                 {account.email && <span className="text-sm">{account.email}</span>}
                 <span className="text-sm text-text-light">
                   {[

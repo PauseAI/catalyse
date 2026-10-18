@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import Button from '@/components/Button'
 import { PROJECT_IMPORT_GUIDE } from '@/lib/project-porting-docs'
+import { H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 /**
  * The authoring rules, at the moment someone is thinking about editing the file.
@@ -30,11 +32,11 @@ export default function AiEditingHelp() {
     <div className="bg-surface rounded-xl shadow p-4 sm:p-6 mb-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="m-0 text-base">Editing this file with an AI assistant</h2>
-          <p className="text-text-light m-0 text-sm">
+          <H2 className="m-0 text-base">Editing this file with an AI assistant</H2>
+          <P className="text-text-light m-0 text-sm">
             Copy these rules into the assistant along with your export, so it produces a file the
             importer will accept.
-          </p>
+          </P>
         </div>
         <div className="flex shrink-0 gap-2">
           <Button size="sm" onClick={copy}>

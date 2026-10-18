@@ -13,6 +13,9 @@ import { useToast } from '@/lib/toast'
 import { volunteerLocation } from '@/lib/filter-options'
 import { orpc } from '@/lib/orpc'
 import { SECTION_CARD } from '@/lib/ui-classes'
+import { H1, H2, H3, H4 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import TextLink from '@/components/TextLink'
 
 export default function VolunteerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -60,7 +63,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
     return (
       <>
         <main className="container py-5 pb-15">
-          <p className="text-error">Volunteer not found.</p>
+          <P className="text-error">Volunteer not found.</P>
           <Button href="/volunteers" variant="secondary" className="mt-4">
             Back to volunteers
           </Button>
@@ -90,14 +93,14 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
               aria-label="Contact request"
               className={`${SECTION_CARD} mb-4 border-l-4 border-primary`}
             >
-              <h2 className="text-lg m-0 mb-2">{volunteer.name} would like to connect</h2>
-              <p className="m-0 mb-3 whitespace-pre-wrap">
+              <H2 className="text-lg m-0 mb-2">{volunteer.name} would like to connect</H2>
+              <P className="m-0 mb-3 whitespace-pre-wrap">
                 <Linkify text={incoming.message} />
-              </p>
-              <p className="text-sm text-text-light m-0 mb-3">
+              </P>
+              <P className="text-sm text-text-light m-0 mb-3">
                 Accepting lets you both see each other&apos;s contact details and message each
                 other. Declining is quiet: they are not told.
-              </p>
+              </P>
               <div className="flex gap-2">
                 <Button
                   disabled={respond.isPending}
@@ -117,36 +120,44 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
           )}
           <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
             <div className="flex items-center mb-2">
-              <h1 id="volunteerName" className="m-0">
+              <H1 id="volunteerName" className="m-0">
                 {volunteer.name}
-              </h1>
+              </H1>
               {volunteer.activeRecently && <ActiveDot />}
             </div>
 
             {user.access.globalAdmin && (
-              <p className="text-sm mt-0 mb-2">
+              <P className="text-sm mt-0 mb-2">
                 {volunteer.duplicateOf && (
                   <>
                     Duplicate account of{' '}
-                    <Link href={`/volunteers/${volunteer.duplicateOf.id}`}>
+                    <Link
+                      className="text-primary-text underline"
+                      href={`/volunteers/${volunteer.duplicateOf.id}`}
+                    >
                       {volunteer.duplicateOf.name}
                     </Link>
                     {' · '}
                   </>
                 )}
-                <Link href={`/admin/volunteers/${volunteer.id}`}>Admin page</Link>
-              </p>
+                <Link
+                  className="text-primary-text underline"
+                  href={`/admin/volunteers/${volunteer.id}`}
+                >
+                  Admin page
+                </Link>
+              </P>
             )}
 
             {volunteerLocation(volunteer) && (
-              <p className="text-text-light mb-4 text-sm">📍 {volunteerLocation(volunteer)}</p>
+              <P className="text-text-light mb-4 text-sm">📍 {volunteerLocation(volunteer)}</P>
             )}
 
             <div id="volunteerBio" className="whitespace-pre-wrap mb-5">
               {volunteer.bio || <em className="text-text-light">No bio provided</em>}
             </div>
 
-            <h3>Skills</h3>
+            <H3>Skills</H3>
             <div id="volunteerSkills" className="flex flex-wrap gap-1.5 mb-5">
               {skills.length > 0 ? (
                 skills.map((s) => (
@@ -165,26 +176,27 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
 
             {volunteer.otherSkills && (
               <div className="mb-5">
-                <h4 className="text-text-light">Other skills</h4>
-                <p>{volunteer.otherSkills}</p>
+                <H4 className="text-text-light">Other skills</H4>
+                <P>{volunteer.otherSkills}</P>
               </div>
             )}
 
             <div className="grid grid-cols-2 gap-4 mt-5 max-[600px]:grid-cols-1">
               {volunteer.availabilityHoursPerWeek && (
                 <div>
-                  <h4 className="text-text-light">Availability</h4>
-                  <p id="availabilityText">{volunteer.availabilityHoursPerWeek} hours/week</p>
+                  <H4 className="text-text-light">Availability</H4>
+                  <P id="availabilityText">{volunteer.availabilityHoursPerWeek} hours/week</P>
                 </div>
               )}
 
               {!isMe && (
                 <div id="contactInfo">
-                  <h4 className="text-text-light">Contact</h4>
+                  <H4 className="text-text-light">Contact</H4>
                   <div>
                     {volunteer.email && (
                       <div>
-                        Email: <a href={`mailto:${volunteer.email}`}>{volunteer.email}</a>
+                        Email:{' '}
+                        <TextLink href={`mailto:${volunteer.email}`}>{volunteer.email}</TextLink>
                       </div>
                     )}
                     {volunteer.discordHandle && <div>Discord: {volunteer.discordHandle}</div>}
@@ -206,9 +218,9 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
                       {!volunteer.canMessage &&
                         !volunteer.canRequestContact &&
                         !volunteer.contactRequested && (
-                          <p className="text-sm text-text-light m-0">
+                          <P className="text-sm text-text-light m-0">
                             You can reach them once you work on a project together.
-                          </p>
+                          </P>
                         )}
                     </div>
                   </div>
@@ -222,10 +234,10 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
               id="endorsementsSection"
               className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}
             >
-              <h2>Verified skills</h2>
-              <p className="text-text-light mb-3">
+              <H2>Verified skills</H2>
+              <P className="text-text-light mb-3">
                 Skills verified through completed work on the platform.
-              </p>
+              </P>
               <div id="endorsementsList" className="flex flex-wrap gap-1.5">
                 {endorsements.map((e) => (
                   <span
@@ -244,7 +256,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
 
           {volunteer.completedTasks.length > 0 && (
             <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
-              <h2>Completed quick tasks</h2>
+              <H2>Completed quick tasks</H2>
               {volunteer.completedTasks.map((t, i) => (
                 <div key={i} className="py-3 border-b border-brand-border">
                   <div className="flex justify-between items-center">
@@ -267,7 +279,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
 
           {volunteer.projects.length > 0 && (
             <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
-              <h2>Project history</h2>
+              <H2>Project history</H2>
               {volunteer.projects.map((p) => (
                 <div key={p.id} className="py-3 border-b border-brand-border">
                   <div className="flex justify-between items-center">
@@ -279,9 +291,9 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
                       viewerIsAdmin={Boolean(user?.isAdmin || user?.access.role)}
                     />
                   </div>
-                  <p className="text-sm text-text-light mt-1">
+                  <P className="text-sm text-text-light mt-1">
                     {p.role === 'owner' ? 'Project owner' : 'Proposer'}
-                  </p>
+                  </P>
                 </div>
               ))}
             </div>

@@ -4,6 +4,9 @@ import { useEffect, useRef } from 'react'
 import Checkbox from '@/components/Checkbox'
 import { formatDateShort, fromDateInputValue } from '@/lib/format-date'
 import { deadlineBeforeStart, lateStartSentence, type DatesValue } from '@/lib/task-dates'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
 
 /**
  * One way to enter a task's dates, used by Add Task, Edit Task and the timeline panel: a start,
@@ -54,8 +57,8 @@ export default function DatesBlock({
       <legend className="mb-2 text-sm font-semibold">When does the work happen?</legend>
       <div className="mb-1 flex flex-wrap items-start gap-3">
         <div>
-          <label htmlFor={`${id}-start`}>Start (optional)</label>
-          <input
+          <FormLabel htmlFor={`${id}-start`}>Start (optional)</FormLabel>
+          <Input
             id={`${id}-start`}
             type="date"
             value={value.startDate}
@@ -63,8 +66,8 @@ export default function DatesBlock({
           />
         </div>
         <div>
-          <label htmlFor={`${id}-deadline`}>Deadline</label>
-          <input
+          <FormLabel htmlFor={`${id}-deadline`}>Deadline</FormLabel>
+          <Input
             ref={endRef}
             id={`${id}-deadline`}
             type="date"
@@ -77,11 +80,11 @@ export default function DatesBlock({
         </div>
       </div>
       {endError && (
-        <p id={`${id}-deadline-error`} role="alert" className="text-error mt-0 mb-1 text-sm">
+        <P id={`${id}-deadline-error`} role="alert" className="text-error mt-0 mb-1 text-sm">
           {endError}
-        </p>
+        </P>
       )}
-      <p className="text-text-light mt-0 mb-3 text-xs">
+      <P className="text-text-light mt-0 mb-3 text-xs">
         {typedStart
           ? followsTitle
             ? `Starts on this date even if “${followsTitle}” runs late. Clear it to start when “${followsTitle}” is done.`
@@ -93,11 +96,11 @@ export default function DatesBlock({
             : deadline
               ? 'No start date: any time up to the deadline.'
               : 'No start date: it goes at the beginning of the plan until it has one.'}
-      </p>
+      </P>
       {followedLate !== null && followsTitle && derivedStart && (
-        <p className="text-error mt-0 mb-3 text-sm" aria-live="polite">
+        <P className="text-error mt-0 mb-3 text-sm" aria-live="polite">
           {lateStartSentence(followsTitle, derivedStart, followedLate)}
-        </p>
+        </P>
       )}
 
       <div className="mb-3">
@@ -110,10 +113,10 @@ export default function DatesBlock({
       </div>
 
       <div className="mb-3 flex items-center gap-2">
-        <label htmlFor={`${id}-hours`} className="mb-0">
+        <FormLabel htmlFor={`${id}-hours`} className="mb-0">
           Effort: about
-        </label>
-        <input
+        </FormLabel>
+        <Input
           id={`${id}-hours`}
           type="number"
           min="0"
@@ -125,7 +128,7 @@ export default function DatesBlock({
         />
         <span>hours</span>
       </div>
-      {note && <p className="text-text-light mt-0 mb-3 text-xs">{note}</p>}
+      {note && <P className="text-text-light mt-0 mb-3 text-xs">{note}</P>}
     </fieldset>
   )
 }

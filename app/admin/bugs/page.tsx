@@ -21,6 +21,8 @@ import {
 } from '@/lib/bug-report-labels'
 import type { InferRouterOutputs } from '@orpc/server'
 import type { AppRouter } from '@/server/router'
+import { H1, H2, H3 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 type BugReports = InferRouterOutputs<AppRouter>['admin']['bugReports']['list']
 
@@ -133,7 +135,7 @@ export default function AdminBugsPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Bug reports &amp; feedback</h1>
+      <H1>Bug reports &amp; feedback</H1>
 
       <div className="mb-6 flex gap-4 flex-wrap items-end">
         <FilterDropdown
@@ -160,7 +162,7 @@ export default function AdminBugsPage() {
       {loadingData ? (
         <div className="text-center py-10 text-text-light">Loading…</div>
       ) : reports.length === 0 ? (
-        <p>No bug reports found.</p>
+        <P>No bug reports found.</P>
       ) : (
         STATUS_SECTIONS.map((section) => {
           const sectionReports = reports.filter((r) => r.status === section.status)
@@ -176,7 +178,7 @@ export default function AdminBugsPage() {
               data-testid={`bugs-section-${section.status}`}
             >
               {section.collapsedByDefault ? (
-                <h2
+                <H2
                   className="text-lg mb-3 flex items-center gap-2 cursor-pointer select-none"
                   onClick={toggle}
                   role="button"
@@ -198,11 +200,11 @@ export default function AdminBugsPage() {
                   >
                     <polyline points="6 9 12 15 18 9" />
                   </svg>
-                </h2>
+                </H2>
               ) : (
-                <h2 className="text-lg mb-3">
+                <H2 className="text-lg mb-3">
                   {section.label}: {sectionReports.length}
-                </h2>
+                </H2>
               )}
               {isOpen && (
                 <div className={section.collapsedByDefault ? 'animate-fade-slide-in' : ''}>
@@ -271,7 +273,7 @@ function BugReportCard({
     >
       <div className="flex justify-between items-start mb-2">
         <div>
-          <h3 className="mt-0 mx-0 mb-1">{r.title}</h3>
+          <H3 className="mt-0 mx-0 mb-1">{r.title}</H3>
           <div className="text-text-light flex gap-2 flex-wrap text-[0.8rem]">
             {r.category && <span>{r.category}</span>}
             {r.severity && <span>· {r.severity}</span>}
@@ -286,10 +288,10 @@ function BugReportCard({
         </Badge>
       </div>
 
-      <p className="text-text-light mt-0 mx-0 mb-3 whitespace-pre-wrap">{r.description}</p>
+      <P className="text-text-light mt-0 mx-0 mb-3 whitespace-pre-wrap">{r.description}</P>
 
       {r.resolutionNotes && (
-        <p className="mt-0 mx-0 mb-3 text-sm italic">Resolution: {r.resolutionNotes}</p>
+        <P className="mt-0 mx-0 mb-3 text-sm italic">Resolution: {r.resolutionNotes}</P>
       )}
 
       <div

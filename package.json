@@ -63,6 +63,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "resend": "^6.12.2",
+    "tailwind-merge": "^3.7.0",
     "zod": "^4.4.3"
   },
   "engines": {
@@ -97,5 +98,13 @@
     "vitest": "^5.0.0",
     "yaml": "^2.9.1",
     "zod-prisma-types": "^3.3.11"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "core-js-pure@3.50.0": true,
+    "esbuild@0.28.2": true,
+    "prisma@6.19.3": true,
+    "unrs-resolver@1.11.1": true
   }
 }

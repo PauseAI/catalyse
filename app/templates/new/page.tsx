@@ -5,6 +5,11 @@ import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import { useRequireStaff } from '@/lib/hooks/auth'
 import Button from '@/components/Button'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
+import Textarea from '@/components/ui/Textarea'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
@@ -94,26 +99,26 @@ export default function NewTemplatePage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 sm:px-6 py-8">
-      <h1 className="mb-1">New template</h1>
-      <p className="text-text-light mb-6">
+      <H1 className="mb-1">New template</H1>
+      <P className="text-text-light mb-6">
         Build a reusable project structure from scratch. Country, local group, team and assignees
         are set later, per instance, when the template is used.
-      </p>
+      </P>
 
       <div className={card}>
-        <label htmlFor="template-title" className="mb-1 block font-medium">
+        <FormLabel htmlFor="template-title" className="mb-1 block font-medium">
           Template title
-        </label>
-        <input
+        </FormLabel>
+        <Input
           id="template-title"
           className="mb-4 w-full"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
-        <label htmlFor="template-description" className="mb-1 block font-medium">
+        <FormLabel htmlFor="template-description" className="mb-1 block font-medium">
           Description
-        </label>
-        <textarea
+        </FormLabel>
+        <Textarea
           id="template-description"
           rows={3}
           className="w-full"
@@ -123,27 +128,27 @@ export default function NewTemplatePage() {
       </div>
 
       <div className={card}>
-        <h2 className="mt-0 mb-3 text-base">Tasks</h2>
+        <H2 className="mt-0 mb-3 text-base">Tasks</H2>
         {tasks.map((t, i) => (
           <div key={t.ref} className="border-brand-border mb-4 rounded-lg border p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <label htmlFor={`task-title-${i}`} className="font-medium">
+              <FormLabel htmlFor={`task-title-${i}`} className="font-medium">
                 Task {i + 1}
-              </label>
+              </FormLabel>
               {tasks.length > 1 && (
                 <Button variant="ghost" size="sm" onClick={() => removeTask(i)}>
                   Remove
                 </Button>
               )}
             </div>
-            <input
+            <Input
               id={`task-title-${i}`}
               className="mb-2 w-full"
               placeholder="Task title"
               value={t.title}
               onChange={(e) => updateTask(i, { title: e.target.value })}
             />
-            <textarea
+            <Textarea
               rows={2}
               className="mb-2 w-full"
               placeholder="Description (optional)"
@@ -151,7 +156,7 @@ export default function NewTemplatePage() {
               onChange={(e) => updateTask(i, { description: e.target.value })}
             />
             <div className="flex gap-2">
-              <input
+              <Input
                 type="number"
                 min={0}
                 className="w-full"
@@ -159,7 +164,7 @@ export default function NewTemplatePage() {
                 value={t.startOffsetDays}
                 onChange={(e) => updateTask(i, { startOffsetDays: e.target.value })}
               />
-              <input
+              <Input
                 type="number"
                 min={0}
                 className="w-full"
@@ -170,19 +175,19 @@ export default function NewTemplatePage() {
             </div>
             {tasks.length > 1 && (
               <div className="mt-2">
-                <p className="text-text-light mb-1 text-sm">Depends on:</p>
+                <P className="text-text-light mb-1 text-sm">Depends on:</P>
                 <div className="flex flex-wrap gap-3">
                   {tasks
                     .filter((other) => other.ref !== t.ref)
                     .map((other) => (
-                      <label key={other.ref} className="flex items-center gap-1 text-sm">
+                      <FormLabel key={other.ref} className="flex items-center gap-1 text-sm">
                         <input
                           type="checkbox"
                           checked={t.dependsOnRefs.includes(other.ref)}
                           onChange={() => toggleDependsOn(i, other.ref)}
                         />
                         {other.title.trim() || `Task ${tasks.indexOf(other) + 1}`}
-                      </label>
+                      </FormLabel>
                     ))}
                 </div>
               </div>

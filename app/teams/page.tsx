@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useRequireAuth } from '@/lib/hooks/auth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import { H1 } from '@/components/Heading'
+import { P } from '@/components/Text'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { teamApplicationSentMessage } from '@/lib/action-messages'
@@ -38,19 +40,19 @@ export default function TeamsPage() {
   return (
     <main className="container py-5 pb-15">
       <div className="flex items-center justify-between mb-2">
-        <h1 className="m-0">Teams</h1>
-        <Link href="/suggest-team">
+        <H1 className="m-0">Teams</H1>
+        <Link className="text-primary-text underline" href="/suggest-team">
           <Button size="sm" variant="secondary">
             Suggest a team
           </Button>
         </Link>
       </div>
       <ViewSwitch label="People" views={PEOPLE_VIEWS} current="/teams" className="mb-4" />
-      <p className="text-text-light mb-6">
+      <P className="text-text-light mb-6">
         Teams are groups that collaborate on a particular kind of project, such as a country or
         region, or a function like communications. Joining a team lets you see its projects and work
         with its members. Apply to any number of teams; a team leader reviews each application.
-      </p>
+      </P>
 
       {isLoading ? (
         <Skeleton label="Loading teams…" />
@@ -70,7 +72,7 @@ export default function TeamsPage() {
                 className="bg-surface rounded-xl shadow px-5 py-4 flex items-start justify-between gap-4"
               >
                 <div>
-                  <p className="font-semibold m-0">
+                  <P className="font-semibold m-0">
                     <Link
                       href={`/teams/${team.id}`}
                       className="text-brand-text no-underline hover:text-primary"
@@ -82,17 +84,17 @@ export default function TeamsPage() {
                         Leader
                       </span>
                     )}
-                  </p>
+                  </P>
                   {team.description && (
-                    <p className="text-sm text-text-light mt-1 mb-0 whitespace-pre-wrap">
+                    <P className="text-sm text-text-light mt-1 mb-0 whitespace-pre-wrap">
                       {team.description}
-                    </p>
+                    </P>
                   )}
-                  <p className="text-xs text-text-light m-0 mt-1">
+                  <P className="text-xs text-text-light m-0 mt-1">
                     {team.memberCount} member{team.memberCount === 1 ? '' : 's'}
                     {team.leaders.length > 0 &&
                       ` · Led by ${team.leaders.map((l) => l.name).join(', ')}`}
-                  </p>
+                  </P>
                   <div className="flex gap-3 mt-2 text-sm">
                     {team.lumaUrl && (
                       <a
@@ -118,13 +120,13 @@ export default function TeamsPage() {
                 </div>
                 <div className="shrink-0">
                   {team.viewerCanAdmin || team.viewerRole === 'leader' ? (
-                    <Link href={`/admin/teams/${team.id}`}>
+                    <Link className="text-primary-text underline" href={`/admin/teams/${team.id}`}>
                       <Button size="sm" variant="secondary">
                         Manage members
                       </Button>
                     </Link>
                   ) : isMember ? (
-                    <Link href={`/teams/${team.id}`}>
+                    <Link className="text-primary-text underline" href={`/teams/${team.id}`}>
                       <Button size="sm" variant="secondary">
                         View team
                       </Button>

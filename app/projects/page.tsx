@@ -9,6 +9,10 @@ import { DIRECTORY_PAGE_SIZE as PAGE_SIZE } from '@/lib/pagination'
 import Link from 'next/link'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import { H1, H2, H3 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
 import FilterDropdown from '@/components/FilterDropdown'
 import ChapterFilter, { chapterSelection } from '@/components/ChapterFilter'
 import { InferRouterInputs } from '@orpc/server'
@@ -278,7 +282,7 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
     <>
       <main className="container py-5 pb-15">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 role="heading">Projects</h1>
+          <H1 role="heading">Projects</H1>
           <div className="flex flex-wrap items-center gap-2">
             {!needsConfirmation && hasTemplates && (
               <Button href="/templates" variant="secondary">
@@ -331,8 +335,8 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
             {/* Filters */}
             <div className="mb-5">
               <div className="mb-3">
-                <label htmlFor="search-projects">Search</label>
-                <input
+                <FormLabel htmlFor="search-projects">Search</FormLabel>
+                <Input
                   id="search-projects"
                   type="search"
                   aria-label="Search"
@@ -425,23 +429,25 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
         {needsConfirmation ? (
           // An unconfirmed email is a step to take, not a failure.
           <div className="bg-surface rounded-xl shadow p-8 text-center max-w-lg mx-auto">
-            <h3>Confirm your email to browse projects</h3>
-            <p className="text-text-light">We sent a link to {user.email}.</p>
+            <H3>Confirm your email to browse projects</H3>
+            <P className="text-text-light">We sent a link to {user.email}.</P>
             <ResendConfirmation email={user.email} />
-            <p className="text-sm mt-4 mb-0">
-              <Link href="/settings">Change email</Link>
-            </p>
+            <P className="text-sm mt-4 mb-0">
+              <Link className="text-primary-text underline" href="/settings">
+                Change email
+              </Link>
+            </P>
           </div>
         ) : loadingProjects ? (
           <Skeleton label="Loading projects…" />
         ) : projectsError ? (
           <div className="text-center py-15 px-5 text-text-light">
-            <h3>Couldn&#39;t load projects</h3>
-            <p>
+            <H3>Couldn&#39;t load projects</H3>
+            <P>
               {projectsError instanceof Error
                 ? projectsError.message
                 : 'Something went wrong loading projects.'}
-            </p>
+            </P>
           </div>
         ) : (isFlatView ? projects.length : groups.length) === 0 ? (
           <EmptyState
@@ -493,7 +499,7 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
                   return (
                     <div key={g.key} className="mb-8">
                       {isCompleted ? (
-                        <h2
+                        <H2
                           className="text-lg mb-1 flex items-center gap-2 cursor-pointer select-none"
                           onClick={() => setCompletedOpen((o) => !o)}
                           role="button"
@@ -516,14 +522,14 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
                           >
                             <polyline points="6 9 12 15 18 9" />
                           </svg>
-                        </h2>
+                        </H2>
                       ) : (
-                        <h2 className={`text-lg mb-1 ${g.color}`}>
+                        <H2 className={`text-lg mb-1 ${g.color}`}>
                           {g.label}: {g.total} project
                           {g.total !== 1 ? 's' : ''}
-                        </h2>
+                        </H2>
                       )}
-                      {g.desc && <p className="text-text-light text-sm mb-3">{g.desc}</p>}
+                      {g.desc && <P className="text-text-light text-sm mb-3">{g.desc}</P>}
                       {isOpen && (
                         <div
                           key={String(completedOpen)}

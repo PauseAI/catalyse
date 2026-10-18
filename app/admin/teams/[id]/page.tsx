@@ -14,6 +14,11 @@ import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import PageLoading from '@/components/PageLoading'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
+import Textarea from '@/components/ui/Textarea'
 
 interface TeamMember {
   id: number
@@ -189,7 +194,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
   if (error instanceof ORPCError && error.code === 'FORBIDDEN') {
     return (
       <main className="container py-5 pb-15">
-        <p className="text-text-light">Only this team&apos;s leader or an admin can manage it.</p>
+        <P className="text-text-light">Only this team&apos;s leader or an admin can manage it.</P>
         <Link href={backHref} className="text-brand-text no-underline hover:text-primary">
           ← Back to teams
         </Link>
@@ -200,7 +205,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
   if (!team) {
     return (
       <main className="container py-5 pb-15">
-        <p className="text-text-light">Team not found.</p>
+        <P className="text-text-light">Team not found.</P>
         <Link href={backHref} className="text-brand-text no-underline hover:text-primary">
           ← Back to teams
         </Link>
@@ -213,7 +218,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
       <Link href={backHref} className="text-sm text-brand-text no-underline hover:text-primary">
         ← All teams
       </Link>
-      <h1 className="mt-3 mb-6">{team.name}</h1>
+      <H1 className="mt-3 mb-6">{team.name}</H1>
       {user.isAdmin && (
         <div className="mb-6">
           <FilterDropdown
@@ -234,11 +239,11 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
       )}
 
       <div className={`${SECTION_CARD} mb-4`}>
-        <h2>Team details</h2>
+        <H2>Team details</H2>
         <form onSubmit={handleSave}>
           <div className="mb-5">
-            <label htmlFor="team-name">Team name</label>
-            <input
+            <FormLabel htmlFor="team-name">Team name</FormLabel>
+            <Input
               id="team-name"
               type="text"
               value={name}
@@ -246,8 +251,8 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
             />
           </div>
           <div className="mb-5">
-            <label htmlFor="team-description">Description</label>
-            <textarea
+            <FormLabel htmlFor="team-description">Description</FormLabel>
+            <Textarea
               id="team-description"
               rows={2}
               value={description}
@@ -256,8 +261,8 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
             />
           </div>
           <div className="mb-5">
-            <label htmlFor="team-luma">Luma calendar URL</label>
-            <input
+            <FormLabel htmlFor="team-luma">Luma calendar URL</FormLabel>
+            <Input
               id="team-luma"
               type="text"
               value={lumaUrl}
@@ -266,8 +271,8 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
             />
           </div>
           <div className="mb-5">
-            <label htmlFor="team-doc">Team doc URL</label>
-            <input
+            <FormLabel htmlFor="team-doc">Team doc URL</FormLabel>
+            <Input
               id="team-doc"
               type="text"
               value={docUrl}
@@ -290,13 +295,13 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
 
       {joinRequests.length > 0 && (
         <div className={`${SECTION_CARD} mb-4`}>
-          <h2>Pending join requests</h2>
+          <H2>Pending join requests</H2>
           <div className="space-y-3">
             {joinRequests.map((r) => (
               <div key={r.id} className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="m-0 font-medium">{r.volunteer.name}</p>
-                  {r.message && <p className="m-0 text-xs text-text-light italic">{r.message}</p>}
+                  <P className="m-0 font-medium">{r.volunteer.name}</P>
+                  {r.message && <P className="m-0 text-xs text-text-light italic">{r.message}</P>}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button size="sm" onClick={() => reviewJoinRequest(r.id, 'accept')}>
@@ -317,7 +322,7 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
       )}
 
       <div className={`${SECTION_CARD} mb-4`}>
-        <h2>Members</h2>
+        <H2>Members</H2>
 
         <div className="mb-5 pb-5 border-b border-brand-border flex items-end gap-2">
           <div className="flex-1">
@@ -341,14 +346,14 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
         </div>
 
         {team.members.length === 0 ? (
-          <p className="text-text-light">No members yet.</p>
+          <P className="text-text-light">No members yet.</P>
         ) : (
           <div className="space-y-3">
             {team.members.map((m) => (
               <div key={m.id} className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="m-0 font-medium">{m.name}</p>
-                  <p className="m-0 text-xs text-text-light">{m.email}</p>
+                  <P className="m-0 font-medium">{m.name}</P>
+                  <P className="m-0 text-xs text-text-light">{m.email}</P>
                 </div>
                 <div className="flex items-center gap-2">
                   {m.role === 'leader' && (

@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import Button from '@/components/Button'
+import { H2 } from '@/components/Heading'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
 
 interface ModalProps {
@@ -55,9 +56,9 @@ export default function Modal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between gap-4">
-          <h2 id={`${id}-title`} style={{ margin: 0, lineHeight: 1 }}>
+          <H2 id={`${id}-title`} className="mb-0 leading-none">
             {title}
-          </h2>
+          </H2>
           <Button variant="ghost" icon onClick={onClose} aria-label="Close">
             ×
           </Button>

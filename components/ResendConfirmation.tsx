@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import { P } from '@/components/Text'
 import { orpc } from '@/lib/orpc'
 
 /** Sends a fresh confirmation link to an address the site already knows, at most once a minute. */
@@ -34,11 +35,11 @@ export default function ResendConfirmation({ email }: { email: string }) {
         Send it again
       </Button>
       {sent && (
-        <p role="status" className="text-text-light text-sm m-0">
+        <P role="status" className="text-text-light text-sm m-0">
           {cooldown > 0
             ? `Email sent! You can request another in ${cooldown}s.`
             : 'Email sent! Check your inbox.'}
-        </p>
+        </P>
       )}
     </div>
   )

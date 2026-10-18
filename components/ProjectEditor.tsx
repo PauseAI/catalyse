@@ -14,6 +14,10 @@ import SkillPicker from '@/components/SkillPicker'
 import Modal from '@/components/ui/Modal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import ChangesRequestedBanner from '@/components/ChangesRequestedBanner'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
+import { P } from '@/components/Text'
+import Textarea from '@/components/ui/Textarea'
 import { useToast } from '@/lib/toast'
 import { toDateInputValue, fromDateInputValue } from '@/lib/format-date'
 import { orpc } from '@/lib/orpc'
@@ -513,7 +517,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
         />
       )}
       {(projectId === undefined || canEdit) && (
-        <p role="status" className="text-sm text-text-light mt-0 mb-4">
+        <P role="status" className="text-sm text-text-light mt-0 mb-4">
           {isSaving ? (
             'Saving…'
           ) : autosaveError ? (
@@ -541,7 +545,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
           ) : (
             'Changes save automatically.'
           )}
-        </p>
+        </P>
       )}
 
       {isSaving && (
@@ -568,10 +572,10 @@ export default function ProjectEditor(props: ProjectEditorProps) {
 
       <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
         <div className="mb-5">
-          <label htmlFor="project-title" className="required">
+          <FormLabel htmlFor="project-title" required>
             Project title
-          </label>
-          <input
+          </FormLabel>
+          <Input
             id="project-title"
             type="text"
             value={title}
@@ -588,19 +592,19 @@ export default function ProjectEditor(props: ProjectEditorProps) {
             placeholder="A clear, descriptive name for the project"
           />
           {isDraft && (projectData?.templateOriginId ?? null) !== null && (
-            <p className="text-text-light mt-1 text-sm">
+            <P className="text-text-light mt-1 text-sm">
               Copied from a template — adjust the title so it&apos;s clear which local group or
               setting this copy is for.
-            </p>
+            </P>
           )}
         </div>
 
         <div className="mb-5">
-          <label htmlFor="project-description" className="required">
+          <FormLabel htmlFor="project-description" required>
             Description
-          </label>
+          </FormLabel>
           <DescriptionTips />
-          <textarea
+          <Textarea
             id="project-description"
             rows={6}
             value={description}
@@ -616,10 +620,10 @@ export default function ProjectEditor(props: ProjectEditorProps) {
             required
             placeholder="Describe the project: goals, approach, what success looks like, and what kind of help is needed."
           />
-          <p className="text-sm text-text-light mt-1">
+          <P className="text-sm text-text-light mt-1">
             The more detail you provide, the easier it is to find the right contributors and get
             started.
-          </p>
+          </P>
         </div>
 
         <div className="mb-5">
@@ -634,15 +638,15 @@ export default function ProjectEditor(props: ProjectEditorProps) {
               commitField({ projectType: v || null })
             }}
           />
-          <p className="text-sm text-text-light mt-1">
+          <P className="text-sm text-text-light mt-1">
             This helps contributors understand the commitment involved
-          </p>
+          </P>
         </div>
 
         <div className="grid grid-cols-2 gap-5 mb-5 max-[600px]:grid-cols-1">
           <div>
-            <label htmlFor="hours-per-week">Hours per week</label>
-            <input
+            <FormLabel htmlFor="hours-per-week">Hours per week</FormLabel>
+            <Input
               id="hours-per-week"
               type="number"
               min={1}
@@ -659,9 +663,9 @@ export default function ProjectEditor(props: ProjectEditorProps) {
               }}
               disabled={!canEdit}
             />
-            <p className="text-sm text-text-light mt-1">
+            <P className="text-sm text-text-light mt-1">
               Minimum time commitment for project members
-            </p>
+            </P>
           </div>
 
           <div>
@@ -681,8 +685,8 @@ export default function ProjectEditor(props: ProjectEditorProps) {
 
         {['sprint', 'container'].includes(projectType) && (
           <div className="mb-5">
-            <label htmlFor="duration">Estimated duration</label>
-            <input
+            <FormLabel htmlFor="duration">Estimated duration</FormLabel>
+            <Input
               id="duration"
               type="text"
               placeholder="e.g., 6 weeks, 2 months"
@@ -697,9 +701,9 @@ export default function ProjectEditor(props: ProjectEditorProps) {
               }}
               disabled={!canEdit}
             />
-            <p className="text-sm text-text-light mt-1">
+            <P className="text-sm text-text-light mt-1">
               Roughly how long do you expect this to take?
-            </p>
+            </P>
           </div>
         )}
 
@@ -723,9 +727,9 @@ export default function ProjectEditor(props: ProjectEditorProps) {
               }}
               searchable
             />
-            <p className="text-sm text-text-light mt-1">
+            <P className="text-sm text-text-light mt-1">
               Only its chapter&apos;s members see a project.
-            </p>
+            </P>
           </div>
         )}
 
@@ -759,11 +763,11 @@ export default function ProjectEditor(props: ProjectEditorProps) {
               }}
               searchable
             />
-            <p className="text-sm text-text-light mt-1">
+            <P className="text-sm text-text-light mt-1">
               <a href="/suggest-local-group" className="underline">
                 Don&apos;t see your group? Suggest one.
               </a>
-            </p>
+            </P>
           </div>
         )}
 
@@ -783,17 +787,17 @@ export default function ProjectEditor(props: ProjectEditorProps) {
             }}
             searchable
           />
-          <p className="text-sm text-text-light mt-1">
+          <P className="text-sm text-text-light mt-1">
             Assigning a team restricts visibility to that team, plus the owner and proposer.
-          </p>
+          </P>
         </div>
 
         {/* Timeline fields, offered for every project type — unlike the free-text estimate
             above, which is only asked for sprints and containers. */}
         <div className="mb-5 flex flex-wrap gap-3">
           <div>
-            <label htmlFor="project-start-date">Start date</label>
-            <input
+            <FormLabel htmlFor="project-start-date">Start date</FormLabel>
+            <Input
               id="project-start-date"
               type="date"
               value={startDate}
@@ -806,8 +810,8 @@ export default function ProjectEditor(props: ProjectEditorProps) {
             />
           </div>
           <div>
-            <label htmlFor="project-duration-days">Duration (days)</label>
-            <input
+            <FormLabel htmlFor="project-duration-days">Duration (days)</FormLabel>
+            <Input
               id="project-duration-days"
               type="number"
               min="1"
@@ -828,8 +832,8 @@ export default function ProjectEditor(props: ProjectEditorProps) {
               set by its owner or an admin; the server holds the same line. */}
           {projectId !== undefined && (
             <div>
-              <label htmlFor="project-deadline">Deadline (optional)</label>
-              <input
+              <FormLabel htmlFor="project-deadline">Deadline (optional)</FormLabel>
+              <Input
                 id="project-deadline"
                 type="date"
                 value={projectDeadline}
@@ -845,16 +849,16 @@ export default function ProjectEditor(props: ProjectEditorProps) {
               />
             </div>
           )}
-          <p className="text-text-light basis-full text-sm">
+          <P className="text-text-light basis-full text-sm">
             Used by the timeline view. Leave the duration empty to have the project span its own
             tasks. The deadline is the date the whole project should be done by; the timeline shows
             how far the plan lands from it.
-          </p>
+          </P>
         </div>
 
         <div className="mb-5">
-          <label htmlFor="collaboration-link">Collaboration doc / link (optional)</label>
-          <input
+          <FormLabel htmlFor="collaboration-link">Collaboration doc / link (optional)</FormLabel>
+          <Input
             id="collaboration-link"
             type="url"
             placeholder="e.g., https://docs.google.com/…"
@@ -869,16 +873,16 @@ export default function ProjectEditor(props: ProjectEditorProps) {
             }}
             disabled={!canEdit}
           />
-          <p className="text-sm text-text-light mt-1">
+          <P className="text-sm text-text-light mt-1">
             A link (starting with https://) to a planning doc or workspace
-          </p>
+          </P>
         </div>
 
         <div className="mb-5">
-          <label>Skills needed</label>
-          <p className="text-sm text-text-light mt-0 mb-2">
+          <FormLabel>Skills needed</FormLabel>
+          <P className="text-sm text-text-light mt-0 mb-2">
             What skills would be helpful for this project?
-          </p>
+          </P>
           <SkillPicker
             value={skills}
             onChange={
@@ -896,7 +900,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
         </div>
 
         <div className="mb-5">
-          <p className="font-medium mb-2">This project needs:</p>
+          <P className="font-medium mb-2">This project needs:</P>
           <div className="flex flex-col gap-2">
             <Checkbox
               checked={seekingHelp}
@@ -913,7 +917,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
 
         {projectId !== undefined && (
           <div className="mb-5">
-            <p className="font-medium mb-2">Finished tasks:</p>
+            <P className="font-medium mb-2">Finished tasks:</P>
             <Checkbox
               checked={autoAccept}
               onChange={(e) => {
@@ -924,10 +928,10 @@ export default function ProjectEditor(props: ProjectEditorProps) {
             >
               Accept submitted work automatically
             </Checkbox>
-            <p className="text-sm text-text-light mt-1 mb-0">
+            <P className="text-sm text-text-light mt-1 mb-0">
               Helpers always say what they did. Turn this off to check each task before it counts as
               done.
-            </p>
+            </P>
           </div>
         )}
 
@@ -935,7 +939,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
             changed from the project page's owner menu instead. */}
         {isDraft && (
           <div className="mb-5">
-            <p className="font-medium mb-2">Project ownership:</p>
+            <P className="font-medium mb-2">Project ownership:</P>
             <div className="flex flex-col gap-2">
               <Radio
                 name="ownership"
@@ -968,17 +972,17 @@ export default function ProjectEditor(props: ProjectEditorProps) {
 
         {isDraft && canEdit && (
           <div className="mb-5">
-            <label>Tasks {isOrgDraft && <span className="text-error">*</span>}</label>
-            <p className="text-sm text-text-light mt-0 mb-2">
+            <FormLabel required={isOrgDraft}>Tasks</FormLabel>
+            <P className="text-sm text-text-light mt-0 mb-2">
               Break the project into concrete tasks. This helps contributors understand the scope
               and gives them something to pick up.{' '}
               {!isOrgDraft &&
                 'Optional at this stage — add some now or once the project is approved.'}
-            </p>
+            </P>
             {submitWithoutTasks && taskCount === 0 && (
-              <p role="alert" className="text-sm text-error mt-0 mb-2">
+              <P role="alert" className="text-sm text-error mt-0 mb-2">
                 Add at least one task before submitting.
-              </p>
+              </P>
             )}
             {projectId !== undefined &&
               projectData?.tasks.map((task) => {
@@ -992,10 +996,10 @@ export default function ProjectEditor(props: ProjectEditorProps) {
                     className="bg-brand-bg rounded-lg p-4 mb-3 border border-brand-border"
                   >
                     <div className="mb-3">
-                      <label htmlFor={`task-title-${task.id}`} className="text-sm required">
+                      <FormLabel htmlFor={`task-title-${task.id}`} className="text-sm" required>
                         Task title
-                      </label>
-                      <input
+                      </FormLabel>
+                      <Input
                         id={`task-title-${task.id}`}
                         type="text"
                         value={draft.title}
@@ -1010,10 +1014,10 @@ export default function ProjectEditor(props: ProjectEditorProps) {
                       />
                     </div>
                     <div className="mb-2">
-                      <label htmlFor={`task-desc-${task.id}`} className="text-sm">
+                      <FormLabel htmlFor={`task-desc-${task.id}`} className="text-sm">
                         Details (optional)
-                      </label>
-                      <textarea
+                      </FormLabel>
+                      <Textarea
                         id={`task-desc-${task.id}`}
                         value={draft.description}
                         onChange={(e) =>
@@ -1043,10 +1047,10 @@ export default function ProjectEditor(props: ProjectEditorProps) {
               })}
             <div className="bg-brand-bg rounded-lg p-3 border border-brand-border">
               <div className="mb-2">
-                <label htmlFor="new-task-title" className="text-sm required">
+                <FormLabel htmlFor="new-task-title" className="text-sm" required>
                   Task title
-                </label>
-                <input
+                </FormLabel>
+                <Input
                   id="new-task-title"
                   type="text"
                   value={newTaskTitle}
@@ -1055,10 +1059,10 @@ export default function ProjectEditor(props: ProjectEditorProps) {
                 />
               </div>
               <div className="mb-2">
-                <label htmlFor="new-task-description" className="text-sm">
+                <FormLabel htmlFor="new-task-description" className="text-sm">
                   Details (optional)
-                </label>
-                <textarea
+                </FormLabel>
+                <Textarea
                   id="new-task-description"
                   rows={2}
                   value={newTaskDescription}
@@ -1151,7 +1155,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
           isOpen={showPublishModal}
           onClose={() => setShowPublishModal(false)}
         >
-          <p>
+          <P>
             {isOrgDraft ? (
               <>
                 This will publish <strong className="italic">{title || 'this project'}</strong>{' '}
@@ -1163,7 +1167,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
                 PauseAI team leads for review.
               </>
             )}
-          </p>
+          </P>
           <div className="mt-4 flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setShowPublishModal(false)}>
               Cancel
@@ -1191,11 +1195,11 @@ export default function ProjectEditor(props: ProjectEditorProps) {
             title="Delete this project?"
             isOpen={showDeleteProjectModal}
             body={
-              <p>
+              <P>
                 This will permanently delete{' '}
                 <strong className="italic">{title || 'this project'}</strong>, including its tasks,
                 comments, and interest history. This cannot be undone.
-              </p>
+              </P>
             }
             confirmLabel="Delete project"
             busyLabel="Deleting…"
@@ -1210,11 +1214,11 @@ export default function ProjectEditor(props: ProjectEditorProps) {
             title="Delete this draft?"
             isOpen={showDeleteDraftModal}
             body={
-              <p>
+              <P>
                 This will permanently delete{' '}
                 <strong className="italic">{title || 'this draft'}</strong>, including any tasks
                 you&apos;ve added. This cannot be undone.
-              </p>
+              </P>
             }
             confirmLabel="Delete draft"
             busyLabel="Deleting…"

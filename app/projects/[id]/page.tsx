@@ -9,6 +9,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import Checkbox from '@/components/Checkbox'
 import DatesBlock from '@/components/DatesBlock'
+import FormLabel from '@/components/FormLabel'
+import { H2, H3, H4 } from '@/components/Heading'
+import { P } from '@/components/Text'
 import { plural } from '@/lib/plural'
 import { handedIn } from '@/lib/overdue'
 import { interestOutline } from '@/lib/status-emphasis'
@@ -57,6 +60,8 @@ import { EmptyPersonChip, PersonChip } from '@/components/ui/PersonChip'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import LocalVolunteerSelect from '@/components/ui/LocalVolunteerSelect'
 import FullVolunteerSelect from '@/components/FullVolunteerSelect'
+import Input from '@/components/ui/Input'
+import Textarea from '@/components/ui/Textarea'
 import { useVolunteerSearch } from '@/lib/hooks/useVolunteerSearch'
 import ReopenTaskDialog, { type ReopenTarget } from '@/components/ReopenTaskDialog'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
@@ -278,7 +283,7 @@ function TaskList({
   if (filter) {
     const shown = [...open, ...done].filter((t) => matchesTaskFilter(t, filter))
     return shown.length === 0 ? (
-      <p className="text-text-light">No {filter} tasks.</p>
+      <P className="text-text-light">No {filter} tasks.</P>
     ) : (
       <ul className={list}>
         {shown.map((task) => (
@@ -437,10 +442,10 @@ function TaskTimeline({
   })
 
   if (loading || !timeline) {
-    return <p className="text-text-light">Loading timeline…</p>
+    return <P className="text-text-light">Loading timeline…</P>
   }
   if (timeline.tasks.length === 0) {
-    return <p className="text-text-light">No tasks yet.</p>
+    return <P className="text-text-light">No tasks yet.</P>
   }
 
   const canManage = timeline.canManageTasks
@@ -558,11 +563,11 @@ function TaskTimeline({
   return (
     <div>
       {scheduledRows.length === 0 && (
-        <p className="text-text-light mb-4">
+        <P className="text-text-light mb-4">
           {canManage
             ? 'No tasks have dates yet. Add them to the timeline below, then drag each bar to when it happens — or set a start date on an individual task from its own page.'
             : 'No tasks have dates yet.'}
-        </p>
+        </P>
       )}
       <div className="flex flex-col gap-4 xl:flex-row">
         <div className="min-w-0 flex-1">
@@ -1447,7 +1452,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         </div>
       ) : null}
       {interest.message && interest.status !== InterestStatus.accepted && (
-        <p className="text-sm text-text-light w-full m-0">{interest.message}</p>
+        <P className="text-sm text-text-light w-full m-0">{interest.message}</P>
       )}
     </li>
   )
@@ -1632,11 +1637,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   const peopleTab = (
     <section aria-label="People on this project" className={card}>
-      <h2>People</h2>
+      <H2>People</H2>
       {/* An owner who proposed their own project is named once, as its owner. A proposer with no
           profile, such as the organisation, is plain text: there is no person to chip. */}
       {proposer && !(proposer.volunteerId && proposer.volunteerId === project.owner?.id) && (
-        <p className="text-sm flex items-center gap-2 flex-wrap">
+        <P className="text-sm flex items-center gap-2 flex-wrap">
           <span className="text-text-light">Proposed by</span>
           {proposer.volunteerId ? (
             <PersonChip
@@ -1647,9 +1652,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           ) : (
             <span>{proposer.name}</span>
           )}
-        </p>
+        </P>
       )}
-      <p className="text-sm flex items-center gap-2 flex-wrap">
+      <P className="text-sm flex items-center gap-2 flex-wrap">
         <span className="text-text-light">Owner</span>
         {project.owner ? (
           <PersonChip
@@ -1660,12 +1665,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         ) : (
           <EmptyPersonChip label="No owner yet" />
         )}
-      </p>
+      </P>
       {!isOwnerOrAdmin && Array.isArray(project.helpers) && (
         <div>
-          <h3 className="text-sm mb-2">Volunteers</h3>
+          <H3 className="text-sm mb-2">Volunteers</H3>
           {project.helpers.length === 0 ? (
-            <p className="text-text-light text-sm">No helpers yet.</p>
+            <P className="text-text-light text-sm">No helpers yet.</P>
           ) : (
             <ul className="list-none p-0 m-0">
               {project.helpers.map((helper) => (
@@ -1710,18 +1715,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
       {isOwnerOrAdmin && Array.isArray(project.interests) && (
         <div>
-          <h3 className="text-sm mb-2">Volunteers</h3>
+          <H3 className="text-sm mb-2">Volunteers</H3>
 
           {volunteerInterests.length === 0 && (
-            <p className="text-text-light text-sm">No interests yet.</p>
+            <P className="text-text-light text-sm">No interests yet.</P>
           )}
           {peopleGroups
             .filter((g) => g.rows.length > 0)
             .map((g) => (
               <section key={g.key} aria-label={g.title} className="mb-2">
-                <h4 className="text-xs text-text-light m-0 mt-2">
+                <H4 className="text-xs text-text-light m-0 mt-2">
                   {g.title} ({g.rows.length})
-                </h4>
+                </H4>
                 <ul className="list-none p-0 m-0">{g.rows.map(renderPerson)}</ul>
               </section>
             ))}
@@ -1753,7 +1758,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   />
                 </div>
               </div>
-              <input
+              <Input
                 type="text"
                 aria-label="Note with the invite (optional)"
                 placeholder="Note with the invite (optional)"
@@ -1776,10 +1781,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   </Button>
                 )}
               </div>
-              <p className="text-xs text-text-light m-0">
+              <P className="text-xs text-text-light m-0">
                 They get an invite and join once they accept.
                 {isAdmin && ' Add now puts them on the project straight away.'}
-              </p>
+              </P>
             </form>
           )}
         </div>
@@ -1869,7 +1874,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           {joinHasBothOptions ? (
             <fieldset className="mb-5">
               <legend className="mb-2">How would you like to take part?</legend>
-              <label className="flex items-center gap-2 cursor-pointer mb-2 font-normal">
+              <FormLabel className="flex items-center gap-2 cursor-pointer mb-2 font-normal">
                 <input
                   type="radio"
                   name="interest_type"
@@ -1878,8 +1883,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   onChange={() => setInterestType('want_to_contribute')}
                 />
                 Help out on the project
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer font-normal">
+              </FormLabel>
+              <FormLabel className="flex items-center gap-2 cursor-pointer font-normal">
                 <input
                   type="radio"
                   name="interest_type"
@@ -1888,14 +1893,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   onChange={() => setInterestType('want_to_own')}
                 />
                 Lead the project
-              </label>
+              </FormLabel>
             </fieldset>
           ) : (
-            <p className="mb-5">Join to help?</p>
+            <P className="mb-5">Join to help?</P>
           )}
           <div className="mb-5">
-            <label htmlFor="interest-message">Message (optional)</label>
-            <textarea
+            <FormLabel htmlFor="interest-message">Message (optional)</FormLabel>
+            <Textarea
               id="interest-message"
               rows={3}
               value={interestMessage}
@@ -1903,9 +1908,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               placeholder="Say a little about why you'd like to help…"
             />
           </div>
-          <p className="text-sm text-text-light">
+          <P className="text-sm text-text-light">
             The owner is asked, and you join once they accept.
-          </p>
+          </P>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setShowJoin(false)}>
               Cancel
@@ -1927,10 +1932,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           project.status === ProjectStatus.needs_discussion) &&
         !reviewDone && (
           <div className={card}>
-            <h2>Review project</h2>
+            <H2>Review project</H2>
             <form onSubmit={handleSubmitReview}>
               <div className="mb-5">
-                <label className="flex items-center gap-2 cursor-pointer mb-2 font-normal">
+                <FormLabel className="flex items-center gap-2 cursor-pointer mb-2 font-normal">
                   <input
                     type="radio"
                     name="review_status"
@@ -1939,8 +1944,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     onChange={() => setReviewStatus('approved')}
                   />
                   Approve
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer font-normal">
+                </FormLabel>
+                <FormLabel className="flex items-center gap-2 cursor-pointer font-normal">
                   <input
                     type="radio"
                     name="review_status"
@@ -1949,12 +1954,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     onChange={() => setReviewStatus('needs_discussion')}
                   />
                   Ask for changes
-                </label>
+                </FormLabel>
               </div>
               {reviewStatus === 'needs_discussion' && (
                 <div className="mb-5">
-                  <label htmlFor="review-message">Message to proposer</label>
-                  <textarea
+                  <FormLabel htmlFor="review-message">Message to proposer</FormLabel>
+                  <Textarea
                     id="review-message"
                     aria-label="Message to proposer"
                     rows={3}
@@ -1974,7 +1979,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       {/* Record outcome */}
       {isAdmin && project.status === ProjectStatus.completed && !project.outcome && (
         <div className={card}>
-          <h2>Record project outcome</h2>
+          <H2>Record project outcome</H2>
           <form onSubmit={handleRecordOutcome}>
             <div className="mb-5">
               <FilterDropdown
@@ -1987,8 +1992,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               />
             </div>
             <div className="mb-5">
-              <label htmlFor="outcome-notes">Outcome notes</label>
-              <textarea
+              <FormLabel htmlFor="outcome-notes">Outcome notes</FormLabel>
+              <Textarea
                 id="outcome-notes"
                 aria-label="Outcome notes"
                 rows={3}
@@ -2250,7 +2255,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           {/* Who invited the viewer, just above the Accept / Decline that answers it, outside the
               bar so a long note doesn't make the bar taller than the tabs. */}
           {pendingInvite && !isOwnerOrAdmin && (
-            <p className="text-sm text-text-light mt-0 mb-2 whitespace-pre-wrap lg:text-right">
+            <P className="text-sm text-text-light mt-0 mb-2 whitespace-pre-wrap lg:text-right">
               {project.myInterest?.invitedByName ?? 'The owner'} invited you to help
               {project.myInterest?.message ? (
                 <>
@@ -2261,7 +2266,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               ) : (
                 ' on this project'
               )}
-            </p>
+            </P>
           )}
         </WorkItemHeader>
 
@@ -2293,9 +2298,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             <>
               {/* Main project card */}
               <div className={card}>
-                <p className="whitespace-pre-wrap">
+                <P className="whitespace-pre-wrap">
                   <Linkify text={project.description} />
-                </p>
+                </P>
 
                 {project.skills.length > 0 && (
                   <div className="mt-3">
@@ -2319,15 +2324,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
                 {/* Match score */}
                 {!isOwner && project.match && project.match.totalRequired > 0 && (
-                  <p className="mt-3 mb-0 text-sm">
+                  <P className="mt-3 mb-0 text-sm">
                     You match {project.match.matchedRequiredCount} of {project.match.totalRequired}{' '}
                     skill
                     {project.match.totalRequired === 1 ? '' : 's'}
-                  </p>
+                  </P>
                 )}
 
                 {isHttpUrl(project.collaborationLink) && (
-                  <p className="mt-2 text-sm">
+                  <P className="mt-2 text-sm">
                     <a
                       href={project.collaborationLink}
                       target="_blank"
@@ -2337,7 +2342,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     >
                       Open project doc →
                     </a>
-                  </p>
+                  </P>
                 )}
               </div>
 
@@ -2357,7 +2362,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         : project.outcome === 'ongoing'
                           ? 'Ongoing'
                           : project.outcome}
-                  {project.outcomeNotes && <p className="mt-1 text-sm">{project.outcomeNotes}</p>}
+                  {project.outcomeNotes && <P className="mt-1 text-sm">{project.outcomeNotes}</P>}
                 </div>
               )}
 
@@ -2368,7 +2373,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               />
 
               <div className={`${card} scroll-mt-20`} id={DISCUSSION}>
-                <h2>Discussion</h2>
+                <H2>Discussion</H2>
                 <CommentThread
                   workItemId={project.id}
                   emptyText="No messages yet."
@@ -2382,7 +2387,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           {(tab === 'tasks' || tab === 'timeline') && (
             <div className={card}>
               <div className="flex justify-between items-center mb-3">
-                <h2 className="m-0">{tab === 'timeline' ? 'Timeline' : 'Tasks'}</h2>
+                <H2 className="m-0">{tab === 'timeline' ? 'Timeline' : 'Tasks'}</H2>
                 <div className="flex items-center gap-2">
                   {tab === 'tasks' && canManageTasks && orderedTasks.length > 0 && (
                     <Button
@@ -2417,8 +2422,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 >
                   <form onSubmit={handleAddTask}>
                     <div className="mb-3">
-                      <label htmlFor="new-task-title">Task title</label>
-                      <input
+                      <FormLabel htmlFor="new-task-title">Task title</FormLabel>
+                      <Input
                         id="new-task-title"
                         type="text"
                         aria-label="Task title"
@@ -2429,8 +2434,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                       />
                     </div>
                     <div className="mb-3">
-                      <label htmlFor="new-task-description">Description</label>
-                      <textarea
+                      <FormLabel htmlFor="new-task-description">Description</FormLabel>
+                      <Textarea
                         id="new-task-description"
                         aria-label="Description"
                         rows={3}
@@ -2557,7 +2562,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               )}
               {tab === 'tasks' && canManageTasks && pastPlanCount >= STALE_PLAN_FROM && (
-                <p className="text-text-light mb-3 text-sm">
+                <P className="text-text-light mb-3 text-sm">
                   {pastPlanCount} tasks are past plan. If their bars were never placed, set real
                   dates on the{' '}
                   <button
@@ -2568,18 +2573,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     Timeline
                   </button>{' '}
                   rather than replanning one at a time.
-                </p>
+                </P>
               )}
               {tab === 'tasks' && keyDateTask && (
-                <p className="text-text-light mb-3 text-sm">
+                <P className="text-text-light mb-3 text-sm">
                   <span style={{ color: 'var(--gantt-anchor)' }}>★ Key date:</span>{' '}
                   <strong>{keyDateTask.title}</strong>. The work it waits for is marked Before; the
                   work that follows it, After.
-                </p>
+                </P>
               )}
               {tab === 'tasks' &&
                 (orderedTasks.length === 0 ? (
-                  <p className="text-text-light">No tasks yet.</p>
+                  <P className="text-text-light">No tasks yet.</P>
                 ) : (
                   <TaskList
                     tasks={orderedTasks}
@@ -2847,10 +2852,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           isOpen
           onClose={() => setPendingStatus(null)}
         >
-          <p>
+          <P>
             Change status from <strong>{projectStatusLabel(newStatus)}</strong> to{' '}
             <strong>{projectStatusLabel(pendingStatus)}</strong>?
-          </p>
+          </P>
           <div className="mt-4 flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setPendingStatus(null)}>
               Cancel
@@ -2915,8 +2920,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         >
           <form onSubmit={(e) => confirmDeclineInterest(e, declineTarget.id)}>
             <div className="mb-5">
-              <label htmlFor="decline-message">Optional message for the volunteer</label>
-              <textarea
+              <FormLabel htmlFor="decline-message">Optional message for the volunteer</FormLabel>
+              <Textarea
                 id="decline-message"
                 rows={4}
                 value={declineMessage}

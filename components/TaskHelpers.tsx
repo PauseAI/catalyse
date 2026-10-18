@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import { H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
 import LocalVolunteerSelect from '@/components/ui/LocalVolunteerSelect'
 import { PersonChip } from '@/components/ui/PersonChip'
 import { ADD_HELPER, LEAVE_HELPING, REMOVE_HELPER } from '@/lib/action-labels'
@@ -88,10 +90,10 @@ export default function TaskHelpers({
 
   return (
     <section aria-labelledby="task-helpers" className="my-4">
-      <h2 id="task-helpers" className="mb-1 text-base">
+      <H2 id="task-helpers" className="mb-1 text-base">
         Helpers
-      </h2>
-      <p className="text-text-light mt-0 mb-2 text-sm">{summary}</p>
+      </H2>
+      <P className="text-text-light mt-0 mb-2 text-sm">{summary}</P>
       {state.helpers.length > 0 && (
         <ul className="m-0 mb-2 flex list-none flex-wrap gap-2 p-0">
           {state.helpers.map((h) => (

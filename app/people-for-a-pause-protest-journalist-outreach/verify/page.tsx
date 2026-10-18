@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { client } from '@/lib/client'
 import { OUTREACH_PATH, OUTREACH_TOKEN_STORAGE_KEY } from '@/lib/journalist-outreach'
 import Button from '@/components/Button'
+import { H3 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 function Verify() {
   const router = useRouter()
@@ -24,11 +26,11 @@ function Verify() {
       .catch((err: Error) => setError(err.message))
   }, [token, router])
 
-  if (!error) return <p className="text-center py-10 text-text-light">Signing you in…</p>
+  if (!error) return <P className="text-center py-10 text-text-light">Signing you in…</P>
   return (
     <div className="bg-surface rounded-xl shadow p-4 sm:p-6 text-center">
-      <h3 className="text-error">Link not valid</h3>
-      <p className="text-text-light my-4">{error}</p>
+      <H3 className="text-error">Link not valid</H3>
+      <P className="text-text-light my-4">{error}</P>
       <Button href={OUTREACH_PATH} variant="outline">
         Request a new link
       </Button>

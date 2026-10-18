@@ -2,6 +2,7 @@
 
 import { useId, useLayoutEffect, useRef, useState } from 'react'
 import Button from './Button'
+import Textarea from '@/components/ui/Textarea'
 import { encodeMentions, tokenName, type MentionMember } from '@/lib/mentions'
 
 interface CommentComposerProps {
@@ -114,7 +115,7 @@ export default function CommentComposer({
         })
       }}
     >
-      <textarea
+      <Textarea
         ref={boxRef}
         aria-label={label}
         rows={rows}

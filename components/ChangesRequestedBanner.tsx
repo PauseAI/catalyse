@@ -7,6 +7,8 @@ import { formatDateTime } from '@/lib/format-date'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
+import { H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 export interface ReviewRequest {
   id: number
@@ -57,16 +59,16 @@ export default function ChangesRequestedBanner({
       aria-labelledby={headingId}
       className={`${SECTION_CARD} mb-4 border-l-4 border-warning`}
     >
-      <h2 id={headingId} className="text-lg m-0 mb-2">
+      <H2 id={headingId} className="text-lg m-0 mb-2">
         Changes requested{open.requestedByName ? ` by ${open.requestedByName}` : ''}
-      </h2>
-      <p className="m-0 mb-1 whitespace-pre-wrap">{open.message}</p>
-      <p className="text-xs text-text-light m-0 mb-4">{formatDateTime(open.createdAt)}</p>
+      </H2>
+      <P className="m-0 mb-1 whitespace-pre-wrap">{open.message}</P>
+      <P className="text-xs text-text-light m-0 mb-4">{formatDateTime(open.createdAt)}</P>
       {canResubmit && (
         <>
-          <p className="text-sm text-text-light m-0 mb-3">
+          <P className="text-sm text-text-light m-0 mb-3">
             Make the changes, then resubmit. The team lead who asked is told straight away.
-          </p>
+          </P>
           <div className="flex flex-wrap gap-2">
             <Button
               onClick={() => resubmit.mutate({ id: projectId })}
@@ -90,7 +92,7 @@ export default function ChangesRequestedBanner({
           <ul className="list-none p-0 m-0 mt-2">
             {earlier.map((r) => (
               <li key={r.id} className="py-2 border-b border-brand-border last:border-0 text-sm">
-                <p className="m-0 whitespace-pre-wrap">{r.message}</p>
+                <P className="m-0 whitespace-pre-wrap">{r.message}</P>
                 <span className="text-xs text-text-light">
                   {r.requestedByName ?? 'A team lead'} · {formatDateTime(r.createdAt)}
                 </span>

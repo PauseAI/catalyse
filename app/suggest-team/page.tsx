@@ -15,6 +15,11 @@ import {
   suggestionStatusVariant,
 } from '@/lib/status-labels'
 import { BLEED, SECTION_CARD } from '@/lib/ui-classes'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
+import Textarea from '@/components/ui/Textarea'
 
 export default function SuggestTeamPage() {
   const { user, loading } = useRequireAuth()
@@ -53,21 +58,25 @@ export default function SuggestTeamPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Suggest a team</h1>
-      <p className="text-text-light mb-2">
+      <H1>Suggest a team</H1>
+      <P className="text-text-light mb-2">
         Don&apos;t see a team for what you&apos;re working on? Suggest one and an admin will review
         it.
-      </p>
-      <p className="text-text-light mb-6">
+      </P>
+      <P className="text-text-light mb-6">
         A team is for a group that collaborates on a kind of project, such as a country, a region or
-        a function. For a one-off goal, <Link href="/suggest">propose a project</Link> instead.
-      </p>
+        a function. For a one-off goal,{' '}
+        <Link className="text-primary-text underline" href="/suggest">
+          propose a project
+        </Link>{' '}
+        instead.
+      </P>
 
       <div className="sm:max-w-xl">
         <form onSubmit={handleSubmit} className={`${SECTION_CARD} mb-8`}>
           <div className="mb-5">
-            <label htmlFor="name">Team name</label>
-            <input
+            <FormLabel htmlFor="name">Team name</FormLabel>
+            <Input
               id="name"
               type="text"
               placeholder="e.g., Comms, Outreach, Policy"
@@ -77,10 +86,10 @@ export default function SuggestTeamPage() {
           </div>
 
           <div className="mb-5">
-            <label htmlFor="description">
+            <FormLabel htmlFor="description">
               Description <span className="text-text-light font-normal">(optional)</span>
-            </label>
-            <textarea
+            </FormLabel>
+            <Textarea
               id="description"
               rows={3}
               value={description}
@@ -97,7 +106,7 @@ export default function SuggestTeamPage() {
 
         {!loadingSuggestions && suggestions.length > 0 && (
           <div>
-            <h2 className="text-lg font-semibold mb-4">Your previous suggestions</h2>
+            <H2 className="text-lg font-semibold mb-4">Your previous suggestions</H2>
             <div className="space-y-3">
               {suggestions.map((s) => (
                 <article
@@ -105,7 +114,7 @@ export default function SuggestTeamPage() {
                   className={`bg-surface ${BLEED} shadow px-4 sm:px-5 py-4 flex items-start justify-between gap-4`}
                 >
                   <div>
-                    <p className="font-semibold m-0">
+                    <P className="font-semibold m-0">
                       {s.name}
                       {s.mergedInto && (
                         <span className="text-text-light font-normal text-sm">
@@ -113,12 +122,12 @@ export default function SuggestTeamPage() {
                           (merged into {s.mergedInto.name})
                         </span>
                       )}
-                    </p>
-                    <p className="text-xs text-text-light m-0 mt-1">
+                    </P>
+                    <P className="text-xs text-text-light m-0 mt-1">
                       Submitted {s.createdAt ? formatDate(s.createdAt) : ''}
-                    </p>
+                    </P>
                     {s.adminNotes && (
-                      <p className="text-sm text-text-light mt-2 mb-0 italic">{s.adminNotes}</p>
+                      <P className="text-sm text-text-light mt-2 mb-0 italic">{s.adminNotes}</P>
                     )}
                   </div>
                   <Badge

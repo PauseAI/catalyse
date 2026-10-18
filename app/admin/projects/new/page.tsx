@@ -3,6 +3,8 @@
 import { useRequireStaff } from '@/lib/hooks/auth'
 import { useRouter } from 'next/navigation'
 import ProjectEditor from '@/components/ProjectEditor'
+import { H1 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 export default function AdminCreateProjectPage() {
   const router = useRouter()
@@ -12,10 +14,10 @@ export default function AdminCreateProjectPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1 role="heading">Org projects</h1>
-      <p className="text-text-light mb-6">
+      <H1 role="heading">Org projects</H1>
+      <P className="text-text-light mb-6">
         Create a project on behalf of PauseAI. This skips the approval process.
-      </p>
+      </P>
 
       <div className="max-w-4xl">
         <ProjectEditor variant="admin" onCancel={() => router.push('/admin/projects')} />

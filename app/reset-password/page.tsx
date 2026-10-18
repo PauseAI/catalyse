@@ -7,6 +7,10 @@ import { useMutation } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import Button from '@/components/Button'
+import { H1, H3 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
 
 function ResetPasswordForm() {
   const router = useRouter()
@@ -25,10 +29,10 @@ function ResetPasswordForm() {
   if (!token) {
     return (
       <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word text-center`}>
-        <h3 className="text-error">Invalid link</h3>
-        <p className="text-text-light my-4">
+        <H3 className="text-error">Invalid link</H3>
+        <P className="text-text-light my-4">
           This reset link is invalid or has expired. Please request a new one.
-        </p>
+        </P>
         <Button href="/forgot-password" variant="outline">
           Request new link
         </Button>
@@ -76,10 +80,10 @@ function ResetPasswordForm() {
       )}
 
       <div className="mb-5">
-        <label htmlFor="password" className="required">
+        <FormLabel htmlFor="password" required>
           New password
-        </label>
-        <input
+        </FormLabel>
+        <Input
           type="password"
           id="password"
           name="password"
@@ -93,10 +97,10 @@ function ResetPasswordForm() {
       </div>
 
       <div className="mb-5">
-        <label htmlFor="password_confirm" className="required">
+        <FormLabel htmlFor="password_confirm" required>
           Confirm password
-        </label>
-        <input
+        </FormLabel>
+        <Input
           type="password"
           id="password_confirm"
           name="password_confirm"
@@ -120,7 +124,7 @@ export default function ResetPasswordPage() {
     <>
       <main className="container py-5 pb-15">
         <div className="sm:max-w-[400px] my-15 mx-auto">
-          <h1 className="text-center">Set new password</h1>
+          <H1 className="text-center">Set new password</H1>
           <Suspense fallback={<div className="text-center py-10 text-text-light">Loading…</div>}>
             <ResetPasswordForm />
           </Suspense>

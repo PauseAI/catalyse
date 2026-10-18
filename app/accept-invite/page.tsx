@@ -8,6 +8,8 @@ import { useAuth } from '@/lib/auth-context'
 import { orpc } from '@/lib/orpc'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import Button from '@/components/Button'
+import { H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 function AcceptInviteContent() {
   const router = useRouter()
@@ -56,11 +58,11 @@ function AcceptInviteContent() {
       typeof window !== 'undefined' ? encodeURIComponent(window.location.href) : ''
     return (
       <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word text-center`}>
-        <h2>Chapter staff invite</h2>
-        <p className="text-text-light my-4">
+        <H2>Chapter staff invite</H2>
+        <P className="text-text-light my-4">
           You&apos;ve been invited to help run a national chapter on Catalyse.
-        </p>
-        <p className="mb-6">Please log in or sign up with the invited email address to accept.</p>
+        </P>
+        <P className="mb-6">Please log in or sign up with the invited email address to accept.</P>
         <Button href={`/login?redirect=${redirectUrl}`}>Log in</Button>
         <Button href={`/signup?redirect=${redirectUrl}`} variant="outline" className="ml-2">
           Sign up
@@ -72,8 +74,8 @@ function AcceptInviteContent() {
   if (status === 'success') {
     return (
       <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word text-center`}>
-        <h2>Welcome to the team!</h2>
-        <p className="text-text-light my-4">You now help run your chapter. Redirecting…</p>
+        <H2>Welcome to the team!</H2>
+        <P className="text-text-light my-4">You now help run your chapter. Redirecting…</P>
         <Button href="/admin/triage">Go to admin dashboard</Button>
       </div>
     )
@@ -87,15 +89,15 @@ function AcceptInviteContent() {
 
   return (
     <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word text-center`}>
-      <h2>Invite not accepted</h2>
-      <p className="my-4 text-error">{errorMsg}</p>
-      <p className="text-text-light text-sm mb-6">
+      <H2>Invite not accepted</H2>
+      <P className="my-4 text-error">{errorMsg}</P>
+      <P className="text-text-light text-sm mb-6">
         Need help? Contact{' '}
         <a href="mailto:uk@pauseai.info" className="underline">
           uk@pauseai.info
         </a>
         .
-      </p>
+      </P>
       <Button href="/" variant="outline">
         Back to home
       </Button>

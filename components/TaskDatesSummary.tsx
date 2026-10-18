@@ -1,3 +1,4 @@
+import { P } from '@/components/Text'
 import { isOverdue } from '@/lib/overdue'
 import { plural } from '@/lib/plural'
 import { relativeDue, shortDay } from '@/lib/relative-date'
@@ -49,7 +50,7 @@ export default function TaskDatesSummary({
   return (
     <div role="group" aria-label="When it is due" className={`${className} text-sm`}>
       {deadline ? (
-        <p className="m-0 font-medium">
+        <P className="m-0 font-medium">
           Due {shortDay(deadline, today)}
           {!handedIn && (
             <span className={overdue ? 'text-error' : undefined}>
@@ -58,9 +59,9 @@ export default function TaskDatesSummary({
             </span>
           )}
           {from && <span className="font-normal text-text-light">{from}</span>}
-        </p>
+        </P>
       ) : (
-        <p className="m-0 font-medium">
+        <P className="m-0 font-medium">
           No deadline set
           {placement && (
             <span className="font-normal text-text-light">
@@ -68,11 +69,11 @@ export default function TaskDatesSummary({
               {dayRange(new Date(placement.start), new Date(placement.end), today)}
             </span>
           )}
-        </p>
+        </P>
       )}
-      {overrun && <p className="m-0 text-error">Planned to finish {lateText(daysLate)}</p>}
+      {overrun && <P className="m-0 text-error">Planned to finish {lateText(daysLate)}</P>}
       {estimatedHours !== null && (
-        <p className="m-0 text-text-light">Effort: about {plural(estimatedHours, 'hour')}</p>
+        <P className="m-0 text-text-light">Effort: about {plural(estimatedHours, 'hour')}</P>
       )}
     </div>
   )

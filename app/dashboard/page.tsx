@@ -14,6 +14,8 @@ import WorkRow, { PersonAvatar, STRETCHED_LINK } from '@/components/WorkRow'
 import Modal from '@/components/ui/Modal'
 import Skeleton from '@/components/Skeleton'
 import { BLEED } from '@/lib/ui-classes'
+import { H1, H2, H3 } from '@/components/Heading'
+import { P } from '@/components/Text'
 import { ApprovalStatus, WorkItemType } from '@/generated/prisma/enums'
 import type { AppRouter } from '@/server/router'
 import type { InferRouterOutputs } from '@orpc/server'
@@ -86,14 +88,14 @@ function GettingStarted({
       aria-labelledby="getting-started"
       className={`bg-surface shadow p-4 sm:p-5 mb-6 wrap-break-word ${BLEED}`}
     >
-      <h2 id="getting-started" className="text-lg mt-0 mb-3">
+      <H2 id="getting-started" className="text-lg mt-0 mb-3">
         Getting started
-      </h2>
+      </H2>
       {!steps.approved && (
-        <p className="text-sm text-text-light mt-0 mb-3">
+        <P className="text-sm text-text-light mt-0 mb-3">
           Your account is pending approval. You&apos;ll be able to browse and join projects once an
           admin reviews your application.
-        </p>
+        </P>
       )}
       <ol className="list-none p-0 m-0 flex flex-col gap-2 sm:flex-row sm:gap-6">
         {items.map((s) => (
@@ -107,7 +109,9 @@ function GettingStarted({
             {s.done ? (
               <span>{s.label}</span>
             ) : s.href ? (
-              <Link href={s.href}>{s.todo}</Link>
+              <Link className="text-primary-text underline" href={s.href}>
+                {s.todo}
+              </Link>
             ) : (
               <span className="text-text-light">{s.todo}</span>
             )}
@@ -139,10 +143,10 @@ function FindRowView({
   return (
     <div className="py-3 border-b border-brand-border last:border-0">
       <div className="flex items-center justify-between gap-3 mb-1">
-        <h3 className="text-base m-0">
+        <H3 className="text-base m-0">
           {label}
           <Count n={row.count} />
-        </h3>
+        </H3>
         {row.count > 0 && (
           <Link href={seeAll} className="text-sm">
             See all →
@@ -150,12 +154,14 @@ function FindRowView({
         )}
       </div>
       {row.items.length === 0 ? (
-        <p className="text-sm text-text-light m-0">{empty}</p>
+        <P className="text-sm text-text-light m-0">{empty}</P>
       ) : (
         <ul className="list-none p-0 m-0">
           {row.items.map((item) => (
             <li key={item.id} className="text-sm py-1">
-              <Link href={item.href}>{item.title}</Link>
+              <Link className="text-primary-text underline" href={item.href}>
+                {item.title}
+              </Link>
               {item.reason && <span className="text-text-light"> · {item.reason}</span>}
             </li>
           ))}
@@ -330,11 +336,11 @@ export default function HomePage() {
           isOpen
           onClose={() => dismissWelcome(welcome.notificationId)}
         >
-          <p>
+          <P>
             {welcome.emailConfirmed
               ? 'Your application has been approved. Browse projects to find something you can help with, or pick up a quick task to get started.'
               : 'Your application has been approved. One last step: confirm your email address, then you can browse projects and pick a first task.'}
-          </p>
+          </P>
           <div className="mt-4 flex justify-end gap-2">
             <Button variant="secondary" onClick={() => dismissWelcome(welcome.notificationId)}>
               Not now
@@ -350,9 +356,9 @@ export default function HomePage() {
       )}
       <main className="container py-5 pb-15">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-          <h1 role="heading" className="mb-0">
+          <H1 role="heading" className="mb-0">
             Home
-          </h1>
+          </H1>
           {isMember && <Button href="/suggest">Propose a project</Button>}
         </div>
 
@@ -391,12 +397,12 @@ export default function HomePage() {
 
         {isMember && (
           <section aria-labelledby="attention" className="mb-8">
-            <h2 id="attention">
+            <H2 id="attention">
               Needs your attention
               <Count n={data.attention.length} />
-            </h2>
+            </H2>
             {data.attention.length === 0 ? (
-              <p className="text-text-light">Nothing is waiting on you right now.</p>
+              <P className="text-text-light">Nothing is waiting on you right now.</P>
             ) : (
               <ul className={`list-none p-0 my-0 bg-surface shadow ${BLEED}`}>
                 {data.attention.map((a) => (
@@ -410,7 +416,7 @@ export default function HomePage() {
                       </span>
                       <strong>{a.title}</strong>
                       {a.detail && (
-                        <p className="text-sm text-text-light m-0 mt-1 line-clamp-2">{a.detail}</p>
+                        <P className="text-sm text-text-light m-0 mt-1 line-clamp-2">{a.detail}</P>
                       )}
                     </div>
                     <Button
@@ -436,9 +442,9 @@ export default function HomePage() {
         {isMember && (
           <section id="my-work" aria-labelledby="my-work-heading" className="mb-8 scroll-mt-20">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-              <h2 id="my-work-heading" className="m-0">
+              <H2 id="my-work-heading" className="m-0">
                 My work
-              </h2>
+              </H2>
               <div role="group" aria-label="Show" className="flex flex-wrap gap-2">
                 {WORK_FILTERS.map((f) => (
                   <Button
@@ -454,28 +460,34 @@ export default function HomePage() {
               </div>
             </div>
             {work.length === 0 ? (
-              <p className="text-text-light">
+              <P className="text-text-light">
                 {current.length === 0 ? (
                   <>
                     {finished.length > 0
                       ? 'Nothing on the go right now.'
                       : "You're not working on anything yet."}{' '}
-                    <Link href="/quick-tasks">Pick up a quick task</Link> or{' '}
-                    <Link href="/projects">browse projects</Link>.
+                    <Link className="text-primary-text underline" href="/quick-tasks">
+                      Pick up a quick task
+                    </Link>{' '}
+                    or{' '}
+                    <Link className="text-primary-text underline" href="/projects">
+                      browse projects
+                    </Link>
+                    .
                   </>
                 ) : (
                   'Nothing here. Try another filter.'
                 )}
-              </p>
+              </P>
             ) : urgent.length === 0 ? (
               workList(rest)
             ) : (
               <>
-                <h3 className={`${SUB_HEADING} mt-0`}>Needs attention now</h3>
+                <H3 className={`${SUB_HEADING} mt-0`}>Needs attention now</H3>
                 {workList(urgent)}
                 {rest.length > 0 && (
                   <>
-                    <h3 className={`${SUB_HEADING} mt-5`}>Everything else</h3>
+                    <H3 className={`${SUB_HEADING} mt-5`}>Everything else</H3>
                     {workList(rest)}
                   </>
                 )}
@@ -486,7 +498,7 @@ export default function HomePage() {
 
         {isMember && data.find && (
           <section id="find" aria-labelledby="find-heading" className="mb-8 scroll-mt-20">
-            <h2 id="find-heading">
+            <H2 id="find-heading">
               <button
                 type="button"
                 aria-expanded={showFind}
@@ -499,7 +511,7 @@ export default function HomePage() {
                 </span>
                 Find something to do
               </button>
-            </h2>
+            </H2>
             {showFind && (
               <div id="find-body" className={`bg-surface shadow px-4 sm:px-5 py-2 ${BLEED}`}>
                 <FindRowView
@@ -517,7 +529,10 @@ export default function HomePage() {
                       'No projects match your skills right now.'
                     ) : (
                       <>
-                        <Link href="/settings">Add skills</Link> to see projects that match them.
+                        <Link className="text-primary-text underline" href="/settings">
+                          Add skills
+                        </Link>{' '}
+                        to see projects that match them.
                       </>
                     )
                   }
@@ -531,7 +546,10 @@ export default function HomePage() {
                       'No projects in your country right now.'
                     ) : (
                       <>
-                        <Link href="/settings">Add your country</Link> to see projects near you.
+                        <Link className="text-primary-text underline" href="/settings">
+                          Add your country
+                        </Link>{' '}
+                        to see projects near you.
                       </>
                     )
                   }
@@ -543,7 +561,7 @@ export default function HomePage() {
 
         {isMember && finished.length > 0 && (
           <section id="finished" aria-labelledby="finished-heading" className="mb-8 scroll-mt-20">
-            <h2 id="finished-heading">
+            <H2 id="finished-heading">
               <button
                 type="button"
                 aria-expanded={finishedOpen}
@@ -556,7 +574,7 @@ export default function HomePage() {
                 </span>
                 Finished ({finished.length})
               </button>
-            </h2>
+            </H2>
             {finishedOpen && <div id="finished-body">{workList(finished)}</div>}
           </section>
         )}

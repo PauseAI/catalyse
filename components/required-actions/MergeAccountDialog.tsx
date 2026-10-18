@@ -3,6 +3,7 @@
 import { useMutation } from '@tanstack/react-query'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/Button'
+import { P } from '@/components/Text'
 import { formatDate } from '@/lib/format-date'
 import { orpc } from '@/lib/orpc'
 import { useRequiredActions } from '@/lib/required-actions-context'
@@ -40,26 +41,26 @@ export default function MergeAccountDialog({
 
   return (
     <Modal id="merge-account" title="Merge your accounts" isOpen onClose={onClose}>
-      <p className="mb-3">We think this account is also yours:</p>
+      <P className="mb-3">We think this account is also yours:</P>
       <div className="rounded-lg border border-brand-border p-3 mb-4">
-        <p className="font-semibold">{other.name}</p>
-        {other.email && <p className="text-text-light text-sm">{other.email}</p>}
+        <P className="font-semibold">{other.name}</P>
+        {other.email && <P className="text-text-light text-sm">{other.email}</P>}
         {other.createdAt && (
-          <p className="text-text-light text-sm">Joined {formatDate(other.createdAt)}</p>
+          <P className="text-text-light text-sm">Joined {formatDate(other.createdAt)}</P>
         )}
       </div>
-      <p className="text-text-light mb-3">
+      <P className="text-text-light mb-3">
         Merging moves its projects, tasks, teams and messages into one account, and you choose which
         of the two addresses to sign in with.
-      </p>
+      </P>
       {requestedAt ? (
-        <p className="mb-4" role="status">
+        <P className="mb-4" role="status">
           We sent a link to {other.email}. Open it to finish merging.
-        </p>
+        </P>
       ) : (
-        <p className="text-text-light mb-4">
+        <P className="text-text-light mb-4">
           To check it is yours, we will email a link to {other.email ?? 'that account'}.
-        </p>
+        </P>
       )}
       <div className="flex flex-wrap items-center gap-3">
         <Button onClick={() => request.mutate({ otherId: other.id })} disabled={busy}>

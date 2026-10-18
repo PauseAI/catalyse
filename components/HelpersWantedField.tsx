@@ -1,3 +1,7 @@
+import FormLabel from '@/components/FormLabel'
+import { P } from '@/components/Text'
+import Input from '@/components/ui/Input'
+
 /** A task's helpers wanted as the form holds it: blank seeks none. */
 export function helpersWantedDraft(helpersWanted: number | null): string {
   return helpersWanted === null ? '' : String(helpersWanted)
@@ -21,8 +25,8 @@ export default function HelpersWantedField({
 }) {
   return (
     <div className="mb-5">
-      <label htmlFor={`${id}-helpers-wanted`}>Helpers wanted (optional)</label>
-      <input
+      <FormLabel htmlFor={`${id}-helpers-wanted`}>Helpers wanted (optional)</FormLabel>
+      <Input
         id={`${id}-helpers-wanted`}
         type="number"
         min={1}
@@ -32,10 +36,10 @@ export default function HelpersWantedField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
-      <p className="text-sm text-text-light mt-1 mb-0">
+      <P className="text-sm text-text-light mt-1 mb-0">
         For work that needs several people with one in charge, such as flyering. Members can join as
         helpers until this many have; the person who claims it leads.
-      </p>
+      </P>
     </div>
   )
 }

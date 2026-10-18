@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from './Button'
 import WorkItemCard from './WorkItemCard'
+import { P } from '@/components/Text'
 import { friendlyDate } from '@/lib/format-date'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
@@ -139,7 +140,7 @@ export default function InboxRow({
           <WorkItemCard item={n.workItem} variant="compact" />
         </div>
       )}
-      {n.body && <p className="text-sm mt-1 mb-0 line-clamp-3">{n.body}</p>}
+      {n.body && <P className="text-sm mt-1 mb-0 line-clamp-3">{n.body}</P>}
       <div className="flex flex-wrap items-center gap-3 mt-2">
         {n.action && (
           <>

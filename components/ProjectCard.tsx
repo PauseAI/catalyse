@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Button from '@/components/Button'
 import { StatusFlag } from '@/components/Badge'
 import { LatenessBadge, ProjectStatusBadge } from '@/components/StatusBadges'
+import { P } from '@/components/Text'
 import { lateness } from '@/lib/lateness'
 import { matchGradeLabel } from '@/lib/matching'
 import { projectLocationParts } from '@/lib/filter-options'
@@ -122,11 +123,11 @@ export function ProjectCard({
         )}
         {p.urgency && <span title="Priority">⚡ {p.urgency} priority</span>}
       </div>
-      <p className="row-start-4 min-w-0 text-text-light text-sm m-0 wrap-break-word">
+      <P className="row-start-4 min-w-0 text-text-light text-sm m-0 wrap-break-word">
         {p.description
           ? `${p.description.slice(0, 150)}${p.description.length > 150 ? '…' : ''}`
           : ''}
-      </p>
+      </P>
       {(() => {
         const allSkills = p.skills ?? []
         const matched =
@@ -169,7 +170,7 @@ export function ProjectCard({
           <div />
         )}
         {action ?? (
-          <Link href={`/projects/${p.id}`}>
+          <Link className="text-primary-text underline" href={`/projects/${p.id}`}>
             <Button variant="secondary" size="sm">
               View details
             </Button>

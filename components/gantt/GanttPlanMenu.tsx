@@ -3,7 +3,12 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Button from '@/components/Button'
+import FormLabel from '@/components/FormLabel'
+import { H4 } from '@/components/Heading'
+import { P } from '@/components/Text'
 import Tooltip from '@/components/Tooltip'
+import Input from '@/components/ui/Input'
+import Select from '@/components/ui/Select'
 import { ANCHOR_HINT } from './GanttLegend'
 
 /** One link this task waits on, as the Plan menu edits it. */
@@ -58,10 +63,10 @@ function GapField({
         commit(e.currentTarget.elements.namedItem('gap') as HTMLInputElement)
       }}
     >
-      <label htmlFor={id} className="text-text-light m-0 text-xs font-normal">
+      <FormLabel htmlFor={id} className="text-text-light m-0 text-xs font-normal">
         Gap after it finishes (days)
-      </label>
-      <input
+      </FormLabel>
+      <Input
         // Re-seeded whenever the stored gap changes underneath it.
         key={link.lagDays}
         id={id}
@@ -154,9 +159,9 @@ export default function GanttPlanMenu({ plan, busy }: { plan: GanttPlan; busy?: 
             style={{ top: pos.top, left: pos.left, width: POPOVER_WIDTH }}
           >
             <section>
-              <h4 className="mb-1 text-sm font-semibold">Waits on</h4>
+              <H4 className="mb-1 text-sm font-semibold">Waits on</H4>
               {plan.links.length === 0 ? (
-                <p className="text-text-light m-0">Nothing — can start whenever.</p>
+                <P className="text-text-light m-0">Nothing — can start whenever.</P>
               ) : (
                 <ul className="m-0 list-none space-y-2 p-0">
                   {plan.links.map((l) => (
@@ -189,10 +194,10 @@ export default function GanttPlanMenu({ plan, busy }: { plan: GanttPlan; busy?: 
                   }}
                 >
                   <div className="min-w-0 flex-1">
-                    <label htmlFor={pickerId} className="text-xs">
+                    <FormLabel htmlFor={pickerId} className="text-xs">
                       Waits on…
-                    </label>
-                    <select
+                    </FormLabel>
+                    <Select
                       id={pickerId}
                       value={picked}
                       disabled={busy}
@@ -204,7 +209,7 @@ export default function GanttPlanMenu({ plan, busy }: { plan: GanttPlan; busy?: 
                           {t.title}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                   <Button type="submit" size="sm" disabled={busy || !picked}>
                     Add
@@ -223,13 +228,13 @@ export default function GanttPlanMenu({ plan, busy }: { plan: GanttPlan; busy?: 
                 >
                   {plan.isAnchor ? 'Stop using as key date' : 'Make this the key date'}
                 </Button>
-                <p className="text-text-light mt-1 mb-0 text-xs">
+                <P className="text-text-light mt-1 mb-0 text-xs">
                   <Tooltip content={ANCHOR_HINT}>
                     <span className="decoration-dotted underline-offset-2 [text-decoration-line:underline]">
                       A fixed point the plan is built around
                     </span>
                   </Tooltip>
-                </p>
+                </P>
               </section>
             )}
           </div>,

@@ -19,6 +19,10 @@ import {
   bugStatusLabel,
 } from '@/lib/bug-report-labels'
 import NotFoundCard from '@/components/NotFoundCard'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Textarea from '@/components/ui/Textarea'
 
 export default function BugReportDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: idStr } = use(params)
@@ -84,7 +88,7 @@ export default function BugReportDetailPage({ params }: { params: Promise<{ id: 
 
       <div className={`${SECTION_CARD} overflow-hidden wrap-break-word mb-5`}>
         <div className="flex justify-between items-start mb-3 gap-4">
-          <h1 className="m-0">{report.title}</h1>
+          <H1 className="m-0">{report.title}</H1>
           <Badge variant={BUG_STATUS_VARIANT[report.status] ?? 'neutral'}>
             {bugStatusLabel(report.status)}
           </Badge>
@@ -119,10 +123,10 @@ export default function BugReportDetailPage({ params }: { params: Promise<{ id: 
             })()}
         </div>
 
-        <p className="whitespace-pre-wrap mb-0">{report.description}</p>
+        <P className="whitespace-pre-wrap mb-0">{report.description}</P>
 
         {!user.isAdmin && report.resolutionNotes && (
-          <p className="mt-4 text-sm italic">Resolution: {report.resolutionNotes}</p>
+          <P className="mt-4 text-sm italic">Resolution: {report.resolutionNotes}</P>
         )}
 
         {user.isAdmin && (
@@ -139,8 +143,8 @@ export default function BugReportDetailPage({ params }: { params: Promise<{ id: 
             </div>
 
             <div className="mb-5">
-              <label htmlFor="edit-notes">Resolution notes</label>
-              <textarea
+              <FormLabel htmlFor="edit-notes">Resolution notes</FormLabel>
+              <Textarea
                 id="edit-notes"
                 rows={3}
                 value={editNotes}
@@ -167,7 +171,7 @@ export default function BugReportDetailPage({ params }: { params: Promise<{ id: 
       </div>
 
       <div className={SECTION_CARD}>
-        <h2 className="text-lg mb-4">Discussion</h2>
+        <H2 className="text-lg mb-4">Discussion</H2>
         <BugReportCommentThread bugReportId={report.id} />
       </div>
     </main>

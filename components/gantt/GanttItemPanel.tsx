@@ -5,8 +5,12 @@ import Link from 'next/link'
 import { Badge } from '@/components/Badge'
 import { LatenessBadge } from '@/components/StatusBadges'
 import Button from '@/components/Button'
+import FormLabel from '@/components/FormLabel'
+import { H3, H4 } from '@/components/Heading'
 import Linkify from '@/components/Linkify'
+import { P } from '@/components/Text'
 import Tooltip from '@/components/Tooltip'
+import Select from '@/components/ui/Select'
 import { formatDateShort } from '@/lib/format-date'
 import DatesBlock from '@/components/DatesBlock'
 import TaskDatesSummary from '@/components/TaskDatesSummary'
@@ -60,7 +64,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="border-brand-border mt-3 border-t pt-3">
-      <h4 className="mb-2 text-sm font-semibold">{title}</h4>
+      <H4 className="mb-2 text-sm font-semibold">{title}</H4>
       {children}
     </section>
   )
@@ -169,7 +173,7 @@ export default function GanttItemPanel({
   return (
     <aside className="border-brand-border bg-surface rounded-lg border p-4">
       <div className="flex items-start justify-between gap-2">
-        <h3 className="m-0 text-base leading-snug">{row.label}</h3>
+        <H3 className="m-0 text-base leading-snug">{row.label}</H3>
         <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close panel">
           ×
         </Button>
@@ -203,9 +207,9 @@ export default function GanttItemPanel({
       </div>
 
       {description && (
-        <p className="mt-2 mb-0 text-sm whitespace-pre-wrap">
+        <P className="mt-2 mb-0 text-sm whitespace-pre-wrap">
           <Linkify text={description} />
-        </p>
+        </P>
       )}
 
       <Section title="When">
@@ -276,11 +280,11 @@ export default function GanttItemPanel({
                 )}
               </dl>
               {!p.baseline && (
-                <p className="text-text-light m-0 text-xs">
+                <P className="text-text-light m-0 text-xs">
                   No original plan saved yet, so nothing to compare.
-                </p>
+                </P>
               )}
-              {conflict && <p className="text-error m-0">{conflict}</p>}
+              {conflict && <P className="text-error m-0">{conflict}</P>}
             </div>
           </details>
         )}
@@ -348,7 +352,7 @@ export default function GanttItemPanel({
 
       <Section title="Waits on">
         {predecessors.length === 0 ? (
-          <p className="text-text-light m-0 text-sm">Nothing — can start whenever.</p>
+          <P className="text-text-light m-0 text-sm">Nothing — can start whenever.</P>
         ) : (
           <CardList items={predecessors.map((d) => d.item)} />
         )}
@@ -377,10 +381,10 @@ export default function GanttItemPanel({
             {assignment.canAssign && (
               <>
                 <div className="min-w-40 flex-1">
-                  <label htmlFor="panel-assignee" className="sr-only">
+                  <FormLabel htmlFor="panel-assignee" className="sr-only">
                     Assign to a volunteer
-                  </label>
-                  <select
+                  </FormLabel>
+                  <Select
                     id="panel-assignee"
                     value={pickedAssignee}
                     disabled={busy}
@@ -391,7 +395,7 @@ export default function GanttItemPanel({
                         {o.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 <Button
                   size="sm"

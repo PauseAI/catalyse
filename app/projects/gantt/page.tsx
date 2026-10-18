@@ -12,6 +12,8 @@ import type { GanttRow as GanttRowData } from '@/components/gantt/types'
 import { ProjectStatus } from '@/generated/prisma/enums'
 import { projectStatusLabel } from '@/lib/project-status'
 import PageLoading from '@/components/PageLoading'
+import { H1 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 const STATUS_FILTERS: { key: string; label: string }[] = [
   ProjectStatus.ready,
@@ -78,14 +80,14 @@ export default function RoadmapPage() {
   return (
     <main className="container-wide py-5 pb-15">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="m-0">Projects</h1>
+        <H1 className="m-0">Projects</H1>
         <Button href="/suggest">Propose a project</Button>
       </div>
       <ViewSwitch label="Project views" views={PROJECT_VIEWS} current="/projects/gantt" />
-      <p className="text-text-light mb-4 max-w-3xl">
+      <P className="text-text-light mb-4 max-w-3xl">
         Each bar is a project, placed by its planned dates; the number after a name is how many
         tasks it has. Click a bar for details.
-      </p>
+      </P>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <span className="text-text-light text-sm">Show</span>
@@ -102,12 +104,12 @@ export default function RoadmapPage() {
       </div>
 
       {isPending ? (
-        <p className="text-text-light">Loading timeline…</p>
+        <P className="text-text-light">Loading timeline…</P>
       ) : rows.length === 0 ? (
-        <p className="text-text-light max-w-3xl">
+        <P className="text-text-light max-w-3xl">
           No projects with a schedule match these filters. Give a project a start date or dated
           tasks to see it here.
-        </p>
+        </P>
       ) : (
         <GanttChart
           rows={rows}
@@ -134,7 +136,7 @@ export default function RoadmapPage() {
         />
       )}
 
-      <p className="text-text-light mt-2 text-xs max-w-3xl">
+      <P className="text-text-light mt-2 text-xs max-w-3xl">
         Each bar spans a project&apos;s tasks (or its set duration).
         {(user.isAdmin || user.access.role) && (
           <>
@@ -143,7 +145,7 @@ export default function RoadmapPage() {
             after that one&rdquo;.
           </>
         )}
-      </p>
+      </P>
     </main>
   )
 }

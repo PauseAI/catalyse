@@ -12,6 +12,11 @@ import SkillPicker from '@/components/SkillPicker'
 import Tabs from '@/components/Tabs'
 import ChapterMove from '@/components/ChapterMove'
 import { Badge } from '@/components/Badge'
+import { H1, H2, H3 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
+import Textarea from '@/components/ui/Textarea'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
@@ -389,7 +394,7 @@ function SettingsPageContent() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Settings</h1>
+      <H1>Settings</H1>
 
       <Tabs tabs={TABS} activeTab={activeTab} onChange={setTab} />
 
@@ -397,18 +402,18 @@ function SettingsPageContent() {
         <div
           className={`${SECTION_CARD} mb-4 max-w-4xl border-2 border-amber-300 dark:border-amber-700`}
         >
-          <h2 className="mt-0">Your application</h2>
+          <H2 className="mt-0">Your application</H2>
           {myApplication?.applicationApplicantNotes && (
             <>
-              <p className="text-sm font-semibold text-text-light mb-1">Message from the team</p>
+              <P className="text-sm font-semibold text-text-light mb-1">Message from the team</P>
               <div className="bg-background rounded-lg p-4 mb-4 whitespace-pre-wrap text-sm">
                 {myApplication.applicationApplicantNotes}
               </div>
             </>
           )}
           <div className="mb-4">
-            <label htmlFor="applicationMessage">Your application</label>
-            <textarea
+            <FormLabel htmlFor="applicationMessage">Your application</FormLabel>
+            <Textarea
               id="applicationMessage"
               rows={5}
               minLength={20}
@@ -416,7 +421,7 @@ function SettingsPageContent() {
               onChange={(e) => setApplicationMessage(e.target.value)}
             />
             {applicationMessage.trim().length < 20 && (
-              <p className="text-sm text-text-light mt-1">Please write at least 20 characters.</p>
+              <P className="text-sm text-text-light mt-1">Please write at least 20 characters.</P>
             )}
           </div>
           <Button
@@ -431,20 +436,20 @@ function SettingsPageContent() {
               ? 'Resubmitting…'
               : 'Resubmit for review'}
           </Button>
-          <p className="text-sm text-text-light mt-3">
+          <P className="text-sm text-text-light mt-3">
             Update your skills, contact details, or availability below, then resubmit when
             you&apos;re ready: an admin will review your application again.
-          </p>
+          </P>
         </div>
       )}
 
       {activeTab === 'profile' && user.approvalStatus === 'under_review' && (
         <div className={`${SECTION_CARD} mb-4 max-w-4xl`}>
-          <p className="text-text-light m-0">
+          <P className="text-text-light m-0">
             Your application has been resubmitted and is awaiting review. You can still update your
             profile below, but your application won&apos;t need resubmitting again unless an admin
             asks for more information.
-          </p>
+          </P>
         </div>
       )}
 
@@ -453,12 +458,12 @@ function SettingsPageContent() {
           className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word max-w-4xl`}
           onSubmit={handleSave}
         >
-          <h3 className="mt-0 mb-4">Details</h3>
+          <H3 className="mt-0 mb-4">Details</H3>
           <div className="mb-5">
-            <label htmlFor="name" className="required">
+            <FormLabel htmlFor="name" required>
               Your name
-            </label>
-            <input
+            </FormLabel>
+            <Input
               type="text"
               id="name"
               value={name}
@@ -467,12 +472,12 @@ function SettingsPageContent() {
             />
           </div>
           <div className="mb-5">
-            <label htmlFor="bio">About you</label>
+            <FormLabel htmlFor="bio">About you</FormLabel>
             <aside className="bg-brand-bg border border-brand-border rounded-lg px-4 py-3 mb-2 text-sm text-text-light">
               Shown to other volunteers in the directory if you choose to make your profile visible
               in the Privacy &amp; data tab.
             </aside>
-            <textarea
+            <Textarea
               id="bio"
               rows={4}
               value={bio}
@@ -481,15 +486,15 @@ function SettingsPageContent() {
             />
           </div>
 
-          <h3 className="mt-6 mb-4">Contact information</h3>
+          <H3 className="mt-6 mb-4">Contact information</H3>
           <aside className="bg-brand-bg border border-brand-border rounded-lg px-4 py-3 mb-4 text-sm text-text-light">
             Always visible to you and admins. Shared with the people you work with on a project, and
             with anyone whose contact request you accept.
           </aside>
           <div className="grid grid-cols-2 gap-5 mb-5 max-sm:grid-cols-1">
             <div>
-              <label htmlFor="discord_handle">Discord handle</label>
-              <input
+              <FormLabel htmlFor="discord_handle">Discord handle</FormLabel>
+              <Input
                 type="text"
                 id="discord_handle"
                 value={discordHandle}
@@ -498,8 +503,8 @@ function SettingsPageContent() {
               />
             </div>
             <div>
-              <label htmlFor="signal_number">Signal</label>
-              <input
+              <FormLabel htmlFor="signal_number">Signal</FormLabel>
+              <Input
                 type="text"
                 id="signal_number"
                 value={signalNumber}
@@ -508,8 +513,8 @@ function SettingsPageContent() {
               />
             </div>
             <div>
-              <label htmlFor="whatsapp_number">WhatsApp</label>
-              <input
+              <FormLabel htmlFor="whatsapp_number">WhatsApp</FormLabel>
+              <Input
                 type="text"
                 id="whatsapp_number"
                 value={whatsappNumber}
@@ -529,8 +534,8 @@ function SettingsPageContent() {
             </div>
           </div>
           <div className="mb-5">
-            <label htmlFor="contact_notes">Contact notes</label>
-            <input
+            <FormLabel htmlFor="contact_notes">Contact notes</FormLabel>
+            <Input
               type="text"
               id="contact_notes"
               value={contactNotes}
@@ -539,10 +544,10 @@ function SettingsPageContent() {
             />
           </div>
 
-          <h3 className="mt-6 mb-4">Skills &amp; availability</h3>
+          <H3 className="mt-6 mb-4">Skills &amp; availability</H3>
           <div className="mb-5">
-            <label htmlFor="hours">Hours per week</label>
-            <input
+            <FormLabel htmlFor="hours">Hours per week</FormLabel>
+            <Input
               type="number"
               id="hours"
               min={0}
@@ -555,8 +560,8 @@ function SettingsPageContent() {
             <SkillPicker value={skills} onChange={setSkills} />
           </div>
           <div className="mb-5">
-            <label htmlFor="other_skills">Other skills</label>
-            <input
+            <FormLabel htmlFor="other_skills">Other skills</FormLabel>
+            <Input
               type="text"
               id="other_skills"
               placeholder="Any skills not listed above…"
@@ -577,14 +582,14 @@ function SettingsPageContent() {
           className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word max-w-4xl`}
           onSubmit={handleSave}
         >
-          <h3 className="mt-0 mb-4">Location</h3>
+          <H3 className="mt-0 mb-4">Location</H3>
           {me?.country ? (
             <div className="mb-5">
               <span className="block font-semibold mb-1">Country</span>
-              <p className="m-0">
+              <P className="m-0">
                 {countryLabel(me.country)} ·{' '}
                 {me.chapter ? `${me.chapter.name} chapter` : 'Holding pool'}
-              </p>
+              </P>
               <ChapterMove country={me.country} />
             </div>
           ) : (
@@ -615,8 +620,8 @@ function SettingsPageContent() {
           )}
           {showCityInput && (
             <div className="mb-5">
-              <label htmlFor="location">City / area</label>
-              <input
+              <FormLabel htmlFor="location">City / area</FormLabel>
+              <Input
                 type="text"
                 id="location"
                 value={location}
@@ -624,13 +629,13 @@ function SettingsPageContent() {
               />
             </div>
           )}
-          <p className="text-sm text-text-light mb-4">
+          <P className="text-sm text-text-light mb-4">
             Don&apos;t see your local group?{' '}
             <Link href="/suggest-local-group" className="underline">
               Suggest one
             </Link>
             .
-          </p>
+          </P>
 
           {saveLocationButton}
         </form>
@@ -639,14 +644,14 @@ function SettingsPageContent() {
       {activeTab === 'account' && (
         <div className="max-w-4xl">
           <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
-            <h2>Change email</h2>
-            <p className="text-sm text-text-light mb-4">
+            <H2>Change email</H2>
+            <P className="text-sm text-text-light mb-4">
               Current email: <strong>{user.email}</strong>
-            </p>
+            </P>
             <form method="post" onSubmit={handleChangeEmail}>
               <div className="mb-5">
-                <label htmlFor="newEmail">New email address</label>
-                <input
+                <FormLabel htmlFor="newEmail">New email address</FormLabel>
+                <Input
                   type="email"
                   id="newEmail"
                   value={newEmail}
@@ -655,8 +660,8 @@ function SettingsPageContent() {
                 />
               </div>
               <div className="mb-5">
-                <label htmlFor="email_password">Your password</label>
-                <input
+                <FormLabel htmlFor="email_password">Your password</FormLabel>
+                <Input
                   type="password"
                   id="email_password"
                   value={emailPassword}
@@ -671,11 +676,11 @@ function SettingsPageContent() {
           </div>
 
           <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
-            <h2>Change password</h2>
+            <H2>Change password</H2>
             <form method="post" onSubmit={handleChangePassword}>
               <div className="mb-5">
-                <label htmlFor="currentPassword">Current password</label>
-                <input
+                <FormLabel htmlFor="currentPassword">Current password</FormLabel>
+                <Input
                   type="password"
                   id="currentPassword"
                   value={currentPassword}
@@ -684,8 +689,8 @@ function SettingsPageContent() {
                 />
               </div>
               <div className="mb-5">
-                <label htmlFor="newPassword">New password</label>
-                <input
+                <FormLabel htmlFor="newPassword">New password</FormLabel>
+                <Input
                   type="password"
                   id="newPassword"
                   value={newPassword}
@@ -694,8 +699,8 @@ function SettingsPageContent() {
                 />
               </div>
               <div className="mb-5">
-                <label htmlFor="confirm_password">Confirm new password</label>
-                <input
+                <FormLabel htmlFor="confirm_password">Confirm new password</FormLabel>
+                <Input
                   type="password"
                   id="confirm_password"
                   value={confirmPassword}
@@ -710,11 +715,11 @@ function SettingsPageContent() {
           </div>
 
           <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
-            <h2>Sessions</h2>
-            <p className="text-text-light mb-4">
+            <H2>Sessions</H2>
+            <P className="text-text-light mb-4">
               Sign out everywhere except this device — use this if you signed in somewhere you no
               longer trust.
-            </p>
+            </P>
             <Button
               variant="outline"
               disabled={logoutOtherSessionsMutation.isPending}
@@ -727,10 +732,10 @@ function SettingsPageContent() {
           </div>
 
           <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
-            <h2>Danger zone</h2>
-            <p className="text-text-light mb-4">
+            <H2>Danger zone</H2>
+            <P className="text-text-light mb-4">
               Permanently delete your account and all associated data. This cannot be undone.
-            </p>
+            </P>
             <Button variant="danger" onClick={() => setShowDeleteModal(true)}>
               Delete my account
             </Button>
@@ -771,10 +776,10 @@ function SettingsPageContent() {
                 </Checkbox>
               ))}
             </div>
-            <p className="text-sm text-text-light mt-1 ml-7">
+            <P className="text-sm text-text-light mt-1 ml-7">
               Everything still arrives in your Inbox. Messages from other volunteers are always
               emailed as well.
-            </p>
+            </P>
           </fieldset>
           <fieldset className="mb-5 border-0 p-0">
             <legend className="font-medium mb-2">Daily summary</legend>
@@ -790,11 +795,11 @@ function SettingsPageContent() {
                 </Radio>
               ))}
             </div>
-            <p className="text-sm text-text-light mt-1 ml-7">
+            <P className="text-sm text-text-light mt-1 ml-7">
               One message a day, only when something needs you: deadlines coming up, work past its
               plan, and news on projects you lead. Turning it off never hides the Overdue flag or
               what is waiting on your Home page.
-            </p>
+            </P>
           </fieldset>
           {saveButton}
         </form>
@@ -806,7 +811,7 @@ function SettingsPageContent() {
             className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}
             onSubmit={handleSave}
           >
-            <h2 className="mt-0">Privacy settings</h2>
+            <H2 className="mt-0">Privacy settings</H2>
             <div className="mb-5 flex flex-col gap-3">
               <Checkbox
                 id="consent_make_profile_visible_in_directory"
@@ -815,16 +820,16 @@ function SettingsPageContent() {
               >
                 Show me in the volunteer directory
               </Checkbox>
-              <p className="text-sm text-text-light m-0 ml-7">
+              <P className="text-sm text-text-light m-0 ml-7">
                 Other volunteers can find you and ask to see your contact details; you choose
                 whether to accept. People on your projects can always reach you.
-              </p>
+              </P>
             </div>
 
-            <h3 className="mt-6 mb-2">Analytics</h3>
-            <p className="text-sm text-text-light mb-3">
+            <H3 className="mt-6 mb-2">Analytics</H3>
+            <P className="text-sm text-text-light mb-3">
               Current status: <strong>{me?.cookieConsentAnalytics === false ? 'off' : 'on'}</strong>
-            </p>
+            </P>
             <div className="mb-5">
               <Checkbox
                 id="consent_analytics"
@@ -833,20 +838,20 @@ function SettingsPageContent() {
               >
                 Allow Google Analytics to help us improve the platform
               </Checkbox>
-              <p className="text-sm text-text-light mt-1 ml-7">
+              <P className="text-sm text-text-light mt-1 ml-7">
                 Google, our analytics provider, processes this data on our behalf. We never sell it
                 or share it for any other purpose.
-              </p>
+              </P>
             </div>
             {saveButton}
           </form>
 
           <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
-            <h2 className="mt-0">Your data</h2>
-            <p className="text-text-light mb-4">
+            <H2 className="mt-0">Your data</H2>
+            <P className="text-text-light mb-4">
               Download all your data in JSON format. This includes your profile, skills, project
               interests, and messages.
-            </p>
+            </P>
             <Button
               variant="secondary"
               onClick={() => exportMutation.mutate({})}
@@ -857,10 +862,10 @@ function SettingsPageContent() {
           </div>
 
           <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
-            <h2 className="mt-0">Privacy policy</h2>
-            <p className="text-text-light mb-4">
+            <H2 className="mt-0">Privacy policy</H2>
+            <P className="text-text-light mb-4">
               Read our full data practices, GDPR rights, and third-party processor information.
-            </p>
+            </P>
             <Link href="/privacy" className="underline font-medium">
               Read privacy policy
             </Link>
@@ -873,7 +878,7 @@ function SettingsPageContent() {
           {loadingBugReports ? (
             <div className="text-center py-10 text-text-light">Loading…</div>
           ) : myBugReports.length === 0 ? (
-            <p>You haven&apos;t reported anything yet.</p>
+            <P>You haven&apos;t reported anything yet.</P>
           ) : (
             myBugReports.map((r) => (
               <Link
@@ -883,7 +888,7 @@ function SettingsPageContent() {
               >
                 <div className="flex justify-between items-start mb-2">
                   <div>
-                    <h3 className="mt-0 mx-0 mb-1">{r.title}</h3>
+                    <H3 className="mt-0 mx-0 mb-1">{r.title}</H3>
                     <div className="text-text-light flex gap-2 flex-wrap text-[0.8rem]">
                       {r.category && <span>{r.category}</span>}
                       {r.severity && <span>· {r.severity}</span>}
@@ -895,9 +900,9 @@ function SettingsPageContent() {
                     {bugStatusLabel(r.status)}
                   </Badge>
                 </div>
-                <p className="text-text-light mt-0 mx-0 whitespace-pre-wrap">{r.description}</p>
+                <P className="text-text-light mt-0 mx-0 whitespace-pre-wrap">{r.description}</P>
                 {r.resolutionNotes && (
-                  <p className="mt-3 mx-0 mb-0 text-sm italic">Resolution: {r.resolutionNotes}</p>
+                  <P className="mt-3 mx-0 mb-0 text-sm italic">Resolution: {r.resolutionNotes}</P>
                 )}
               </Link>
             ))
@@ -915,21 +920,21 @@ function SettingsPageContent() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 className="m-0 text-xl">Delete your account</h2>
+              <H2 className="m-0 text-xl">Delete your account</H2>
             </div>
             <div className="p-6">
               {user.hasPassword && (
-                <p className="text-text-light mb-4">
+                <P className="text-text-light mb-4">
                   This action is permanent and cannot be undone. Please enter your password twice to
                   confirm.
-                </p>
+                </P>
               )}
               <form method="post" onSubmit={handleDeleteAccount}>
                 {user.hasPassword ? (
                   <>
                     <div className="mb-5">
-                      <label htmlFor="delete_password">Enter your password</label>
-                      <input
+                      <FormLabel htmlFor="delete_password">Enter your password</FormLabel>
+                      <Input
                         type="password"
                         id="delete_password"
                         value={deletePassword}
@@ -938,8 +943,8 @@ function SettingsPageContent() {
                       />
                     </div>
                     <div className="mb-5">
-                      <label htmlFor="delete_confirm_password">Confirm your password</label>
-                      <input
+                      <FormLabel htmlFor="delete_confirm_password">Confirm your password</FormLabel>
+                      <Input
                         type="password"
                         id="delete_confirm_password"
                         value={deleteConfirmPassword}
@@ -950,14 +955,14 @@ function SettingsPageContent() {
                   </>
                 ) : (
                   <>
-                    <p className="text-text-light mb-4">
+                    <P className="text-text-light mb-4">
                       This action is permanent and cannot be undone.
-                    </p>
-                    <p className="text-text-light mb-4">
+                    </P>
+                    <P className="text-text-light mb-4">
                       Type <strong>DELETE</strong> to confirm.
-                    </p>
+                    </P>
                     <div className="mb-5">
-                      <input
+                      <Input
                         type="text"
                         value={deletePassword}
                         onChange={(e) => setDeletePassword(e.target.value)}

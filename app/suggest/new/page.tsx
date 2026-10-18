@@ -2,6 +2,8 @@
 
 import { useRequireAuth } from '@/lib/hooks/auth'
 import ProjectEditor from '@/components/ProjectEditor'
+import { H1 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 export default function SuggestNewProjectPage() {
   const { user, loading } = useRequireAuth()
@@ -10,11 +12,11 @@ export default function SuggestNewProjectPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1 role="heading">Propose a project</h1>
-      <p>
+      <H1 role="heading">Propose a project</H1>
+      <P>
         Have an idea for something PauseAI should do? Propose it here! Our team will review it and,
         if approved, it&apos;ll be visible to all volunteers.
-      </p>
+      </P>
 
       <div className="max-w-4xl">
         <ProjectEditor variant="volunteer" />

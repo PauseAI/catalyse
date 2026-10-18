@@ -3,7 +3,12 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import FormLabel from '@/components/FormLabel'
+import { H2 } from '@/components/Heading'
 import Modal from '@/components/ui/Modal'
+import { P } from '@/components/Text'
+import Input from '@/components/ui/Input'
+import Textarea from '@/components/ui/Textarea'
 import { DEFAULT_SUBMISSION_PROMPT, type SubmissionAsk } from '@/components/SubmissionAskFields'
 import {
   QUICK_TASK_SUBMITTED_MESSAGE,
@@ -113,10 +118,10 @@ function SubmitWorkFields({
   return (
     <form onSubmit={handleSubmit} noValidate>
       <div className="mb-5">
-        <label htmlFor={`${idPrefix}-note`}>
+        <FormLabel htmlFor={`${idPrefix}-note`}>
           {ask.submissionPrompt ?? DEFAULT_SUBMISSION_PROMPT}
-        </label>
-        <textarea
+        </FormLabel>
+        <Textarea
           id={`${idPrefix}-note`}
           rows={4}
           value={note}
@@ -128,8 +133,8 @@ function SubmitWorkFields({
       </div>
       {asksLink && (
         <div className="mb-5">
-          <label htmlFor={`${idPrefix}-url`}>Link to your work (optional)</label>
-          <input
+          <FormLabel htmlFor={`${idPrefix}-url`}>Link to your work (optional)</FormLabel>
+          <Input
             id={`${idPrefix}-url`}
             type="url"
             placeholder="https://"
@@ -142,15 +147,15 @@ function SubmitWorkFields({
         </div>
       )}
       {problem && (
-        <p role="alert" className="text-sm text-error mt-0 mb-4">
+        <P role="alert" className="text-sm text-error mt-0 mb-4">
           {problem}
-        </p>
+        </P>
       )}
       <div className="flex flex-wrap items-center justify-end gap-2">
         {empty && !problem && (
-          <p id={`${idPrefix}-why`} className="text-sm text-text-light m-0 mr-auto">
+          <P id={`${idPrefix}-why`} className="text-sm text-text-light m-0 mr-auto">
             {reason}
-          </p>
+          </P>
         )}
         {onCancel && (
           <Button type="button" variant="secondary" onClick={onCancel}>
@@ -188,10 +193,10 @@ export function SubmitWorkForm({
       aria-labelledby={`submit-work-${target.taskId}-title`}
       className="mt-5 pt-5 border-t border-brand-border max-w-xl"
     >
-      <h2 id={`submit-work-${target.taskId}-title`} className="text-base mb-1">
+      <H2 id={`submit-work-${target.taskId}-title`} className="text-base mb-1">
         Submit your work
-      </h2>
-      <p className="text-sm text-text-light mt-0 mb-4">{reviewText(reviewer)}</p>
+      </H2>
+      <P className="text-sm text-text-light mt-0 mb-4">{reviewText(reviewer)}</P>
       <SubmitWorkFields
         target={target}
         ask={ask}
@@ -232,7 +237,7 @@ export default function SubmitWorkButton({
         Submit work
       </Button>
       <Modal id={id} title="Submit your work" isOpen={open} onClose={close}>
-        <p className="text-sm text-text-light mt-0 mb-4">{reviewText(reviewer)}</p>
+        <P className="text-sm text-text-light mt-0 mb-4">{reviewText(reviewer)}</P>
         <SubmitWorkFields
           target={target}
           ask={ask}

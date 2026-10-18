@@ -14,6 +14,11 @@ import { COUNTRY_OPTIONS, countryLabel } from '@/lib/filter-options'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
 import { LocalGroupSuggestionStatus } from '@/generated/prisma/enums'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
+import Textarea from '@/components/ui/Textarea'
 
 type StatusFilter = 'all' | 'active' | 'pending' | 'on_hold' | 'declined'
 type ReviewAction = 'accept' | 'merge' | 'on_hold' | 'decline'
@@ -336,14 +341,14 @@ export default function AdminLocalGroupsPage() {
     <>
       <main className="container py-5 pb-15">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="m-0">Local groups</h1>
+          <H1 className="m-0">Local groups</H1>
           <Button size="sm" onClick={openAdd}>
             Add local group
           </Button>
         </div>
-        <p className="text-text-light mb-6">
+        <P className="text-text-light mb-6">
           Manage active local groups and review volunteer suggestions.
-        </p>
+        </P>
 
         <div className="flex flex-wrap gap-4 mb-6">
           <FilterDropdown
@@ -367,7 +372,7 @@ export default function AdminLocalGroupsPage() {
         {loadingItems ? (
           <div className="text-center py-10 text-text-light">Loading…</div>
         ) : displayItems.length === 0 ? (
-          <p className="text-text-light">No local groups found.</p>
+          <P className="text-text-light">No local groups found.</P>
         ) : (
           <div className="space-y-4">
             {displayItems.map((item) => {
@@ -387,7 +392,7 @@ export default function AdminLocalGroupsPage() {
                       </Badge>
                     </div>
                     {item.kind === 'suggestion' && (
-                      <p className="text-sm text-text-light m-0 mt-1">
+                      <P className="text-sm text-text-light m-0 mt-1">
                         Suggested by{' '}
                         <Link
                           href={`/admin/volunteers/${item.suggestedBy.id}`}
@@ -397,10 +402,10 @@ export default function AdminLocalGroupsPage() {
                         </Link>
                         {' · '}
                         {formatDate(item.createdAt)}
-                      </p>
+                      </P>
                     )}
                     {item.kind === 'suggestion' && item.adminNotes && (
-                      <p className="text-sm text-text-light mt-2 mb-0 italic">{item.adminNotes}</p>
+                      <P className="text-sm text-text-light mt-2 mb-0 italic">{item.adminNotes}</P>
                     )}
                   </div>
                   <div className="shrink-0 flex items-center gap-2">
@@ -438,7 +443,7 @@ export default function AdminLocalGroupsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Add local group</h2>
+              <H2 role="heading">Add local group</H2>
               <Button variant="ghost" icon onClick={() => setShowAdd(false)} aria-label="Close">
                 ×
               </Button>
@@ -457,8 +462,8 @@ export default function AdminLocalGroupsPage() {
                   />
                 </div>
                 <div className="mb-5">
-                  <label htmlFor="add-name">Group name</label>
-                  <input
+                  <FormLabel htmlFor="add-name">Group name</FormLabel>
+                  <Input
                     id="add-name"
                     type="text"
                     value={addName}
@@ -490,7 +495,7 @@ export default function AdminLocalGroupsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Edit local group</h2>
+              <H2 role="heading">Edit local group</H2>
               <Button variant="ghost" icon onClick={() => setEditGroup(null)} aria-label="Close">
                 ×
               </Button>
@@ -509,8 +514,8 @@ export default function AdminLocalGroupsPage() {
                   />
                 </div>
                 <div className="mb-5">
-                  <label htmlFor="edit-name">Group name</label>
-                  <input
+                  <FormLabel htmlFor="edit-name">Group name</FormLabel>
+                  <Input
                     id="edit-name"
                     type="text"
                     value={editName}
@@ -545,7 +550,7 @@ export default function AdminLocalGroupsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Review suggestion</h2>
+              <H2 role="heading">Review suggestion</H2>
               <Button
                 variant="ghost"
                 icon
@@ -557,16 +562,16 @@ export default function AdminLocalGroupsPage() {
             </div>
 
             <div className="p-6">
-              <p className="text-text-light mb-1 text-sm">
+              <P className="text-text-light mb-1 text-sm">
                 Suggested by {reviewSuggestion.suggestedBy.name}
-              </p>
-              <p className="font-semibold mb-5">
+              </P>
+              <P className="font-semibold mb-5">
                 {countryLabel(reviewSuggestion.country)}, {reviewSuggestion.name}
-              </p>
+              </P>
 
               <form onSubmit={(e) => submitReview(e, reviewSuggestion)}>
                 <div className="mb-5">
-                  <label>Action</label>
+                  <FormLabel>Action</FormLabel>
                   <div className="flex flex-col gap-3 mt-2">
                     {(
                       [
@@ -594,21 +599,21 @@ export default function AdminLocalGroupsPage() {
                 {reviewAction === 'accept' && (
                   <>
                     <div className="mb-4">
-                      <label htmlFor="review-name">Group name</label>
-                      <input
+                      <FormLabel htmlFor="review-name">Group name</FormLabel>
+                      <Input
                         id="review-name"
                         type="text"
                         value={reviewEditName}
                         onChange={(e) => setReviewEditName(e.target.value)}
                         placeholder="Group name"
                       />
-                      <p className="text-sm text-text-light mt-1">
+                      <P className="text-sm text-text-light mt-1">
                         Adjust capitalisation or spelling if needed.
-                      </p>
+                      </P>
                     </div>
                     <div className="mb-5">
-                      <label htmlFor="review-country">Country</label>
-                      <input
+                      <FormLabel htmlFor="review-country">Country</FormLabel>
+                      <Input
                         id="review-country"
                         type="text"
                         value={reviewEditCountry}
@@ -635,11 +640,11 @@ export default function AdminLocalGroupsPage() {
 
                 {(reviewAction === 'on_hold' || reviewAction === 'decline') && (
                   <div className="mb-5">
-                    <label htmlFor="admin-notes">
+                    <FormLabel htmlFor="admin-notes">
                       Note for volunteer{' '}
                       <span className="text-text-light font-normal">(optional)</span>
-                    </label>
-                    <textarea
+                    </FormLabel>
+                    <Textarea
                       id="admin-notes"
                       rows={3}
                       value={adminNotes}
@@ -653,9 +658,9 @@ export default function AdminLocalGroupsPage() {
                       }
                       className="w-full"
                     />
-                    <p className="text-sm text-text-light mt-1">
+                    <P className="text-sm text-text-light mt-1">
                       This note will be shared with the volunteer.
-                    </p>
+                    </P>
                   </div>
                 )}
 
@@ -696,27 +701,27 @@ export default function AdminLocalGroupsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-md w-full">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Confirm delete</h2>
+              <H2 role="heading">Confirm delete</H2>
               <Button variant="ghost" icon onClick={() => setDeleteTarget(null)} aria-label="Close">
                 ×
               </Button>
             </div>
             <div className="p-6">
-              <p>
+              <P>
                 Delete{' '}
                 <strong>
                   {countryLabel(deleteTarget.country)}, {deleteTarget.name}
                 </strong>
                 ? This cannot be undone.
-              </p>
+              </P>
               {deleteTarget.kind === 'group' &&
                 (loadingDeleteProjects ? (
-                  <p className="text-sm text-text-light">Checking affected projects…</p>
+                  <P className="text-sm text-text-light">Checking affected projects…</P>
                 ) : deleteTargetProjects.length > 0 ? (
                   <div className="mt-3 mb-1">
-                    <p className="text-sm font-medium mb-2">
+                    <P className="text-sm font-medium mb-2">
                       The following projects will have their local group removed:
-                    </p>
+                    </P>
                     <ul className="text-sm space-y-1 pl-4 list-disc">
                       {deleteTargetProjects.map((p) => (
                         <li key={p.id}>

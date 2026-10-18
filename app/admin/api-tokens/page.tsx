@@ -12,6 +12,10 @@ import { useRequireAdmin } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
 
 const ALL_SCOPES = Object.keys(API_TOKEN_SCOPES) as ApiTokenScope[]
 
@@ -69,21 +73,21 @@ export default function AdminApiTokensPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>API tokens</h1>
-      <p className="text-text-light">
+      <H1>API tokens</H1>
+      <P className="text-text-light">
         A token lets a program, such as an AI agent connected to the MCP server at{' '}
         <code>/api/mcp</code>, act as you within the permissions you give it. Anyone holding it can
         do the same, so keep it secret and revoke it if it leaks.
-      </p>
+      </P>
 
       {created && (
         <section className={`${SECTION_CARD} mb-6`} aria-label="New token">
-          <h2 className="mt-0">{created.name}</h2>
-          <p>Copy this token now. It is not shown again.</p>
+          <H2 className="mt-0">{created.name}</H2>
+          <P>Copy this token now. It is not shown again.</P>
           <pre className="bg-black/5 dark:bg-white/5 rounded-lg p-3 whitespace-pre-wrap break-all">
             <code>{created.token}</code>
           </pre>
-          <p className="text-text-light text-sm">To connect Claude Code:</p>
+          <P className="text-text-light text-sm">To connect Claude Code:</P>
           <pre className="bg-black/5 dark:bg-white/5 rounded-lg p-3 whitespace-pre-wrap break-all text-sm mb-4">
             <code>{mcpCommand}</code>
           </pre>
@@ -105,7 +109,7 @@ export default function AdminApiTokensPage() {
       )}
 
       <section className={`${SECTION_CARD} mb-6`}>
-        <h2 className="mt-0">New token</h2>
+        <H2 className="mt-0">New token</H2>
         <form
           className="flex flex-col gap-4"
           onSubmit={(e) => {
@@ -118,8 +122,8 @@ export default function AdminApiTokensPage() {
           }}
         >
           <div>
-            <label htmlFor="token-name">Name</label>
-            <input
+            <FormLabel htmlFor="token-name">Name</FormLabel>
+            <Input
               type="text"
               id="token-name"
               value={name}
@@ -163,11 +167,11 @@ export default function AdminApiTokensPage() {
       </section>
 
       <section className={SECTION_CARD}>
-        <h2 className="mt-0">Your tokens</h2>
+        <H2 className="mt-0">Your tokens</H2>
         {isLoading ? (
-          <p className="text-text-light">Loading…</p>
+          <P className="text-text-light">Loading…</P>
         ) : tokens.length === 0 ? (
-          <p className="text-text-light">You have no tokens.</p>
+          <P className="text-text-light">You have no tokens.</P>
         ) : (
           <ul className="list-none p-0 m-0 flex flex-col gap-4">
             {tokens.map((t) => (
@@ -178,14 +182,14 @@ export default function AdminApiTokensPage() {
               >
                 <div className="min-w-0 wrap-break-word">
                   <strong>{t.name}</strong>
-                  <p className="text-sm m-0">
+                  <P className="text-sm m-0">
                     {t.scopes.map((s) => API_TOKEN_SCOPES[s as ApiTokenScope] ?? s).join(' · ')}
-                  </p>
-                  <p className="text-text-light text-sm m-0">
+                  </P>
+                  <P className="text-text-light text-sm m-0">
                     Created {formatDate(t.createdAt)} ·{' '}
                     {t.lastUsedAt ? `Last used ${formatDate(t.lastUsedAt)}` : 'Never used'} ·{' '}
                     {t.expiresAt ? `Expires ${formatDate(t.expiresAt)}` : 'Never expires'}
-                  </p>
+                  </P>
                 </div>
                 <Button
                   size="sm"

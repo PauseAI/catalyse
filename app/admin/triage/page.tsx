@@ -22,6 +22,8 @@ import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
 import { InterestStatus, ProjectStatus } from '@/generated/prisma/enums'
+import { H1 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 function TriagePageContent() {
   const { user, loading } = useRequireStaff()
@@ -116,7 +118,7 @@ function TriagePageContent() {
   return (
     <>
       <main className="container py-5 pb-15">
-        <h1>Project triage</h1>
+        <H1>Project triage</H1>
         {user.isAdmin && (
           <div className="mb-4">
             <ChapterFilter value={chapterParam} onChange={setChapterParam} />
@@ -211,13 +213,13 @@ function TriagePageContent() {
             {loadingInterests ? (
               <div className="text-center py-10 text-text-light">Loading…</div>
             ) : interests.length === 0 ? (
-              <p>
+              <P>
                 {interestStatusFilter === 'pending' ? (
                   'No requests right now.'
                 ) : (
                   <>No {interestStatusFilter} interests found.</>
                 )}
-              </p>
+              </P>
             ) : (
               <div className={CARD_GRID_CLASSES}>
                 {interests.map((i) => (
@@ -227,7 +229,7 @@ function TriagePageContent() {
                   >
                     <div className="flex justify-between items-start gap-4 mb-2">
                       <div>
-                        <p className="font-semibold m-0">
+                        <P className="font-semibold m-0">
                           <Link
                             href={`/admin/volunteers/${i.volunteerId}`}
                             className="text-brand-text no-underline hover:text-primary"
@@ -244,13 +246,13 @@ function TriagePageContent() {
                           >
                             {i.projectTitle}
                           </Link>
-                        </p>
-                        <p className="text-xs text-text-light m-0 mt-1">
+                        </P>
+                        <P className="text-xs text-text-light m-0 mt-1">
                           {i.createdAt ? formatDate(i.createdAt) : ''}
                           {' · '}Owner: {i.ownerName ?? 'None'}
                           {' · '}Project:{' '}
                           <ProjectStatusBadge status={i.projectStatus} viewerIsAdmin />
-                        </p>
+                        </P>
                       </div>
                       {/* A request carries no badge: its Accept and Decline say it waits on you. */}
                       {i.status !== InterestStatus.pending && (
@@ -261,9 +263,9 @@ function TriagePageContent() {
                     </div>
 
                     {i.message && (
-                      <p className="text-sm text-text-light italic my-2">
+                      <P className="text-sm text-text-light italic my-2">
                         &ldquo;{i.message}&rdquo;
-                      </p>
+                      </P>
                     )}
 
                     {i.volunteerSkills.length > 0 && (
@@ -329,7 +331,7 @@ function TriagePageContent() {
             ) ? (
               <div className="text-center py-10 text-text-light">Loading…</div>
             ) : visible.length === 0 ? (
-              <p>
+              <P>
                 {tab === 'pending_review'
                   ? 'No projects awaiting review.'
                   : tab === 'needs_discussion'
@@ -337,7 +339,7 @@ function TriagePageContent() {
                     : tab === 'drafts'
                       ? 'No volunteer drafts in progress.'
                       : 'No in-progress projects with all tasks completed.'}
-              </p>
+              </P>
             ) : (
               <div className={CARD_GRID_CLASSES}>
                 {visible.map((p) => (

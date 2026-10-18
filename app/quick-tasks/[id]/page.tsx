@@ -7,6 +7,8 @@ import { useRequireApproved } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import Button from '@/components/Button'
+import { H1, H2, H3 } from '@/components/Heading'
+import { P } from '@/components/Text'
 import { DueChip, WorkStatusBadge } from '@/components/StatusBadges'
 import CommentThread from '@/components/CommentThread'
 import Linkify from '@/components/Linkify'
@@ -67,7 +69,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
   if (!task) {
     return (
       <main className="container py-5">
-        <p className="text-text-light">Task not found.</p>
+        <P className="text-text-light">Task not found.</P>
         <Button href="/quick-tasks" variant="secondary" size="sm">
           Back to quick tasks
         </Button>
@@ -89,7 +91,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
 
       <div className={`${SECTION_CARD} overflow-hidden wrap-break-word`}>
         <div className="flex justify-between items-start mb-3 gap-4">
-          <h1 className="m-0">{task.title}</h1>
+          <H1 className="m-0">{task.title}</H1>
           <WorkStatusBadge
             status={task.status}
             quick
@@ -122,21 +124,21 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
         </div>
 
         {task.description && (
-          <p className="whitespace-pre-wrap mb-6">
+          <P className="whitespace-pre-wrap mb-6">
             <Linkify text={task.description} />
-          </p>
+          </P>
         )}
 
         {task.status === QuickTaskStatus.completed && (
           <div className="bg-brand-bg rounded-lg p-4 mb-4 border border-brand-border">
-            <h3 className="m-0 mb-2 text-base">Review</h3>
+            <H3 className="m-0 mb-2 text-base">Review</H3>
             {task.reviewRating && (
-              <p className="mb-1">
+              <P className="mb-1">
                 <span className="font-medium">Rating: </span>
                 {REVIEW_RATING_LABELS[task.reviewRating] ?? task.reviewRating}
-              </p>
+              </P>
             )}
-            {task.reviewNotes && <p className="mb-0 text-text-light">{task.reviewNotes}</p>}
+            {task.reviewNotes && <P className="mb-0 text-text-light">{task.reviewNotes}</P>}
           </div>
         )}
 
@@ -169,7 +171,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
         )}
 
         {mine && task.status === QuickTaskStatus.under_review && (
-          <p className="text-text-light text-sm mt-4 mb-0">Your submission is awaiting review.</p>
+          <P className="text-text-light text-sm mt-4 mb-0">Your submission is awaiting review.</P>
         )}
 
         {task.viewerCanAdmin && task.status === QuickTaskStatus.under_review && (
@@ -187,7 +189,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
       )}
 
       <div className={SECTION_CARD}>
-        <h2 className="text-lg mb-4">Discussion</h2>
+        <H2 className="text-lg mb-4">Discussion</H2>
         <CommentThread workItemId={task.id} />
       </div>
     </main>

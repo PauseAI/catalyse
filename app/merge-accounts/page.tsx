@@ -6,6 +6,9 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
 import { useAuth } from '@/lib/auth-context'
 import Button from '@/components/Button'
+import { H1 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
 
 const CARD = 'bg-surface rounded-xl shadow p-8 text-center'
 
@@ -33,10 +36,10 @@ function MergeAccountsContent() {
     const stillSignedIn = !!user && !signedOut
     return (
       <div className={CARD}>
-        <h1>Accounts merged</h1>
-        <p className="text-text-light mt-4 mb-6">
+        <H1>Accounts merged</H1>
+        <P className="text-text-light mt-4 mb-6">
           Everything is in one account now. Sign in to it as {email ?? 'before'}.
-        </p>
+        </P>
         {stillSignedIn ? (
           <Button href="/dashboard">Go to your dashboard</Button>
         ) : (
@@ -49,13 +52,13 @@ function MergeAccountsContent() {
   if (!token || preview.isError) {
     return (
       <div className={CARD}>
-        <h1>This link doesn&#39;t work</h1>
-        <p className="text-text-light mt-4">
+        <H1>This link doesn&#39;t work</H1>
+        <P className="text-text-light mt-4">
           {preview.error instanceof Error ? preview.error.message : 'The link is missing its code'}.
-        </p>
-        <p className="text-text-light mt-2 mb-6">
+        </P>
+        <P className="text-text-light mt-2 mb-6">
           Sign in and ask for a new one from the prompt to merge your accounts.
-        </p>
+        </P>
         <Button href="/login">Sign in</Button>
       </div>
     )
@@ -64,7 +67,7 @@ function MergeAccountsContent() {
   if (!preview.data) {
     return (
       <div className={CARD}>
-        <p className="text-text-light">Loading…</p>
+        <P className="text-text-light">Loading…</P>
       </div>
     )
   }
@@ -72,11 +75,11 @@ function MergeAccountsContent() {
   const { keptName, keptEmail, mergedName, mergedEmail, chooseAddress } = preview.data
   return (
     <div className={CARD}>
-      <h1>Merge your accounts</h1>
-      <p className="text-text-light mt-4">
+      <H1>Merge your accounts</H1>
+      <P className="text-text-light mt-4">
         {mergedName} ({mergedEmail}) and {keptName} ({keptEmail}) will become one account, with the
         projects, tasks, teams and messages of both.
-      </p>
+      </P>
       {chooseAddress && (
         <fieldset className="mt-6 text-left">
           <legend className="font-semibold mb-2">Sign in from then on with</legend>
@@ -86,7 +89,7 @@ function MergeAccountsContent() {
               ['merged', mergedEmail],
             ] as const
           ).map(([value, address]) => (
-            <label key={value} className="flex items-center gap-2 py-1">
+            <FormLabel key={value} className="flex items-center gap-2 py-1">
               <input
                 type="radio"
                 name="sign-in-with"
@@ -95,17 +98,17 @@ function MergeAccountsContent() {
                 onChange={() => setSignInWith(value)}
               />
               {address}
-            </label>
+            </FormLabel>
           ))}
-          <p className="text-text-light text-sm mt-2">
+          <P className="text-text-light text-sm mt-2">
             With its password, if it has one. The other address stops working.
-          </p>
+          </P>
         </fieldset>
       )}
       {confirm.error instanceof Error && (
-        <p className="text-error mt-4" role="alert">
+        <P className="text-error mt-4" role="alert">
           {confirm.error.message}
-        </p>
+        </P>
       )}
       <div className="mt-6">
         <Button onClick={() => confirm.mutate({ token, signInWith })} disabled={confirm.isPending}>

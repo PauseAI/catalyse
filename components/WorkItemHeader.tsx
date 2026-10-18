@@ -1,4 +1,5 @@
 import React from 'react'
+import { H1 } from '@/components/Heading'
 
 /**
  * The top of a work item's page. With tabs (a project): the title, then a line with where it
@@ -33,9 +34,9 @@ export default function WorkItemHeader({
   children?: React.ReactNode
 }) {
   const heading = (
-    <h1 id={titleId} className="mb-0">
+    <H1 id={titleId} className="mb-0">
       {title}
-    </h1>
+    </H1>
   )
   const toolbar = (
     <div

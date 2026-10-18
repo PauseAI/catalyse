@@ -10,6 +10,8 @@ import { useToast } from '@/lib/toast'
 import { CRON_JOB_NAMES, CRON_JOB_INFO } from '@/lib/cron-job-names'
 import Button from '@/components/Button'
 import Modal from '@/components/ui/Modal'
+import { H1 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 type CronRun = {
   id: number
@@ -58,7 +60,7 @@ export default function AdminCronRunsPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Cron job runs</h1>
+      <H1>Cron job runs</H1>
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {CRON_JOB_NAMES.map((jobName) => {
@@ -74,7 +76,7 @@ export default function AdminCronRunsPage() {
                   {info.idempotent ? 'idempotent' : 'not idempotent'}
                 </Badge>
               </div>
-              <p className="text-sm text-text-light m-0 flex-1">{info.description}</p>
+              <P className="text-sm text-text-light m-0 flex-1">{info.description}</P>
               <Button
                 type="button"
                 variant="outline"
@@ -94,7 +96,7 @@ export default function AdminCronRunsPage() {
       {loadingData ? (
         <div className="text-center py-10 text-text-light">Loading…</div>
       ) : runs.length === 0 ? (
-        <p>No cron job runs recorded yet.</p>
+        <P>No cron job runs recorded yet.</P>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
@@ -150,14 +152,14 @@ export default function AdminCronRunsPage() {
       >
         {selectedRun && (
           <div>
-            <p className="text-sm text-text-light mb-1">Triggered by: {selectedRun.triggeredBy}</p>
-            <p className="text-sm text-text-light mb-1">
+            <P className="text-sm text-text-light mb-1">Triggered by: {selectedRun.triggeredBy}</P>
+            <P className="text-sm text-text-light mb-1">
               Started: {formatDateTime(selectedRun.startedAt)}
-            </p>
-            <p className="text-sm text-text-light mb-3">
+            </P>
+            <P className="text-sm text-text-light mb-3">
               Finished:{' '}
               {selectedRun.finishedAt ? formatDateTime(selectedRun.finishedAt) : 'still running'}
-            </p>
+            </P>
             <pre className="whitespace-pre-wrap wrap-break-word text-xs bg-black/5 dark:bg-white/5 rounded-lg p-3 max-h-96 overflow-y-auto">
               {selectedRun.summary ?? 'No summary recorded.'}
             </pre>

@@ -7,6 +7,11 @@ import Button from '@/components/Button'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import { orpc } from '@/lib/orpc'
 import { useFocusTrap } from '@/lib/hooks/useFocusTrap'
+import { H2, H3 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
+import Textarea from '@/components/ui/Textarea'
 
 interface BugReportDialogProps {
   isOpen: boolean
@@ -100,7 +105,7 @@ export default function BugReportDialog({ isOpen, onClose }: BugReportDialogProp
         className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto"
       >
         <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-          <h2 className="mb-0">Report an issue</h2>
+          <H2 className="mb-0">Report an issue</H2>
           <Button variant="ghost" icon onClick={handleClose} aria-label="Close">
             ×
           </Button>
@@ -108,14 +113,14 @@ export default function BugReportDialog({ isOpen, onClose }: BugReportDialogProp
         <div className="p-6">
           {success ? (
             <div className="text-center py-5">
-              <h3 role="heading">Thank you!</h3>
-              <p>Your feedback has been submitted.</p>
+              <H3 role="heading">Thank you!</H3>
+              <P>Your feedback has been submitted.</P>
               {reportId && (
-                <p>
+                <P>
                   <Link href={`/bugs/${reportId}`} className="underline" onClick={handleClose}>
                     View your report
                   </Link>
-                </p>
+                </P>
               )}
               <Button onClick={handleClose}>Close</Button>
             </div>
@@ -129,7 +134,7 @@ export default function BugReportDialog({ isOpen, onClose }: BugReportDialogProp
               )}
 
               <div className="mb-5">
-                <label>What type of feedback?</label>
+                <FormLabel>What type of feedback?</FormLabel>
                 <div className="flex gap-2 flex-wrap">
                   {/* [test hook] category-btn class used as test selector */}
                   {CATEGORIES.map((cat) => (
@@ -148,10 +153,10 @@ export default function BugReportDialog({ isOpen, onClose }: BugReportDialogProp
               </div>
 
               <div className="mb-5">
-                <label htmlFor="bug-title" className="required">
+                <FormLabel htmlFor="bug-title" required>
                   Title
-                </label>
-                <input
+                </FormLabel>
+                <Input
                   id="bug-title"
                   type="text"
                   value={title}
@@ -162,10 +167,10 @@ export default function BugReportDialog({ isOpen, onClose }: BugReportDialogProp
               </div>
 
               <div className="mb-5">
-                <label htmlFor="bug-description" className="required">
+                <FormLabel htmlFor="bug-description" required>
                   Details
-                </label>
-                <textarea
+                </FormLabel>
+                <Textarea
                   id="bug-description"
                   value={description}
                   onChange={(e) => {

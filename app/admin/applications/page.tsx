@@ -15,6 +15,8 @@ import { SECTION_CARD } from '@/lib/ui-classes'
 import { InferRouterOutputs } from '@orpc/server'
 import { AppRouter } from '@/server/router'
 import { ApprovalStatus } from '@/generated/prisma/enums'
+import { H1, H2, H3, H4 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 type Filter = 'mine' | 'others' | 'approved' | 'needs_info' | 'rejected'
 
@@ -107,8 +109,8 @@ function ApplicationsPageContent() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Applications</h1>
-      <p className="text-text-light mb-6">Review new volunteer applications.</p>
+      <H1>Applications</H1>
+      <P className="text-text-light mb-6">Review new volunteer applications.</P>
       {user.isAdmin && (
         <div className="mb-6">
           <ChapterFilter value={chapterParam} onChange={setChapterParam} />
@@ -116,9 +118,9 @@ function ApplicationsPageContent() {
       )}
 
       {anyLoading && totalCount === 0 ? (
-        <p className="text-text-light mt-6">Loading…</p>
+        <P className="text-text-light mt-6">Loading…</P>
       ) : totalCount === 0 ? (
-        <p className="text-text-light mt-6">No applications to review.</p>
+        <P className="text-text-light mt-6">No applications to review.</P>
       ) : (
         <>
           {SECTIONS.map((section) => {
@@ -136,7 +138,7 @@ function ApplicationsPageContent() {
                 data-testid={`applications-section-${section.key}`}
               >
                 {isCollapsible ? (
-                  <h2
+                  <H2
                     className="text-lg mb-3 flex items-center gap-2 cursor-pointer select-none"
                     onClick={() => setApprovedOpen((o) => !o)}
                     role="button"
@@ -158,11 +160,11 @@ function ApplicationsPageContent() {
                     >
                       <polyline points="6 9 12 15 18 9" />
                     </svg>
-                  </h2>
+                  </H2>
                 ) : (
-                  <h2 className={`text-lg mb-3 ${section.color}`}>
+                  <H2 className={`text-lg mb-3 ${section.color}`}>
                     {section.label}: {applications.length}
-                  </h2>
+                  </H2>
                 )}
                 {isOpen && (
                   <div
@@ -186,7 +188,7 @@ function ApplicationsPageContent() {
 
           {(anonymised.data?.length ?? 0) > 0 && (
             <div className="mb-8">
-              <h2
+              <H2
                 className="text-lg mb-3 flex items-center gap-2 cursor-pointer select-none text-text-light"
                 onClick={() => setAnonymisedOpen((o) => !o)}
                 role="button"
@@ -208,7 +210,7 @@ function ApplicationsPageContent() {
                 >
                   <polyline points="6 9 12 15 18 9" />
                 </svg>
-              </h2>
+              </H2>
               {anonymisedOpen && (
                 <div
                   key={String(anonymisedOpen)}
@@ -259,25 +261,25 @@ function ApplicationCard({
 
   return (
     <div role="article" className={SECTION_CARD}>
-      <h3 className="m-0 mb-1">{app.name}</h3>
-      <p className="text-sm text-text-light mb-4">{meta.join(' · ')}</p>
+      <H3 className="m-0 mb-1">{app.name}</H3>
+      <P className="text-sm text-text-light mb-4">{meta.join(' · ')}</P>
 
       {app.approvalStatus === ApprovalStatus.rejected && anonymiseDate && (
-        <p
+        <P
           className={`text-sm mb-3 ${daysUntilAnonymise !== null && daysUntilAnonymise <= 1 ? 'text-red-500' : 'text-amber-500'}`}
         >
           Personally Identifiable Information will be anonymised on {formatDate(anonymiseDate)}
           {daysUntilAnonymise !== null && daysUntilAnonymise >= 0
             ? ` (${daysUntilAnonymise === 0 ? 'today' : `${daysUntilAnonymise} day${daysUntilAnonymise === 1 ? '' : 's'}`})`
             : ''}
-        </p>
+        </P>
       )}
 
-      {app.bio && <p className="text-sm whitespace-pre-wrap mb-4">{app.bio}</p>}
+      {app.bio && <P className="text-sm whitespace-pre-wrap mb-4">{app.bio}</P>}
 
       {app.skills.length > 0 && (
         <div className="mb-4">
-          <h4 className="text-text-light">Skills</h4>
+          <H4 className="text-text-light">Skills</H4>
           <div className="flex flex-wrap gap-1.5">
             {app.skills.map((s) => (
               <span
@@ -300,8 +302,8 @@ function ApplicationCard({
         <div className="grid grid-cols-2 gap-4 mb-4 max-[600px]:grid-cols-1">
           {app.availabilityHoursPerWeek && (
             <div>
-              <h4 className="text-text-light">Availability</h4>
-              <p className="text-sm">{app.availabilityHoursPerWeek} hours/week</p>
+              <H4 className="text-text-light">Availability</H4>
+              <P className="text-sm">{app.availabilityHoursPerWeek} hours/week</P>
             </div>
           )}
           {(app.email ||
@@ -310,7 +312,7 @@ function ApplicationCard({
             app.discordHandle ||
             app.contactNotes) && (
             <div>
-              <h4 className="text-text-light">Contact</h4>
+              <H4 className="text-text-light">Contact</H4>
               <div className="text-sm">
                 {app.email && <div>Email: {app.email}</div>}
                 {app.discordHandle && <div>Discord: {app.discordHandle}</div>}
@@ -327,61 +329,61 @@ function ApplicationCard({
 
       {app.applicationMessage && (
         <div className="border-t border-brand-border pt-4 mb-4">
-          <h4 className="text-text-light">Application</h4>
-          <p className="text-sm whitespace-pre-wrap">{app.applicationMessage}</p>
+          <H4 className="text-text-light">Application</H4>
+          <P className="text-sm whitespace-pre-wrap">{app.applicationMessage}</P>
         </div>
       )}
 
       {app.adminNotes && (
         <div className="mb-4">
-          <h4 className="text-text-light">Admin notes</h4>
-          <p className="text-sm whitespace-pre-wrap">{app.adminNotes}</p>
+          <H4 className="text-text-light">Admin notes</H4>
+          <P className="text-sm whitespace-pre-wrap">{app.adminNotes}</P>
         </div>
       )}
 
       {app.applicantNotes && (
         <div className="mb-4">
-          <h4 className="text-text-light">
+          <H4 className="text-text-light">
             Message to applicant{' '}
             <span className="font-normal normal-case text-xs">(sent on rejection only)</span>
-          </h4>
-          <p className="text-sm whitespace-pre-wrap">{app.applicantNotes}</p>
+          </H4>
+          <P className="text-sm whitespace-pre-wrap">{app.applicantNotes}</P>
         </div>
       )}
 
       {app.previousRejections.length > 0 && (
         <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
-          <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-3">
+          <P className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-3">
             {app.previousRejections.length === 1
               ? 'Previously rejected'
               : `Previously rejected ${app.previousRejections.length} times`}
-          </p>
+          </P>
           {app.previousRejections.map((r, i) => (
             <div
               key={i}
               className={i > 0 ? 'mt-3 pt-3 border-t border-amber-200 dark:border-amber-700' : ''}
             >
-              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-1">
+              <P className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-1">
                 {formatDate(r.rejectedAt)}
-              </p>
+              </P>
               {r.adminNotes && (
                 <div className="mb-1">
-                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-0.5">
+                  <P className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-0.5">
                     Admin notes
-                  </p>
-                  <p className="text-sm text-amber-700 dark:text-amber-400 whitespace-pre-wrap">
+                  </P>
+                  <P className="text-sm text-amber-700 dark:text-amber-400 whitespace-pre-wrap">
                     {r.adminNotes}
-                  </p>
+                  </P>
                 </div>
               )}
               {r.applicantNotes && (
                 <div>
-                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-0.5">
+                  <P className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-0.5">
                     Message sent to applicant
-                  </p>
-                  <p className="text-sm text-amber-700 dark:text-amber-400 whitespace-pre-wrap">
+                  </P>
+                  <P className="text-sm text-amber-700 dark:text-amber-400 whitespace-pre-wrap">
                     {r.applicantNotes}
-                  </p>
+                  </P>
                 </div>
               )}
             </div>
@@ -426,29 +428,29 @@ function AnonymisedCard({ app }: { app: AnonymisedApplication }) {
 
   return (
     <div role="article" className={`${SECTION_CARD} opacity-75`}>
-      <p className="text-sm text-text-light mb-4">
+      <P className="text-sm text-text-light mb-4">
         [Identity anonymised] · Rejected {formatDate(app.rejectedAt)}
-      </p>
+      </P>
       {app.adminNotes && (
         <div className="mb-4">
-          <h4 className="text-text-light">Admin notes</h4>
-          <p className="text-sm whitespace-pre-wrap">{app.adminNotes}</p>
+          <H4 className="text-text-light">Admin notes</H4>
+          <P className="text-sm whitespace-pre-wrap">{app.adminNotes}</P>
         </div>
       )}
       {app.applicantNotes && (
         <div className="mb-4">
-          <h4 className="text-text-light">
+          <H4 className="text-text-light">
             Message to applicant{' '}
             <span className="font-normal normal-case text-xs">(sent on rejection only)</span>
-          </h4>
-          <p className="text-sm whitespace-pre-wrap">{app.applicantNotes}</p>
+          </H4>
+          <P className="text-sm whitespace-pre-wrap">{app.applicantNotes}</P>
         </div>
       )}
       <div className="flex justify-end border-t border-brand-border pt-4 mt-2">
         {app.reapplyAllowedAt ? (
-          <p className="text-sm text-text-light">
+          <P className="text-sm text-text-light">
             Reapplication allowed since {formatDate(app.reapplyAllowedAt)}
-          </p>
+          </P>
         ) : (
           <Button
             variant="secondary"

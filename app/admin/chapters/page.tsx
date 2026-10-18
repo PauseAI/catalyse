@@ -10,6 +10,10 @@ import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import { countryLabel } from '@/lib/filter-options'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
 
 const POOL = 'pool'
 const NO_COUNTRY = '__none__'
@@ -87,11 +91,11 @@ export default function AdminChaptersPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>National chapters</h1>
+      <H1>National chapters</H1>
 
       <section className="mb-8">
         {data.chapters.length === 0 ? (
-          <p className="text-text-light">No chapters yet.</p>
+          <P className="text-text-light">No chapters yet.</P>
         ) : (
           <ul className="list-none p-0 m-0 grid gap-3">
             {data.chapters.map((c) => (
@@ -101,11 +105,11 @@ export default function AdminChaptersPage() {
                     <Link href={`/admin/chapters/${c.id}`} className="font-semibold">
                       {c.name}
                     </Link>
-                    <p className="text-text-light text-sm m-0">
+                    <P className="text-text-light text-sm m-0">
                       {c.lead ? `Led by ${c.lead.name}` : 'No lead'} · {c.deputyCount}{' '}
                       {c.deputyCount === 1 ? 'deputy' : 'deputies'} · {c.memberCount}{' '}
                       {c.memberCount === 1 ? 'member' : 'members'}
-                    </p>
+                    </P>
                   </div>
                 </div>
               </li>
@@ -116,10 +120,10 @@ export default function AdminChaptersPage() {
 
       {data.availableCountries.length > 0 && (
         <section className={`card ${SECTION_CARD} mb-8`}>
-          <h2 className="mt-0">Open a chapter</h2>
-          <p className="text-text-light text-sm">
+          <H2 className="mt-0">Open a chapter</H2>
+          <P className="text-text-light text-sm">
             Everyone in the holding pool who lives in that country moves into it.
-          </p>
+          </P>
           <form
             className="flex gap-3 items-end flex-wrap"
             onSubmit={(e) => {
@@ -145,19 +149,19 @@ export default function AdminChaptersPage() {
       )}
 
       <section>
-        <h2>Holding pool</h2>
-        <p className="text-text-light text-sm">
+        <H2>Holding pool</H2>
+        <P className="text-text-light text-sm">
           People whose country has no chapter. Global admins approve their applications and run
           their projects until they are placed.
-        </p>
+        </P>
         {pool.length === 0 ? (
-          <p className="text-text-light">Nobody is waiting.</p>
+          <P className="text-text-light">Nobody is waiting.</P>
         ) : (
           <>
             <div className="flex gap-3 items-end flex-wrap mb-4">
               <div>
-                <label htmlFor="pool-search">Search</label>
-                <input
+                <FormLabel htmlFor="pool-search">Search</FormLabel>
+                <Input
                   type="search"
                   id="pool-search"
                   placeholder="Name or email…"
@@ -176,7 +180,7 @@ export default function AdminChaptersPage() {
               />
             </div>
             {filteredPool.length === 0 ? (
-              <p className="text-text-light">Nothing matches.</p>
+              <P className="text-text-light">Nothing matches.</P>
             ) : (
               <ul className="list-none p-0 m-0 grid gap-2">
                 {filteredPool.map((p) => (
@@ -185,7 +189,9 @@ export default function AdminChaptersPage() {
                     className="flex justify-between items-center gap-4 flex-wrap border-b border-brand-border py-2"
                   >
                     <div>
-                      <Link href={`/volunteers/${p.id}`}>{p.name}</Link>
+                      <Link className="text-primary-text underline" href={`/volunteers/${p.id}`}>
+                        {p.name}
+                      </Link>
                       <span className="text-text-light text-sm">
                         {' '}
                         · {countryLabel(p.country) || 'No country given'}

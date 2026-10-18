@@ -6,6 +6,7 @@ import ConfirmDialog from './ui/ConfirmDialog'
 import { formatDateTime } from '@/lib/format-date'
 import { decodeMentions, splitMentions, type MentionMember } from '@/lib/mentions'
 import { useToast } from '@/lib/toast'
+import { P } from '@/components/Text'
 
 export interface CommentItem {
   id: number
@@ -56,7 +57,7 @@ export async function succeeded(run: () => Promise<unknown>): Promise<boolean> {
 
 function CommentBody({ content }: { content: string }) {
   return (
-    <p className="m-0 mb-1 whitespace-pre-wrap">
+    <P className="m-0 mb-1 whitespace-pre-wrap">
       {splitMentions(content).map((part, i) =>
         typeof part === 'string' ? (
           part
@@ -66,7 +67,7 @@ function CommentBody({ content }: { content: string }) {
           </span>
         ),
       )}
-    </p>
+    </P>
   )
 }
 
@@ -149,7 +150,7 @@ export default function CommentThreadView({
           id={`comment-${c.id}`}
           className="py-3 border-b border-brand-border last:border-0 scroll-mt-20"
         >
-          <p className="m-0 italic text-text-light">Comment removed</p>
+          <P className="m-0 italic text-text-light">Comment removed</P>
           {renderReplies(c)}
         </li>
       )
@@ -278,9 +279,9 @@ export default function CommentThreadView({
       )}
 
       {isPending ? (
-        <p className="text-text-light">Loading comments…</p>
+        <P className="text-text-light">Loading comments…</P>
       ) : comments.length === 0 ? (
-        <p className="text-text-light">{emptyText}</p>
+        <P className="text-text-light">{emptyText}</P>
       ) : (
         <ul className="list-none p-0 m-0">
           {comments.map((c) =>

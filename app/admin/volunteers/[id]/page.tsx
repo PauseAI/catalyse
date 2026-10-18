@@ -12,6 +12,10 @@ import DuplicateAccounts, { type Account } from '@/components/DuplicateAccounts'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
+import { H1, H3 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Textarea from '@/components/ui/Textarea'
 
 interface Skill {
   id: number
@@ -232,7 +236,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
     return (
       <>
         <main className="container py-5 pb-15">
-          <p className="text-error">Volunteer not found.</p>
+          <P className="text-error">Volunteer not found.</P>
           <Button href="/volunteers" variant="secondary" className="mt-4">
             Back
           </Button>
@@ -254,8 +258,8 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
         <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
           <div className="flex justify-between items-start mb-3">
             <div>
-              <h1 className="mb-1">{vol.name}</h1>
-              <p className="text-text-light m-0">{vol.email}</p>
+              <H1 className="mb-1">{vol.name}</H1>
+              <P className="text-text-light m-0">{vol.email}</P>
             </div>
             <div className="flex gap-2">
               {vol.isAdmin && (
@@ -270,7 +274,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
               )}
             </div>
           </div>
-          {vol.bio && <p className="mb-0 whitespace-pre-wrap">{vol.bio}</p>}
+          {vol.bio && <P className="mb-0 whitespace-pre-wrap">{vol.bio}</P>}
         </div>
 
         <DuplicateAccounts
@@ -281,7 +285,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
 
         {/* Skills and contact info */}
         <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
-          <h3>Skills (self-assessed)</h3>
+          <H3>Skills (self-assessed)</H3>
           {vol.skills.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 mb-4">
               {vol.skills.map((s) => (
@@ -294,10 +298,10 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
               ))}
             </div>
           ) : (
-            <p className="text-text-light mb-4">No skills listed.</p>
+            <P className="text-text-light mb-4">No skills listed.</P>
           )}
 
-          <h3>Verified skills (endorsed)</h3>
+          <H3>Verified skills (endorsed)</H3>
           <div id="endorsements" className="mb-4">
             {vol.endorsements.length > 0 ? (
               vol.endorsements.map((e) => (
@@ -306,44 +310,44 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
                 </div>
               ))
             ) : (
-              <p className="text-text-light">No endorsements yet.</p>
+              <P className="text-text-light">No endorsements yet.</P>
             )}
           </div>
 
-          <h3>Contact info</h3>
+          <H3>Contact info</H3>
           <div id="contactInfo" className="text-sm">
-            <p className="my-1">
+            <P className="my-1">
               <strong>Email:</strong> {vol.email}
-            </p>
+            </P>
             {vol.location && (
-              <p className="my-1">
+              <P className="my-1">
                 <strong>Location:</strong> {vol.location}
-              </p>
+              </P>
             )}
             {vol.localGroup && (
-              <p className="my-1">
+              <P className="my-1">
                 <strong>Local group:</strong> {vol.localGroup}
-              </p>
+              </P>
             )}
             {vol.availabilityHoursPerWeek && (
-              <p className="my-1">
+              <P className="my-1">
                 <strong>Availability:</strong> {vol.availabilityHoursPerWeek}h/week
-              </p>
+              </P>
             )}
             {vol.discordHandle && (
-              <p className="my-1">
+              <P className="my-1">
                 <strong>Discord:</strong> {vol.discordHandle}
-              </p>
+              </P>
             )}
             {vol.signalNumber && (
-              <p className="my-1">
+              <P className="my-1">
                 <strong>Signal:</strong> {vol.signalNumber}
-              </p>
+              </P>
             )}
             {vol.whatsappNumber && (
-              <p className="my-1">
+              <P className="my-1">
                 <strong>WhatsApp:</strong> {vol.whatsappNumber}
-              </p>
+              </P>
             )}
           </div>
         </div>
@@ -369,16 +373,16 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
             <div>
               <div id="notesList">
                 {vol.adminNotes.length === 0 && (
-                  <p className="text-text-light mb-4">No notes yet.</p>
+                  <P className="text-text-light mb-4">No notes yet.</P>
                 )}
                 {vol.adminNotes.map((n) => (
                   <div key={n.id} className="py-3 border-b border-brand-border">
                     {editingNoteId === n.id ? (
                       <div>
-                        <label htmlFor={`edit-note-${n.id}`} className="text-sm block mb-1">
+                        <FormLabel htmlFor={`edit-note-${n.id}`} className="text-sm block mb-1">
                           Edit note
-                        </label>
-                        <textarea
+                        </FormLabel>
+                        <Textarea
                           id={`edit-note-${n.id}`}
                           rows={3}
                           value={editingNoteContent}
@@ -437,7 +441,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
                             </Button>
                           </div>
                         </div>
-                        <p className="mt-2 whitespace-pre-wrap">{n.content}</p>
+                        <P className="mt-2 whitespace-pre-wrap">{n.content}</P>
                       </div>
                     )}
                   </div>
@@ -458,8 +462,8 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
                   </div>
                 </div>
                 <div className="mb-5">
-                  <label htmlFor="note-content">Note</label>
-                  <textarea
+                  <FormLabel htmlFor="note-content">Note</FormLabel>
+                  <Textarea
                     id="note-content"
                     rows={3}
                     value={noteContent}
@@ -480,7 +484,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
           {activeTab === 'quick_tasks' && (
             <div>
               {vol.quickTasks.length === 0 ? (
-                <p className="text-text-light">No quick tasks assigned yet.</p>
+                <P className="text-text-light">No quick tasks assigned yet.</P>
               ) : (
                 vol.quickTasks.map((t) => (
                   <div
@@ -505,7 +509,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
           {activeTab === 'project_history' && (
             <div>
               {vol.projectHistory.length === 0 ? (
-                <p className="text-text-light">No project history.</p>
+                <P className="text-text-light">No project history.</P>
               ) : (
                 vol.projectHistory.map((p) => (
                   <div
@@ -527,7 +531,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
           {/* Endorse Skill tab */}
           {activeTab === 'endorse_skill' && (
             <div>
-              <h3>Endorse a skill</h3>
+              <H3>Endorse a skill</H3>
               <form onSubmit={addEndorsement} className="flex flex-col gap-3 max-w-[480px]">
                 <div className="m-0">
                   <FilterDropdown

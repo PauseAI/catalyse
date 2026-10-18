@@ -9,6 +9,8 @@ import PageLoading from '@/components/PageLoading'
 import { orpc } from '@/lib/orpc'
 import { MAX_VOLUNTEER_DRAFTS } from '@/lib/project-status'
 import { SECTION_CARD } from '@/lib/ui-classes'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 export default function SuggestPage() {
   const router = useRouter()
@@ -32,14 +34,14 @@ export default function SuggestPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1 role="heading">Propose a project</h1>
-      <p>
+      <H1 role="heading">Propose a project</H1>
+      <P>
         Have an idea for something PauseAI should do? Propose it here! Our team will review it and,
         if approved, it&apos;ll be visible to all volunteers.
-      </p>
+      </P>
 
       <div className={`max-w-4xl ${SECTION_CARD} mb-4`}>
-        <h2 className="mt-0 mb-3">My drafts</h2>
+        <H2 className="mt-0 mb-3">My drafts</H2>
         <ul className="flex flex-col gap-2">
           {drafts.map((draft) => (
             <li
@@ -56,9 +58,9 @@ export default function SuggestPage() {
       </div>
 
       {atDraftLimit ? (
-        <p className="text-text-light">
+        <P className="text-text-light">
           You have {drafts.length} drafts. Finish or delete one first.
-        </p>
+        </P>
       ) : (
         <Button href="/suggest/new">Propose a project</Button>
       )}

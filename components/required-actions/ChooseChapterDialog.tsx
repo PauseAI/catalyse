@@ -5,6 +5,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/Button'
 import FilterDropdown from '@/components/FilterDropdown'
+import { P } from '@/components/Text'
 import { useAuth } from '@/lib/auth-context'
 import { orpc } from '@/lib/orpc'
 import { useRequiredActions } from '@/lib/required-actions-context'
@@ -33,11 +34,11 @@ export default function ChooseChapterDialog({
 
   return (
     <Modal id="choose-chapter" title="Join a national chapter" isOpen onClose={onClose}>
-      <p className="text-text-light mb-4">
+      <P className="text-text-light mb-4">
         You aren&#39;t in a national chapter yet. Projects, teams and local groups are run by
         chapters, so join the one you&#39;d like to work with. Its organisers will hear that you
         joined.
-      </p>
+      </P>
       <div className="mb-5">
         <FilterDropdown
           id="choose-chapter-select"

@@ -1,6 +1,8 @@
 'use client'
 
 import Checkbox from '@/components/Checkbox'
+import { H3 } from '@/components/Heading'
+import { P } from '@/components/Text'
 import type { InferRouterOutputs } from '@orpc/server'
 import type { AppRouter } from '@/server/router'
 
@@ -32,9 +34,9 @@ function Section({
   if (count === 0) return null
   return (
     <div className="mb-5">
-      <h3 className="mb-2 text-base font-bold">
+      <H3 className="mb-2 text-base font-bold">
         {title} <span className="text-text-light font-normal">({count})</span>
-      </h3>
+      </H3>
       {children}
     </div>
   )
@@ -67,9 +69,9 @@ export default function ProjectImportDiff({
     <div>
       {diff.errors.length > 0 && (
         <div className="mb-5 rounded-lg border border-error bg-error/10 p-4">
-          <h3 className="mb-2 text-base font-bold text-error">
+          <H3 className="mb-2 text-base font-bold text-error">
             This file cannot be imported ({diff.errors.length})
-          </h3>
+          </H3>
           <ul className="list-disc pl-5 text-sm">
             {diff.errors.map((e, i) => (
               <li key={i}>
@@ -92,7 +94,7 @@ export default function ProjectImportDiff({
       )}
 
       {nothing && (
-        <p className="text-text-light">No changes — the file matches the project exactly.</p>
+        <P className="text-text-light">No changes — the file matches the project exactly.</P>
       )}
 
       {projectChanged && (
@@ -142,10 +144,10 @@ export default function ProjectImportDiff({
       </Section>
 
       <Section title="Tasks to delete" count={deletes.length}>
-        <p className="mb-2 text-sm text-text-light">
+        <P className="mb-2 text-sm text-text-light">
           These tasks are in the project but not in the file. Tick one to delete it on import; leave
           it unticked to keep it.
-        </p>
+        </P>
         <ul className="space-y-2">
           {deletes.map((t) => (
             <li
