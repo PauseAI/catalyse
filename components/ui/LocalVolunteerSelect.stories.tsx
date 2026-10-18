@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import MemberPicker from './MemberPicker'
+import LocalVolunteerSelect from './LocalVolunteerSelect'
 
 const CANDIDATES = [
   { id: 1, name: 'Sam Okafor', description: 'UK · London' },
@@ -7,11 +7,11 @@ const CANDIDATES = [
   { id: 3, name: 'Jordan Lee', description: 'Germany · Berlin' },
 ]
 
-const meta: Meta<typeof MemberPicker> = {
-  title: 'Volunteer previews/Picker (MemberPicker)',
-  component: MemberPicker,
+const meta: Meta<typeof LocalVolunteerSelect> = {
+  title: 'Volunteer previews/Picker (LocalVolunteerSelect)',
+  component: LocalVolunteerSelect,
   args: {
-    id: 'demo-member-picker',
+    id: 'demo-local-volunteer-select',
     label: 'Add a member',
     ariaLabel: 'Add a member',
     candidates: CANDIDATES,
@@ -20,11 +20,11 @@ const meta: Meta<typeof MemberPicker> = {
 }
 
 export default meta
-type Story = StoryObj<typeof MemberPicker>
+type Story = StoryObj<typeof LocalVolunteerSelect>
 
 /**
- * `MemberPicker` filters a `candidates` list the caller already has — no network call, so it
- * renders fully in the viewer. Compare with `VolunteerSelect` below, which does its own
+ * `LocalVolunteerSelect` filters a `candidates` list the caller already has — no network call, so it
+ * renders fully in the viewer. Compare with `FullVolunteerSelect` below, which does its own
  * server-side search and needs a backend to show real results.
  */
 export const Closed: Story = {}

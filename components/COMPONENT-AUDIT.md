@@ -38,14 +38,11 @@ through separate trees:
     page's status block does; the Project page's does not, which is the same gap from the other
     direction.
 
-- **Assigning a person is two different components for the same job.** The Project page assigns
-  an owner with `MemberPicker` (`components/ui/MemberPicker.tsx`, filters a list the caller already
-  fetched); the Task page reassigns an assignee with `VolunteerSelect` (`components/VolunteerSelect.tsx`,
-  does its own server-side search). See `Volunteer previews/Picker (MemberPicker)` and
-  `Volunteer previews/Picker (VolunteerSelect)`. **Candidate to unify**, but note they're solving
-  slightly different problems (a short list already in hand vs. searching the whole volunteer
-  base) — the merge should probably standardise on `VolunteerSelect`'s approach and drop
-  `MemberPicker`, not the other way round, since the volunteer base is the one that grows.
+- **Unified**: `MemberPicker` and `VolunteerSelect` are now `LocalVolunteerSelect`
+  (`components/ui/LocalVolunteerSelect.tsx`, filters a list the caller already fetched) and
+  `FullVolunteerSelect` (`components/FullVolunteerSelect.tsx`, does its own server-side search),
+  named for the mechanism rather than the caller. See `Volunteer previews/Picker
+(LocalVolunteerSelect)` and `Volunteer previews/Picker (FullVolunteerSelect)`.
 
 ## Volunteer previews: four different renderings of "a volunteer"
 
