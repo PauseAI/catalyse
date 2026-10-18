@@ -212,7 +212,7 @@ describe('admin.applications.action', () => {
       applicationApplicantNotes: 'stored',
     })
     await c.admin.applications.action({ id: stored.id, action: 'request_info' })
-    expect(emails.last.html).toContain('stored')
+    await vi.waitFor(() => expect(emails.last.html).toContain('stored'))
   })
 
   it('approve, reject, reopen — with emails and notification clean-up', async () => {

@@ -187,73 +187,77 @@ describe('daily summary', () => {
     const sent = emails.lastTo('owner@example.com')!
     expect(sent.subject).toBe('Catalyse: 2 things need you today')
     expect(sent.html).toContain('Hi &lt;Olive&gt;')
-    expect(sent.html).toContain('<h3 style="margin: 24px 0 8px;">Your tasks</h3>')
+    expect(sent.html).toContain('<h3 style="margin:24px 0 8px">Your tasks</h3>')
     // The projects share one heading, each named under it.
     expect(sent.html.match(/Projects you lead/g)).toHaveLength(1)
-    expect(sent.html).toContain('<h4 style="margin: 16px 0 6px;">Westminster</h4>')
-    expect(sent.html).toContain('<h4 style="margin: 16px 0 6px;">Library</h4>')
+    expect(sent.html).toContain('<h4 style="margin:16px 0 6px">Westminster</h4>')
+    expect(sent.html).toContain('<h4 style="margin:16px 0 6px">Library</h4>')
     expect(sent.html).toContain(`href="${env.APP_URL}/t/1"`)
     expect(sent.html).toContain('“Book &lt;venue&gt;” is due today')
   })
 })
 
 describe('templates', () => {
-  it('builds every template with escaped content and the right links', () => {
+  it('builds every template with escaped content and the right links', async () => {
     const app = env.APP_URL
 
-    expect(e.buildWelcomeAndConfirmHtml('<A>', `${app}/verify?x`)).toContain('Hi &lt;A&gt;')
-    expect(e.buildApplicationReceivedHtml('A')).toContain('Application Received')
-    expect(e.buildApplicationApprovedHtml('A', app)).toContain(`${app}/login`)
-    expect(e.buildApplicationRejectedHtml('A')).not.toContain('Feedback from the team')
-    expect(e.buildApplicationRejectedHtml('A', '<notes>')).toContain('&lt;notes&gt;')
-    expect(e.buildApplicationNeedsInfoHtml('A', `${app}/login`)).not.toContain('white-space')
-    expect(e.buildApplicationNeedsInfoHtml('A', `${app}/login`, 'n')).toContain('white-space')
-    expect(e.buildApplicationReopenedHtml('A', `${app}/login`)).toContain('reopened')
-    expect(e.buildApplicationReopenedHtml('A', `${app}/login`, 'n')).toContain('white-space')
-    expect(e.buildPendingApplicationsSummaryHtml(3, app)).toContain('3')
-    expect(e.buildPasswordResetHtml(`${app}/reset`, 'A')).toContain('Reset Your Password')
+    expect(await e.buildWelcomeAndConfirmHtml('<A>', `${app}/verify?x`)).toContain('Hi &lt;A&gt;')
+    expect(await e.buildApplicationReceivedHtml('A')).toContain('Application Received')
+    expect(await e.buildApplicationApprovedHtml('A', app)).toContain(`${app}/login`)
+    expect(await e.buildApplicationRejectedHtml('A')).not.toContain('Feedback from the team')
+    expect(await e.buildApplicationRejectedHtml('A', '<notes>')).toContain('&lt;notes&gt;')
+    expect(await e.buildApplicationNeedsInfoHtml('A', `${app}/login`)).not.toContain('white-space')
+    expect(await e.buildApplicationNeedsInfoHtml('A', `${app}/login`, 'n')).toContain('white-space')
+    expect(await e.buildApplicationReopenedHtml('A', `${app}/login`)).toContain('reopened')
+    expect(await e.buildApplicationReopenedHtml('A', `${app}/login`, 'n')).toContain('white-space')
+    expect(await e.buildPendingApplicationsSummaryHtml(3, app)).toContain('3')
+    expect(await e.buildPasswordResetHtml(`${app}/reset`, 'A')).toContain('Reset Your Password')
     expect(
-      e.buildAdminInviteHtml(`${app}/invite`, 'B', { role: 'LEAD', chapterName: 'Kenya' }),
+      await e.buildAdminInviteHtml(`${app}/invite`, 'B', { role: 'LEAD', chapterName: 'Kenya' }),
     ).toContain('B')
-    expect(e.buildOutreachLoginHtml(`${app}/outreach`)).toContain(`${app}/outreach`)
-    expect(e.buildWelcomeHtml('A', app)).toContain('Welcome')
-    expect(e.buildProjectNotificationHtml('A', 'S', 'M', 5, app, '<extra/>')).toContain(
+    expect(await e.buildOutreachLoginHtml(`${app}/outreach`)).toContain(`${app}/outreach`)
+    expect(await e.buildWelcomeHtml('A', app)).toContain('Welcome')
+    expect(await e.buildProjectNotificationHtml('A', 'S', 'M', 5, app, '<extra/>')).toContain(
       `${app}/projects/5`,
     )
-    expect(e.buildAdminAlertHtml('A', 'S', 'M', 'Go', `${app}/go`)).toContain('Go')
-    expect(e.buildLocalGroupSuggestionHtml('A', 'accepted', 'G')).toContain('Great news')
-    expect(e.buildLocalGroupSuggestionHtml('A', 'merge', 'G')).toContain('merged')
-    expect(e.buildLocalGroupSuggestionHtml('A', 'on_hold', 'G')).toContain('under review')
-    expect(e.buildLocalGroupSuggestionHtml('A', 'declined', 'G')).toContain('not to add')
-    expect(e.buildLocalGroupSuggestionHtml('A', 'weird', 'G', 'note')).toContain(
+    expect(await e.buildAdminAlertHtml('A', 'S', 'M', 'Go', `${app}/go`)).toContain('Go')
+    expect(await e.buildLocalGroupSuggestionHtml('A', 'accepted', 'G')).toContain('Great news')
+    expect(await e.buildLocalGroupSuggestionHtml('A', 'merge', 'G')).toContain('merged')
+    expect(await e.buildLocalGroupSuggestionHtml('A', 'on_hold', 'G')).toContain('under review')
+    expect(await e.buildLocalGroupSuggestionHtml('A', 'declined', 'G')).toContain('not to add')
+    expect(await e.buildLocalGroupSuggestionHtml('A', 'weird', 'G', 'note')).toContain(
       'has been reviewed',
     )
-    expect(e.buildLocalGroupSuggestionHtml('A', 'weird', 'G', 'note')).toContain('<em>note</em>')
-    expect(e.buildRelayMessageHtml('A', 'B', 'S', 'M', undefined, '/t', false)).not.toContain(
+    expect(await e.buildLocalGroupSuggestionHtml('A', 'weird', 'G', 'note')).toContain(
+      '<em>note</em>',
+    )
+    expect(await e.buildRelayMessageHtml('A', 'B', 'S', 'M', undefined, '/t', false)).not.toContain(
       'about the project',
     )
-    expect(e.buildRelayMessageHtml('A', 'B', 'S', 'M', 'P', '/t', false)).toContain(
+    expect(await e.buildRelayMessageHtml('A', 'B', 'S', 'M', 'P', '/t', false)).toContain(
       'about the project',
     )
 
     const long = 'x'.repeat(200)
-    const digest = e.buildDigestHtml('A', app, [
+    const digest = await e.buildDigestHtml('A', app, [
       { id: 1, title: 'T', description: long, skill_names: ['a', 'b'], match_percent: 80 },
       { id: 2, title: 'U' },
     ])
     expect(digest).toContain('80% match')
     expect(digest).toContain('...')
     expect(digest).toContain('Skills: a, b')
-    expect(e.buildDigestHtml('A', app, [], true)).toContain('match your skills')
+    expect(await e.buildDigestHtml('A', app, [], true)).toContain('match your skills')
 
-    expect(e.buildTaskNudgeHtml('A', 'T', 'P', 1, 2, 10, 'commented', '1 Jan')).toContain(
+    expect(await e.buildTaskNudgeHtml('A', 'T', 'P', 1, 2, 10, 'commented', '1 Jan')).toContain(
       `${app}/projects/1#task-2`,
     )
     expect(
-      e.buildTaskFinalWarningHtml('A', 'T', 'P', 1, 2, 20, 'commented', '1 Jan', '9 Jan'),
+      await e.buildTaskFinalWarningHtml('A', 'T', 'P', 1, 2, 20, 'commented', '1 Jan', '9 Jan'),
     ).toContain('9 Jan')
-    expect(e.buildTaskSurrenderedOwnerHtml('O', 'V', 'T', 'P', 1)).toContain('V')
-    expect(e.buildTaskSurrenderedAssigneeHtml('A', 'T', 'P', 1)).toContain(`${app}/projects/1`)
+    expect(await e.buildTaskSurrenderedOwnerHtml('O', 'V', 'T', 'P', 1)).toContain('V')
+    expect(await e.buildTaskSurrenderedAssigneeHtml('A', 'T', 'P', 1)).toContain(
+      `${app}/projects/1`,
+    )
   })
 
   it('every send helper resolves through the transport', async () => {

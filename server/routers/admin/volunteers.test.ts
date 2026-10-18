@@ -263,7 +263,7 @@ describe('admin.emailPreview', () => {
     for (const type of types) {
       const { subject, html } = await c.admin.emailPreview.preview({ type })
       expect(subject).toBeTruthy()
-      expect(html).toContain('<!DOCTYPE html>')
+      expect(html).toMatch(/^<!DOCTYPE html/i)
     }
     await expect(c.admin.emailPreview.preview({ type: 'nope' })).rejects.toMatchObject({
       code: 'NOT_FOUND',
