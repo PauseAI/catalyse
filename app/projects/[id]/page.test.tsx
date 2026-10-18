@@ -557,18 +557,20 @@ describe('project page — owner', () => {
     await openTab(/^People/)
     const picker = () => screen.getByRole('button', { name: 'Volunteer to invite' })
     fireEvent.submit(picker().closest('form')!)
-    // The pick stands as a chip until it is cleared or sent.
+    // The pick stands until it is cleared or sent.
     await userEvent.click(picker())
     await userEvent.click(await screen.findByRole('option', { name: 'Otto Other' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Clear Otto Other' }))
+    expect(picker()).toHaveTextContent('Otto Other')
+    await userEvent.click(picker())
+    await userEvent.click(screen.getByRole('option', { name: 'Search volunteers…' }))
+    expect(picker()).toHaveTextContent('Search volunteers…')
     await userEvent.click(picker())
     await userEvent.click(await screen.findByRole('option', { name: 'Otto Other' }))
     await userEvent.type(screen.getByLabelText('Note with the invite (optional)'), 'Leaflets?')
     await userEvent.click(screen.getByRole('button', { name: 'Invite' }))
     await screen.findByText('Invite sent')
     // The picker empties, and the person waits under Invited until they answer.
-    await waitFor(() => expect(picker()).toBeInTheDocument())
-    expect(screen.queryByRole('button', { name: 'Clear Otto Other' })).toBeNull()
+    await waitFor(() => expect(picker()).toHaveTextContent('Search volunteers…'))
     expect(
       screen.getByText('They get an invite and join once they accept.', { exact: false }),
     ).toBeInTheDocument()

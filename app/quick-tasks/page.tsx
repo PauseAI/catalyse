@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'
 import Button from '@/components/Button'
 import CommentThread from '@/components/CommentThread'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
-import VolunteerSelect from '@/components/VolunteerSelect'
+import FullVolunteerSelect from '@/components/FullVolunteerSelect'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import Linkify from '@/components/Linkify'
 import SubmitWorkButton from '@/components/SubmitWorkButton'
@@ -798,7 +798,7 @@ function AdminQuickTasksView() {
               {task.status === QuickTaskStatus.open && (
                 <div className="flex gap-2 items-end mb-3">
                   <div className="flex-1 max-w-75">
-                    <VolunteerSelect
+                    <FullVolunteerSelect
                       id={`assign-task-${task.id}`}
                       label="Assign to"
                       ariaLabel={`Assign volunteer to ${task.title}`}
@@ -912,7 +912,7 @@ function AdminQuickTasksView() {
                 {task.status === TaskStatus.not_started && task.assignedToId === null && (
                   <div className="flex gap-2 items-end mb-3">
                     <div className="flex-1 max-w-75">
-                      <VolunteerSelect
+                      <FullVolunteerSelect
                         id={`assign-project-task-${task.id}`}
                         label="Assign to"
                         ariaLabel={`Assign volunteer to ${task.title}`}

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useRequireAdmin } from '@/lib/hooks/auth'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
-import VolunteerSelect from '@/components/VolunteerSelect'
+import FullVolunteerSelect from '@/components/FullVolunteerSelect'
 import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { formatDate } from '@/lib/format-date'
@@ -309,7 +309,7 @@ function BugReportCard({
         )}
 
         <div className="flex-1 min-w-50 max-w-75">
-          <VolunteerSelect
+          <FullVolunteerSelect
             id={`assign-bug-${r.id}`}
             label="Assign to"
             ariaLabel={`Assign volunteer to ${r.title}`}

@@ -9,7 +9,7 @@ import Button from '@/components/Button'
 import Checkbox from '@/components/Checkbox'
 import DatesBlock from '@/components/DatesBlock'
 import ReplanDialog from '@/components/ReplanDialog'
-import VolunteerSelect from '@/components/VolunteerSelect'
+import FullVolunteerSelect from '@/components/FullVolunteerSelect'
 import { plural } from '@/lib/plural'
 import TaskDatesSummary from '@/components/TaskDatesSummary'
 import WorkItemCard from '@/components/WorkItemCard'
@@ -449,7 +449,7 @@ export default function TaskDetailPage({
                 Replan
               </Button>
               <div className="w-64">
-                <VolunteerSelect
+                <FullVolunteerSelect
                   id="reassign-task"
                   label="Reassign to"
                   ariaLabel="Reassign to"
