@@ -48,7 +48,9 @@ describe('serveStorybookFile', () => {
 
     const response = await serve('http://localhost/admin/storybook/view/?token=' + adminToken, [])
     expect(response.status).toBe(200)
-    expect(await response.text()).toContain('fixture index')
+    const html = await response.text()
+    expect(html).toContain('fixture index')
+    expect(html).toContain('<head><base href="/admin/storybook/view/">')
     expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8')
 
     const cookie = response.headers.get('set-cookie')
