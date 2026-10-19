@@ -36,7 +36,22 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }]
+    return [
+      { source: '/:path*', headers: securityHeaders },
+      // Storybook's preview pane is its own document (iframe.html) framed by the manager
+      // (index.html) of the same route — `frame-ancestors 'none'` above would stop the
+      // browser rendering it at all, leaving the preview pane stuck loading forever.
+      {
+        source: '/admin/storybook/view/:path*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          {
+            key: 'Content-Security-Policy',
+            value: CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self'"),
+          },
+        ],
+      },
+    ]
   },
 
   async redirects() {
