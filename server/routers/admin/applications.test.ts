@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createHash } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 import {
   createVolunteer,
   createSuperAdmin,
@@ -303,7 +304,7 @@ describe('admin.applications.action', () => {
   it('logs but does not fail when an email send rejects', async () => {
     const me = await createSuperAdmin()
     const c = clientAs(me)
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
     emails.failNext(4)
     const v = await createVolunteer({ approvalStatus: 'pending' })
     await c.admin.applications.action({ id: v.id, action: 'request_info' })
@@ -311,11 +312,11 @@ describe('admin.applications.action', () => {
     await c.admin.applications.action({ id: v.id, action: 'reopen' })
     await c.admin.applications.action({ id: v.id, action: 'approve' })
     await vi.waitFor(() => expect(error).toHaveBeenCalledTimes(4))
-    expect(error.mock.calls.map((c) => c[0])).toEqual([
-      '[APPLICATIONS] Needs-info email failed:',
-      '[APPLICATIONS] Rejected email failed:',
-      '[APPLICATIONS] Reopened email failed:',
-      '[APPLICATIONS] Approved email failed:',
+    expect(error.mock.calls.map((c) => c[1])).toEqual([
+      '[APPLICATIONS] Needs-info email failed',
+      '[APPLICATIONS] Rejected email failed',
+      '[APPLICATIONS] Reopened email failed',
+      '[APPLICATIONS] Approved email failed',
     ])
   })
 })

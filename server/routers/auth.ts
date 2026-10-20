@@ -1,6 +1,7 @@
 import { ORPCError } from '@orpc/server'
 import { randomBytes, createHash } from 'crypto'
 import { z } from 'zod'
+import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { chapterCarers } from '@/lib/chapter-access-server'
 import {
@@ -134,7 +135,7 @@ async function sendAccountDeletionNotifications(deletedId: number, deletedName: 
             link: `/projects/${p.projectId}`,
           },
         })
-        .catch((e) => console.error('[NOTIFY ERROR]', e))
+        .catch((e) => logger.error(e, '[NOTIFY ERROR]'))
     }
     for (const p of r.ownerlessProjects) {
       await prisma.notification
@@ -147,7 +148,7 @@ async function sendAccountDeletionNotifications(deletedId: number, deletedName: 
             link: `/projects/${p.projectId}`,
           },
         })
-        .catch((e) => console.error('[NOTIFY ERROR]', e))
+        .catch((e) => logger.error(e, '[NOTIFY ERROR]'))
     }
     if (r.email) {
       const allProjects = [...r.taskProjects, ...r.ownerlessProjects]
@@ -187,7 +188,7 @@ async function sendAccountDeletionNotifications(deletedId: number, deletedName: 
         message: msgParts.join(''),
         projectTitle: allProjects[0].projectTitle,
         projectId: allProjects[0].projectId,
-      }).catch((e) => console.error('[NOTIFY ERROR] email failed:', e))
+      }).catch((e) => logger.error(e, '[NOTIFY ERROR] email failed:'))
     }
   }
 }
@@ -330,7 +331,10 @@ export const authRouter = {
 
     const platformSettings = await prisma.platformSettings
       .upsert({ where: { id: 1 }, create: { id: 1, requireApplicationApproval: true }, update: {} })
-      .catch(() => ({ requireApplicationApproval: true }))
+      .catch((e) => {
+        logger.error(e, '[SIGNUP] platform settings fetch failed; defaulting to approval required')
+        return { requireApplicationApproval: true }
+      })
 
     // The address is unproven until the link is clicked, so any admin bootstrap or
     // invite for it is granted by verifyEmail, not here.
@@ -349,7 +353,7 @@ export const authRouter = {
       })
     }
     sendWelcomeAndConfirmEmail({ to: email, token: vt.token, name: input.name }).catch((e) =>
-      console.error('[SIGNUP]', e),
+      logger.error(e, '[SIGNUP]'),
     )
 
     const isApproved = !platformSettings.requireApplicationApproval
@@ -368,7 +372,7 @@ export const authRouter = {
           ctaUrl: `/admin/applications/${volunteer.id}`,
         },
         volunteer.id,
-      ).catch((e) => console.error('[SIGNUP NOTIFY]', e))
+      ).catch((e) => logger.error(e, '[SIGNUP NOTIFY]'))
     }
 
     const token = await createSession(volunteer.id)
@@ -520,7 +524,7 @@ export const authRouter = {
       to: newEmail,
       token: vt.token,
       name: context.volunteer.name,
-    }).catch((e) => console.error('[CHANGE_EMAIL]', e))
+    }).catch((e) => logger.error(e, '[CHANGE_EMAIL]'))
 
     return {
       message: 'Email changed. Check your new address for a confirmation link.',
@@ -663,7 +667,7 @@ export const authRouter = {
       if (!volunteer.emailConfirmed && volunteer.email) {
         if (wasPromoted) {
           sendWelcomeEmail({ to: volunteer.email, name: volunteer.name }).catch((e) =>
-            console.error('[VERIFY_EMAIL]', e),
+            logger.error(e, '[VERIFY_EMAIL]'),
           )
         } else if (volunteer.approvalStatus === ApprovalStatus.approved) {
           const settings = await prisma.platformSettings
@@ -672,19 +676,25 @@ export const authRouter = {
               create: { id: 1, requireApplicationApproval: true },
               update: {},
             })
-            .catch(() => ({ requireApplicationApproval: true }))
+            .catch((e) => {
+              logger.error(
+                e,
+                '[VERIFY_EMAIL] platform settings fetch failed; defaulting to approval required',
+              )
+              return { requireApplicationApproval: true }
+            })
           if (settings.requireApplicationApproval) {
             sendApplicationApprovedEmail({ to: volunteer.email, name: volunteer.name }).catch((e) =>
-              console.error('[VERIFY_EMAIL]', e),
+              logger.error(e, '[VERIFY_EMAIL]'),
             )
           } else {
             sendWelcomeEmail({ to: volunteer.email, name: volunteer.name }).catch((e) =>
-              console.error('[VERIFY_EMAIL]', e),
+              logger.error(e, '[VERIFY_EMAIL]'),
             )
           }
         } else if (volunteer.approvalStatus === ApprovalStatus.pending) {
           sendApplicationReceivedEmail({ to: volunteer.email, name: volunteer.name }).catch((e) =>
-            console.error('[VERIFY_EMAIL]', e),
+            logger.error(e, '[VERIFY_EMAIL]'),
           )
         }
       }
@@ -728,7 +738,7 @@ export const authRouter = {
         to: volunteer.email,
         token: vt.token,
         name: volunteer.name,
-      }).catch((e) => console.error('[RESEND_VERIFICATION]', e))
+      }).catch((e) => logger.error(e, '[RESEND_VERIFICATION]'))
 
       return { message: okMsg, ...(env.STUB_EMAIL ? { emailVerificationToken: vt.token } : {}) }
     }),
@@ -933,10 +943,10 @@ export const authRouter = {
       const isApproved = wasPromoted
 
       if (isApproved) {
-        sendWelcomeEmail({ to: email, name }).catch((e) => console.error('[GOOGLE_SIGNUP]', e))
+        sendWelcomeEmail({ to: email, name }).catch((e) => logger.error(e, '[GOOGLE_SIGNUP]'))
       } else {
         sendApplicationReceivedEmail({ to: email, name }).catch((e) =>
-          console.error('[GOOGLE_SIGNUP]', e),
+          logger.error(e, '[GOOGLE_SIGNUP]'),
         )
       }
       const token = await createSession(volunteer.id)

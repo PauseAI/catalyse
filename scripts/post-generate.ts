@@ -3,6 +3,7 @@
 // Add new patches below following the same pattern.
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
+import { logger } from '../lib/logger'
 
 const file = 'generated/prisma/client.ts'
 let content: string = readFileSync(file, 'utf8')
@@ -10,14 +11,14 @@ let dirty = false
 
 function patch(description: string, from: string, to: string): void {
   if (content.includes(to)) {
-    console.log(`  already applied: ${description}`)
+    logger.info(`  already applied: ${description}`)
   } else if (content.includes(from)) {
     content = content.replace(from, to)
     dirty = true
-    console.log(`  patched: ${description}`)
+    logger.info(`  patched: ${description}`)
   } else {
-    console.warn(
-      `  WARNING: expected string not found for "${description}" — Prisma generator may have changed`,
+    logger.warn(
+      `  expected string not found for "${description}" — Prisma generator may have changed`,
     )
   }
 }
@@ -36,9 +37,9 @@ patch(
 
 if (dirty) {
   writeFileSync(file, content)
-  console.log(`Wrote ${file}`)
+  logger.info(`Wrote ${file}`)
 } else {
-  console.log(`${file}: no changes needed`)
+  logger.info(`${file}: no changes needed`)
 }
 
 // Records which schema.prisma this generate ran against, so `predev`

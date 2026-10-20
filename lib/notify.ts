@@ -2,6 +2,7 @@ import { prisma } from './prisma'
 import { sendProjectNotificationEmail, sendAdminAlertEmail } from './email'
 import { categoryOf } from './notification-categories'
 import { chapterCarers, globalAdminWhere } from './chapter-access-server'
+import { logger } from './logger'
 
 export async function createNotification(
   volunteerId: number,
@@ -29,7 +30,7 @@ export async function createNotification(
 export async function clearNotifications(type: string, entityId: number): Promise<void> {
   await prisma.notification
     .deleteMany({ where: { type, entityId } })
-    .catch((e) => console.error('[NOTIFY CLEAR ERROR]', e))
+    .catch((e) => logger.error(e, '[NOTIFY CLEAR ERROR]'))
 }
 
 /**
@@ -78,7 +79,7 @@ export async function notifyUser(
     link,
     entityId,
   ).catch((e) => {
-    console.error('[NOTIFY ERROR]', e)
+    logger.error(e, '[NOTIFY ERROR]')
     return null
   })
   if (!email) return
@@ -119,7 +120,7 @@ export async function notifyUser(
         })
       }
     })
-    .catch((e) => console.error('[EMAIL ERROR]', e))
+    .catch((e) => logger.error(e, '[EMAIL ERROR]'))
 }
 
 /** Alerts every member of a team that a project has been tagged to them and gone live. */

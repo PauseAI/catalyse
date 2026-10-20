@@ -1,6 +1,7 @@
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
+import { logger } from '../lib/logger'
 
 const PROJECT_ROOT = path.resolve(__dirname, '..')
 const NEXT_BINARY = path.join(PROJECT_ROOT, 'node_modules', '.bin', 'next')
@@ -76,10 +77,10 @@ export function isBuildFresh(): boolean {
 
 export async function buildNext(): Promise<void> {
   if (isBuildFresh()) {
-    console.log('[build] Fresh — skipping next build')
+    logger.info('[build] Fresh — skipping next build')
     return
   }
-  console.log('[build] Building...')
+  logger.info('[build] Building...')
   await new Promise<void>((resolve, reject) => {
     const build = spawn(NEXT_BINARY, ['build'], { cwd: PROJECT_ROOT, stdio: 'pipe' })
     const chunks: Buffer[] = []
@@ -87,10 +88,10 @@ export async function buildNext(): Promise<void> {
     build.stderr.on('data', (d) => chunks.push(d))
     build.on('close', (code) => {
       if (code === 0) {
-        console.log('[build] Success')
+        logger.info('[build] Success')
         return resolve()
       }
-      console.error(
+      logger.error(
         '[build] FAILED — next build runs before tests start. Tests did not run. Build output:',
       )
       process.stdout.write(Buffer.concat(chunks))

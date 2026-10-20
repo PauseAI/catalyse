@@ -13,6 +13,7 @@ import { Client } from 'pg'
 import { faker } from '@faker-js/faker'
 import { libpqUrl } from '../jobs/backup'
 import { resolveDbUrl } from '../lib/db-url'
+import { logger } from '../lib/logger'
 import { makePasswordHash, seedDevAccounts } from './seed-dev-accounts'
 import { COLUMN_TREATMENT, REDACTED } from './anonymise-columns'
 import { assertDisposable } from './disposable-db'
@@ -163,7 +164,7 @@ async function applyTreatments(db: Client, present: Set<string>): Promise<void> 
 
 async function main(): Promise<void> {
   if (process.env.RAILWAY_ENVIRONMENT_NAME === 'production') {
-    console.error('Refusing to run in the production environment')
+    logger.error('Refusing to run in the production environment')
     process.exit(1)
   }
 
@@ -171,23 +172,23 @@ async function main(): Promise<void> {
   const db = new Client({ connectionString: dbUrl })
   await db.connect()
   try {
-    console.log(`Anonymising ${new URL(dbUrl).pathname.slice(1)}...`)
+    logger.info(`Anonymising ${new URL(dbUrl).pathname.slice(1)}...`)
     await anonymise(db)
-    console.log('Seeding dev accounts...')
+    logger.info('Seeding dev accounts...')
     await seedDevAccounts(db)
   } finally {
     await db.end()
   }
 
-  console.log('Done.')
-  console.log('  volunteer@example.com  / password1')
-  console.log('  admin@example.com      / password1')
-  console.log('  superadmin@example.com / password1')
+  logger.info('Done.')
+  logger.info('  volunteer@example.com  / password1')
+  logger.info('  admin@example.com      / password1')
+  logger.info('  superadmin@example.com / password1')
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch((err) => {
-    console.error(err instanceof Error ? err.message : err)
+    logger.error(err instanceof Error ? err.message : err)
     process.exit(1)
   })
 }

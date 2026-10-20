@@ -11,6 +11,7 @@ import {
   UnconfiguredTransport,
 } from './email-transport'
 import { emails } from '@/test/fakes/email'
+import { logger } from './logger'
 import http from 'node:http'
 import { Resend } from 'resend'
 
@@ -41,8 +42,8 @@ const message = { to: 'a@b.c', subject: 'Hello', html: '<p>hi</p>' }
 describe('email transports', () => {
   let log: ReturnType<typeof vi.spyOn>
   beforeEach(() => {
-    log = vi.spyOn(console, 'log').mockImplementation(() => {})
-    vi.spyOn(console, 'error').mockImplementation(() => {})
+    log = vi.spyOn(logger, 'info').mockImplementation(() => logger as never)
+    vi.spyOn(logger, 'error').mockImplementation(() => logger as never)
   })
 
   it('is chosen from the environment: stub first, then Resend, else unconfigured', () => {
@@ -144,7 +145,7 @@ describe('email transports', () => {
       })
       status = 422
       expect(await resend.send(message)).toBe(false)
-      expect(console.error).toHaveBeenCalledWith('[EMAIL ERROR] bad from')
+      expect(logger.error).toHaveBeenCalledWith('[EMAIL ERROR] bad from')
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()))
     }

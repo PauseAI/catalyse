@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { checkCronAuth } from './cron-auth'
+import { logger } from './logger'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -15,7 +16,7 @@ const req = (auth?: string) =>
 describe('checkCronAuth', () => {
   it('is a 500 when the secret is not configured', async () => {
     vi.stubEnv('CRON_SECRET', '')
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger as never)
     const res = checkCronAuth(req('Bearer anything'))
     expect(res?.status).toBe(500)
     expect(error).toHaveBeenCalled()

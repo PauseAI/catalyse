@@ -17,6 +17,7 @@ import {
   type ScheduleEdge,
   type ScheduleInput,
 } from '@/lib/schedule'
+import { logger } from '@/lib/logger'
 
 export type AuditItem = {
   id: number
@@ -247,7 +248,7 @@ async function main() {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch((err) => {
-    console.error(err)
+    logger.error(err)
     process.exit(1)
   })
 }

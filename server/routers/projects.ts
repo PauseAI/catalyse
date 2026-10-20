@@ -65,6 +65,7 @@ import { startOfUtcDay } from '@/lib/schedule'
 import { taskIsDated } from '@/lib/task-dates'
 import { notifyMatchingVolunteers } from '@/lib/project-match-notify'
 import { html } from '@/lib/email'
+import { logger } from '@/lib/logger'
 import { formatDateShort } from '@/lib/format-date'
 import { awaitsOwnerReview } from '@/lib/task-review'
 import { handedIn } from '@/lib/overdue'
@@ -1144,10 +1145,10 @@ export const projectsRouter = {
           { actorId: volunteer.id, kind: 'status' },
         )
 
-        notifyMatchingVolunteers(project.id).catch((e) => console.error('[MATCH NOTIFY]', e))
+        notifyMatchingVolunteers(project.id).catch((e) => logger.error(e, '[MATCH NOTIFY]'))
         if (project.teamId) {
           notifyTeamOfProject(project.teamId, project.id, project.title).catch((e) =>
-            console.error('[TEAM NOTIFY]', e),
+            logger.error(e, '[TEAM NOTIFY]'),
           )
         }
 
@@ -1754,7 +1755,7 @@ export const projectsRouter = {
         !UNAPPROVED_STATUSES.includes(project.status)
       ) {
         notifyTeamOfProject(data.teamId, project.id, project.title).catch((e) =>
-          console.error('[TEAM NOTIFY]', e),
+          logger.error(e, '[TEAM NOTIFY]'),
         )
       }
 

@@ -23,6 +23,7 @@ import {
 } from '../e2e/snapshots/config'
 import { LANES, snapshotServerCount } from '../e2e/snapshots/config'
 import { renderGallery } from '../e2e/snapshots/gallery'
+import { logger } from '../lib/logger'
 import { buildNext } from './next-build'
 import {
   appendHistory,
@@ -151,7 +152,7 @@ async function playwright(args: string[], cwd = ROOT): Promise<number> {
 async function captureAgainst(ref: string, args: string[]): Promise<number> {
   await mkdir(path.join(ROOT, 'tmp'), { recursive: true })
   const worktree = await mkdtemp(path.join(ROOT, 'tmp', 'snapshots-against-'))
-  console.log(`Capturing ${ref} in a worktree at ${worktree}`)
+  logger.info(`Capturing ${ref} in a worktree at ${worktree}`)
   try {
     run('git', ['worktree', 'add', '--detach', worktree, ref])
     const linked = run('cp', [
@@ -173,7 +174,7 @@ async function captureAgainst(ref: string, args: string[]): Promise<number> {
     }
     const status = await playwright(args, worktree)
     if (status !== 0)
-      console.log(`The ${ref} run exited ${String(status)}; pinning what it captured.`)
+      logger.info(`The ${ref} run exited ${String(status)}; pinning what it captured.`)
     const worktreeCurrent = path.join(worktree, 'snapshots', 'current')
     if (!existsSync(worktreeCurrent)) throw new Error(`The ${ref} run captured nothing.`)
     await mkdir(PREVIOUS, { recursive: true })
@@ -201,7 +202,7 @@ async function captureAgainst(ref: string, args: string[]): Promise<number> {
     if (Object.keys(pins).length === 0) throw new Error(`The ${ref} run captured nothing.`)
     const sha = output('git', ['rev-parse', ref])
     await writeBaseline({ ref, sha, pinnedAt: new Date().toISOString(), pins }, BASELINE)
-    console.log(
+    logger.info(
       `Baseline pinned at ${ref} (${sha.slice(0, 7)}), ${String(Object.keys(pins).length)} pictures. Plain runs now diff against it; clear with --clear-baseline.`,
     )
     return 0
@@ -218,7 +219,7 @@ async function captureAgainst(ref: string, args: string[]): Promise<number> {
 async function render(): Promise<number> {
   const manifest = mergeLatestRuns(await listRuns(RUNS))
   if (!manifest) {
-    console.error('No complete run to render.')
+    logger.error('No complete run to render.')
     return 1
   }
   const captures = Object.values(manifest.captures)
@@ -230,7 +231,7 @@ async function render(): Promise<number> {
   const rows = await galleryRows(manifest)
   await writeFile(GALLERY, renderGallery(rows, manifest, await readBaseline(BASELINE), cost))
   await writeFile(LATEST, JSON.stringify(manifest, null, 2))
-  console.log(`Gallery: ${GALLERY} (${manifest.lanes.join(', ')})`)
+  logger.info(`Gallery: ${GALLERY} (${manifest.lanes.join(', ')})`)
   return 0
 }
 
@@ -242,7 +243,7 @@ async function main(argv: string[]): Promise<number> {
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
     if (arg === '--help' || arg === '-h') {
-      console.log(USAGE)
+      logger.info(USAGE)
       return 0
     }
     if (arg === '--clear-baseline') {
@@ -259,7 +260,7 @@ async function main(argv: string[]): Promise<number> {
     }
   }
   if (clear) {
-    console.log(
+    logger.info(
       (await clearBaseline(BASELINE))
         ? 'Baseline cleared. Plain runs diff against the run before them again.'
         : 'No baseline was pinned.',
@@ -276,7 +277,7 @@ async function main(argv: string[]): Promise<number> {
 main(process.argv.slice(2)).then(
   (status) => process.exit(status),
   (error: unknown) => {
-    console.error(error instanceof Error ? error.message : String(error))
+    logger.error(error instanceof Error ? error.message : String(error))
     process.exit(1)
   },
 )

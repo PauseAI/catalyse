@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { os } from '@orpc/server'
+import { logger } from '@/lib/logger'
 import { rpcFetch } from '@/test/rpc-fetch'
 import { createHandler } from './handler'
 
@@ -39,7 +40,7 @@ describe('handler', () => {
   it('logs an error no procedure meant to throw, and answers 500', async () => {
     const bug = new Error('boom')
     const handler = createHandler({ broken: os.handler(() => Promise.reject(bug)) })
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const logged = vi.spyOn(logger, 'error').mockImplementation(() => logger)
     const { response } = await handler.handle(
       new Request('http://localhost/api/rpc/broken', { method: 'POST', body: '{}' }),
       { prefix: '/api/rpc', context: {} },
@@ -50,7 +51,7 @@ describe('handler', () => {
   })
 
   it('does not log a refusal', async () => {
-    const logged = vi.spyOn(console, 'error')
+    const logged = vi.spyOn(logger, 'error')
     expect((await call('my/quickTasks', {})).status).toBe(401)
     expect(logged).not.toHaveBeenCalled()
     logged.mockRestore()

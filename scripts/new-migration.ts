@@ -2,10 +2,11 @@ import { execSync } from 'child_process'
 import { mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { resolveDbUrl } from '../lib/db-url'
+import { logger } from '../lib/logger'
 
 const name = process.argv[2]
 if (!name) {
-  console.error('Usage: npm run new-migration <migration_name>')
+  logger.error('Usage: npm run new-migration <migration_name>')
   process.exit(1)
 }
 
@@ -33,5 +34,5 @@ const sql = execSync(
 const sqlPath = join(dirPath, 'migration.sql')
 writeFileSync(sqlPath, sql)
 
-console.log(`Created: prisma/migrations/${dirName}/migration.sql`)
-console.log('Review the SQL, then run: npm run migrate && npx prisma generate')
+logger.info(`Created: prisma/migrations/${dirName}/migration.sql`)
+logger.info('Review the SQL, then run: npm run migrate && npx prisma generate')

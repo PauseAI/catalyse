@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 import {
   createVolunteer,
   createAdmin,
@@ -339,13 +340,13 @@ describe('projects.create / drafts', () => {
       assigneeId: admin.id,
     })
     await createTask(ownedOrg.id)
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
     vi.mocked(notifyMatchingVolunteers).mockRejectedValueOnce(new Error('m'))
     await clientAs(admin).projects.publishDraft({ id: ownedOrg.id })
     expect((await prisma.workItem.findUniqueOrThrow({ where: { id: ownedOrg.id } })).status).toBe(
       'in_progress',
     )
-    await vi.waitFor(() => expect(error).toHaveBeenCalledWith('[MATCH NOTIFY]', expect.any(Error)))
+    await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.any(Error), '[MATCH NOTIFY]'))
     const { notifyTeamOfProject } = await import('@/lib/notify')
     const teamDraft = await createProject({
       status: 'draft',
@@ -356,7 +357,7 @@ describe('projects.create / drafts', () => {
     await createTask(teamDraft.id)
     vi.spyOn(prisma.teamMembership, 'findMany').mockRejectedValueOnce(new Error('t') as never)
     await clientAs(admin).projects.publishDraft({ id: teamDraft.id })
-    await vi.waitFor(() => expect(error).toHaveBeenCalledWith('[TEAM NOTIFY]', expect.any(Error)))
+    await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.any(Error), '[TEAM NOTIFY]'))
     void notifyTeamOfProject
 
     const d2 = await c.projects.create({ ...base, saveAsDraft: true })

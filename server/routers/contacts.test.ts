@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 import {
   connect,
   createAdmin,
@@ -253,9 +254,9 @@ describe('recent activity', () => {
     expect(
       (await prisma.volunteer.findUniqueOrThrow({ where: { id: vol.id } })).lastActiveAt,
     ).toEqual(first)
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
     await touchLastActive({ id: 999_999, lastActiveAt: null })
-    expect(error).toHaveBeenCalledWith('[ACTIVITY ERROR]', expect.anything())
+    expect(error).toHaveBeenCalledWith(expect.anything(), '[ACTIVITY ERROR]')
     error.mockRestore()
 
     const now = new Date('2026-09-24T00:00:00Z')

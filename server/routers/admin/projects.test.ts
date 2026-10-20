@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 import {
   createVolunteer,
   createAdmin,
@@ -107,14 +108,14 @@ describe('admin.projects.create / myDrafts', () => {
 
   it('logs notification failures after a create', async () => {
     const c = clientAs(await createAdmin())
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
     vi.mocked(notifyMatchingVolunteers).mockRejectedValueOnce(new Error('m'))
     vi.mocked(notifyTeamOfProject).mockRejectedValueOnce(new Error('t'))
     const team = await createTeam()
     await c.admin.projects.create({ ...base, tasks: [{ title: 'T' }], teamId: team.id })
     await vi.waitFor(() => {
-      expect(error).toHaveBeenCalledWith('[MATCH NOTIFY]', expect.any(Error))
-      expect(error).toHaveBeenCalledWith('[TEAM NOTIFY]', expect.any(Error))
+      expect(error).toHaveBeenCalledWith(expect.any(Error), '[MATCH NOTIFY]')
+      expect(error).toHaveBeenCalledWith(expect.any(Error), '[TEAM NOTIFY]')
     })
   })
 })
@@ -179,7 +180,7 @@ describe('admin.projects.review', () => {
       }),
     ).toBe(0)
 
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
     vi.mocked(notifyMatchingVolunteers).mockRejectedValueOnce(new Error('m'))
     vi.mocked(notifyTeamOfProject).mockRejectedValueOnce(new Error('t'))
     const owned = await createProject({
@@ -189,8 +190,8 @@ describe('admin.projects.review', () => {
     })
     await c.admin.projects.review({ id: owned.id, status: 'approved', comment: '  ' })
     await vi.waitFor(() => {
-      expect(error).toHaveBeenCalledWith('[MATCH NOTIFY]', expect.any(Error))
-      expect(error).toHaveBeenCalledWith('[TEAM NOTIFY]', expect.any(Error))
+      expect(error).toHaveBeenCalledWith(expect.any(Error), '[MATCH NOTIFY]')
+      expect(error).toHaveBeenCalledWith(expect.any(Error), '[TEAM NOTIFY]')
     })
     expect((await prisma.workItem.findUniqueOrThrow({ where: { id: owned.id } })).status).toBe(
       'ready',

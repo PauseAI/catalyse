@@ -17,6 +17,7 @@ import { staffProcedure } from '../../procedures'
 import { canAdminChapter, type ChapterAccess } from '@/lib/chapter-access'
 import { chapterFilter } from '@/lib/chapter-access-server'
 import { ProjectStatus, TaskStatus, WorkItemType } from '@/generated/prisma/enums'
+import { logger } from '@/lib/logger'
 
 /** A project in a chapter the caller runs; any other is not found. */
 async function projectRunBy(access: ChapterAccess, id: number) {
@@ -116,11 +117,11 @@ export const adminProjectsRouter = {
     })
 
     if (!saveAsDraft) {
-      notifyMatchingVolunteers(project.id).catch((e) => console.error('[MATCH NOTIFY]', e))
+      notifyMatchingVolunteers(project.id).catch((e) => logger.error(e, '[MATCH NOTIFY]'))
 
       if (input.teamId) {
         notifyTeamOfProject(input.teamId, project.id, project.title).catch((e) =>
-          console.error('[TEAM NOTIFY]', e),
+          logger.error(e, '[TEAM NOTIFY]'),
         )
       }
     }
@@ -183,11 +184,11 @@ export const adminProjectsRouter = {
           )
         }
 
-        notifyMatchingVolunteers(input.id).catch((e) => console.error('[MATCH NOTIFY]', e))
+        notifyMatchingVolunteers(input.id).catch((e) => logger.error(e, '[MATCH NOTIFY]'))
 
         if (project.teamId) {
           notifyTeamOfProject(project.teamId, project.id, project.title).catch((e) =>
-            console.error('[TEAM NOTIFY]', e),
+            logger.error(e, '[TEAM NOTIFY]'),
           )
         }
       } else {

@@ -1,5 +1,6 @@
 import { ORPCError, type AnyRouter } from '@orpc/server'
 import { RPCHandler } from '@orpc/server/fetch'
+import { logger } from '@/lib/logger'
 import { appRouter } from './router'
 
 interface Issue {
@@ -31,7 +32,7 @@ export function createHandler(router: AnyRouter = appRouter): RPCHandler<Record<
         } catch (error) {
           // A refusal the code meant to make reaches the client as it is; anything else is a
           // bug the client sees only as a 500, so the server logs it.
-          if (!(error instanceof ORPCError)) console.error(error)
+          if (!(error instanceof ORPCError)) logger.error(error)
           throw withIssueMessage(error)
         }
       },

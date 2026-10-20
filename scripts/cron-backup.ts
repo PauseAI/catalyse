@@ -2,6 +2,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { logger } from '@/lib/logger'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -26,11 +27,11 @@ loadEnvFile(resolve(ROOT, '.env'))
 const { PROD_URL, CRON_SECRET } = process.env
 
 if (!PROD_URL) {
-  console.error('PROD_URL not set — add it to .env.local')
+  logger.error('PROD_URL not set — add it to .env.local')
   process.exit(1)
 }
 if (!CRON_SECRET) {
-  console.error('CRON_SECRET not set — add it to .env.local')
+  logger.error('CRON_SECRET not set — add it to .env.local')
   process.exit(1)
 }
 

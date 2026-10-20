@@ -13,6 +13,7 @@ import { execSync, spawn } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { logger } from '../lib/logger'
 
 const SUITES = {
   unit: { script: 'test:unit', env: 'VITEST_MAX_WORKERS' },
@@ -65,7 +66,7 @@ async function runOnce(suite: keyof typeof SUITES, count: number): Promise<Resul
   fs.closeSync(fd)
 
   const ok = status === 0
-  if (!ok) console.log(`  ${suite} at ${count} workers failed (exit ${status}); output in ${log}`)
+  if (!ok) logger.info(`  ${suite} at ${count} workers failed (exit ${status}); output in ${log}`)
   return { count, ms: Date.now() - startedAt, ok, peakSwapMb, peakLoad }
 }
 
@@ -77,29 +78,29 @@ async function main() {
     counts.length === 0 ||
     counts.some((c) => !Number.isInteger(c) || c < 1)
   ) {
-    console.error('Usage: npx tsx scripts/tune-workers.ts <unit|e2e> <count> [<count> ...]')
+    logger.error('Usage: npx tsx scripts/tune-workers.ts <unit|e2e> <count> [<count> ...]')
     process.exit(2)
   }
 
   const load = os.loadavg()[0]
   const baselineSwapMb = swapUsedMb()
-  console.log(
+  logger.info(
     `${os.availableParallelism()} cores, ${Math.round(os.totalmem() / 2 ** 30)} GB RAM, ` +
       `load ${load.toFixed(1)}, swap in use ${Math.round(baselineSwapMb)} MB before starting`,
   )
   if (load > BUSY_LOAD)
-    console.log(`Warning: load is above ${BUSY_LOAD}; other work will skew the results.`)
+    logger.warn(`Warning: load is above ${BUSY_LOAD}; other work will skew the results.`)
 
   const results: Result[] = []
   for (const count of counts) {
-    console.log(`\n▶ ${suite} with ${count} worker${count > 1 ? 's' : ''}`)
+    logger.info(`\n▶ ${suite} with ${count} worker${count > 1 ? 's' : ''}`)
     results.push(await runOnce(suite as keyof typeof SUITES, count))
   }
 
-  console.log(`\n${suite} (peak load is a 1-minute average, so it lags)`)
-  console.log('  workers      time  peak swap  peak load')
+  logger.info(`\n${suite} (peak load is a 1-minute average, so it lags)`)
+  logger.info('  workers      time  peak swap  peak load')
   for (const r of results) {
-    console.log(
+    logger.info(
       `  ${String(r.count).padStart(7)}  ${formatDuration(r.ms).padStart(8)}  ` +
         `${`${Math.round(r.peakSwapMb)} MB`.padStart(9)}  ${r.peakLoad.toFixed(1).padStart(9)}` +
         (r.ok ? '' : '  FAILED'),

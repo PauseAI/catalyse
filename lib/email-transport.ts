@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { Resend } from 'resend'
 import { env } from './env'
+import { logger } from './logger'
 
 export type OutgoingEmail = {
   to: string
@@ -48,12 +49,12 @@ export class ResendTransport extends EmailTransport {
       if (effectiveReplyTo) payload.replyTo = effectiveReplyTo
       const { error } = await this.resend.emails.send(payload)
       if (error) {
-        console.error(`[EMAIL ERROR] ${error.message}`)
+        logger.error(`[EMAIL ERROR] ${error.message}`)
         return false
       }
       return true
     } catch (err) {
-      console.error('[EMAIL ERROR]', err)
+      logger.error(err, '[EMAIL ERROR]')
       return false
     }
   }
@@ -76,7 +77,7 @@ export class FileStubTransport extends EmailTransport {
     const file = `${FileStubTransport.DIR}/${timestamp}_${slug}_${randomUUID().slice(0, 8)}.html`
     await fs.mkdir(FileStubTransport.DIR, { recursive: true })
     await fs.writeFile(file, html)
-    console.log(`[EMAIL STUB] To: ${to} | Subject: ${subject}\n[EMAIL STUB] Preview: ${file}`)
+    logger.info(`[EMAIL STUB] To: ${to} | Subject: ${subject}\n[EMAIL STUB] Preview: ${file}`)
     return true
   }
 }
@@ -84,7 +85,7 @@ export class FileStubTransport extends EmailTransport {
 /** Used when neither a stub nor an API key is configured: logs the send and drops it. */
 export class UnconfiguredTransport extends EmailTransport {
   async send({ to, subject }: OutgoingEmail): Promise<boolean> {
-    console.log(`[EMAIL NOT CONFIGURED] Would send to ${to}: ${subject}`)
+    logger.info(`[EMAIL NOT CONFIGURED] Would send to ${to}: ${subject}`)
     return false
   }
 

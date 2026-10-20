@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { currentReport } from './coverage-report'
+import { logger } from '../lib/logger'
 
 const RESULTS_FILE = path.resolve('tmp', 'unit-results.json')
 
@@ -22,7 +23,7 @@ if (status !== 0 && args.length === 0 && fs.existsSync(RESULTS_FILE)) {
     numFailedTestSuites: number
   }
   if (results.numFailedTests === 0 && results.numFailedTestSuites === 0) {
-    console.log(`\n${currentReport()}`)
+    logger.info(`\n${currentReport()}`)
   }
 }
 

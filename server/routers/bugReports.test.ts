@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 import { createVolunteer, createAdmin } from '@/test/factories'
 import { clientAs, anon } from '@/test/rpc'
 import { rateLimit } from '@/test/fakes/rate-limit'
@@ -56,7 +57,7 @@ describe('bugReports', () => {
     const reporter = await createVolunteer()
     await createAdmin()
     await createAdmin({ isTechnicalAdmin: true })
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
     vi.spyOn(prisma.notification, 'create').mockRejectedValue(new Error('db') as never)
     vi.spyOn(prisma.volunteer, 'findFirst').mockRejectedValue(new Error('db') as never)
     const res = await clientAs(reporter).bugReports.create({
@@ -64,7 +65,7 @@ describe('bugReports', () => {
       description: 'Ten characters at least',
     })
     expect(res.message).toContain('Thank you')
-    expect(error.mock.calls.filter((c) => c[0] === '[NOTIFY ERROR]').length).toBeGreaterThanOrEqual(
+    expect(error.mock.calls.filter((c) => c[1] === '[NOTIFY ERROR]').length).toBeGreaterThanOrEqual(
       3,
     )
     vi.restoreAllMocks()

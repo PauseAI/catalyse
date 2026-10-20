@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
+import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { sendRelayMessage, isEmailConfigured } from '@/lib/email'
 import { checkRateLimit } from '@/lib/rate-limit'
@@ -88,7 +89,7 @@ async function deliver(
       message: message.body,
       projectTitle: message.projectTitle ?? undefined,
       threadId: created.threadId,
-    }).catch((e) => console.error('[EMAIL ERROR]', e))
+    }).catch((e) => logger.error(e, '[EMAIL ERROR]'))
   }
   return created
 }
