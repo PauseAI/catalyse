@@ -46,10 +46,10 @@ async function assignQuickTask(
   await expect(getAlert(adminPage)).toBeVisible({ timeout: 10_000 })
 }
 
-/** The volunteer's row for a task in Home's "My work". */
+/** The volunteer's row for a task in Home's "Your tasks". */
 function myWorkRow(volunteerPage: Page, taskTitle: string) {
   return volunteerPage
-    .getByRole('region', { name: 'My work' })
+    .getByRole('region', { name: /Your tasks/ })
     .getByRole('listitem')
     .filter({ hasText: taskTitle })
 }
@@ -208,7 +208,7 @@ test.describe('Quick Tasks (admin)', () => {
     const taskTitle = await createOpenQuickTaskViaApi(baseUrl, skill)
     await assignQuickTask(baseUrl, adminPage, taskTitle, volunteer.name)
 
-    // Home's "My work" lists the assigned task with its status
+    // Home's "Your tasks" lists the assigned task with its status
     await volunteer.page.goto(`${baseUrl}/dashboard`)
     const row = myWorkRow(volunteer.page, taskTitle)
     await expect(row).toBeVisible({ timeout: 10_000 })

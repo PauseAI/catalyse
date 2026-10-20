@@ -389,10 +389,12 @@ describe('dashboard.get', () => {
     ])
     expect(mineNow.some((a) => a.kind === 'quiet_task')).toBe(false)
 
-    // A Quick Task nobody set is any admin's to review.
+    expect(mineNow.some((a) => a.asStaff)).toBe(false)
+
+    // A Quick Task nobody set is any admin's to review, as an admin.
     const adminNow = (await clientAs(admin).dashboard.get()).attention
-    expect(adminNow.filter((a) => a.kind === 'submission').map((a) => a.href)).toContain(
-      `/quick-tasks/${unset.id}`,
+    expect(adminNow).toContainEqual(
+      expect.objectContaining({ href: `/quick-tasks/${unset.id}`, asStaff: true }),
     )
   })
 

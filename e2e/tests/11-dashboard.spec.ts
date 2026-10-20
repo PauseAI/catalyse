@@ -1,5 +1,9 @@
 import { test, expect, getAlert, createApprovedVolunteerNamed } from '../fixtures'
-import { adminCreateProjectViaApi, transferProjectOwnership } from '../actions/projects'
+import {
+  adminCreateProjectViaApi,
+  proposeProject,
+  transferProjectOwnership,
+} from '../actions/projects'
 import { homeHeading } from '../actions/dashboard'
 import { createApiClient } from '../client'
 import { fake } from '../fake'
@@ -11,19 +15,41 @@ test.describe('Home', () => {
     await expect(homeHeading(page)).toBeVisible({ timeout: 10_000 })
 
     await expect(page.getByRole('region', { name: 'Getting started' })).toBeVisible()
-    await expect(page.getByText('Nothing is waiting on you right now.')).toBeVisible()
+    await expect(page.getByText(/not working on anything yet/)).toBeVisible()
+    // Nothing waits on them, so there is no section saying so.
+    await expect(page.getByRole('region', { name: /Needs your attention/ })).toHaveCount(0)
     // Nothing of their own yet, so discovery is open.
     await expect(page.getByRole('button', { name: /Find something to do/ })).toHaveAttribute(
       'aria-expanded',
       'true',
     )
+  })
 
-    const work = page.getByRole('region', { name: 'My work' })
-    await work.getByRole('button', { name: 'Projects' }).click()
-    await expect(work.getByRole('button', { name: 'Projects' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+  test('A proposal shows among my projects, and in the Admin section for its reviewer', async ({
+    adminPage,
+    volunteer,
+    baseUrl,
+    snap,
+  }) => {
+    test.setTimeout(60_000)
+    const title = fake.projectTitle()
+    await proposeProject(baseUrl, volunteer.page, title, 'Dashboard sections e2e')
+
+    const others = volunteer.page.getByRole('region', { name: /Other projects you're part of/ })
+    const row = others.getByRole('listitem').filter({ hasText: title })
+    await expect(row).toContainText('Proposed', { timeout: 10_000 })
+    // A volunteer has no admin role.
+    await expect(volunteer.page.getByRole('region', { name: /^Admin/ })).toHaveCount(0)
+    await snap(volunteer.page, 'proposal among my projects')
+
+    await adminPage.goto(`${baseUrl}/dashboard`)
+    const admin = adminPage.getByRole('region', { name: /^Admin/ })
+    const triage = admin.getByRole('link', { name: 'Proposals to triage' })
+    await expect(triage).toBeVisible({ timeout: 10_000 })
+    await snap(adminPage, 'admin section on home')
+    await triage.click()
+    await expect(adminPage).toHaveURL(`${baseUrl}/admin/triage`)
+    await expect(adminPage.getByText(title)).toBeVisible({ timeout: 10_000 })
   })
 
   test('An applicant waiting on my project needs my attention until I answer', async ({
@@ -53,7 +79,7 @@ test.describe('Home', () => {
       'false',
     )
     await expect(
-      page.getByRole('region', { name: 'My work' }).getByRole('link', { name: title }),
+      page.getByRole('region', { name: /Projects you manage/ }).getByRole('link', { name: title }),
     ).toBeVisible()
 
     await item.getByRole('link', { name: /^Review:/ }).click()

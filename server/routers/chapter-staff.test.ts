@@ -179,9 +179,11 @@ describe("a chapter's staff", () => {
     const submitted = { status: 'under_review', assigneeId: proposer.id, creatorId: null }
     const ours = await createQuickTask({ ...submitted, nationalChapterId: home.id })
     const theirs = await createQuickTask({ ...submitted, nationalChapterId: away.id })
-    const attention = (await c.dashboard.get()).attention.map((a) => a.title)
-    expect(attention).toEqual(expect.arrayContaining([expect.stringContaining(ours.title)]))
-    expect(attention.join(' ')).not.toContain(theirs.title)
+    const attention = (await c.dashboard.get()).attention
+    expect(attention).toContainEqual(
+      expect.objectContaining({ title: expect.stringContaining(ours.title), asStaff: true }),
+    )
+    expect(attention.map((a) => a.title).join(' ')).not.toContain(theirs.title)
     expect((await c.quickTasks.get({ id: ours.id })).viewerCanAdmin).toBe(true)
   })
 
