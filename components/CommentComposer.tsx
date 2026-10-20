@@ -3,6 +3,7 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react'
 import Button from './Button'
 import Textarea from '@/components/ui/Textarea'
+import { P } from '@/components/Text'
 import { encodeMentions, tokenName, type MentionMember } from '@/lib/mentions'
 
 interface CommentComposerProps {
@@ -51,6 +52,8 @@ export default function CommentComposer({
   const [picked, setPicked] = useState<MentionMember[]>(initialPicked)
   const [query, setQuery] = useState<{ start: number; query: string } | null>(null)
   const [highlight, setHighlight] = useState(0)
+  // Post stays enabled so an empty submit can say why nothing happened.
+  const [emptyHint, setEmptyHint] = useState(false)
   const boxRef = useRef<HTMLTextAreaElement>(null)
   const caretRef = useRef<number | null>(null)
   const listId = useId()
@@ -64,6 +67,7 @@ export default function CommentComposer({
 
   function track(value: string, caret: number) {
     setText(value)
+    setEmptyHint(false)
     setQuery(activeQuery(value, caret))
     setHighlight(0)
   }
@@ -106,7 +110,11 @@ export default function CommentComposer({
       onSubmit={(e) => {
         e.preventDefault()
         const trimmed = text.trim()
-        if (!trimmed) return
+        if (!trimmed) {
+          setEmptyHint(true)
+          boxRef.current?.focus()
+          return
+        }
         void onSubmit(encodeMentions(trimmed, picked)).then((ok) => {
           if (ok) {
             setText('')
@@ -130,7 +138,14 @@ export default function CommentComposer({
         aria-expanded={open}
         aria-controls={listId}
         aria-activedescendant={open ? `${listId}-${highlight}` : undefined}
+        aria-invalid={emptyHint || undefined}
+        aria-describedby={emptyHint ? `${listId}-empty` : undefined}
       />
+      {emptyHint && (
+        <P id={`${listId}-empty`} role="alert" className="text-sm text-error mt-0 mb-2">
+          Write something first.
+        </P>
+      )}
       {open && (
         <ul
           id={listId}
@@ -156,7 +171,7 @@ export default function CommentComposer({
         </ul>
       )}
       <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={!text.trim() || isSubmitting}>
+        <Button type="submit" size="sm" disabled={isSubmitting}>
           {isSubmitting ? busyLabel : submitLabel}
         </Button>
         {onCancel && (
