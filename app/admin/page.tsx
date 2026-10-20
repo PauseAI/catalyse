@@ -16,6 +16,8 @@ interface AdminLink {
   /** For global admins only; a chapter's staff run just their own chapter. */
   globalOnly?: boolean
   count?: number
+  /** Opens outside the app's own pages — a plain link, not client-side navigation. */
+  external?: boolean
 }
 
 interface AdminGroup {
@@ -118,7 +120,7 @@ export default function AdminLandingPage() {
         { href: '/admin/platform-settings', label: 'Platform settings', globalOnly: true },
         { href: '/admin/cron-runs', label: 'Cron job runs', globalOnly: true },
         { href: '/admin/api-tokens', label: 'API tokens', globalOnly: true },
-        { href: '/admin/storybook', label: 'Storybook', globalOnly: true },
+        { href: '/admin/storybook/view/', label: 'Storybook', globalOnly: true, external: true },
       ],
     },
   ]
@@ -267,18 +269,33 @@ export default function AdminLandingPage() {
                   {group.title}
                 </H2>
                 <div className="flex flex-col gap-1 -mx-2">
-                  {links.map((link) => (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      className="flex items-center justify-between gap-3 px-2 py-2 rounded-md no-underline text-brand-text hover:bg-accent transition-colors"
-                    >
-                      <span>{link.label}</span>
-                      {!!link.count && (
-                        <Badge variant={link.count > 0 ? 'info' : 'neutral'}>{link.count}</Badge>
-                      )}
-                    </Link>
-                  ))}
+                  {links.map((link) => {
+                    const className =
+                      'flex items-center justify-between gap-3 px-2 py-2 rounded-md no-underline text-brand-text hover:bg-accent transition-colors'
+                    const content = (
+                      <>
+                        <span>{link.label}</span>
+                        {!!link.count && (
+                          <Badge variant={link.count > 0 ? 'info' : 'neutral'}>{link.count}</Badge>
+                        )}
+                      </>
+                    )
+                    return link.external ? (
+                      <a
+                        key={link.label}
+                        href={link.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={className}
+                      >
+                        {content}
+                      </a>
+                    ) : (
+                      <Link key={link.label} href={link.href} className={className}>
+                        {content}
+                      </Link>
+                    )
+                  })}
                 </div>
               </div>
             )

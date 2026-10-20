@@ -40,10 +40,9 @@ describe('admin landing', () => {
       'href',
       '/admin/api-tokens',
     )
-    expect(screen.getByRole('link', { name: 'Storybook' })).toHaveAttribute(
-      'href',
-      '/admin/storybook',
-    )
+    const storybookLink = screen.getByRole('link', { name: 'Storybook' })
+    expect(storybookLink).toHaveAttribute('href', '/admin/storybook/view/')
+    expect(storybookLink).toHaveAttribute('target', '_blank')
     await waitFor(() =>
       expect(screen.getByRole('link', { name: /Triage queue/ })).toHaveTextContent('1'),
     )
