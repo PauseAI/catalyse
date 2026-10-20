@@ -94,10 +94,10 @@ const rows: GanttRow[] = [
   { id: 5, label: 'Long ago', status: 'ready', placement: placed(5, '2025-01-01', '2025-01-02') },
 ]
 const edges = [
-  { id: 10, predecessorId: 1, successorId: 2, lagDays: 0 },
-  { id: 11, predecessorId: 2, successorId: 3, lagDays: 0 },
-  { id: 12, predecessorId: 3, successorId: 1, lagDays: 0 },
-  { predecessorId: 4, successorId: 99, lagDays: 0 },
+  { id: 10, predecessorId: 1, successorId: 2 },
+  { id: 11, predecessorId: 2, successorId: 3 },
+  { id: 12, predecessorId: 3, successorId: 1 },
+  { predecessorId: 4, successorId: 99 },
 ]
 
 beforeEach(() => {
@@ -617,8 +617,8 @@ describe('GanttDependencyLayer', () => {
       <GanttDependencyLayer
         rows={flat}
         edges={[
-          { id: 5, predecessorId: 1, successorId: 2, lagDays: 0 },
-          { predecessorId: 1, successorId: 1, lagDays: 0 },
+          { id: 5, predecessorId: 1, successorId: 2 },
+          { predecessorId: 1, successorId: 1 },
         ]}
         origin={day('2026-06-01')}
         pxPerDay={30}
@@ -639,7 +639,7 @@ describe('GanttDependencyLayer', () => {
     rerender(
       <GanttDependencyLayer
         rows={rows}
-        edges={[{ predecessorId: 5, successorId: 1, lagDays: 0 }]}
+        edges={[{ predecessorId: 5, successorId: 1 }]}
         origin={day('2026-06-01')}
         pxPerDay={30}
         width={900}
@@ -957,7 +957,6 @@ describe('GanttItemPanel', () => {
     expect(screen.queryByRole('checkbox', { name: /Key date/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull()
     expect(screen.queryByLabelText('Add a dependency')).toBeNull()
-    expect(screen.queryByText(/lag|gap/i)).toBeNull()
     expect(screen.getByRole('link', { name: 'Book venue' })).toHaveAttribute(
       'href',
       '/projects/1/tasks/1',
@@ -1041,18 +1040,17 @@ describe('GanttPlanMenu', () => {
       { id: 2, title: 'Print flyers' },
       { id: 3, title: 'Launch' },
     ],
-    links: [{ dependencyId: 10, predecessorId: 1, predecessorTitle: 'Book venue', lagDays: 0 }],
+    links: [{ dependencyId: 10, predecessorId: 1, predecessorTitle: 'Book venue' }],
     isAnchor: false,
     onAddDependency: vi.fn(),
     onRemoveDependency: vi.fn(),
-    onSetLag: vi.fn(),
     onSetAnchor: vi.fn(),
     ...over,
   })
   const trigger = () => screen.getByRole('button', { name: 'Plan “Print flyers”' })
   const dialog = () => screen.getByRole('dialog', { name: 'Plan “Print flyers”' })
 
-  it('adds and removes links, and sets the gap after one', async () => {
+  it('adds and removes links', async () => {
     const user = userEvent.setup({ advanceTimers: () => {} })
     const p = plan()
     render(<GanttPlanMenu plan={p} />)
@@ -1073,19 +1071,7 @@ describe('GanttPlanMenu', () => {
 
     await user.click(within(dialog()).getByRole('button', { name: 'Stop waiting on Book venue' }))
     expect(p.onRemoveDependency).toHaveBeenCalledWith(10)
-
-    const gap = within(dialog()).getByLabelText('Gap after “Book venue” finishes (days)')
-    expect(within(dialog()).getByText('Gap after it finishes (days)')).toBeInTheDocument()
-    // Blank, fractional and out-of-range days are put back; the same value is not resent.
-    for (const bad of ['', '1.5', '400', '0']) {
-      fireEvent.change(gap, { target: { value: bad } })
-      fireEvent.blur(gap)
-      expect(gap).toHaveValue(0)
-    }
-    expect(p.onSetLag).not.toHaveBeenCalled()
-    fireEvent.change(gap, { target: { value: '3' } })
-    fireEvent.submit(gap.closest('form')!)
-    expect(p.onSetLag).toHaveBeenCalledWith(10, 3)
+    expect(within(dialog()).queryByRole('spinbutton')).toBeNull()
   })
 
   it('sets and clears the key date, and only for whoever may', async () => {

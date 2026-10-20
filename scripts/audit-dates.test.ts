@@ -44,9 +44,9 @@ describe('auditDates', () => {
     item(9, { type: 'PROJECT', parentId: null, status: 'archived' }),
   ]
   const edges = [
-    { predecessorId: 2, successorId: 3, lagDays: 0 },
-    { predecessorId: 3, successorId: 4, lagDays: 0 },
-    { predecessorId: 4, successorId: 5, lagDays: 0 },
+    { predecessorId: 2, successorId: 3 },
+    { predecessorId: 3, successorId: 4 },
+    { predecessorId: 4, successorId: 5 },
   ]
   const report = auditDates(items, edges, today)
 

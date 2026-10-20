@@ -51,7 +51,7 @@ async function schedule(api: Api, projectId: number) {
   expect(res.status, JSON.stringify(res.body)).toBe(200)
   return res.body as {
     tasks: { id: number }[]
-    dependencies: { predecessorId: number; successorId: number; lagDays: number }[]
+    dependencies: { predecessorId: number; successorId: number }[]
     scheduled: {
       id: number
       start: string | Date
@@ -91,7 +91,7 @@ test.describe('Work item scheduling and dependencies', () => {
     await expect(undated.getByRole('link', { name: 'Floating task' })).toBeVisible()
   })
 
-  test('the Plan menu adds a link, sets its gap and removes it', async ({ baseUrl, adminPage }) => {
+  test('the Plan menu adds a link and removes it', async ({ baseUrl, adminPage, snap }) => {
     const api = createApiClient(baseUrl, readAdminToken(baseUrl))
     const projectId = await makeProject(api, { startDate: day('2026-12-01') })
     const a = await addTask(api, projectId, {
@@ -121,14 +121,8 @@ test.describe('Work item scheduling and dependencies', () => {
     await expect(panel.getByRole('link', { name: 'First' })).toBeVisible()
     await expect
       .poll(async () => (await schedule(api, projectId)).dependencies)
-      .toMatchObject([{ predecessorId: a, successorId: b, lagDays: 0 }])
-
-    const gap = plan.getByLabel('Gap after “First” finishes (days)')
-    await gap.fill('2')
-    await gap.press('Enter')
-    await expect
-      .poll(async () => (await schedule(api, projectId)).dependencies)
-      .toMatchObject([{ predecessorId: a, successorId: b, lagDays: 2 }])
+      .toMatchObject([{ predecessorId: a, successorId: b }])
+    await snap(adminPage, 'plan menu with a link')
 
     await plan.getByRole('button', { name: 'Stop waiting on First' }).click()
     await expect(panel.getByText('Nothing — can start whenever.')).toBeVisible()

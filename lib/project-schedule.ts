@@ -85,7 +85,7 @@ export async function loadTaskEdges(projectId: number): Promise<ScheduleEdge[]> 
       predecessor: { parentId: projectId, type: WorkItemType.TASK },
       successor: { parentId: projectId, type: WorkItemType.TASK },
     },
-    select: { predecessorId: true, successorId: true, lagDays: true },
+    select: { predecessorId: true, successorId: true },
   })
   return rows
 }
@@ -97,7 +97,7 @@ export async function loadProjectEdges(): Promise<ScheduleEdge[]> {
       predecessor: { type: WorkItemType.PROJECT },
       successor: { type: WorkItemType.PROJECT },
     },
-    select: { predecessorId: true, successorId: true, lagDays: true },
+    select: { predecessorId: true, successorId: true },
   })
   return rows
 }

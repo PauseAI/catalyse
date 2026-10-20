@@ -73,7 +73,7 @@ export function serializeProjectExport(state: CurrentState, appUrl?: string): Pr
       dependsOn: state.dependencies
         .filter((d) => d.successorId === t.id)
         .sort((a, b) => a.predecessorId - b.predecessorId)
-        .map((d) => ({ on: d.predecessorId, lagDays: d.lagDays })),
+        .map((d) => ({ on: d.predecessorId })),
     })),
   }
 }
@@ -109,8 +109,9 @@ function canonicalise(state: CurrentState): string {
       helpersWanted: t.helpersWanted,
     }))
     .sort((a, b) => a.id - b.id)
+  // `lag` is retired but held at 0, so the hash of an earlier export still matches.
   const dependencies = [...state.dependencies]
-    .map((d) => ({ p: d.predecessorId, s: d.successorId, lag: d.lagDays }))
+    .map((d) => ({ p: d.predecessorId, s: d.successorId, lag: 0 }))
     .sort((a, b) => a.p - b.p || a.s - b.s)
   return JSON.stringify({ project, tasks, dependencies })
 }
@@ -156,11 +157,9 @@ export type TaskDiffEntry = {
 }
 
 export type DependencyDiffEntry = {
-  op: 'create' | 'delete' | 'update' | 'noop'
+  op: 'create' | 'delete' | 'noop'
   predecessor: EntityIdentity
   successor: EntityIdentity
-  lagDays: number
-  fieldChanges?: FieldChange[]
 }
 
 export type ImportDiff = {
@@ -252,7 +251,7 @@ type TaskNode = {
   fieldChanges: FieldChange[]
 }
 
-type ProspectiveEdge = { predLocal: number; succLocal: number; lagDays: number }
+type ProspectiveEdge = { predLocal: number; succLocal: number }
 
 type Analysis = {
   errors: DiffError[]
@@ -426,11 +425,7 @@ function analyse(state: CurrentState, file: ProjectImportFile): Analysis {
       if (node.kind === 'update' && node.currentId !== null) {
         for (const e of state.dependencies) {
           if (e.successorId === node.currentId) {
-            prospectiveEdges.push({
-              predLocal: e.predecessorId,
-              succLocal: e.successorId,
-              lagDays: e.lagDays,
-            })
+            prospectiveEdges.push({ predLocal: e.predecessorId, succLocal: e.successorId })
           }
         }
       }
@@ -456,11 +451,7 @@ function analyse(state: CurrentState, file: ProjectImportFile): Analysis {
         })
         continue
       }
-      prospectiveEdges.push({
-        predLocal,
-        succLocal: node.localId,
-        lagDays: dep.lagDays ?? 0,
-      })
+      prospectiveEdges.push({ predLocal, succLocal: node.localId })
     }
   }
 
@@ -550,24 +541,11 @@ export function computeProjectDiff(state: CurrentState, file: ProjectImportFile)
       e.predLocal > 0 && e.succLocal > 0
         ? currentByKey.get(key(e.predLocal, e.succLocal))
         : undefined
-    if (existing) {
-      dependencies.push({
-        op: existing.lagDays === e.lagDays ? 'noop' : 'update',
-        predecessor: identity(e.predLocal),
-        successor: identity(e.succLocal),
-        lagDays: e.lagDays,
-        ...(existing.lagDays === e.lagDays
-          ? {}
-          : { fieldChanges: [{ field: 'lagDays', from: existing.lagDays, to: e.lagDays }] }),
-      })
-    } else {
-      dependencies.push({
-        op: 'create',
-        predecessor: identity(e.predLocal),
-        successor: identity(e.succLocal),
-        lagDays: e.lagDays,
-      })
-    }
+    dependencies.push({
+      op: existing ? 'noop' : 'create',
+      predecessor: identity(e.predLocal),
+      successor: identity(e.succLocal),
+    })
   }
   for (const e of state.dependencies) {
     if (!prospectiveByKey.has(key(e.predecessorId, e.successorId))) {
@@ -575,7 +553,6 @@ export function computeProjectDiff(state: CurrentState, file: ProjectImportFile)
         op: 'delete',
         predecessor: identity(e.predecessorId),
         successor: identity(e.successorId),
-        lagDays: e.lagDays,
       })
     }
   }
@@ -678,8 +655,7 @@ export type ApplyPlan = {
   createSortBase: number
   assigneeEmails: string[]
   dependencyPlan: {
-    creates: Array<{ predecessor: LocalRef; successor: LocalRef; lagDays: number }>
-    updates: Array<{ predecessorId: number; successorId: number; lagDays: number }>
+    creates: Array<{ predecessor: LocalRef; successor: LocalRef }>
     deletes: Array<{ predecessorId: number; successorId: number }>
   }
 }
@@ -782,22 +758,11 @@ export function buildApplyPlan(
   )
 
   const creates: ApplyPlan['dependencyPlan']['creates'] = []
-  const updates: ApplyPlan['dependencyPlan']['updates'] = []
   for (const e of a.prospectiveEdges) {
-    const existing =
-      e.predLocal > 0 && e.succLocal > 0
-        ? currentByKey.get(key(e.predLocal, e.succLocal))
-        : undefined
-    if (existing) {
-      if (existing.lagDays !== e.lagDays) {
-        updates.push({ predecessorId: e.predLocal, successorId: e.succLocal, lagDays: e.lagDays })
-      }
-    } else {
-      creates.push({
-        predecessor: toLocalRef(e.predLocal),
-        successor: toLocalRef(e.succLocal),
-        lagDays: e.lagDays,
-      })
+    const exists =
+      e.predLocal > 0 && e.succLocal > 0 && currentByKey.has(key(e.predLocal, e.succLocal))
+    if (!exists) {
+      creates.push({ predecessor: toLocalRef(e.predLocal), successor: toLocalRef(e.succLocal) })
     }
   }
   const deletes: ApplyPlan['dependencyPlan']['deletes'] = []
@@ -815,6 +780,6 @@ export function buildApplyPlan(
     taskDeletes,
     createSortBase: a.createSortBase,
     assigneeEmails: a.assigneeEmails,
-    dependencyPlan: { creates, updates, deletes },
+    dependencyPlan: { creates, deletes },
   }
 }

@@ -44,17 +44,13 @@ describe('edge loading', () => {
     const t3 = await createTask(p2.id)
     await prisma.workItemDependency.createMany({
       data: [
-        { predecessorId: t1.id, successorId: t2.id, lagDays: 1 },
+        { predecessorId: t1.id, successorId: t2.id },
         { predecessorId: t2.id, successorId: t3.id },
         { predecessorId: p1.id, successorId: p2.id },
       ],
     })
-    expect(await loadTaskEdges(p1.id)).toEqual([
-      { predecessorId: t1.id, successorId: t2.id, lagDays: 1 },
-    ])
-    expect(await loadProjectEdges()).toEqual([
-      { predecessorId: p1.id, successorId: p2.id, lagDays: 0 },
-    ])
+    expect(await loadTaskEdges(p1.id)).toEqual([{ predecessorId: t1.id, successorId: t2.id }])
+    expect(await loadProjectEdges()).toEqual([{ predecessorId: p1.id, successorId: p2.id }])
   })
 })
 
@@ -86,8 +82,8 @@ describe('scheduleProjectsByIds', () => {
     const empty = await createProject()
     const succ = await createProject()
     const edges = [
-      { predecessorId: pred.id, successorId: succ.id, lagDays: 0 },
-      { predecessorId: empty.id, successorId: succ.id, lagDays: 0 },
+      { predecessorId: pred.id, successorId: succ.id },
+      { predecessorId: empty.id, successorId: succ.id },
     ]
     const schedule = await scheduleProjectsByIds([pred.id, empty.id, succ.id], edges, today)
     expect(schedule.byId.get(pred.id)?.end).toEqual(new Date('2026-06-05T00:00:00Z'))

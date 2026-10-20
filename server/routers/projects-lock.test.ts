@@ -272,12 +272,7 @@ const GUARDED: [string, (l: Locked) => Promise<unknown>][] = [
       clientAs(l.owner).dependencies.add({
         predecessorId: l.tasks.open.id,
         successorId: l.tasks.working.id,
-        lagDays: 0,
       }),
-  ],
-  [
-    'dependencies.updateLag',
-    (l) => clientAs(l.owner).dependencies.updateLag({ dependencyId: l.link.id, lagDays: 2 }),
   ],
   [
     'dependencies.remove',
@@ -355,13 +350,11 @@ describe('a completed project is locked', () => {
     const added = await clientAs(l.owner).dependencies.add({
       predecessorId: l.project.id,
       successorId: next.id,
-      lagDays: 0,
     })
     await expect(
       clientAs(l.owner).dependencies.add({
         predecessorId: next.id,
         successorId: l.project.id,
-        lagDays: 0,
       }),
     ).rejects.toMatchObject({ message: REOPEN_PROJECT_TO_CHANGE })
     await clientAs(l.owner).dependencies.remove({ dependencyId: added.id })
