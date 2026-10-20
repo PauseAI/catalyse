@@ -24,10 +24,9 @@ function item(id: number, over: Partial<ScheduleInput> = {}): ScheduleInput {
   }
 }
 
-const link = (predecessorId: number, successorId: number, lagDays = 0): ScheduleEdge => ({
+const link = (predecessorId: number, successorId: number): ScheduleEdge => ({
   predecessorId,
   successorId,
-  lagDays,
 })
 
 const origin = day('2026-03-02')
@@ -134,17 +133,17 @@ describe('computeSchedule', () => {
     expect(byId.get(1)!.pinConflictWith).toBeNull()
   })
 
-  it('names the predecessor that binds hardest, lag included', () => {
+  it('names the predecessor that binds hardest', () => {
     const { byId } = computeSchedule(
       [
         item(1, { startDate: day('2026-03-10'), durationDays: 5 }),
-        item(2, { startDate: day('2026-03-10'), durationDays: 2 }),
+        item(2, { startDate: day('2026-03-10'), durationDays: 8 }),
         item(3, { startDate: day('2026-03-10') }),
       ],
-      [link(1, 3), link(2, 3, 6)],
+      [link(1, 3), link(2, 3)],
       origin,
     )
-    // 1 permits 15 Mar; 2 ends 11 Mar and with six days' lag permits 18 Mar.
+    // 1 permits 15 Mar; 2 ends 17 Mar and permits 18 Mar.
     expect(byId.get(3)!.pinConflictWith).toBe(2)
     expect(byId.get(3)!.pinConflictDays).toBe(8)
   })
@@ -278,18 +277,6 @@ describe('critical path', () => {
     )
     expect(byId.get(2)!.isCritical).toBe(true)
     expect(byId.get(1)!.isCritical).toBe(false)
-  })
-
-  it('counts lag as part of the constraint, so a lagged chain is still critical', () => {
-    const { byId } = computeSchedule(
-      [
-        item(1, { startDate: day('2026-03-02'), durationDays: 5 }),
-        item(2, { durationDays: 1, isAnchor: true }),
-      ],
-      [link(1, 2, 3)],
-      origin,
-    )
-    expect(byId.get(1)!.isCritical).toBe(true)
   })
 })
 

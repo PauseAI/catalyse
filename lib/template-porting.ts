@@ -37,9 +37,9 @@ const TemplateSkillSchema = z.object({
   isRequired: z.boolean(),
 })
 
+/** Unknown keys are stripped, so a `lagDays` saved when links had one is ignored. */
 const TemplateDependsOnSchema = z.object({
   on: z.union([z.string().min(1).max(64), z.number().int().positive()]),
-  lagDays: z.number().int().min(-365).max(365).default(0),
 })
 
 const TemplateTaskSchema = z.object({
@@ -187,7 +187,7 @@ export function serializeProjectAsTemplate(
       skills: t.skills,
       dependsOn: dependencies
         .filter((d) => d.successorId === t.id)
-        .map((d) => ({ on: toRef(d.predecessorId), lagDays: d.lagDays })),
+        .map((d) => ({ on: toRef(d.predecessorId) })),
     })),
   }
 }
@@ -233,7 +233,7 @@ export type InstantiatePlan = {
   project: InstantiateProjectFields
   projectSkills: SourceSkill[]
   taskCreates: InstantiateTaskCreate[]
-  dependencyCreates: Array<{ predecessor: LocalRef; successor: LocalRef; lagDays: number }>
+  dependencyCreates: Array<{ predecessor: LocalRef; successor: LocalRef }>
 }
 
 function addDays(base: Date, days: number): Date {
@@ -322,7 +322,6 @@ export function buildInstantiatePlan(
         .map((dep) => ({
           predecessor: { kind: 'created', ref: String(dep.on) } as LocalRef,
           successor: { kind: 'created', ref: t.ref } as LocalRef,
-          lagDays: dep.lagDays,
         })),
     ),
   }

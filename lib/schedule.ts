@@ -5,9 +5,9 @@
  * the same code runs on the server (to produce the authoritative schedule) and in the browser (to
  * preview a drag before it is saved). Both sides must agree, which is why there is only one copy.
  *
- * The model is finish-to-start with lag. An item is either:
+ * The model is finish-to-start. An item is either:
  *   - pinned    — it has a `startDate`, and sits there regardless of what moves around it; or
- *   - derived   — it has none, and starts once every predecessor has finished (+1 day +lag).
+ *   - derived   — it has none, and starts the day after every predecessor has finished.
  * An item with neither a pin nor a predecessor falls back to the scope's origin.
  */
 
@@ -38,7 +38,6 @@ export type ScheduleInput = {
 export type ScheduleEdge = {
   predecessorId: number
   successorId: number
-  lagDays: number
 }
 
 export type DateSpan = { start: Date; end: Date }
@@ -240,7 +239,7 @@ export function computeSchedule(
       const predSpan = spans.get(edge.predecessorId)
       if (!predSpan) continue // predecessor sat on a cycle; ignore this constraint
       isDerived = true
-      const permitted = addDays(predSpan.end, 1 + edge.lagDays)
+      const permitted = addDays(predSpan.end, 1)
       if (bindingPredecessor === null || permitted.getTime() > earliest.getTime()) {
         bindingPredecessor = edge.predecessorId
       }
@@ -361,7 +360,7 @@ function markCriticalPath(
       const successor = results.get(edge.successorId)
       if (!successor?.isCritical) return false
       // The successor is only held up by this item if it starts the moment this one permits.
-      return successor.start.getTime() === addDays(item.end, 1 + edge.lagDays).getTime()
+      return successor.start.getTime() === addDays(item.end, 1).getTime()
     })
   }
 }

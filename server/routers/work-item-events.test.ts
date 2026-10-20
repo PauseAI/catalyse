@@ -337,7 +337,7 @@ describe('task writes record an event', () => {
 })
 
 describe('schedule writes record an event', () => {
-  it('dependencies: add, re-add, change the gap and remove', async () => {
+  it('dependencies: add, re-add and remove', async () => {
     const { owner, project } = await setup()
     const venue = await createTask(project.id, { title: 'Venue' })
     const flyers = await createTask(project.id, { title: 'Flyers' })
@@ -345,20 +345,11 @@ describe('schedule writes record an event', () => {
     const link = { predecessorId: venue.id, successorId: flyers.id }
     const dep = await as.add(link)
     await as.add(link)
-    await as.add({ ...link, lagDays: 2 })
-    await as.updateLag({ dependencyId: dep.id, lagDays: 2 })
-    await as.updateLag({ dependencyId: dep.id, lagDays: -1 })
     await as.remove({ dependencyId: dep.id })
-    const venueLink = (lagDays: number) => ({
-      predecessorId: venue.id,
-      predecessorTitle: 'Venue',
-      lagDays,
-    })
+    const venueLink = { predecessorId: venue.id, predecessorTitle: 'Venue' }
     expect(await eventsOf(flyers.id)).toMatchObject([
-      { actorId: owner.id, kind: 'dependency_added', before: {}, after: venueLink(0) },
-      { kind: 'dependency_lag', before: venueLink(0), after: venueLink(2) },
-      { kind: 'dependency_lag', before: venueLink(2), after: venueLink(-1) },
-      { kind: 'dependency_removed', before: venueLink(-1), after: {} },
+      { actorId: owner.id, kind: 'dependency_added', before: {}, after: venueLink },
+      { kind: 'dependency_removed', before: venueLink, after: {} },
     ])
     expect(await eventsOf(venue.id)).toEqual([])
   })

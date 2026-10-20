@@ -22,10 +22,9 @@ function task(id: number, over: Partial<ClientSchedulable> = {}): ClientSchedula
   }
 }
 
-const link = (predecessorId: number, successorId: number, lagDays = 0): ScheduleEdge => ({
+const link = (predecessorId: number, successorId: number): ScheduleEdge => ({
   predecessorId,
   successorId,
-  lagDays,
 })
 
 const found = (scheduled: ReturnType<typeof scheduleWithPatches>, id: number) =>
@@ -136,7 +135,7 @@ describe('scheduleWithPatches', () => {
       task(2, { durationDays: 2 }),
       task(3, { durationDays: 4 }),
     ]
-    const edges = [link(1, 2), link(2, 3, 2)]
+    const edges = [link(1, 2), link(2, 3)]
     const patch = { id: 1, startDate: day('2026-03-16'), deadline: day('2026-03-20') }
 
     const optimistic = scheduleWithPatches(tasks, edges, origin, [patch])

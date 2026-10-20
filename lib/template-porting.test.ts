@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   serializeProjectAsTemplate,
   buildInstantiatePlan,
+  TemplateStructureSchema,
   type SourceProject,
   type SourceTaskWithSkills,
 } from './template-porting'
@@ -67,13 +68,13 @@ describe('serializeProjectAsTemplate', () => {
     const structure = serializeProjectAsTemplate(
       project,
       tasks,
-      [{ predecessorId: 1, successorId: 2, lagDays: 0 }],
+      [{ predecessorId: 1, successorId: 2 }],
       [{ skillId: 2, isRequired: false }],
     )
     expect(structure.startOffsetDays).toBe(0)
     expect(structure.tasks[0].startOffsetDays).toBe(0)
     expect(structure.tasks[1].startOffsetDays).toBe(2)
-    expect(structure.tasks[1].dependsOn).toEqual([{ on: 'task-1', lagDays: 0 }])
+    expect(structure.tasks[1].dependsOn).toEqual([{ on: 'task-1' }])
     expect(structure.skills).toEqual([{ skillId: 2, isRequired: false }])
     expect(structure.tasks[0].skills).toEqual([{ skillId: 1, isRequired: true }])
   })
@@ -95,7 +96,7 @@ describe('buildInstantiatePlan', () => {
     const structure = serializeProjectAsTemplate(
       project,
       tasks,
-      [{ predecessorId: 1, successorId: 2, lagDays: 1 }],
+      [{ predecessorId: 1, successorId: 2 }],
       [],
     )
     const plan = buildInstantiatePlan(structure, {
@@ -111,15 +112,14 @@ describe('buildInstantiatePlan', () => {
       {
         predecessor: { kind: 'created', ref: 'task-1' },
         successor: { kind: 'created', ref: 'task-2' },
-        lagDays: 1,
       },
     ])
   })
 
   it('flags a self-dependency, an unknown ref and a duplicate ref', () => {
     const structure = serializeProjectAsTemplate(project, tasks, [], [])
-    structure.tasks[0].dependsOn = [{ on: 'task-1', lagDays: 0 }]
-    structure.tasks[1].dependsOn = [{ on: 'ghost', lagDays: 0 }]
+    structure.tasks[0].dependsOn = [{ on: 'task-1' }]
+    structure.tasks[1].dependsOn = [{ on: 'ghost' }]
     structure.tasks.push({ ...structure.tasks[0], dependsOn: [] })
     const plan = buildInstantiatePlan(structure, { newTitle: 'X', newStartDate: null })
     expect(plan.errors).toEqual(
@@ -136,5 +136,17 @@ describe('buildInstantiatePlan', () => {
     const plan = buildInstantiatePlan(structure, { newTitle: 'X', newStartDate: null })
     expect(plan.project.startDate).toBeNull()
     expect(plan.taskCreates.every((t) => t.startDate === null)).toBe(true)
+  })
+
+  it('reads a template saved with a lagDays on a link, and drops it', () => {
+    const saved = serializeProjectAsTemplate(
+      project,
+      tasks,
+      [{ predecessorId: 1, successorId: 2 }],
+      [],
+    )
+    saved.tasks[1].dependsOn = [{ on: 'task-1', lagDays: 3 } as { on: string }]
+    const parsed = TemplateStructureSchema.parse(JSON.parse(JSON.stringify(saved)))
+    expect(parsed.sourceType === 'PROJECT' && parsed.tasks[1].dependsOn).toEqual([{ on: 'task-1' }])
   })
 })

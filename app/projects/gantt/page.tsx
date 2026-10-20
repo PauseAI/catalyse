@@ -130,9 +130,7 @@ export default function RoadmapPage() {
               ],
             })
           }
-          onLink={(predecessorId, successorId) =>
-            addDep.mutate({ predecessorId, successorId, lagDays: 0 })
-          }
+          onLink={(predecessorId, successorId) => addDep.mutate({ predecessorId, successorId })}
         />
       )}
 

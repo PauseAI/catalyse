@@ -250,7 +250,7 @@ export const templatesRouter = {
           submissionAsksLink: t.submissionAsksLink ?? false,
           helpersWanted: t.helpersWanted ?? null,
           skills: (t.skillIds ?? []).map((skillId) => ({ skillId, isRequired: true })),
-          dependsOn: (t.dependsOnRefs ?? []).map((ref) => ({ on: ref, lagDays: 0 })),
+          dependsOn: (t.dependsOnRefs ?? []).map((ref) => ({ on: ref })),
         })),
       }
 
@@ -435,7 +435,6 @@ export const templatesRouter = {
             data: {
               predecessorId,
               successorId,
-              lagDays: dep.lagDays,
               createdById: context.volunteer.id,
             },
           })

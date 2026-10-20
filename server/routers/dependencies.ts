@@ -164,11 +164,8 @@ async function loadManageableDependency(
 }
 
 /** A link as its successor's event records it; the title keeps the line readable later. */
-function linkValues(
-  dep: { predecessorId: number; lagDays: number },
-  predecessorTitle: string,
-): EventValues {
-  return { predecessorId: dep.predecessorId, predecessorTitle, lagDays: dep.lagDays }
+function linkValues(dep: { predecessorId: number }, predecessorTitle: string): EventValues {
+  return { predecessorId: dep.predecessorId, predecessorTitle }
 }
 
 export const dependenciesRouter = {
@@ -186,10 +183,8 @@ export const dependenciesRouter = {
     const prospective: ScheduleEdge = {
       predecessorId: input.predecessorId,
       successorId: input.successorId,
-      lagDays: input.lagDays,
     }
-    // Drop any current row for this pair before testing — re-adding an existing link with a
-    // new lag must not read as a one-node loop.
+    // Drop any current row for this pair so re-adding an existing link is not counted twice.
     const withoutPair = existing.filter(
       (e) => !(e.predecessorId === input.predecessorId && e.successorId === input.successorId),
     )
@@ -210,25 +205,21 @@ export const dependenciesRouter = {
       const was = await tx.workItemDependency.findUnique({
         where: { predecessorId_successorId: pair },
       })
-      const saved = await tx.workItemDependency.upsert({
-        where: { predecessorId_successorId: pair },
-        create: { ...pair, lagDays: input.lagDays, createdById: volunteer.id },
-        update: { lagDays: input.lagDays },
+      if (was) return was
+      const saved = await tx.workItemDependency.create({
+        data: { ...pair, createdById: volunteer.id },
       })
       await tx.workItem.update({
         where: { id: input.successorId },
         data: { scheduleUpdatedAt: new Date() },
       })
-      // Re-adding a link changes only its gap.
-      if (!was || was.lagDays !== input.lagDays) {
-        await recordEvent(tx, {
-          workItemId: input.successorId,
-          actorId: volunteer.id,
-          kind: was ? 'dependency_lag' : 'dependency_added',
-          before: was ? linkValues(was, predecessor.title) : {},
-          after: linkValues(saved, predecessor.title),
-        })
-      }
+      await recordEvent(tx, {
+        workItemId: input.successorId,
+        actorId: volunteer.id,
+        kind: 'dependency_added',
+        before: {},
+        after: linkValues(saved, predecessor.title),
+      })
       return saved
     })
 
@@ -236,44 +227,10 @@ export const dependenciesRouter = {
       id: dependency.id,
       predecessorId: dependency.predecessorId,
       successorId: dependency.successorId,
-      lagDays: dependency.lagDays,
       predecessorTitle: predecessor.title,
       successorTitle: successor.title,
     }
   }),
-
-  /** Change only the lag on an existing link. */
-  updateLag: approvedProcedure
-    .input(
-      z.object({ dependencyId: z.number().int(), lagDays: z.number().int().min(-365).max(365) }),
-    )
-    .handler(async ({ input, context }) => {
-      const { dep, predecessor } = await loadManageableDependency(
-        input.dependencyId,
-        context.volunteer,
-        context.access,
-      )
-      await prisma.$transaction(async (tx) => {
-        const saved = await tx.workItemDependency.update({
-          where: { id: dep.id },
-          data: { lagDays: input.lagDays },
-        })
-        await tx.workItem.update({
-          where: { id: dep.successorId },
-          data: { scheduleUpdatedAt: new Date() },
-        })
-        if (saved.lagDays !== dep.lagDays) {
-          await recordEvent(tx, {
-            workItemId: dep.successorId,
-            actorId: context.volunteer.id,
-            kind: 'dependency_lag',
-            before: linkValues(dep, predecessor.title),
-            after: linkValues(saved, predecessor.title),
-          })
-        }
-      })
-      return { id: dep.id, lagDays: input.lagDays }
-    }),
 
   remove: approvedProcedure
     .input(z.object({ dependencyId: z.number().int() }))

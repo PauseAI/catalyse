@@ -25,7 +25,7 @@ describe('the worked example', () => {
     const [update, created, anchor] = PROJECT_IMPORT_EXAMPLE.tasks
     expect(update).toHaveProperty('id') // updates in place
     expect(created).not.toHaveProperty('id') // creates
-    expect(created.dependsOn?.[0].lagDays).toBe(2) // lag
+    expect(created.dependsOn?.[0].on).toBe(101) // by id
     expect(anchor.durationDays).toBe(0) // milestone
     expect(anchor.isAnchor).toBe(true)
     expect(anchor.dependsOn?.[0].on).toBe('permit') // by ref, not id
@@ -74,10 +74,14 @@ describe('the guide only names fields the schema accepts', () => {
     }
   })
 
-  it('quotes the real bounds for durationDays and lagDays', () => {
+  it('quotes the real bound for durationDays', () => {
     expect(PROJECT_IMPORT_GUIDE).toContain('3650')
-    expect(PROJECT_IMPORT_GUIDE).toContain('365')
     expect(defs).toContain('3650')
+  })
+
+  it('no longer documents lagDays', () => {
+    expect(PROJECT_IMPORT_GUIDE).not.toContain('lagDays')
+    expect(defs).not.toContain('lagDays')
   })
 })
 
@@ -156,6 +160,21 @@ describe('guard rails the guide promises', () => {
     }
     const parsed = parseImportFile(JSON.stringify(withSchema))
     expect(parsed.ok, parsed.ok ? '' : parsed.error).toBe(true)
+  })
+
+  it('accepts a lagDays from an older export and drops it', () => {
+    const old = {
+      ...PROJECT_IMPORT_EXAMPLE,
+      tasks: [
+        { id: 101, title: 'Book the venue' },
+        { ref: 'permit', title: 'Apply for the permit', dependsOn: [{ on: 101, lagDays: 2 }] },
+      ],
+    }
+    const parsed = parseImportFile(JSON.stringify(old))
+    expect(parsed.ok, parsed.ok ? '' : parsed.error).toBe(true)
+    expect(parsed.ok && parsed.file.tasks[1].dependsOn).toEqual([{ on: 101 }])
+    // Editors validating against the published schema must not flag it either.
+    expect(JSON.stringify(projectImportJsonSchema())).not.toContain('"additionalProperties":false')
   })
 
   it('drops $schema rather than treating it as data', () => {

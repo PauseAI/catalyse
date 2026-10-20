@@ -150,13 +150,14 @@ describe('project and task schemas', () => {
     }
   })
 
-  it('UpdateProjectTaskSchema accepts the enum status and DependencyBodySchema bounds lag', () => {
+  it('UpdateProjectTaskSchema accepts the enum status and DependencyBodySchema takes two ids', () => {
     expect(UpdateProjectTaskSchema.safeParse({ status: 'completed' }).success).toBe(true)
     expect(UpdateProjectTaskSchema.safeParse({ status: 'nonsense' }).success).toBe(false)
-    expect(DependencyBodySchema.parse({ predecessorId: 1, successorId: 2 }).lagDays).toBe(0)
-    expect(
-      DependencyBodySchema.safeParse({ predecessorId: 1, successorId: 2, lagDays: 400 }).success,
-    ).toBe(false)
+    expect(DependencyBodySchema.parse({ predecessorId: 1, successorId: 2 })).toEqual({
+      predecessorId: 1,
+      successorId: 2,
+    })
+    expect(DependencyBodySchema.safeParse({ predecessorId: 1 }).success).toBe(false)
   })
 })
 

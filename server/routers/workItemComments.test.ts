@@ -461,4 +461,21 @@ describe('workItemComments.list feed', () => {
     const { feed } = await clientAs(owner).workItemComments.list({ workItemId: task.id })
     expect(feed).toMatchObject([{ type: 'event', text: 'Olive Owner assigned this to someone' }])
   })
+
+  it('words an old dependency lag change, a retired kind, as a plain change', async () => {
+    const { owner, project } = await discussion()
+    const task = await createTask(project.id)
+    const link = { predecessorId: task.id, predecessorTitle: 'Venue' }
+    await prisma.workItemEvent.create({
+      data: {
+        workItemId: task.id,
+        actorId: owner.id,
+        kind: 'dependency_lag',
+        before: { ...link, lagDays: 0 },
+        after: { ...link, lagDays: 2 },
+      },
+    })
+    const { feed } = await clientAs(owner).workItemComments.list({ workItemId: task.id })
+    expect(feed).toMatchObject([{ type: 'event', text: 'Olive Owner changed this' }])
+  })
 })

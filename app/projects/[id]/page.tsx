@@ -437,11 +437,6 @@ function TaskTimeline({
     onSuccess: () => void invalidate(),
     onError: onErr('remove dependency'),
   })
-  const setLag = useMutation({
-    ...orpc.dependencies.updateLag.mutationOptions(),
-    onSuccess: () => void invalidate(),
-    onError: onErr('change the gap'),
-  })
   const updateTask = useMutation({
     ...orpc.projects.updateTask.mutationOptions(),
     onSuccess: () => void invalidate(),
@@ -501,11 +496,7 @@ function TaskTimeline({
   }
 
   const busy =
-    reschedule.isPending ||
-    addDep.isPending ||
-    removeDep.isPending ||
-    setLag.isPending ||
-    updateTask.isPending
+    reschedule.isPending || addDep.isPending || removeDep.isPending || updateTask.isPending
 
   const selectedLinks = selectedRow
     ? timeline.dependencies.filter((d) => d.successorId === selectedRow.id)
@@ -543,13 +534,11 @@ function TaskTimeline({
             dependencyId: d.id,
             predecessorId: d.predecessorId,
             predecessorTitle: taskById.get(d.predecessorId)?.title ?? `#${d.predecessorId}`,
-            lagDays: d.lagDays,
           })),
           isAnchor: selectedTask.isAnchor,
           onAddDependency: (predecessorId) =>
-            addDep.mutate({ predecessorId, successorId: selectedTask.id, lagDays: 0 }),
+            addDep.mutate({ predecessorId, successorId: selectedTask.id }),
           onRemoveDependency: (dependencyId) => removeDep.mutate({ dependencyId }),
-          onSetLag: (dependencyId, lagDays) => setLag.mutate({ dependencyId, lagDays }),
           onSetAnchor: timeline.canSetKeyDate
             ? (isAnchor) =>
                 updateTask.mutate(
@@ -604,9 +593,7 @@ function TaskTimeline({
                 ],
               })
             }
-            onLink={(predecessorId, successorId) =>
-              addDep.mutate({ predecessorId, successorId, lagDays: 0 })
-            }
+            onLink={(predecessorId, successorId) => addDep.mutate({ predecessorId, successorId })}
             onUnlink={(dependencyId) => removeDep.mutate({ dependencyId })}
             selectedMenu={planMenu}
             busy={busy}

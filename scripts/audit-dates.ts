@@ -237,7 +237,7 @@ async function main() {
       },
     }),
     prisma.workItemDependency.findMany({
-      select: { predecessorId: true, successorId: true, lagDays: true },
+      select: { predecessorId: true, successorId: true },
     }),
   ])
   const baselined = await prisma.workItem.count({ where: { baselineSetAt: { not: null } } })

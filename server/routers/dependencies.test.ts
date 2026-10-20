@@ -48,27 +48,26 @@ describe('dependencies.add', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' })
   })
 
-  it('links tasks, updates lag via re-add, refuses loops, and bumps the successor schedule stamp', async () => {
+  it('links tasks, keeps one link on re-add, refuses loops, and bumps the successor schedule stamp', async () => {
     const owner = await createVolunteer()
     const c = clientAs(owner)
     const p = await createProject({ assigneeId: owner.id })
     const a = await createTask(p.id)
     const b = await createTask(p.id)
     const cc = await createTask(p.id)
-    const link = await c.dependencies.add({ predecessorId: a.id, successorId: b.id, lagDays: 2 })
+    const link = await c.dependencies.add({ predecessorId: a.id, successorId: b.id })
     expect(link).toMatchObject({
       predecessorId: a.id,
       successorId: b.id,
-      lagDays: 2,
       predecessorTitle: a.title,
       successorTitle: b.title,
     })
     expect(
       (await prisma.workItem.findUniqueOrThrow({ where: { id: b.id } })).scheduleUpdatedAt,
     ).not.toBeNull()
-    const again = await c.dependencies.add({ predecessorId: a.id, successorId: b.id, lagDays: 5 })
+    const again = await c.dependencies.add({ predecessorId: a.id, successorId: b.id })
     expect(again.id).toBe(link.id)
-    expect(again.lagDays).toBe(5)
+    expect(await prisma.workItemDependency.count({ where: { successorId: b.id } })).toBe(1)
     await c.dependencies.add({ predecessorId: b.id, successorId: cc.id })
     await expect(
       c.dependencies.add({ predecessorId: cc.id, successorId: a.id }),
@@ -100,8 +99,8 @@ describe('dependencies.add', () => {
   })
 })
 
-describe('dependencies.updateLag / remove', () => {
-  it('re-proves rights, updates the lag, and removes the link', async () => {
+describe('dependencies.remove', () => {
+  it('re-proves rights and removes the link', async () => {
     const owner = await createVolunteer()
     const other = await createVolunteer()
     const p = await createProject({ assigneeId: owner.id })
@@ -109,14 +108,11 @@ describe('dependencies.updateLag / remove', () => {
     const b = await createTask(p.id)
     const link = await clientAs(owner).dependencies.add({ predecessorId: a.id, successorId: b.id })
     await expect(
-      clientAs(other).dependencies.updateLag({ dependencyId: link.id, lagDays: 1 }),
+      clientAs(other).dependencies.remove({ dependencyId: link.id }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' })
     await expect(
-      clientAs(owner).dependencies.updateLag({ dependencyId: 999_999, lagDays: 1 }),
+      clientAs(owner).dependencies.remove({ dependencyId: 999_999 }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
-    expect(
-      await clientAs(owner).dependencies.updateLag({ dependencyId: link.id, lagDays: 3 }),
-    ).toEqual({ id: link.id, lagDays: 3 })
     expect(
       await clientAs(await createAdmin()).dependencies.remove({ dependencyId: link.id }),
     ).toEqual({ id: link.id })
@@ -140,16 +136,9 @@ describe('links of a done task', () => {
     await expect(
       c.dependencies.add({ predecessorId: other.id, successorId: done.id }),
     ).rejects.toMatchObject(locked)
-    await expect(
-      c.dependencies.updateLag({ dependencyId: waitsOn.id, lagDays: 2 }),
-    ).rejects.toMatchObject(locked)
     await expect(c.dependencies.remove({ dependencyId: waitsOn.id })).rejects.toMatchObject(locked)
 
     const unblocks = await c.dependencies.add({ predecessorId: done.id, successorId: after.id })
-    expect(await c.dependencies.updateLag({ dependencyId: unblocks.id, lagDays: 1 })).toEqual({
-      id: unblocks.id,
-      lagDays: 1,
-    })
     expect(await c.dependencies.remove({ dependencyId: unblocks.id })).toEqual({ id: unblocks.id })
   })
 })

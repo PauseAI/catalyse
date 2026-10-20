@@ -1628,7 +1628,7 @@ describe('project page — timeline tab', () => {
     await waitFor(async () =>
       expect(await row(b.id)).toMatchObject({ timing: 'fixed', estimatedHours: 3 }),
     )
-    // Links, their gaps and the key date are edited from the Plan menu only.
+    // Links and the key date are edited from the Plan menu only.
     expect(within(panel()).queryByRole('checkbox', { name: /Key date/ })).toBeNull()
     expect(within(panel()).queryByLabelText('Add a dependency')).toBeNull()
     expect(within(panel()).getByRole('link', { name: 'Alpha' })).toBeInTheDocument()
@@ -1643,21 +1643,9 @@ describe('project page — timeline tab', () => {
     await screen.findByText('This is now the key date.')
     await within(plan).findByRole('button', { name: 'Stop using as key date' })
 
-    const link = () =>
-      prisma.workItemDependency.findFirstOrThrow({
-        where: { predecessorId: a.id, successorId: b.id },
-      })
-    const gap = within(plan).getByLabelText('Gap after “Alpha” finishes (days)')
-    await waitFor(() => expect(gap).toBeEnabled())
-    await userEvent.clear(gap)
-    await userEvent.type(gap, '2')
-    await userEvent.tab()
-    await waitFor(async () => expect((await link()).lagDays).toBe(2))
-    await waitFor(() =>
-      expect(within(plan).getByLabelText('Gap after “Alpha” finishes (days)')).toHaveValue(2),
-    )
-
-    await userEvent.click(within(plan).getByRole('button', { name: 'Stop waiting on Alpha' }))
+    const stopWaiting = within(plan).getByRole('button', { name: 'Stop waiting on Alpha' })
+    await waitFor(() => expect(stopWaiting).toBeEnabled())
+    await userEvent.click(stopWaiting)
     await waitFor(async () =>
       expect(await prisma.workItemDependency.count({ where: { successorId: b.id } })).toBe(0),
     )
@@ -1668,7 +1656,13 @@ describe('project page — timeline tab', () => {
     )
     await userEvent.selectOptions(within(plan).getByLabelText('Waits on…'), String(a.id))
     await userEvent.click(within(plan).getByRole('button', { name: 'Add' }))
-    await waitFor(async () => expect((await link()).lagDays).toBe(0))
+    await waitFor(async () =>
+      expect(
+        await prisma.workItemDependency.count({
+          where: { predecessorId: a.id, successorId: b.id },
+        }),
+      ).toBe(1),
+    )
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Plan “Beta”' })).toBeNull()
     await userEvent.click(within(panel()).getByRole('button', { name: 'Claim task' }))
@@ -1806,7 +1800,7 @@ describe('project page — timeline tab', () => {
     expect(screen.getAllByRole('button', { name: 'Plan “Beta”' })).toHaveLength(2)
     await userEvent.click(screen.getAllByRole('button', { name: 'Plan “Beta”' })[0])
     const plan = await screen.findByRole('dialog', { name: 'Plan “Beta”' })
-    expect(within(plan).getByLabelText('Gap after “Alpha” finishes (days)')).toBeInTheDocument()
+    expect(within(plan).getByRole('button', { name: 'Stop waiting on Alpha' })).toBeInTheDocument()
     expect(within(plan).queryByRole('button', { name: /key date/ })).toBeNull()
 
     cleanup()

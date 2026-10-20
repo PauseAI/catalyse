@@ -29,7 +29,7 @@ async function schedule(projectId: number) {
   const result = await clientAs(admin).projects.listTasks({ projectId })
   return result as unknown as {
     tasks: { id: number }[]
-    dependencies: { predecessorId: number; successorId: number; lagDays: number }[]
+    dependencies: { predecessorId: number; successorId: number }[]
     scheduled: Placed[]
     scopeStart: string | Date
     scopeEnd: string | Date
@@ -40,9 +40,9 @@ async function schedule(projectId: number) {
 const placed = (s: Awaited<ReturnType<typeof schedule>>, id: number): Placed =>
   s.scheduled.find((x) => x.id === id)!
 
-async function link(predecessorId: number, successorId: number, lagDays = 0) {
+async function link(predecessorId: number, successorId: number) {
   const admin = await createAdmin()
-  return clientAs(admin).dependencies.add({ predecessorId, successorId, lagDays })
+  return clientAs(admin).dependencies.add({ predecessorId, successorId })
 }
 
 describe('task placement', () => {
@@ -114,17 +114,6 @@ describe('dependencies and the schedule', () => {
     s = await schedule(project.id)
     expect(ymd(placed(s, a.id).end)).toBe('2026-04-07')
     expect(ymd(placed(s, b.id).start)).toBe('2026-04-08')
-  })
-
-  it('adds the lag between predecessor and successor', async () => {
-    const project = await createProject({ startDate: day('2026-05-01') })
-    const a = await createTask(project.id, {
-      startDate: day('2026-05-01'),
-      deadline: day('2026-05-03'),
-    })
-    const b = await createTask(project.id)
-    await link(a.id, b.id, 2)
-    expect(ymd(placed(await schedule(project.id), b.id).start)).toBe('2026-05-06')
   })
 
   it('leaves a pinned successor where it is and flags a pin before its predecessor', async () => {
@@ -226,7 +215,7 @@ describe('dependencies and the schedule', () => {
     const b = await createTask(project.id)
     const bystander = await createVolunteer()
     await expect(
-      clientAs(bystander).dependencies.add({ predecessorId: a.id, successorId: b.id, lagDays: 0 }),
+      clientAs(bystander).dependencies.add({ predecessorId: a.id, successorId: b.id }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' })
     const view = (await clientAs(bystander).projects.listTasks({ projectId: project.id })) as {
       canManageTasks: boolean

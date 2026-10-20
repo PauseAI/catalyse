@@ -288,19 +288,8 @@ export const projectPortingRouter = {
           const successorId = resolveLocal(d.successor)
           await tx.workItemDependency.upsert({
             where: { predecessorId_successorId: { predecessorId, successorId } },
-            create: { predecessorId, successorId, lagDays: d.lagDays, createdById: volunteer.id },
-            update: { lagDays: d.lagDays },
-          })
-        }
-        for (const d of plan.dependencyPlan.updates) {
-          await tx.workItemDependency.update({
-            where: {
-              predecessorId_successorId: {
-                predecessorId: d.predecessorId,
-                successorId: d.successorId,
-              },
-            },
-            data: { lagDays: d.lagDays },
+            create: { predecessorId, successorId, createdById: volunteer.id },
+            update: {},
           })
         }
 
@@ -317,7 +306,7 @@ export const projectPortingRouter = {
             predecessor: { parentId: input.projectId, type: WorkItemType.TASK },
             successor: { parentId: input.projectId, type: WorkItemType.TASK },
           },
-          select: { predecessorId: true, successorId: true, lagDays: true },
+          select: { predecessorId: true, successorId: true },
         })
         if (findDependencyCycle(finalEdges)) {
           throw new ORPCError('BAD_REQUEST', {
@@ -331,9 +320,7 @@ export const projectPortingRouter = {
           updated: plan.taskUpdates.length,
           deleted: plan.taskDeletes.length,
           dependencyChanges:
-            plan.dependencyPlan.creates.length +
-            plan.dependencyPlan.updates.length +
-            plan.dependencyPlan.deletes.length,
+            plan.dependencyPlan.creates.length + plan.dependencyPlan.deletes.length,
         }
       })
 
