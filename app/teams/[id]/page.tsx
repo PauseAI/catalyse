@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useRequireAuth } from '@/lib/hooks/auth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { teamApplicationSentMessage } from '@/lib/action-messages'
@@ -85,16 +87,16 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
       </Link>
 
       <div className="flex items-start justify-between gap-4 mt-3 mb-2">
-        <h1 className="m-0">
+        <H1 className="m-0">
           {team.name}
           {team.viewerRole === 'leader' && (
             <span className="text-xs px-2 py-0.5 ml-2 rounded-full font-medium bg-primary/10 text-primary align-middle">
               Leader
             </span>
           )}
-        </h1>
+        </H1>
         {team.viewerCanAdmin || team.viewerRole === 'leader' ? (
-          <Link href={`/admin/teams/${team.id}`}>
+          <Link className="text-primary-text underline" href={`/admin/teams/${team.id}`}>
             <Button size="sm" variant="secondary">
               Manage members
             </Button>
@@ -124,19 +126,21 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
         )}
       </div>
 
-      {team.description && <p className="text-text-light mb-4">{team.description}</p>}
+      {team.description && <P className="text-text-light mb-4">{team.description}</P>}
 
-      <p className="text-sm text-text-light mb-4">
+      <P className="text-sm text-text-light mb-4">
         {team.memberCount} member{team.memberCount === 1 ? '' : 's'}
         {team.leaders.length > 0 && ` · Led by ${team.leaders.map((l) => l.name).join(', ')}`}
-      </p>
+      </P>
       {team.leaders.some((l) => l.id !== user.id) && (
         <ul aria-label="Leaders" className="list-none p-0 m-0 mb-4 flex flex-col gap-2">
           {team.leaders
             .filter((l) => l.id !== user.id)
             .map((l) => (
               <li key={l.id} className="flex items-center gap-3 flex-wrap">
-                <Link href={`/volunteers/${l.id}`}>{l.name}</Link>
+                <Link className="text-primary-text underline" href={`/volunteers/${l.id}`}>
+                  {l.name}
+                </Link>
                 <ContactButton
                   volunteerId={l.id}
                   name={l.name}
@@ -151,13 +155,15 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
 
       {team.members.length > 0 && (
         <section aria-labelledby="team-members" className="mb-4">
-          <h2 id="team-members" className="text-lg">
+          <H2 id="team-members" className="text-lg">
             Members
-          </h2>
+          </H2>
           <ul className="list-none p-0 m-0 flex flex-wrap gap-x-4 gap-y-1 text-sm">
             {team.members.map((m) => (
               <li key={m.id}>
-                <Link href={`/volunteers/${m.id}`}>{m.name}</Link>
+                <Link className="text-primary-text underline" href={`/volunteers/${m.id}`}>
+                  {m.name}
+                </Link>
                 {m.role === 'leader' && <span className="text-text-light"> (leader)</span>}
               </li>
             ))}
@@ -167,13 +173,15 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
 
       {team.projects.length > 0 && (
         <section aria-labelledby="team-projects" className="mb-4">
-          <h2 id="team-projects" className="text-lg">
+          <H2 id="team-projects" className="text-lg">
             Projects
-          </h2>
+          </H2>
           <ul className="list-none p-0 m-0 flex flex-col gap-1 text-sm">
             {team.projects.map((p) => (
               <li key={p.id}>
-                <Link href={`/projects/${p.id}`}>{p.title}</Link>
+                <Link className="text-primary-text underline" href={`/projects/${p.id}`}>
+                  {p.title}
+                </Link>
               </li>
             ))}
           </ul>

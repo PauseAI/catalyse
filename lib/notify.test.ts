@@ -72,7 +72,9 @@ describe('notifyUser email preferences', () => {
     )
     // Needs-action email still goes.
     await notifyUser(vol.id, 'new_interest', 'Someone wants to help', null, null, payload)
-    expect(emails.lastTo(vol.email!)).toMatchObject({ subject: 'Someone wants to help' })
+    await vi.waitFor(() =>
+      expect(emails.lastTo(vol.email!)).toMatchObject({ subject: 'Someone wants to help' }),
+    )
   })
 
   it('records when a notification was emailed', async () => {
@@ -88,7 +90,7 @@ describe('notifyUser email preferences', () => {
     vi.spyOn(prisma.notification, 'create').mockRejectedValueOnce(new Error('db') as never)
     await notifyUser(vol.id, 'project_approved', 'Again', null, null, payload)
     await vi.waitFor(() => expect(error).toHaveBeenCalledWith('[NOTIFY ERROR]', expect.any(Error)))
-    expect(emails.lastTo(vol.email!)).toMatchObject({ subject: 'Again' })
+    await vi.waitFor(() => expect(emails.lastTo(vol.email!)).toMatchObject({ subject: 'Again' }))
   })
 })
 
@@ -99,7 +101,7 @@ describe('notifyUser', () => {
     expect(emails.sent).toEqual([])
 
     await notifyUser(vol.id, 'a', 'T', 'b', '/l', { message: 'm', projectId: 1, projectTitle: 'P' })
-    expect(emails.last).toMatchObject({ to: vol.email, subject: 'T' })
+    await vi.waitFor(() => expect(emails.last).toMatchObject({ to: vol.email, subject: 'T' }))
     expect(emails.last.html).toContain('/projects/1')
     await notifyUser(vol.id, 'a', 'T', 'b', '/l', {
       subject: 'Custom',
@@ -107,7 +109,7 @@ describe('notifyUser', () => {
       ctaLabel: 'Go',
       ctaUrl: '/go',
     })
-    expect(emails.last.subject).toBe('Custom')
+    await vi.waitFor(() => expect(emails.last.subject).toBe('Custom'))
     expect(emails.last.html).toContain('http://localhost:3000/go')
   })
 

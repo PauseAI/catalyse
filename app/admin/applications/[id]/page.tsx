@@ -11,6 +11,10 @@ import { formatDate } from '@/lib/format-date'
 import { countryLabel } from '@/lib/filter-options'
 import { containsLink } from '@/lib/links'
 import { ApprovalStatus } from '@/generated/prisma/enums'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Textarea from '@/components/ui/Textarea'
 
 export default function ApplicationReviewPage() {
   const { id } = useParams<{ id: string }>()
@@ -84,7 +88,7 @@ export default function ApplicationReviewPage() {
   if (loadingData) {
     return (
       <main className="container py-5">
-        <p className="text-text-light">Loading…</p>
+        <P className="text-text-light">Loading…</P>
       </main>
     )
   }
@@ -92,7 +96,7 @@ export default function ApplicationReviewPage() {
   if (!app) {
     return (
       <main className="container py-5">
-        <p className="text-text-light">Application not found.</p>
+        <P className="text-text-light">Application not found.</P>
       </main>
     )
   }
@@ -163,8 +167,8 @@ export default function ApplicationReviewPage() {
         </Button>
       </div>
 
-      <h1 className="mb-1">{app.name}</h1>
-      <p className="text-sm text-text-light mb-6">{meta.join(' · ')}</p>
+      <H1 className="mb-1">{app.name}</H1>
+      <P className="text-sm text-text-light mb-6">{meta.join(' · ')}</P>
 
       {statusBanner && (
         <div className={`p-4 rounded-lg mb-6 border ${bannerClasses[statusBanner.tone]}`}>
@@ -173,36 +177,36 @@ export default function ApplicationReviewPage() {
       )}
 
       {app.approvalStatus === ApprovalStatus.rejected && anonymiseDate && (
-        <p
+        <P
           className={`text-sm mb-4 ${daysUntilAnonymise !== null && daysUntilAnonymise <= 1 ? 'text-red-500' : 'text-amber-500'}`}
         >
           Personally Identifiable Information will be anonymised on {formatDate(anonymiseDate)}
           {daysUntilAnonymise !== null && daysUntilAnonymise >= 0
             ? ` (${daysUntilAnonymise === 0 ? 'today' : `${daysUntilAnonymise} day${daysUntilAnonymise === 1 ? '' : 's'}`})`
             : ''}
-        </p>
+        </P>
       )}
 
       {containsLink(app.bio, app.applicationMessage, app.contactNotes) && (
-        <p
+        <P
           role="note"
           className="text-sm mb-6 p-3 rounded-lg border bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-300"
         >
           This application contains links. The applicant wrote them and nobody has checked where
           they lead, so take care before opening one.
-        </p>
+        </P>
       )}
 
       {app.bio && (
         <div className="mb-6">
-          <h2 className="text-base font-semibold mb-1">Bio</h2>
-          <p className="text-sm whitespace-pre-wrap">{app.bio}</p>
+          <H2 className="text-base font-semibold mb-1">Bio</H2>
+          <P className="text-sm whitespace-pre-wrap">{app.bio}</P>
         </div>
       )}
 
       {app.skills.length > 0 && (
         <div className="mb-6">
-          <h2 className="text-base font-semibold mb-2">Skills</h2>
+          <H2 className="text-base font-semibold mb-2">Skills</H2>
           <div className="flex flex-wrap gap-1.5">
             {app.skills.map((s) => (
               <span
@@ -225,8 +229,8 @@ export default function ApplicationReviewPage() {
         <div className="grid grid-cols-2 gap-4 mb-6">
           {app.availabilityHoursPerWeek && (
             <div>
-              <h2 className="text-base font-semibold mb-1">Availability</h2>
-              <p className="text-sm">{app.availabilityHoursPerWeek} hours/week</p>
+              <H2 className="text-base font-semibold mb-1">Availability</H2>
+              <P className="text-sm">{app.availabilityHoursPerWeek} hours/week</P>
             </div>
           )}
           {(app.email ||
@@ -235,7 +239,7 @@ export default function ApplicationReviewPage() {
             app.discordHandle ||
             app.contactNotes) && (
             <div>
-              <h2 className="text-base font-semibold mb-1">Contact</h2>
+              <H2 className="text-base font-semibold mb-1">Contact</H2>
               <div className="text-sm">
                 {app.email && <div>Email: {app.email}</div>}
                 {app.discordHandle && <div>Discord: {app.discordHandle}</div>}
@@ -252,44 +256,44 @@ export default function ApplicationReviewPage() {
 
       {app.applicationMessage && (
         <div className="mb-6">
-          <h2 className="text-base font-semibold mb-1">Application message</h2>
-          <p className="text-sm whitespace-pre-wrap">{app.applicationMessage}</p>
+          <H2 className="text-base font-semibold mb-1">Application message</H2>
+          <P className="text-sm whitespace-pre-wrap">{app.applicationMessage}</P>
         </div>
       )}
 
       {app.previousRejections.length > 0 && (
         <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
-          <p className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-3">
+          <P className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-3">
             {app.previousRejections.length === 1
               ? 'Previously rejected'
               : `Previously rejected ${app.previousRejections.length} times`}
-          </p>
+          </P>
           {app.previousRejections.map((r, i) => (
             <div
               key={i}
               className={i > 0 ? 'mt-3 pt-3 border-t border-amber-200 dark:border-amber-700' : ''}
             >
-              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-1">
+              <P className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-1">
                 {formatDate(r.rejectedAt)}
-              </p>
+              </P>
               {r.adminNotes && (
                 <div className="mb-1">
-                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-0.5">
+                  <P className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-0.5">
                     Admin notes
-                  </p>
-                  <p className="text-sm text-amber-700 dark:text-amber-400 whitespace-pre-wrap">
+                  </P>
+                  <P className="text-sm text-amber-700 dark:text-amber-400 whitespace-pre-wrap">
                     {r.adminNotes}
-                  </p>
+                  </P>
                 </div>
               )}
               {r.applicantNotes && (
                 <div>
-                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-0.5">
+                  <P className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-0.5">
                     Message sent to applicant
-                  </p>
-                  <p className="text-sm text-amber-700 dark:text-amber-400 whitespace-pre-wrap">
+                  </P>
+                  <P className="text-sm text-amber-700 dark:text-amber-400 whitespace-pre-wrap">
                     {r.applicantNotes}
-                  </p>
+                  </P>
                 </div>
               )}
             </div>
@@ -298,13 +302,13 @@ export default function ApplicationReviewPage() {
       )}
 
       <div className="border-t border-brand-border pt-6 mt-6">
-        <h2 className="text-base font-semibold mb-4">Notes</h2>
+        <H2 className="text-base font-semibold mb-4">Notes</H2>
 
-        <label htmlFor="admin-notes" className="block text-sm font-medium mb-1">
+        <FormLabel htmlFor="admin-notes" className="block text-sm font-medium mb-1">
           Internal admin notes
           <span className="text-text-light font-normal ml-1">(not sent to applicant)</span>
-        </label>
-        <textarea
+        </FormLabel>
+        <Textarea
           id="admin-notes"
           className="w-full border border-border rounded-lg p-3 text-sm mb-4 bg-background"
           rows={4}
@@ -313,13 +317,13 @@ export default function ApplicationReviewPage() {
           placeholder="Notes visible only to admins…"
         />
 
-        <label htmlFor="applicant-notes" className="block text-sm font-medium mb-1">
+        <FormLabel htmlFor="applicant-notes" className="block text-sm font-medium mb-1">
           Message to applicant
           <span className="text-text-light font-normal ml-1">
             (only sent if applicant is rejected)
           </span>
-        </label>
-        <textarea
+        </FormLabel>
+        <Textarea
           id="applicant-notes"
           className="w-full border border-border rounded-lg p-3 text-sm mb-6 bg-background"
           rows={4}
@@ -372,7 +376,7 @@ export default function ApplicationReviewPage() {
             className="bg-surface rounded-xl shadow-lg p-6 w-full max-w-sm"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="mb-2">
+            <H2 className="mb-2">
               {
                 {
                   approve: 'Approve',
@@ -382,8 +386,8 @@ export default function ApplicationReviewPage() {
                 }[confirmAction]
               }{' '}
               application?
-            </h2>
-            <p className="text-sm text-text-light mb-6">
+            </H2>
+            <P className="text-sm text-text-light mb-6">
               {confirmAction === 'approve' && `${app.name} will be approved and notified by email.`}
               {confirmAction === 'reject' &&
                 `${app.name} will be rejected${applicantNotes ? ' and sent your message' : ''} by email.`}
@@ -391,7 +395,7 @@ export default function ApplicationReviewPage() {
                 `${app.name} will be emailed a link to update and resubmit their application${applicantNotes ? ', along with your message' : ''}.`}
               {confirmAction === 'reopen' &&
                 `${app.name}'s application will be reset to pending and they'll be emailed a link to update and resubmit it.`}
-            </p>
+            </P>
             <div className="flex gap-2 justify-end">
               <Button variant="secondary" onClick={() => setConfirmAction(null)}>
                 Cancel

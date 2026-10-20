@@ -216,3 +216,33 @@ confusing than it needed to be, and that will do so again.
       side by side collides on the shared test-database setup, so the only way was busy-looping
       cores by hand. A script that runs the unit suite several times under load and lists every
       test that failed in any run would surface them together, and could run nightly.
+
+- [ ] **`globals.css`'s hand-written element selectors (`h1`, `p`, `label`, …) sit outside any
+      `@layer`, so — per the CSS cascade-layers spec — they always beat Tailwind's own utilities
+      regardless of specificity; a per-instance override such as `className="mb-0"` on a raw
+      `<h1>` was a silent no-op the whole time.** Extracting those selectors into components
+      (issue #88) removes the unlayered rule, so every such override starts actually applying —
+      correct, and the point of the extraction, but it reads as a wall of unrelated visual-diff
+      noise (382 of 393 snapshots) with no CSS mistake behind any of it. Chasing it as a bug cost
+      most of a session: a stale dev-server cache and an orca-sidecar-vs-published-port
+      networking gap both looked like candidate causes before `getBoundingClientRect` in the
+      actual Playwright run (not a manual dev-server poke) showed a `className="mb-8"` paragraph
+      computing `margin-bottom: 12px` against the pre-extraction code and `32px` after — proof the
+      override had never worked. `e2e/snapshots/README.md` or this issue's own description could
+      say up front that a raw-tag extraction is expected to move pixels everywhere a conflicting
+      override already existed in the markup, so the gallery diff is read as "does each
+      now-active override look right" rather than "is this a regression."
+
+- [ ] \*\*Many routers send email through a fire-and-forget promise (`sendX(...).catch(...)`,
+      never awaited), so tests that check `emails.last`/`emails.lastTo` right after the action
+      only passed because `lib/email.ts`'s template builders used to be synchronous — the
+      `MemoryEmailTransport.send` push happened before the route handler's promise even settled.
+      Making those builders genuinely async (the react-email migration, issue #158) turned every
+      such assertion in `lib/notify.test.ts`, `server/routers/auth.test.ts`,
+      `server/routers/messages.test.ts` and `server/routers/admin/applications.test.ts` into a
+      deterministic failure, ten in one `check-all` run. Each needed wrapping in
+      `await vi.waitFor(() => expect(...))`, same as the DB-state waits already next to them. A
+      note in `test/fakes/email.ts` or `AGENTS.md`'s "Email in tests" section saying that a
+      fire-and-forget send is never guaranteed landed by the time the triggering call resolves,
+      and to wrap the assertion in `vi.waitFor` the way nearby DB checks already do, would save
+      re-discovering this the next time anything in the send path gains a genuine await.

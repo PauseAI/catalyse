@@ -6,6 +6,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
+import { H1 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
 
 /** The global admins, who are set by ADMIN_EMAILS and so are listed here, not managed. */
 export default function AdminTeamPage() {
@@ -33,12 +36,16 @@ export default function AdminTeamPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Global admins</h1>
-      <p className="text-text-light">
+      <H1>Global admins</H1>
+      <P className="text-text-light">
         Global admins run every national chapter and the holding pool. They are set by the
         server&apos;s <code>ADMIN_EMAILS</code> list. To give someone a chapter to run, invite them
-        from its page under <Link href="/admin/chapters">National chapters</Link>.
-      </p>
+        from its page under{' '}
+        <Link className="text-primary-text underline" href="/admin/chapters">
+          National chapters
+        </Link>
+        .
+      </P>
 
       {isLoading ? (
         <div className="text-center py-10 text-text-light">Loading…</div>
@@ -49,9 +56,9 @@ export default function AdminTeamPage() {
               <div className="flex justify-between items-center gap-4">
                 <div>
                   <strong>{a.name}</strong>
-                  <p className="text-text-light text-sm m-0">{a.email}</p>
+                  <P className="text-text-light text-sm m-0">{a.email}</P>
                 </div>
-                <label className="flex items-center gap-2 text-sm whitespace-nowrap shrink-0">
+                <FormLabel className="flex items-center gap-2 text-sm whitespace-nowrap shrink-0">
                   <input
                     type="checkbox"
                     checked={a.isTechnicalAdmin}
@@ -64,7 +71,7 @@ export default function AdminTeamPage() {
                     }
                   />
                   Notify of bug reports
-                </label>
+                </FormLabel>
               </div>
             </div>
           ))}

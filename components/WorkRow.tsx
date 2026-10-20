@@ -86,7 +86,7 @@ export default function WorkRow({
           group wraps onto its own line, flush right. */}
       <div className="flex-1 min-w-48 break-words">
         {title}
-        {below}
+        {below && <div className="mt-1">{below}</div>}
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2 ml-auto mt-1">
         {chips}

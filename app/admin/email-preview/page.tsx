@@ -4,6 +4,8 @@ import { useRef, useState } from 'react'
 import { useRequireAdmin } from '@/lib/hooks/auth'
 import { useQueries } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 type Param = string | number | boolean
 
@@ -200,7 +202,7 @@ function EmailRow({
   return (
     <section className="border-b border-brand-border py-8">
       <div className="flex items-baseline gap-3 mb-4">
-        <h2 className="m-0 text-lg text-brand-text">{type.label}</h2>
+        <H2 className="m-0 text-lg text-brand-text">{type.label}</H2>
         <button
           onClick={openInNewTab}
           className="bg-transparent border-none text-primary cursor-pointer text-[13px] p-0"
@@ -210,9 +212,9 @@ function EmailRow({
       </div>
       <div className="grid grid-cols-[300px_1fr] gap-8 items-start max-[700px]:grid-cols-1">
         <div>
-          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-[0.05em] mb-2">
+          <P className="text-[11px] font-semibold text-gray-500 uppercase tracking-[0.05em] mb-2">
             Parameters
-          </p>
+          </P>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-[13px]">
               <tbody>
@@ -232,15 +234,15 @@ function EmailRow({
         </div>
         <div>
           {preview?.subject && (
-            <p className="text-[13px] text-gray-500 mb-2 italic">
+            <P className="text-[13px] text-gray-500 mb-2 italic">
               Subject: <strong className="text-brand-text">{preview.subject}</strong>
-            </p>
+            </P>
           )}
           <div className="border border-brand-border rounded-lg overflow-hidden bg-white">
             {preview?.html ? (
               <AutoIframe html={preview.html} />
             ) : (
-              <p className="p-4 text-gray-500 m-0">Loading…</p>
+              <P className="p-4 text-gray-500 m-0">Loading…</P>
             )}
           </div>
         </div>
@@ -264,8 +266,8 @@ export default function EmailPreviewPage() {
   return (
     <>
       <main className="container pt-8 pb-16">
-        <h1 className="mb-1">Email previews</h1>
-        <p className="text-gray-500 mb-0">All transactional emails rendered with sample data.</p>
+        <H1 className="mb-1">Email previews</H1>
+        <P className="text-gray-500 mb-0">All transactional emails rendered with sample data.</P>
         {EMAIL_TYPES.map((t, i) => (
           <EmailRow key={t.value} type={t} preview={results[i].data} />
         ))}

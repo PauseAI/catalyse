@@ -1,4 +1,7 @@
 import Linkify from '@/components/Linkify'
+import { H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import TextLink from '@/components/TextLink'
 import { formatDate } from '@/lib/format-date'
 
 export interface Submission {
@@ -22,32 +25,32 @@ export default function SubmittedWork({
     <>
       {changesRequested && (
         <section className="mt-4 rounded-lg p-4 border-l-4 border-warning bg-brand-bg">
-          <h2 className="text-base m-0 mb-1">
+          <H2 className="text-base m-0 mb-1">
             Changes requested{changesRequested.byName ? ` by ${changesRequested.byName}` : ''}
-          </h2>
-          <p className="m-0 whitespace-pre-wrap">
+          </H2>
+          <P className="m-0 whitespace-pre-wrap">
             <Linkify text={changesRequested.message} />
-          </p>
+          </P>
         </section>
       )}
       {submission && (
         <section className="mt-4 rounded-lg p-4 bg-brand-bg">
-          <h2 className="text-base m-0 mb-1">Submitted work</h2>
+          <H2 className="text-base m-0 mb-1">Submitted work</H2>
           {submission.note && (
-            <p className="m-0 mb-2 whitespace-pre-wrap">
+            <P className="m-0 mb-2 whitespace-pre-wrap">
               <Linkify text={submission.note} />
-            </p>
+            </P>
           )}
           {submission.url && (
-            <p className="m-0 mb-2 break-all">
-              <a href={submission.url} target="_blank" rel="noopener noreferrer">
+            <P className="m-0 mb-2 break-all">
+              <TextLink href={submission.url} target="_blank" rel="noopener noreferrer">
                 {submission.url}
-              </a>
-            </p>
+              </TextLink>
+            </P>
           )}
-          <p className="text-xs text-text-light m-0">
+          <P className="text-xs text-text-light m-0">
             Submitted {formatDate(submission.submittedAt)}
-          </p>
+          </P>
         </section>
       )}
     </>

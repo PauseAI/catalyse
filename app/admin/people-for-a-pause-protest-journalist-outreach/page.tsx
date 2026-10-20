@@ -17,6 +17,11 @@ import Button from '@/components/Button'
 import Modal from '@/components/ui/Modal'
 import Toggle from '@/components/Toggle'
 import { Badge, type BadgeVariant } from '@/components/Badge'
+import { H1, H2, H3 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Textarea from '@/components/ui/Textarea'
+import TextLink from '@/components/TextLink'
 
 type Preview = Awaited<ReturnType<typeof client.admin.journalistOutreach.previewImport>>
 type Row = Awaited<ReturnType<typeof client.admin.journalistOutreach.list>>['journalists'][number]
@@ -111,10 +116,11 @@ export default function AdminJournalistOutreachPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Journalist outreach</h1>
-      <p className="text-text-light mb-6">
-        Volunteers work through this list at <a href={OUTREACH_PATH}>{OUTREACH_PATH}</a>.
-      </p>
+      <H1>Journalist outreach</H1>
+      <P className="text-text-light mb-6">
+        Volunteers work through this list at{' '}
+        <TextLink href={OUTREACH_PATH}>{OUTREACH_PATH}</TextLink>.
+      </P>
 
       <section className={card}>
         <Toggle
@@ -147,17 +153,17 @@ export default function AdminJournalistOutreachPage() {
       )}
 
       <section className={card}>
-        <h2>Import journalists</h2>
-        <p className="text-sm text-text-light mb-3">
+        <H2>Import journalists</H2>
+        <P className="text-sm text-text-light mb-3">
           Paste or upload CSV with a header row. Required columns:{' '}
           <code>{REQUIRED_HEADERS.join(', ')}</code>. Optional:{' '}
           <code>{OPTIONAL_HEADERS.join(', ')}</code>. Other columns are ignored. Leaning is
           Republican or Democrat (R/D also work); a row matching an email already on the list
           updates that journalist&apos;s fields instead of creating a duplicate — claim/contact
           status is never touched.
-        </p>
-        <label htmlFor="journalist-csv">CSV</label>
-        <textarea
+        </P>
+        <FormLabel htmlFor="journalist-csv">CSV</FormLabel>
+        <Textarea
           id="journalist-csv"
           rows={8}
           value={csv}
@@ -169,7 +175,7 @@ export default function AdminJournalistOutreachPage() {
           className="font-mono text-sm"
         />
         <div className="flex flex-wrap items-center gap-3 mt-3">
-          <label className="text-sm">
+          <FormLabel className="text-sm">
             Or upload a file{' '}
             <input
               type="file"
@@ -180,7 +186,7 @@ export default function AdminJournalistOutreachPage() {
                 if (file) void loadFile(file)
               }}
             />
-          </label>
+          </FormLabel>
           <Button
             variant="outline"
             disabled={!csv.trim() || previewMutation.isPending}
@@ -193,12 +199,12 @@ export default function AdminJournalistOutreachPage() {
         {preview && (
           <div className="mt-5">
             {preview.missingColumns.length > 0 && (
-              <p role="alert" className="text-error mb-3">
+              <P role="alert" className="text-error mb-3">
                 Missing required column{preview.missingColumns.length === 1 ? '' : 's'}:{' '}
                 {preview.missingColumns.join(', ')}
-              </p>
+              </P>
             )}
-            <h3>{preview.toCreate.length} new</h3>
+            <H3>{preview.toCreate.length} new</H3>
             {preview.toCreate.length > 0 && (
               <ul className="text-sm mb-3">
                 {preview.toCreate.map((r) => (
@@ -210,11 +216,11 @@ export default function AdminJournalistOutreachPage() {
             )}
             {preview.toUpdate.length > 0 && (
               <>
-                <h3>{preview.toUpdate.length} to update</h3>
-                <p className="text-sm text-text-light mb-2">
+                <H3>{preview.toUpdate.length} to update</H3>
+                <P className="text-sm text-text-light mb-2">
                   Matched by email. Only the fields below change — claim/contact status is never
                   touched by an import.
-                </p>
+                </P>
                 <ul className="text-sm mb-3">
                   {preview.toUpdate.map((u) => (
                     <li key={u.line}>
@@ -229,7 +235,7 @@ export default function AdminJournalistOutreachPage() {
             )}
             {preview.duplicates.length > 0 && (
               <>
-                <h3>{preview.duplicates.length} skipped</h3>
+                <H3>{preview.duplicates.length} skipped</H3>
                 <ul className="text-sm mb-3">
                   {preview.duplicates.map((d) => (
                     <li key={d.line}>
@@ -241,7 +247,7 @@ export default function AdminJournalistOutreachPage() {
             )}
             {preview.invalid.length > 0 && (
               <>
-                <h3 className="text-error">{preview.invalid.length} invalid</h3>
+                <H3 className="text-error">{preview.invalid.length} invalid</H3>
                 <ul className="text-sm mb-3">
                   {preview.invalid.map((i) => (
                     <li key={i.line}>
@@ -267,7 +273,7 @@ export default function AdminJournalistOutreachPage() {
 
       <section className={card}>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h2 className="m-0">Journalists</h2>
+          <H2 className="m-0">Journalists</H2>
           <div className="flex flex-wrap gap-2">
             {FILTERS.map((f) => (
               <Button
@@ -286,7 +292,7 @@ export default function AdminJournalistOutreachPage() {
           </div>
         </div>
         {rows.length === 0 ? (
-          <p className="text-text-light">No journalists here.</p>
+          <P className="text-text-light">No journalists here.</P>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -366,10 +372,10 @@ export default function AdminJournalistOutreachPage() {
         isOpen={deleting !== null}
         onClose={cancelDelete}
       >
-        <p className="mb-4">
+        <P className="mb-4">
           Remove {deleting && fullName(deleting)} from the outreach list? Their contact history goes
           with them.
-        </p>
+        </P>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={cancelDelete}>
             Cancel

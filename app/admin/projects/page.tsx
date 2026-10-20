@@ -3,6 +3,8 @@
 import { useRequireStaff } from '@/lib/hooks/auth'
 import { useQuery } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
 import { orpc } from '@/lib/orpc'
 import { SECTION_CARD } from '@/lib/ui-classes'
 
@@ -18,14 +20,14 @@ export default function AdminProjectsPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1 role="heading">Org projects</h1>
-      <p className="text-text-light mb-6">
+      <H1 role="heading">Org projects</H1>
+      <P className="text-text-light mb-6">
         Create a project on behalf of PauseAI. This skips the approval process.
-      </p>
+      </P>
 
       {drafts.length > 0 && (
         <div className={`max-w-4xl ${SECTION_CARD} mb-4`}>
-          <h2 className="mt-0 mb-3">My drafts</h2>
+          <H2 className="mt-0 mb-3">My drafts</H2>
           <ul className="flex flex-col gap-2">
             {drafts.map((draft) => (
               <li

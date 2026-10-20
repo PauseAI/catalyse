@@ -81,7 +81,9 @@ function output(command: string, args: string[], cwd = ROOT): string {
   return result.stdout.trim()
 }
 
-const PLAYWRIGHT = path.join(ROOT, 'node_modules', '.bin', 'playwright')
+function playwrightBin(cwd: string): string {
+  return path.join(cwd, 'node_modules', '.bin', 'playwright')
+}
 
 /** The lanes an argument list names with `--project`, or every lane. */
 function lanesFrom(args: string[]): string[] {
@@ -117,7 +119,7 @@ async function playwright(args: string[], cwd = ROOT): Promise<number> {
   const children = lanes.map(
     (lane, i) =>
       new Promise<number>((resolve, reject) => {
-        const child = spawn(PLAYWRIGHT, ['test', `--project=${lane}`, ...rest], {
+        const child = spawn(playwrightBin(cwd), ['test', `--project=${lane}`, ...rest], {
           cwd,
           env: {
             ...process.env,
@@ -163,6 +165,11 @@ async function captureAgainst(ref: string, args: string[]): Promise<number> {
       if (existsSync(path.join(ROOT, envFile))) {
         await copyFile(path.join(ROOT, envFile), path.join(worktree, envFile))
       }
+    }
+    // `generated/` is gitignored build output, not a dependency, so the hard-linked
+    // node_modules doesn't carry it — a fresh worktree has no Prisma client until this runs.
+    if (run('npm', ['run', 'generate'], { cwd: worktree }) !== 0) {
+      throw new Error('Could not generate the Prisma client in the worktree')
     }
     const status = await playwright(args, worktree)
     if (status !== 0)

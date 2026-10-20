@@ -19,6 +19,11 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import Button from '@/components/Button'
+import { H1, H2, H3, H4 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
+import Textarea from '@/components/ui/Textarea'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
@@ -80,10 +85,10 @@ function SortableSkill({
         ⠿
       </span>
       <div className="flex-1 min-w-0">
-        <h4 role="heading" className="mb-1 text-base font-bold">
+        <H4 role="heading" className="mb-1 text-base font-bold">
           {skill.name}
-        </h4>
-        {skill.description && <p className="m-0 text-sm text-text-light">{skill.description}</p>}
+        </H4>
+        {skill.description && <P className="m-0 text-sm text-text-light">{skill.description}</P>}
       </div>
       <div className="flex gap-1 shrink-0">
         <Button variant="secondary" size="sm" onClick={onEdit}>
@@ -154,8 +159,8 @@ function SortableCategory({
             ⠿
           </span>
           <div>
-            <h3 role="heading">{cat.name}</h3>
-            {cat.description && <p className="text-text-light text-sm mt-1">{cat.description}</p>}
+            <H3 role="heading">{cat.name}</H3>
+            {cat.description && <P className="text-text-light text-sm mt-1">{cat.description}</P>}
           </div>
         </div>
         <div className="flex gap-2">
@@ -360,14 +365,14 @@ export default function AdminSkillsPage() {
     <>
       <main className="container py-5 pb-15">
         <div className="flex justify-between items-center mb-3">
-          <h1>Manage skills</h1>
+          <H1>Manage skills</H1>
           <Button onClick={() => openModal({ type: 'add-category' })}>+ Add category</Button>
         </div>
 
-        <p className="text-text-light mb-6">
+        <P className="text-text-light mb-6">
           Manage skill categories and individual skills. These are used for volunteer profiles and
           project requirements.
-        </p>
+        </P>
 
         {loadingData ? (
           <div className="text-center py-10 text-text-light">Loading…</div>
@@ -420,15 +425,15 @@ export default function AdminSkillsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">
+              <H2 role="heading">
                 {modal.type === 'edit-category' ? 'Edit category' : 'Add category'}
-              </h2>
+              </H2>
             </div>
             <div className="p-6">
               <form onSubmit={(e) => handleSaveCategory(e, modal)}>
                 <div className="mb-5">
-                  <label htmlFor="cat-name">Category name</label>
-                  <input
+                  <FormLabel htmlFor="cat-name">Category name</FormLabel>
+                  <Input
                     id="cat-name"
                     aria-label="Category name"
                     type="text"
@@ -439,8 +444,8 @@ export default function AdminSkillsPage() {
                   />
                 </div>
                 <div className="mb-5">
-                  <label htmlFor="cat-description">Description</label>
-                  <textarea
+                  <FormLabel htmlFor="cat-description">Description</FormLabel>
+                  <Textarea
                     id="cat-description"
                     aria-label="Description"
                     value={inputDescription}
@@ -472,16 +477,16 @@ export default function AdminSkillsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">{modal.type === 'add-skill' ? 'Add skill' : 'Edit skill'}</h2>
+              <H2 role="heading">{modal.type === 'add-skill' ? 'Add skill' : 'Edit skill'}</H2>
             </div>
             <div className="p-6">
               {modal.type === 'add-skill' && (
-                <p className="text-text-light mb-4">Category: {modal.categoryName}</p>
+                <P className="text-text-light mb-4">Category: {modal.categoryName}</P>
               )}
               <form onSubmit={(e) => handleSaveSkill(e, modal)}>
                 <div className="mb-5">
-                  <label htmlFor="skill-name">Skill name</label>
-                  <input
+                  <FormLabel htmlFor="skill-name">Skill name</FormLabel>
+                  <Input
                     id="skill-name"
                     aria-label="Skill name"
                     type="text"
@@ -492,8 +497,8 @@ export default function AdminSkillsPage() {
                   />
                 </div>
                 <div className="mb-5">
-                  <label htmlFor="skill-description">Description</label>
-                  <textarea
+                  <FormLabel htmlFor="skill-description">Description</FormLabel>
+                  <Textarea
                     id="skill-description"
                     aria-label="Description"
                     value={inputDescription}
@@ -527,12 +532,12 @@ export default function AdminSkillsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Confirm delete</h2>
+              <H2 role="heading">Confirm delete</H2>
             </div>
             <div className="p-6">
-              <p className="text-text-light mb-6">
+              <P className="text-text-light mb-6">
                 Delete &ldquo;{modal.name}&rdquo;? This cannot be undone.
-              </p>
+              </P>
               <div className="px-0 py-4 border-t border-brand-border flex gap-3 justify-end">
                 <Button type="button" variant="secondary" onClick={closeModal}>
                   Cancel

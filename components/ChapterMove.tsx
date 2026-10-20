@@ -7,6 +7,9 @@ import FilterDropdown from '@/components/FilterDropdown'
 import { COUNTRY_OPTIONS, countryLabel } from '@/lib/filter-options'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Textarea from '@/components/ui/Textarea'
 
 /**
  * Asking to move to another country, and so to its chapter, which decides. Shown inside the
@@ -45,12 +48,12 @@ export default function ChapterMove({ country }: { country: string }) {
   if (isPending) return null
   if (pending) {
     return (
-      <p className="text-sm m-0 mt-2" role="status">
+      <P className="text-sm m-0 mt-2" role="status">
         You asked to move to {countryLabel(pending.toCountry)}; its organisers will decide.{' '}
         <Button type="button" size="sm" variant="secondary" onClick={() => cancel.mutate({})}>
           Cancel request
         </Button>
-      </p>
+      </P>
     )
   }
   if (!open) {
@@ -78,8 +81,8 @@ export default function ChapterMove({ country }: { country: string }) {
         searchable
       />
       <div>
-        <label htmlFor="move-reason">Anything they should know (optional)</label>
-        <textarea id="move-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+        <FormLabel htmlFor="move-reason">Anything they should know (optional)</FormLabel>
+        <Textarea id="move-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
       </div>
       <div className="flex gap-3">
         <Button

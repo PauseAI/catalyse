@@ -5,11 +5,13 @@ import Button from '@/components/Button'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import Tabs from '@/components/Tabs'
 import { SECTION_CARD } from '@/lib/ui-classes'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mb-10">
-      <h2 className="mb-1">{title}</h2>
+      <H2 className="mb-1">{title}</H2>
       <div className={SECTION_CARD}>{children}</div>
     </section>
   )
@@ -31,8 +33,8 @@ export default function ComponentPreviewPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Component preview</h1>
-      <p className="text-text-light mb-8">All button variants and patterns used across the app.</p>
+      <H1>Component preview</H1>
+      <P className="text-text-light mb-8">All button variants and patterns used across the app.</P>
 
       {/* ── Button component ─────────────────────────────────────── */}
       <Section title="Button — variants × sizes">
@@ -138,9 +140,9 @@ export default function ComponentPreviewPage() {
       </Section>
 
       <Section title="Button — dynamic variant (ternary)">
-        <p className="text-text-light text-sm mb-3">
+        <P className="text-text-light text-sm mb-3">
           Used in admin/triage tabs and quick-tasks status filters.
-        </p>
+        </P>
         <Row label="md tabs">
           {['one', 'two', 'three'].map((t) => (
             <Button
@@ -168,9 +170,9 @@ export default function ComponentPreviewPage() {
 
       {/* ── Other button patterns ─────────────────────────────────── */}
       <Section title="Tabs — underline style">
-        <p className="text-text-light text-sm mb-3">
+        <P className="text-text-light text-sm mb-3">
           Navigation tabs — different visual system, not action buttons.
-        </p>
+        </P>
         <Tabs
           tabs={[
             { key: 'Overview', label: 'Overview' },
@@ -181,15 +183,15 @@ export default function ComponentPreviewPage() {
           onChange={setActiveTab}
           className="mb-4"
         />
-        <p className="text-sm text-text-light">
+        <P className="text-sm text-text-light">
           Active: <strong>{activeTab}</strong>
-        </p>
+        </P>
       </Section>
 
       <Section title="Ghost icon × — close / dismiss / remove">
-        <p className="text-text-light text-sm mb-3">
+        <P className="text-text-light text-sm mb-3">
           All × buttons now use <code>{'<Button variant="ghost" icon>'}</code>.
-        </p>
+        </P>
         <Row label="modal header">
           <div className="bg-surface border border-brand-border rounded-lg px-4 py-3 flex items-center gap-4 min-w-[280px]">
             <span className="font-medium flex-1">Modal header</span>
@@ -240,9 +242,9 @@ export default function ComponentPreviewPage() {
       </Section>
 
       <Section title="Logout button (Header dropdown)">
-        <p className="text-text-light text-sm mb-3">
+        <P className="text-text-light text-sm mb-3">
           Ghost variant with error text colour override — sits inside dropdown menu.
-        </p>
+        </P>
         <div className="bg-surface border border-brand-border rounded-lg min-w-[180px]">
           <Button
             variant="ghost"
@@ -254,7 +256,7 @@ export default function ComponentPreviewPage() {
       </Section>
 
       <Section title="ThemeToggle (Header)">
-        <p className="text-text-light text-sm mb-3">Ghost icon button wrapping the theme emoji.</p>
+        <P className="text-text-light text-sm mb-3">Ghost icon button wrapping the theme emoji.</P>
         <Row label="">
           <ThemeToggle />
         </Row>

@@ -27,7 +27,7 @@ describe('new template', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'Task 2' }), 'Knock doors')
     // Untitled tasks are named by position in the dependency list.
     const task2 = within(
-      screen.getByRole('textbox', { name: 'Task 2' }).closest<HTMLElement>('.rounded-lg')!,
+      screen.getByRole('textbox', { name: 'Task 2' }).closest<HTMLElement>('.mb-4')!,
     )
     expect(task2.getAllByRole('checkbox').map((c) => c.parentElement?.textContent)).toEqual([
       'Print leaflets',

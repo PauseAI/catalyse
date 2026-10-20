@@ -5,6 +5,9 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/Button'
 import FilterDropdown from '@/components/FilterDropdown'
+import FormLabel from '@/components/FormLabel'
+import { P } from '@/components/Text'
+import Input from '@/components/ui/Input'
 import {
   COUNTRY_OPTIONS,
   NO_LOCAL_GROUP,
@@ -62,9 +65,9 @@ export default function ConfirmLocationDialog({
 
   return (
     <Modal id="confirm-location" title="Confirm your location" isOpen onClose={onClose}>
-      <p className="text-text-light mb-4">
+      <P className="text-text-light mb-4">
         Help us match you with nearby projects and local groups.
-      </p>
+      </P>
       {!hasValidCountry && (
         <div className="mb-4">
           <FilterDropdown
@@ -93,8 +96,8 @@ export default function ConfirmLocationDialog({
       )}
       {showCityInput && (
         <div className="mb-5">
-          <label htmlFor="confirm-location-city">City / Area</label>
-          <input
+          <FormLabel htmlFor="confirm-location-city">City / Area</FormLabel>
+          <Input
             type="text"
             id="confirm-location-city"
             value={location}

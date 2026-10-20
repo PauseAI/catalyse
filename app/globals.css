@@ -149,104 +149,9 @@ body {
   min-height: 100vh;
 }
 
-h1,
-h2,
-h3 {
-  font-family: var(--font-heading);
-  font-weight: 700;
-  color: var(--heading);
-}
-
-h1 {
-  font-size: 2rem;
-  margin-bottom: 16px;
-}
-
-h2 {
-  font-size: 1.5rem;
-  margin-bottom: 12px;
-}
-
-h3 {
-  font-size: 1.25rem;
-  margin-bottom: 8px;
-}
-
-h4 {
-  font-size: 1rem;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-
-p {
-  margin-bottom: 12px;
-}
-
-a:not([class]) {
-  color: var(--primary-text);
-  text-decoration: underline;
-}
-
-@layer base {
-  label {
-    display: block;
-    font-weight: 500;
-    margin-bottom: 6px;
-    color: var(--text);
-  }
-
-  label.required::after {
-    content: ' *';
-    color: var(--error);
-  }
-}
-
-input[type='text'],
-input[type='email'],
-input[type='number'],
-input[type='url'],
-input[type='password'],
-input[type='search'],
-input[type='date'],
-textarea,
-select {
-  width: 100%;
-  padding: 12px;
-  border: 2px solid var(--border);
-  border-radius: var(--radius);
-  font-size: 1rem;
-  font-family: var(--font-body);
-  transition: border-color 0.2s;
-  background: var(--surface);
-  color: var(--text);
-}
-
-input:focus,
-textarea:focus,
-select:focus {
-  outline: none;
-  border-color: var(--secondary);
-}
-
 :where(a, button, input, textarea, select, [tabindex]):focus-visible {
   outline: 2px solid var(--primary-dark);
   outline-offset: 2px;
-}
-
-input[aria-invalid='true'],
-textarea[aria-invalid='true'],
-select[aria-invalid='true'] {
-  border-color: var(--error);
-}
-input[aria-invalid='true']:focus,
-textarea[aria-invalid='true']:focus,
-select[aria-invalid='true']:focus {
-  border-color: var(--error);
-}
-
-textarea {
-  min-height: 120px;
-  resize: vertical;
 }
 
 /* Spinner — kept as CSS class because animation is awkward to inline */
@@ -264,21 +169,6 @@ textarea {
   to {
     transform: rotate(360deg);
   }
-}
-
-/* Dark mode overrides for base form elements */
-[data-theme='dark'] input[type='text'],
-[data-theme='dark'] input[type='email'],
-[data-theme='dark'] input[type='number'],
-[data-theme='dark'] input[type='url'],
-[data-theme='dark'] input[type='password'],
-[data-theme='dark'] input[type='search'],
-[data-theme='dark'] input[type='date'],
-[data-theme='dark'] textarea,
-[data-theme='dark'] select {
-  background: #1f2937;
-  color: #f3f4f6;
-  border-color: #4b5563;
 }
 
 @keyframes fade-slide-in {

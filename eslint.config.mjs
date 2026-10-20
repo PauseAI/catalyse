@@ -36,6 +36,8 @@ const eslintConfig = defineConfig([
     'tmp/**',
     // Visual snapshot gallery, written by npm run snapshots
     'snapshots/**',
+    // Storybook build output
+    'storybook-static/**',
   ]),
 ])
 

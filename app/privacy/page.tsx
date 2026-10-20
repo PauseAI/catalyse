@@ -3,6 +3,9 @@
 import Link from 'next/link'
 import { useMutation } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import { H1, H2, H4 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import TextLink from '@/components/TextLink'
 import { useAuth } from '@/lib/auth-context'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
@@ -42,20 +45,20 @@ export default function PrivacyPage() {
     <>
       <main className="container py-5 pb-15">
         <div className="sm:max-w-[600px] mx-auto">
-          <h1>Privacy &amp; data</h1>
-          <p className="text-text-light mb-6">
+          <H1>Privacy &amp; data</H1>
+          <P className="text-text-light mb-6">
             Manage your data and privacy settings. We&apos;re committed to respecting your rights
             under GDPR.
-          </p>
+          </P>
 
           {user && (
             <>
               <div className={`${SECTION_CARD} overflow-hidden wrap-break-word mb-6`}>
-                <h2>Export your data</h2>
-                <p className="text-text-light mb-4">
+                <H2>Export your data</H2>
+                <P className="text-text-light mb-4">
                   Download all your data in JSON format. This includes your profile, skills, project
                   interests, and messages.
-                </p>
+                </P>
                 <Button
                   variant="secondary"
                   onClick={() => exportMutation.mutate({})}
@@ -68,9 +71,9 @@ export default function PrivacyPage() {
           )}
 
           <div className={`${SECTION_CARD} overflow-hidden wrap-break-word mb-6`}>
-            <h2>Our data practices</h2>
+            <H2>Our data practices</H2>
 
-            <h4>What we collect</h4>
+            <H4>What we collect</H4>
             <ul className="list-disc text-text-light mb-4 pl-5">
               <li>Information you provide (name, email, bio, contact details)</li>
               <li>Skills and availability you share</li>
@@ -79,8 +82,8 @@ export default function PrivacyPage() {
               <li>Admin notes about your volunteering activity (visible to admins only)</li>
             </ul>
 
-            <h4>Legal basis for processing</h4>
-            <p className="text-text-light">We process your data based on:</p>
+            <H4>Legal basis for processing</H4>
+            <P className="text-text-light">We process your data based on:</P>
             <ul className="list-disc text-text-light mb-4 pl-5">
               <li>
                 <strong>Consent</strong>: for sharing your profile with other volunteers and
@@ -98,7 +101,7 @@ export default function PrivacyPage() {
               </li>
             </ul>
 
-            <h4>How we use it</h4>
+            <H4>How we use it</H4>
             <ul className="list-disc text-text-light mb-4 pl-5">
               <li>To match you with relevant projects based on your skills</li>
               <li>To enable project owners to contact you (with your consent)</li>
@@ -126,7 +129,7 @@ export default function PrivacyPage() {
               <li>For platform administration and volunteer coordination</li>
             </ul>
 
-            <h4>What we don&apos;t do</h4>
+            <H4>What we don&apos;t do</H4>
             <ul className="list-disc text-text-light mb-4 pl-5">
               <li>We never sell your data</li>
               <li>We don&apos;t share your contact info without your consent</li>
@@ -138,11 +141,11 @@ export default function PrivacyPage() {
               </li>
             </ul>
 
-            <h4>Third-party data processors</h4>
-            <p className="text-text-light">
+            <H4>Third-party data processors</H4>
+            <P className="text-text-light">
               The following services process data on our behalf (as data processors under GDPR
               Article 28). We have assessed each for adequate data protection safeguards:
-            </p>
+            </P>
             <ul className="list-disc text-text-light mb-4 pl-5">
               <li>
                 <strong>Railway</strong> (hosting): our application and database are hosted on
@@ -177,13 +180,13 @@ export default function PrivacyPage() {
                 create or log into your account. No other Google data is accessed.
               </li>
             </ul>
-            <p className="text-text-light mb-4">
+            <P className="text-text-light mb-4">
               Where data is processed outside the UK/EEA, we rely on the service provider&apos;s
               standard contractual clauses and data processing agreements as safeguards for
               international transfers.
-            </p>
+            </P>
 
-            <h4>Data retention</h4>
+            <H4>Data retention</H4>
             <ul className="list-disc text-text-light mb-4 pl-5">
               <li>Active accounts: data is kept as long as your account is active</li>
               <li>
@@ -200,7 +203,7 @@ export default function PrivacyPage() {
               <li>Admin invite tokens expire after 7 days</li>
             </ul>
 
-            <h4>Cookies</h4>
+            <H4>Cookies</H4>
             <ul className="list-disc text-text-light mb-4 pl-5">
               <li>
                 <strong>Essential cookies</strong>: we use localStorage (not cookies) to store your
@@ -214,21 +217,21 @@ export default function PrivacyPage() {
               </li>
             </ul>
 
-            <h4>Security</h4>
-            <p className="text-text-light">
+            <H4>Security</H4>
+            <P className="text-text-light">
               Passwords are hashed using PBKDF2-SHA256 with random salts and are never stored in
               plain text. All data is transmitted over HTTPS. Authentication uses secure random
               tokens. Database backups are encrypted at rest by Backblaze and transmitted over
               HTTPS. Access to backups requires API credentials that are stored securely as
               environment variables.
-            </p>
+            </P>
           </div>
 
           <div className={`${SECTION_CARD} overflow-hidden wrap-break-word mb-6`}>
-            <h2>Your GDPR rights</h2>
-            <p className="text-text-light mb-4">
+            <H2>Your GDPR rights</H2>
+            <P className="text-text-light mb-4">
               Under GDPR and the UK Data Protection Act 2018, you have the right to:
-            </p>
+            </P>
             <ul className="list-disc text-text-light pl-5">
               <li>
                 <strong>Access</strong> (Article 15): Download all your data using the export
@@ -256,38 +259,43 @@ export default function PrivacyPage() {
                 delete your account at any time
               </li>
             </ul>
-            <p className="text-text-light mt-4">
+            <P className="text-text-light mt-4">
               <strong>Data Controller:</strong> Safe AI Alliance Ltd (trading as PauseAI UK /
               Catalyse)
               <br />
               <strong>Contact:</strong>{' '}
-              <a href="mailto:matilda@pauseai.info">matilda@pauseai.info</a>
-            </p>
-            <p className="text-text-light mt-3">
+              <TextLink href="mailto:matilda@pauseai.info">matilda@pauseai.info</TextLink>
+            </P>
+            <P className="text-text-light mt-3">
               If you are not satisfied with how we handle your data, you have the right to lodge a
               complaint with the <strong>Information Commissioner&apos;s Office (ICO)</strong> at{' '}
-              <a
+              <TextLink
                 href="https://ico.org.uk/make-a-complaint/"
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 ico.org.uk
-              </a>
+              </TextLink>
               .
-            </p>
+            </P>
           </div>
 
           {!user && (
             <div className={`${SECTION_CARD} overflow-hidden wrap-break-word text-center mb-6`}>
-              <p className="text-text-light">
-                <Link href="/login">Log in</Link> to export your data or manage your account.
-              </p>
+              <P className="text-text-light">
+                <Link className="text-primary-text underline" href="/login">
+                  Log in
+                </Link>{' '}
+                to export your data or manage your account.
+              </P>
             </div>
           )}
 
-          <p className="text-center mt-6">
-            <Link href="/settings?tab=privacy">&larr; Back to Settings</Link>
-          </p>
+          <P className="text-center mt-6">
+            <Link className="text-primary-text underline" href="/settings?tab=privacy">
+              &larr; Back to Settings
+            </Link>
+          </P>
         </div>
       </main>
     </>

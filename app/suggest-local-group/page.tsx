@@ -16,6 +16,10 @@ import {
   suggestionStatusVariant,
 } from '@/lib/status-labels'
 import { BLEED, SECTION_CARD } from '@/lib/ui-classes'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
 
 const SUGGESTION_COUNTRIES = COUNTRY_OPTIONS.filter(
   (o) => o.value && o.value !== 'Remote' && o.value !== 'Other',
@@ -75,11 +79,11 @@ export default function SuggestLocalGroupPage() {
   return (
     <>
       <main className="container py-5 pb-15">
-        <h1>Suggest a local group</h1>
-        <p className="text-text-light mb-6">
+        <H1>Suggest a local group</H1>
+        <P className="text-text-light mb-6">
           Don&apos;t see your local group listed? Suggest it here and your chapter&apos;s organisers
           will review it.
-        </p>
+        </P>
 
         <div className="sm:max-w-xl">
           <form onSubmit={handleSubmit} className={`${SECTION_CARD} mb-8`}>
@@ -95,17 +99,17 @@ export default function SuggestLocalGroupPage() {
             </div>
 
             <div className="mb-5">
-              <label htmlFor="name">Local group name</label>
-              <input
+              <FormLabel htmlFor="name">Local group name</FormLabel>
+              <Input
                 id="name"
                 type="text"
                 placeholder="e.g., Bristol, Edinburgh, Birmingham"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
-              <p className="text-sm text-text-light mt-1">
+              <P className="text-sm text-text-light mt-1">
                 Enter the city, region, or area name for the local group.
-              </p>
+              </P>
             </div>
 
             <Button type="submit" disabled={createMutation.isPending || !country || !name.trim()}>
@@ -115,7 +119,7 @@ export default function SuggestLocalGroupPage() {
 
           {!loadingSuggestions && suggestions.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold mb-4">Your previous suggestions</h2>
+              <H2 className="text-lg font-semibold mb-4">Your previous suggestions</H2>
               <div className="space-y-3">
                 {suggestions.map((s) => (
                   <article
@@ -123,7 +127,7 @@ export default function SuggestLocalGroupPage() {
                     className={`bg-surface ${BLEED} shadow px-4 sm:px-5 py-4 flex items-start justify-between gap-4`}
                   >
                     <div>
-                      <p className="font-semibold m-0">
+                      <P className="font-semibold m-0">
                         {countryLabel(s.country)}, {s.name}
                         {s.mergedInto && (
                           <span className="text-text-light font-normal text-sm">
@@ -131,12 +135,12 @@ export default function SuggestLocalGroupPage() {
                             (merged into {s.mergedInto.name})
                           </span>
                         )}
-                      </p>
-                      <p className="text-xs text-text-light m-0 mt-1">
+                      </P>
+                      <P className="text-xs text-text-light m-0 mt-1">
                         Submitted {s.createdAt ? formatDate(s.createdAt) : ''}
-                      </p>
+                      </P>
                       {s.adminNotes && (
-                        <p className="text-sm text-text-light mt-2 mb-0 italic">{s.adminNotes}</p>
+                        <P className="text-sm text-text-light mt-2 mb-0 italic">{s.adminNotes}</P>
                       )}
                     </div>
                     <Badge

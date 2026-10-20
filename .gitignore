@@ -73,3 +73,7 @@ tmp/
 # Visual snapshots (npm run snapshots)
 /snapshots/
 orca.yaml
+
+# Storybook build output
+/storybook-static/
+*storybook.log

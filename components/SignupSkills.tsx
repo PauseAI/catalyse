@@ -3,7 +3,10 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import FormLabel from '@/components/FormLabel'
 import SkillPicker from '@/components/SkillPicker'
+import { P } from '@/components/Text'
+import Input from '@/components/ui/Input'
 import { orpc } from '@/lib/orpc'
 import { textMatches } from '@/lib/text-match'
 
@@ -56,8 +59,8 @@ export default function SignupSkills({
 
   return (
     <div>
-      <label htmlFor="skill-search">Search skills</label>
-      <input
+      <FormLabel htmlFor="skill-search">Search skills</FormLabel>
+      <Input
         id="skill-search"
         type="search"
         value={search}
@@ -66,17 +69,17 @@ export default function SignupSkills({
         className="mb-3"
       />
       {!term && needed.length > 0 && (
-        <p className="text-sm text-text-light mt-0 mb-2">Most needed by projects right now:</p>
+        <P className="text-sm text-text-light mt-0 mb-2">Most needed by projects right now:</P>
       )}
       {shown.length === 0 ? (
-        <p className="text-sm text-text-light">
+        <P className="text-sm text-text-light">
           {term ? 'No skills match that search.' : 'Choose from the full list below.'}
-        </p>
+        </P>
       ) : (
         <div className="flex flex-wrap gap-2 mb-3">
           {shown.map((skill) => (
             // [test hook] skill-option class used as test selector
-            <label
+            <FormLabel
               key={skill.id}
               className={`skill-option relative inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-bg border-2 border-transparent rounded-full cursor-pointer transition-all text-sm select-none hover:bg-accent${selectedIds.has(skill.id) ? ' bg-secondary! text-white! border-secondary-dark!' : ''}`}
             >
@@ -87,7 +90,7 @@ export default function SignupSkills({
                 className="absolute opacity-0 w-0 h-0 pointer-events-none"
               />
               {skill.name}
-            </label>
+            </FormLabel>
           ))}
         </div>
       )}

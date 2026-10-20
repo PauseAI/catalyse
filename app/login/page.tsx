@@ -6,6 +6,10 @@ import Link from 'next/link'
 import Script from 'next/script'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import FormLabel from '@/components/FormLabel'
+import { H1 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import Input from '@/components/ui/Input'
 import { useAuth } from '@/lib/auth-context'
 import { orpc } from '@/lib/orpc'
 import { SECTION_CARD } from '@/lib/ui-classes'
@@ -125,10 +129,10 @@ function LoginPageContent() {
       )}
       <main className="container py-5 pb-15">
         <div className="sm:max-w-[400px] my-15 mx-auto">
-          <h1 className="text-center">Welcome back</h1>
-          <p className="text-center text-text-light mb-8">
+          <H1 className="text-center">Welcome back</H1>
+          <P className="text-center text-text-light mb-8">
             Login to access your dashboard and projects.
-          </p>
+          </P>
 
           {error && (
             <div
@@ -153,10 +157,10 @@ function LoginPageContent() {
 
             <form method="post" onSubmit={handleSubmit}>
               <div className="mb-5">
-                <label htmlFor="email" className="required">
+                <FormLabel htmlFor="email" required>
                   Email
-                </label>
-                <input
+                </FormLabel>
+                <Input
                   type="email"
                   id="email"
                   name="email"
@@ -169,10 +173,10 @@ function LoginPageContent() {
               </div>
 
               <div className="mb-5">
-                <label htmlFor="password" className="required">
+                <FormLabel htmlFor="password" required>
                   Password
-                </label>
-                <input
+                </FormLabel>
+                <Input
                   type="password"
                   id="password"
                   name="password"
@@ -188,12 +192,17 @@ function LoginPageContent() {
                 {submitting ? 'Logging in…' : 'Login'}
               </Button>
 
-              <p className="text-center mt-4">
-                <Link href="/forgot-password">Forgot your password?</Link>
-              </p>
-              <p className="text-center text-text-light mt-3">
-                Don&apos;t have an account? <Link href="/signup">Sign up</Link>
-              </p>
+              <P className="text-center mt-4">
+                <Link className="text-primary-text underline" href="/forgot-password">
+                  Forgot your password?
+                </Link>
+              </P>
+              <P className="text-center text-text-light mt-3">
+                Don&apos;t have an account?{' '}
+                <Link className="text-primary-text underline" href="/signup">
+                  Sign up
+                </Link>
+              </P>
             </form>
           </div>
         </div>

@@ -2,6 +2,7 @@
 
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/Button'
+import { P } from '@/components/Text'
 import { formatDateShort } from '@/lib/format-date'
 
 /**
@@ -35,33 +36,33 @@ export default function BaselineDialog({
       isOpen={isOpen}
       onClose={onClose}
     >
-      <p>
+      <P>
         The original plan is what you agreed at the start. It records today&rsquo;s dates for the
         project and its {taskCount} dated task{taskCount === 1 ? '' : 's'}, and stays put while the
         real schedule moves — the difference is shown as days moved.
-      </p>
+      </P>
 
       {replacing ? (
         <>
-          <p>
+          <P>
             The original plan was saved on <strong>{formatDateShort(existingSetAt)}</strong>.
             Replacing it means:
-          </p>
+          </P>
           <ul className="mb-4 list-disc pl-5">
             <li>every task&rsquo;s days moved resets to &ldquo;on plan&rdquo;</li>
             <li>the record of how far the schedule has slipped is gone</li>
             <li>the old plan is not stored anywhere, so this cannot be undone</li>
           </ul>
-          <p className="text-text-light text-sm">
+          <P className="text-text-light text-sm">
             Do this when the team has genuinely re-planned — not to clear days moved you would
             rather not report.
-          </p>
+          </P>
         </>
       ) : (
-        <p className="text-text-light text-sm">
+        <P className="text-text-light text-sm">
           Nothing is overwritten: this project has no original plan yet. Until you set one, the
           timeline shows no original-plan track and no days moved.
-        </p>
+        </P>
       )}
 
       <div className="mt-4 flex flex-wrap justify-end gap-2">

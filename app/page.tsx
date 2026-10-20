@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { H1, H2, H3 } from '@/components/Heading'
 import LandingCTA from '@/components/LandingCTA'
+import { P } from '@/components/Text'
+import TextLink from '@/components/TextLink'
 
 export const metadata: Metadata = {
   title: 'Volunteer with PauseAI',
@@ -22,22 +25,22 @@ const TRACK_RECORD: { when: string; body: React.ReactNode }[] = [
     body: (
       <>
         We published an{' '}
-        <a
+        <TextLink
           href="https://pauseai.info/dear-sir-demis-2025"
           target="_blank"
           rel="noopener noreferrer"
         >
           open letter
-        </a>{' '}
+        </TextLink>{' '}
         signed by over 60 UK politicians, in response to Google DeepMind failing to uphold its AI
         safety commitments. Several of the MPs who signed later spoke in the{' '}
-        <a
+        <TextLink
           href="https://www.bbc.co.uk/iplayer/episode/m002nr42/westminster-hall-10122025"
           target="_blank"
           rel="noopener noreferrer"
         >
           Westminster Hall debate
-        </a>{' '}
+        </TextLink>{' '}
         that we helped to organise in December.
       </>
     ),
@@ -53,33 +56,33 @@ const TRACK_RECORD: { when: string; body: React.ReactNode }[] = [
         We co-organised a march past the offices of OpenAI and Big Tech companies in King&apos;s
         Cross, London. It was the largest ever protest focused exclusively on the risks of AI, with
         around 300 people marching and media coverage in{' '}
-        <a
+        <TextLink
           href="https://www.technologyreview.com/2026/03/02/1133814/i-checked-out-londons-biggest-ever-anti-ai-protest/"
           target="_blank"
           rel="noopener noreferrer"
         >
           MIT Technology Review
-        </a>
+        </TextLink>
         ,{' '}
-        <a
+        <TextLink
           href="https://www.independent.co.uk/tech/ai-safety-declaration-steve-bannon-b2932570.html"
           target="_blank"
           rel="noopener noreferrer"
         >
           The Independent
-        </a>
+        </TextLink>
         ,{' '}
-        <a
+        <TextLink
           href="https://www.wsj.com/tech/ai/ai-companies-public-relations-ae312d79"
           target="_blank"
           rel="noopener noreferrer"
         >
           The Wall Street Journal
-        </a>{' '}
+        </TextLink>{' '}
         and{' '}
-        <a href="https://pauseai.uk/#news" target="_blank" rel="noopener noreferrer">
+        <TextLink href="https://pauseai.uk/#news" target="_blank" rel="noopener noreferrer">
           others
-        </a>
+        </TextLink>
         .
       </>
     ),
@@ -112,18 +115,22 @@ export default function LandingPage() {
               No size utilities here: globals.css styles `h1` outside a cascade
               layer, so `text-*` classes on a heading are silently ignored.
             */}
-            <h1>Volunteer for PauseAI</h1>
-            <p className="text-lg text-text-light mb-8">
+            <H1>Volunteer for PauseAI</H1>
+            <P className="text-lg text-text-light mb-8">
               Catalyse is the volunteer platform for PauseAI. It allows anyone to join projects or
               complete tasks that help advance our mission. You can also propose your own projects
               to get help from other volunteers on things that you want to work on.
-            </p>
+            </P>
             <div className="md:flex md:justify-center">
               <LandingCTA />
             </div>
-            <p className="text-sm text-text-light mt-4 mb-0">
-              Already applied? <Link href="/login">Log in to check your application status</Link>.
-            </p>
+            <P className="text-sm text-text-light mt-4 mb-0">
+              Already applied?{' '}
+              <Link className="text-primary-text underline" href="/login">
+                Log in to check your application status
+              </Link>
+              .
+            </P>
           </div>
         </div>
       </section>
@@ -131,17 +138,17 @@ export default function LandingPage() {
       {/* What PauseAI is */}
       <section className="container py-12 md:py-16">
         <div className="max-w-3xl">
-          <h2>Who we are</h2>
-          <p className="text-text-light">
+          <H2>Who we are</H2>
+          <P className="text-text-light">
             PauseAI is a civic movement, which means that we help citizens organise to take
             collective actions and make their voice heard. Our volunteers engage with their elected
             representatives about AI safety, march in protests, join conferences about AI safety and
             gather signatures for open letters.
-          </p>
-          <p className="text-text-light mb-0">
+          </P>
+          <P className="text-text-light mb-0">
             PauseAI is focused on the risks of superhuman AI. This focus is the thing that is unique
             about PauseAI and distinguishes us from other movements.
-          </p>
+          </P>
         </div>
       </section>
 
@@ -149,7 +156,7 @@ export default function LandingPage() {
       <section className="bg-surface border-y border-brand-border">
         <div className="container py-12 md:py-16">
           <div className="max-w-3xl mb-8">
-            <h2>Where that work has led</h2>
+            <H2>Where that work has led</H2>
           </div>
           <ul className="grid grid-cols-1 md:grid-cols-3 gap-5 list-none p-0 m-0">
             {TRACK_RECORD.map((item) => (
@@ -157,10 +164,10 @@ export default function LandingPage() {
                 key={item.when}
                 className="bg-brand-bg border border-brand-border rounded-xl p-4 sm:p-6"
               >
-                <p className="font-heading text-xs font-bold uppercase tracking-widest text-primary-dark mb-2">
+                <P className="font-heading text-xs font-bold uppercase tracking-widest text-primary-dark mb-2">
                   {item.when}
-                </p>
-                <p className="text-sm text-text-light mb-0">{item.body}</p>
+                </P>
+                <P className="text-sm text-text-light mb-0">{item.body}</P>
               </li>
             ))}
           </ul>
@@ -170,7 +177,7 @@ export default function LandingPage() {
       {/* How it works */}
       <section className="container py-12 md:py-16">
         <div className="max-w-3xl mb-8">
-          <h2>How Catalyse works</h2>
+          <H2>How Catalyse works</H2>
         </div>
         <ol className="grid grid-cols-1 md:grid-cols-3 gap-5 list-none p-0 m-0">
           {STEPS.map((step, i) => (
@@ -184,11 +191,11 @@ export default function LandingPage() {
               >
                 {i + 1}
               </span>
-              <h3 className="text-lg mb-2">
+              <H3 className="text-lg mb-2">
                 <span className="sr-only">Step {i + 1}: </span>
                 {step.title}
-              </h3>
-              <p className="text-sm text-text-light mb-0">{step.body}</p>
+              </H3>
+              <P className="text-sm text-text-light mb-0">{step.body}</P>
             </li>
           ))}
         </ol>
@@ -198,7 +205,7 @@ export default function LandingPage() {
       <section className="bg-surface border-y border-brand-border">
         <div className="container py-12 md:py-16">
           <div className="max-w-3xl">
-            <h2>Before you apply</h2>
+            <H2>Before you apply</H2>
             <ul className="text-text-light space-y-2 pl-5 list-disc marker:text-primary">
               <li>
                 Applications are reviewed by one of the PauseAI paid staff, so there is a short wait
@@ -210,13 +217,13 @@ export default function LandingPage() {
               <li>You can control what information other volunteers can see about you.</li>
               <li>
                 Catalyse is for coordinating volunteer tasks. To see upcoming events, see the{' '}
-                <a href="https://luma.com/PauseAI" target="_blank" rel="noopener noreferrer">
+                <TextLink href="https://luma.com/PauseAI" target="_blank" rel="noopener noreferrer">
                   calendar
-                </a>
+                </TextLink>
                 . For other information go to{' '}
-                <a href="https://pauseai.info" target="_blank" rel="noopener noreferrer">
+                <TextLink href="https://pauseai.info" target="_blank" rel="noopener noreferrer">
                   pauseai.info
-                </a>
+                </TextLink>
                 .
               </li>
             </ul>
@@ -227,8 +234,8 @@ export default function LandingPage() {
       {/* Closing CTA */}
       <section className="container border-t border-brand-border py-14 md:py-20">
         <div className="max-w-2xl">
-          <h2>Ready to start?</h2>
-          <p className="text-text-light mb-6">Sign up now to view open projects.</p>
+          <H2>Ready to start?</H2>
+          <P className="text-text-light mb-6">Sign up now to view open projects.</P>
           <LandingCTA />
         </div>
       </section>

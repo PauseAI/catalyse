@@ -28,7 +28,9 @@ describe('messages.send', () => {
     })
     expect(res.message).toBe('Message sent')
     // The sender's address stays private unless they share it.
-    expect(emails.last).toMatchObject({ to: recipient.email, replyTo: undefined })
+    await vi.waitFor(() =>
+      expect(emails.last).toMatchObject({ to: recipient.email, replyTo: undefined }),
+    )
     expect(emails.last.html).toContain(project.title)
     expect(emails.last.html).toContain(`${env.APP_URL}/inbox/messages/${res.threadId}`)
     expect(
@@ -45,7 +47,7 @@ describe('messages.send', () => {
       message: 'x',
       shareEmail: true,
     })
-    expect(emails.last).toMatchObject({ replyTo: sender.email })
+    await vi.waitFor(() => expect(emails.last).toMatchObject({ replyTo: sender.email }))
     expect(emails.last.html).not.toContain('about the project')
 
     // An unknown related project is refused (it would otherwise break the foreign key).
@@ -132,10 +134,12 @@ describe('message threads', () => {
     })
     await clientAs(bob).messages.reply({ threadId, message: '  Yes  ' })
     await clientAs(ann).messages.reply({ threadId, message: 'Thanks', shareEmail: true })
-    expect(emails.lastTo(bob.email!)).toMatchObject({
-      subject: '[Catalyse] Banners',
-      replyTo: ann.email,
-    })
+    await vi.waitFor(() =>
+      expect(emails.lastTo(bob.email!)).toMatchObject({
+        subject: '[Catalyse] Banners',
+        replyTo: ann.email,
+      }),
+    )
 
     const bobsThreads = await clientAs(bob).messages.threads()
     expect(bobsThreads).toEqual([

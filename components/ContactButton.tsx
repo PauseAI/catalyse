@@ -7,6 +7,9 @@ import MessageDialog from '@/components/MessageDialog'
 import Modal from '@/components/ui/Modal'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Textarea from '@/components/ui/Textarea'
 
 /**
  * How to reach a volunteer from a list or profile: Message when the viewer works with them
@@ -82,13 +85,13 @@ export default function ContactButton({
             request.mutate({ toVolunteerId: volunteerId, message: note.trim() })
           }}
         >
-          <p className="text-sm text-text-light mt-0">
+          <P className="text-sm text-text-light mt-0">
             {name} is asked in their Inbox. If they accept, you can both see each other&apos;s
             contact details and message each other here.
-          </p>
+          </P>
           <div className="mb-5">
-            <label htmlFor={`${id}-note`}>Why would you like to connect?</label>
-            <textarea
+            <FormLabel htmlFor={`${id}-note`}>Why would you like to connect?</FormLabel>
+            <Textarea
               id={`${id}-note`}
               rows={4}
               value={note}
@@ -96,9 +99,9 @@ export default function ContactButton({
               placeholder="Say who you are and what you'd like to talk about (at least 20 characters)"
             />
             {note.trim().length > 0 && note.trim().length < 20 && (
-              <p className="text-xs text-text-light mt-1 mb-0">
+              <P className="text-xs text-text-light mt-1 mb-0">
                 {20 - note.trim().length} more characters to go
-              </p>
+              </P>
             )}
           </div>
           <div className="flex justify-end gap-2">

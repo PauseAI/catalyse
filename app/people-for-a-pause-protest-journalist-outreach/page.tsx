@@ -20,6 +20,12 @@ import {
 import Button from '@/components/Button'
 import Modal from '@/components/ui/Modal'
 import { Badge } from '@/components/Badge'
+import { H1, H2, H3 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
+import Textarea from '@/components/ui/Textarea'
+import TextLink from '@/components/TextLink'
 
 // Kept only in this browser, so volunteers don't retype them; never sent to the server.
 const NAME_STORAGE_KEY = 'outreachName'
@@ -44,10 +50,10 @@ function RequestLinkForm({ onSignIn }: { onSignIn: (token: string) => void }) {
   if (mutation.isSuccess) {
     return (
       <div className={`${card} text-center`}>
-        <h3>Check your inbox</h3>
-        <p className="text-text-light my-4">
+        <H3>Check your inbox</H3>
+        <P className="text-text-light my-4">
           We&apos;ve sent a sign-in link to <strong>{email}</strong>. It expires in an hour.
-        </p>
+        </P>
         <Button variant="ghost" onClick={() => mutation.reset()}>
           Use a different email
         </Button>
@@ -62,13 +68,13 @@ function RequestLinkForm({ onSignIn }: { onSignIn: (token: string) => void }) {
 
   return (
     <form className={card} onSubmit={handleSubmit}>
-      <p className="mb-4">
+      <P className="mb-4">
         Help get People for a Pause in the news. We&apos;ll give you one journalist at a time and a
         ready-made email to send them from your own address.
-      </p>
+      </P>
       {user && (
         <div className="bg-brand-bg rounded-lg p-3 mb-4 text-sm">
-          <p className="mb-2">You&apos;re logged in to Catalyse, so you can skip the link.</p>
+          <P className="mb-2">You&apos;re logged in to Catalyse, so you can skip the link.</P>
           <Button
             type="button"
             variant="outline"
@@ -81,15 +87,15 @@ function RequestLinkForm({ onSignIn }: { onSignIn: (token: string) => void }) {
         </div>
       )}
       {(mutation.error ?? catalyseSignIn.error) && (
-        <p role="alert" className="text-error mb-4">
+        <P role="alert" className="text-error mb-4">
           {(mutation.error ?? catalyseSignIn.error)?.message}
-        </p>
+        </P>
       )}
       <div className="mb-5">
-        <label htmlFor="outreach-email" className="required">
+        <FormLabel htmlFor="outreach-email" required>
           Your email
-        </label>
-        <input
+        </FormLabel>
+        <Input
           id="outreach-email"
           type="email"
           required
@@ -97,9 +103,9 @@ function RequestLinkForm({ onSignIn }: { onSignIn: (token: string) => void }) {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
         />
-        <p className="text-sm text-text-light mt-1">
+        <P className="text-sm text-text-light mt-1">
           We only use this to send you a sign-in link and to keep track of who emailed whom.
-        </p>
+        </P>
       </div>
       <Button type="submit" className="w-full" disabled={mutation.isPending}>
         {mutation.isPending ? 'Sending…' : 'Send me a link'}
@@ -210,24 +216,24 @@ function TaskCard({
     <div className={card}>
       <div className="mb-4">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="m-0">{name}</h2>
+          <H2 className="m-0">{name}</H2>
           <span className="text-sm text-text-light whitespace-nowrap" aria-label="Time left">
             {`${mm}:${ss} left`}
           </span>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
-          <p className="text-text-light m-0">
+          <P className="text-text-light m-0">
             {task.organisation}
             {task.medium && ` · ${task.medium}`}
             {task.website && (
               <>
                 {' · '}
-                <a href={task.website} target="_blank" rel="noreferrer">
+                <TextLink href={task.website} target="_blank" rel="noreferrer">
                   Website
-                </a>
+                </TextLink>
               </>
             )}
-          </p>
+          </P>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={task.leaning === 'REPUBLICAN' ? 'danger' : 'info'}>
               {LEANING_LABEL[task.leaning]}-leaning
@@ -238,17 +244,17 @@ function TaskCard({
           </div>
         </div>
       </div>
-      {task.interests && <p className="text-sm mb-2">Covers: {task.interests}</p>}
-      {task.notes && <p className="text-sm mb-4">Note: {task.notes}</p>}
+      {task.interests && <P className="text-sm mb-2">Covers: {task.interests}</P>}
+      {task.notes && <P className="text-sm mb-4">Note: {task.notes}</P>}
 
       {canSwitchTemplate(task.leaningConfidence) && (
         <div className="bg-brand-bg rounded-lg p-3 mb-4 text-sm">
-          <p className="mb-2">
+          <P className="mb-2">
             {switched
               ? `You're using the ${LEANING_LABEL[templateLeaning]} template.`
               : `We're not sure ${fullName(task)} leans ${LEANING_LABEL[task.leaning]}.`}{' '}
             Skim a recent piece of theirs; if the other template fits better, switch.
-          </p>
+          </P>
           <Button size="sm" variant="outline" onClick={onSwitchTemplate}>
             {switched
               ? `Switch back to the ${LEANING_LABEL[task.leaning]} template`
@@ -271,8 +277,8 @@ function TaskCard({
       </ol>
 
       <div className="mb-4">
-        <label htmlFor="outreach-intro">Your personal opening sentence</label>
-        <textarea
+        <FormLabel htmlFor="outreach-intro">Your personal opening sentence</FormLabel>
+        <Textarea
           id="outreach-intro"
           rows={3}
           value={intro}
@@ -280,14 +286,14 @@ function TaskCard({
           placeholder={`Perhaps pick up on other AI articles ${task.organisation} has covered, or whether ${name} has written about AI extinction risk.`}
         />
         {!intro.trim() && (
-          <p className="text-sm text-warning-text mt-1 mb-0">
+          <P className="text-sm text-warning-text mt-1 mb-0">
             No personal opening yet. The email starts straight after “Dear {task.firstName},” until
             you add one.
-          </p>
+          </P>
         )}
-        <p className="text-sm text-text-light mt-1">
+        <P className="text-sm text-text-light mt-1">
           Only used to fill in this email. It isn&apos;t saved or sent to our server.
-        </p>
+        </P>
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4">
@@ -310,16 +316,16 @@ function TaskCard({
           typeof p === 'string' ? (
             p
           ) : (
-            <a key={i} href={p.url} target="_blank" rel="noreferrer">
+            <TextLink key={i} href={p.url} target="_blank" rel="noreferrer">
               {p.text}
-            </a>
+            </TextLink>
           ),
         )}
       </CopyField>
-      <p className="text-sm text-text-light -mt-2 mb-3">
+      <P className="text-sm text-text-light -mt-2 mb-3">
         Tip: use Copy and paste into your email to keep the links. The open-in-mail buttons can only
         carry plain text, so links appear as web addresses there.
-      </p>
+      </P>
 
       <div className="flex flex-wrap justify-between gap-2 mt-5">
         <Button variant="ghost" onClick={onSkip}>
@@ -334,10 +340,10 @@ function TaskCard({
         isOpen={confirming && !expired}
         onClose={cancelConfirm}
       >
-        <p className="mb-4">
+        <P className="mb-4">
           We&apos;ll mark {name} as contacted so nobody else emails them. Only confirm once the
           email has gone, with {PRESS_EMAIL} in CC.
-        </p>
+        </P>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={cancelConfirm}>
             Not yet
@@ -442,7 +448,7 @@ function Outreach({ onSignOut }: { onSignOut: () => void }) {
     localStorage.setItem(PHONE_STORAGE_KEY, value)
   }
 
-  if (current.isPending) return <p className="text-center py-10 text-text-light">Loading…</p>
+  if (current.isPending) return <P className="text-center py-10 text-text-light">Loading…</P>
   if (!current.data) return null
   const { email, contactedCount, availableCount } = current.data
 
@@ -459,10 +465,10 @@ function Outreach({ onSignOut }: { onSignOut: () => void }) {
 
       <div className={card}>
         <div className="mb-4">
-          <label htmlFor="outreach-name" className="required">
+          <FormLabel htmlFor="outreach-name" required>
             Your name (signs the email)
-          </label>
-          <input
+          </FormLabel>
+          <Input
             id="outreach-name"
             value={name}
             onChange={(e) => saveName(e.target.value)}
@@ -470,7 +476,7 @@ function Outreach({ onSignOut }: { onSignOut: () => void }) {
             maxLength={100}
           />
         </div>
-        <label htmlFor="outreach-phone">Your phone number (optional)</label>
+        <FormLabel htmlFor="outreach-phone">Your phone number (optional)</FormLabel>
         <input
           id="outreach-phone"
           type="tel"
@@ -479,11 +485,11 @@ function Outreach({ onSignOut }: { onSignOut: () => void }) {
           placeholder="Only if you're happy for journalists to call you"
           maxLength={40}
         />
-        <p className="text-sm text-text-light mt-2 mb-0">
+        <P className="text-sm text-text-light mt-2 mb-0">
           Your name and phone number are only used to fill in the email on this page. They&apos;re
           remembered in this browser so you don&apos;t have to retype them, and are never sent to or
           stored on our server.
-        </p>
+        </P>
       </div>
 
       {task ? (
@@ -503,10 +509,10 @@ function Outreach({ onSignOut }: { onSignOut: () => void }) {
         <div className={`${card} text-center`}>
           {justSent !== null && (
             <>
-              <h3>Thank you!</h3>
-              <p className="my-2">
+              <H3>Thank you!</H3>
+              <P className="my-2">
                 That&apos;s {justSent} journalist{justSent === 1 ? '' : 's'} you&apos;ve contacted.
-              </p>
+              </P>
               {lastSent && (
                 <Button
                   size="sm"
@@ -520,20 +526,20 @@ function Outreach({ onSignOut }: { onSignOut: () => void }) {
             </>
           )}
           {exhausted ? (
-            <p className="text-text-light my-4">
+            <P className="text-text-light my-4">
               Every journalist is taken right now. Check back later — claims expire after{' '}
               {CLAIM_MINUTES} minutes.
-            </p>
+            </P>
           ) : (
-            <p className="text-text-light my-4">
+            <P className="text-text-light my-4">
               {availableCount} journalist{availableCount === 1 ? '' : 's'} waiting. You&apos;ll have{' '}
               {CLAIM_MINUTES} minutes to send each email.
-            </p>
+            </P>
           )}
           <Button onClick={() => claim.mutate()} disabled={claim.isPending || !name.trim()}>
             {justSent !== null ? 'Do another' : 'Get a journalist'}
           </Button>
-          {!name.trim() && <p className="text-sm text-text-light mt-2">Add your name first.</p>}
+          {!name.trim() && <P className="text-sm text-text-light mt-2">Add your name first.</P>}
         </div>
       )}
 
@@ -543,11 +549,11 @@ function Outreach({ onSignOut }: { onSignOut: () => void }) {
         isOpen={expiredTask !== null}
         onClose={closeExpired}
       >
-        <p className="mb-4">
+        <P className="mb-4">
           It&apos;s been {CLAIM_MINUTES} minutes, so we&apos;ve released{' '}
           {expiredTask && fullName(expiredTask)} back to other volunteers. Would you like to
           continue?
-        </p>
+        </P>
         <div className="flex flex-wrap justify-end gap-2">
           <Button variant="ghost" onClick={() => expiredTask && markSent.mutate(expiredTask)}>
             I already sent it
@@ -585,12 +591,12 @@ export default function JournalistOutreachPage() {
   return (
     <main className="container py-5 pb-15">
       <div className="max-w-[720px] my-10 mx-auto">
-        <h1 className="text-center">People for a Pause: journalist outreach</h1>
+        <H1 className="text-center">People for a Pause: journalist outreach</H1>
         {status.data?.paused ? (
           <div className={`${card} text-center`}>
-            <p className="my-2">
+            <P className="my-2">
               We&apos;re adjusting our approach to contacting journalists. Come back soon.
-            </p>
+            </P>
           </div>
         ) : token ? (
           <Outreach onSignOut={signOut} />

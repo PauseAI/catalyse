@@ -1,4 +1,7 @@
 import Checkbox from '@/components/Checkbox'
+import FormLabel from '@/components/FormLabel'
+import { P } from '@/components/Text'
+import Input from '@/components/ui/Input'
 
 /** The submit box's label when a task names nothing else to submit. */
 export const DEFAULT_SUBMISSION_PROMPT = 'What did you do?'
@@ -33,8 +36,8 @@ export default function SubmissionAskFields({
     <fieldset className="mb-5">
       <legend className="sr-only">When the work is submitted</legend>
       <div className="mb-3">
-        <label htmlFor={`${id}-submission-prompt`}>What to submit (optional)</label>
-        <input
+        <FormLabel htmlFor={`${id}-submission-prompt`}>What to submit (optional)</FormLabel>
+        <Input
           id={`${id}-submission-prompt`}
           type="text"
           maxLength={200}
@@ -42,9 +45,9 @@ export default function SubmissionAskFields({
           value={value.prompt}
           onChange={(e) => onChange({ ...value, prompt: e.target.value })}
         />
-        <p className="text-sm text-text-light mt-1 mb-0">
+        <P className="text-sm text-text-light mt-1 mb-0">
           The question the person doing it answers when they hand it in.
-        </p>
+        </P>
       </div>
       <Checkbox
         checked={value.asksLink}

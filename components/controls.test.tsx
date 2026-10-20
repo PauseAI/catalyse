@@ -228,7 +228,10 @@ describe('FilterDropdown', () => {
   it('opens, selects by click, ignores headers, and closes on outside click', async () => {
     render(<Host required hideLabel renderOption={(o) => <em>{o.label}</em>} />)
     const trigger = screen.getByRole('button', { name: 'Fruit' })
-    expect(screen.getByText('Fruit', { selector: 'label' })).toHaveClass('sr-only', 'required')
+    expect(screen.getByText('Fruit', { selector: 'label' })).toHaveClass(
+      'sr-only',
+      "after:content-['_*']",
+    )
     await userEvent.click(trigger)
     expect(screen.getByRole('listbox')).toBeInTheDocument()
     await userEvent.click(screen.getByText('Group'))

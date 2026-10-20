@@ -9,9 +9,12 @@ import { useToast } from '@/lib/toast'
 import { friendlyDate } from '@/lib/format-date'
 import Button from '@/components/Button'
 import Checkbox from '@/components/Checkbox'
+import { H1 } from '@/components/Heading'
 import Linkify from '@/components/Linkify'
 import NotFoundCard from '@/components/NotFoundCard'
 import PageLoading from '@/components/PageLoading'
+import { P } from '@/components/Text'
+import Textarea from '@/components/ui/Textarea'
 
 export default function ConversationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: idStr } = use(params)
@@ -71,9 +74,12 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
       <Link href="/inbox?filter=message" className="text-sm">
         ← Messages
       </Link>
-      <h1 className="mt-2 mb-1">{thread.subject}</h1>
-      <p className="text-text-light mt-0 mb-4">
-        With <Link href={`/volunteers/${thread.with.id}`}>{thread.with.name}</Link>
+      <H1 className="mt-2 mb-1">{thread.subject}</H1>
+      <P className="text-text-light mt-0 mb-4">
+        With{' '}
+        <Link className="text-primary-text underline" href={`/volunteers/${thread.with.id}`}>
+          {thread.with.name}
+        </Link>
         {thread.relatedProject && (
           <>
             {' · '}
@@ -85,7 +91,7 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
             </Link>
           </>
         )}
-      </p>
+      </P>
 
       <ol className="list-none p-0 m-0 flex flex-col gap-3 mb-6">
         {thread.messages.map((m) => (
@@ -101,9 +107,9 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
                 {m.createdAt ? friendlyDate(m.createdAt) : ''}
               </span>
             </div>
-            <p className="m-0 whitespace-pre-wrap">
+            <P className="m-0 whitespace-pre-wrap">
               <Linkify text={m.body} />
-            </p>
+            </P>
           </li>
         ))}
       </ol>
@@ -117,7 +123,7 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
             reply.mutate({ threadId: thread.id, message: body.trim(), shareEmail })
           }}
         >
-          <textarea
+          <Textarea
             aria-label="Write a reply"
             rows={3}
             value={body}
@@ -129,18 +135,18 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
               Let {thread.with.name} reply by email (shares my address)
             </Checkbox>
           </div>
-          <p className="text-xs text-text-light mt-0 mb-3">
+          <P className="text-xs text-text-light mt-0 mb-3">
             {thread.with.name} sees this here and gets a copy by email.
             {shareEmail ? ' Your email address is included.' : ' Your email address stays private.'}
-          </p>
+          </P>
           <Button type="submit" disabled={!body.trim() || reply.isPending}>
             {reply.isPending ? 'Sending…' : 'Send reply'}
           </Button>
         </form>
       ) : (
-        <p className="text-text-light">
+        <P className="text-text-light">
           {thread.with.name} has left Catalyse, so you can&apos;t reply.
-        </p>
+        </P>
       )}
     </main>
   )

@@ -11,6 +11,10 @@ import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import { ChapterAuditAction } from '@/generated/prisma/enums'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
 
 const ACTION_LABELS: Record<ChapterAuditAction, string> = {
   CHAPTER_CREATED: 'opened the chapter',
@@ -105,8 +109,10 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
   if (error) {
     return (
       <main className="container py-5">
-        <h1>Chapter not found</h1>
-        <Link href="/admin">Back to admin</Link>
+        <H1>Chapter not found</H1>
+        <Link className="text-primary-text underline" href="/admin">
+          Back to admin
+        </Link>
       </main>
     )
   }
@@ -128,15 +134,18 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
 
   return (
     <main className="container py-5 pb-15">
-      <p className="text-sm m-0">
-        <Link href={isGlobal ? '/admin/chapters' : '/admin'}>
+      <P className="text-sm m-0">
+        <Link
+          className="text-primary-text underline"
+          href={isGlobal ? '/admin/chapters' : '/admin'}
+        >
           {isGlobal ? 'National chapters' : 'Admin'}
         </Link>
-      </p>
-      <h1>{chapter.name} chapter</h1>
+      </P>
+      <H1>{chapter.name} chapter</H1>
 
       <section className={`card ${SECTION_CARD} mb-5`}>
-        <h2 className="mt-0">Lead</h2>
+        <H2 className="mt-0">Lead</H2>
         {lead ? (
           <div className="flex justify-between items-center gap-4 flex-wrap">
             <span>
@@ -154,7 +163,7 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
             )}
           </div>
         ) : (
-          <p className="text-text-light m-0">No lead yet.</p>
+          <P className="text-text-light m-0">No lead yet.</P>
         )}
         {isGlobal && memberOptions.length > 0 && (
           <div className="mt-4">
@@ -173,9 +182,9 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
       </section>
 
       <section className={`card ${SECTION_CARD} mb-5`}>
-        <h2 className="mt-0">Deputies</h2>
+        <H2 className="mt-0">Deputies</H2>
         {deputies.length === 0 ? (
-          <p className="text-text-light m-0">No deputies.</p>
+          <P className="text-text-light m-0">No deputies.</P>
         ) : (
           <ul className="list-none p-0 m-0 grid gap-2">
             {deputies.map((d) => (
@@ -215,10 +224,10 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
 
       {chapter.canAppointDeputies && (
         <section className={`card ${SECTION_CARD} mb-5`}>
-          <h2 className="mt-0">Invite by email</h2>
-          <p className="text-text-light text-sm">
+          <H2 className="mt-0">Invite by email</H2>
+          <P className="text-text-light text-sm">
             For someone not yet a member. Accepting the invite moves them into this chapter.
-          </p>
+          </P>
           <form
             className="flex gap-3 items-end flex-wrap"
             onSubmit={(e) => {
@@ -227,8 +236,8 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
             }}
           >
             <div>
-              <label htmlFor="invite-email">Email address</label>
-              <input
+              <FormLabel htmlFor="invite-email">Email address</FormLabel>
+              <Input
                 id="invite-email"
                 type="email"
                 value={inviteEmail}
@@ -279,7 +288,7 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
       )}
 
       <section className={`card ${SECTION_CARD} mb-5`}>
-        <h2 className="mt-0">Members ({chapter.members.length})</h2>
+        <H2 className="mt-0">Members ({chapter.members.length})</H2>
         <ul className="list-none p-0 m-0 grid gap-2">
           {chapter.members.map((m) => (
             <li
@@ -287,7 +296,9 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
               className="flex justify-between items-center gap-4 flex-wrap border-b border-brand-border py-2"
             >
               <span>
-                <Link href={`/volunteers/${m.id}`}>{m.name}</Link>
+                <Link className="text-primary-text underline" href={`/volunteers/${m.id}`}>
+                  {m.name}
+                </Link>
                 <Muted
                   parts={[
                     m.email,
@@ -319,9 +330,9 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
       </section>
 
       <section className={`card ${SECTION_CARD}`}>
-        <h2 className="mt-0">History</h2>
+        <H2 className="mt-0">History</H2>
         {events.length === 0 ? (
-          <p className="text-text-light m-0">Nothing yet.</p>
+          <P className="text-text-light m-0">Nothing yet.</P>
         ) : (
           <ul className="list-none p-0 m-0 grid gap-1 text-sm">
             {events.map((e) => (

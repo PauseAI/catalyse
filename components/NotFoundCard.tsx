@@ -1,4 +1,6 @@
 import Button from '@/components/Button'
+import { H1 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 /** What a detail page shows when its item doesn't exist or isn't visible to the viewer. */
 export default function NotFoundCard({
@@ -14,8 +16,8 @@ export default function NotFoundCard({
   return (
     <main className="container py-5 pb-15">
       <div className="max-w-[400px] my-15 mx-auto text-center">
-        <h1>{title}</h1>
-        <p className="text-text-light mb-8">{message}</p>
+        <H1>{title}</H1>
+        <P className="text-text-light mb-8">{message}</P>
         <div className="flex flex-col gap-3 items-center">
           <Button href="/dashboard">Go to dashboard</Button>
           {children}

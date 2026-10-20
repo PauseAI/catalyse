@@ -5,8 +5,12 @@ import { useRouter } from 'next/navigation'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import AiEditingHelp from '@/components/AiEditingHelp'
+import FormLabel from '@/components/FormLabel'
+import { H3 } from '@/components/Heading'
 import Modal from '@/components/ui/Modal'
 import ProjectImportDiff from '@/components/ProjectImportDiff'
+import { P } from '@/components/Text'
+import Textarea from '@/components/ui/Textarea'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 
@@ -137,10 +141,10 @@ export default function ProjectPorting({
       {/* Step 1 — take the file out. */}
       <div className="border-brand-border mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
         <div>
-          <h3 className="m-0 text-base">Export</h3>
-          <p className="text-text-light m-0 text-sm">
+          <H3 className="m-0 text-base">Export</H3>
+          <P className="text-text-light m-0 text-sm">
             Downloads the project, its tasks and their dependencies as JSON.
-          </p>
+          </P>
         </div>
         <Button
           size="sm"
@@ -156,7 +160,7 @@ export default function ProjectPorting({
 
       {/* Step 3 — put it back. */}
       <div className="border-brand-border mb-4 rounded-lg border p-4">
-        <h3 className="mt-0 mb-2 text-base">Import</h3>
+        <H3 className="mt-0 mb-2 text-base">Import</H3>
         <div
           onDragOver={(e) => {
             e.preventDefault()
@@ -171,8 +175,8 @@ export default function ProjectPorting({
               : 'border-brand-border hover:border-secondary'
           }`}
         >
-          <p className="m-0 font-medium">Drag a project export file here</p>
-          <p className="text-text-light m-0 text-sm">or click to choose a .json file</p>
+          <P className="m-0 font-medium">Drag a project export file here</P>
+          <P className="text-text-light m-0 text-sm">or click to choose a .json file</P>
           <input
             id="import-file"
             ref={fileInputRef}
@@ -185,10 +189,10 @@ export default function ProjectPorting({
         </div>
 
         <div className="mt-4">
-          <label htmlFor="import-paste" className="mb-1 block font-medium">
+          <FormLabel htmlFor="import-paste" className="mb-1 block font-medium">
             …or paste the file contents
-          </label>
-          <textarea
+          </FormLabel>
+          <Textarea
             id="import-paste"
             aria-label="Paste export JSON"
             rows={4}
@@ -209,16 +213,16 @@ export default function ProjectPorting({
           </div>
         </div>
 
-        {sourceName && <p className="text-text-light mt-3 text-sm">Loaded from: {sourceName}</p>}
+        {sourceName && <P className="text-text-light mt-3 text-sm">Loaded from: {sourceName}</P>}
       </div>
 
-      {previewMutation.isPending && <p className="text-text-light">Computing diff…</p>}
+      {previewMutation.isPending && <P className="text-text-light">Computing diff…</P>}
       {previewMutation.isError && (
-        <p className="text-error">
+        <P className="text-error">
           {previewMutation.error instanceof Error
             ? previewMutation.error.message
             : 'Could not read that file'}
-        </p>
+        </P>
       )}
 
       {diff && (
@@ -263,9 +267,9 @@ export default function ProjectPorting({
         isOpen={showConfirm}
         onClose={() => setShowConfirm(false)}
       >
-        <p className="mb-4 text-sm">
+        <P className="mb-4 text-sm">
           This applies every change shown, in one step. It cannot be undone automatically.
-        </p>
+        </P>
         <div className="flex gap-2">
           <Button
             onClick={() => {

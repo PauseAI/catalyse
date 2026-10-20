@@ -1,4 +1,5 @@
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
+import FormLabel from '@/components/FormLabel'
 
 type CheckboxProps = Omit<ComponentPropsWithoutRef<'input'>, 'type'> & {
   children?: ReactNode
@@ -6,7 +7,7 @@ type CheckboxProps = Omit<ComponentPropsWithoutRef<'input'>, 'type'> & {
 
 export default function Checkbox({ children, ...props }: CheckboxProps) {
   return (
-    <label className="flex items-center gap-2 cursor-pointer font-normal mb-0">
+    <FormLabel className="flex items-center gap-2 cursor-pointer font-normal mb-0">
       <span className="relative flex-shrink-0">
         <input type="checkbox" className="sr-only peer" {...props} />
         <span className="block w-5 h-5 rounded border-2 border-brand-border dark:border-secondary bg-surface peer-checked:bg-primary peer-checked:border-primary dark:peer-checked:border-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-focus-visible:ring-offset-2 transition-colors" />
@@ -28,6 +29,6 @@ export default function Checkbox({ children, ...props }: CheckboxProps) {
         </span>
       </span>
       {children !== null && <span>{children}</span>}
-    </label>
+    </FormLabel>
   )
 }

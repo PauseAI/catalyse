@@ -100,7 +100,7 @@ const SAMPLE_PROJECTS = [
   },
 ]
 
-const EMAIL_PREVIEW_REGISTRY: Record<string, { subject: string; build: () => string }> = {
+const EMAIL_PREVIEW_REGISTRY: Record<string, { subject: string; build: () => Promise<string> }> = {
   'welcome-google': {
     subject: 'Welcome to Catalyse!',
     build: () => buildWelcomeHtml('Alex', env.APP_URL),
@@ -272,6 +272,6 @@ export const adminEmailPreviewRouter = {
   preview: adminProcedure.input(z.object({ type: z.string() })).handler(async ({ input }) => {
     const entry = EMAIL_PREVIEW_REGISTRY[input.type]
     if (!entry) throw new ORPCError('NOT_FOUND', { message: 'Unknown email type' })
-    return { subject: entry.subject, html: entry.build() }
+    return { subject: entry.subject, html: await entry.build() }
   }),
 }

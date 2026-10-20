@@ -8,10 +8,15 @@ import { orpc } from '@/lib/orpc'
 import Button from '@/components/Button'
 import Checkbox from '@/components/Checkbox'
 import DatesBlock from '@/components/DatesBlock'
+import FormLabel from '@/components/FormLabel'
+import { H2 } from '@/components/Heading'
 import ReplanDialog from '@/components/ReplanDialog'
 import FullVolunteerSelect from '@/components/FullVolunteerSelect'
 import { plural } from '@/lib/plural'
+import { P } from '@/components/Text'
 import TaskDatesSummary from '@/components/TaskDatesSummary'
+import Textarea from '@/components/ui/Textarea'
+import Input from '@/components/ui/Input'
 import WorkItemCard from '@/components/WorkItemCard'
 import type { WorkItemSummary } from '@/lib/work-item-summary'
 import { EMPTY_DATES, datesPayload, datesValueFrom, type DatesValue } from '@/lib/task-dates'
@@ -92,18 +97,18 @@ function LinkedWork({
     <>
       {waitsOn.length > 0 && (
         <section aria-labelledby="waits-on" className="mb-4">
-          <h2 id="waits-on" className="mb-2 text-base">
+          <H2 id="waits-on" className="mb-2 text-base">
             Waits on
-          </h2>
-          {summary && <p className={`mb-2 text-sm ${allDone ? '' : 'font-medium'}`}>{summary}</p>}
+          </H2>
+          {summary && <P className={`mb-2 text-sm ${allDone ? '' : 'font-medium'}`}>{summary}</P>}
           {list(waitsOn, allDone ? 'compact' : 'default')}
         </section>
       )}
       {unblocks.length > 0 && (
         <section aria-labelledby="unblocks" className="mb-4">
-          <h2 id="unblocks" className="mb-2 text-base">
+          <H2 id="unblocks" className="mb-2 text-base">
             Unblocks
-          </h2>
+          </H2>
           {list(unblocks, 'default')}
         </section>
       )}
@@ -430,9 +435,9 @@ export default function TaskDetailPage({
           </div>
         )}
         {task.waitingOn.length > 0 && (
-          <p role="status" className="border-warning-text mb-4 rounded-lg border p-3 text-sm">
+          <P role="status" className="border-warning-text mb-4 rounded-lg border p-3 text-sm">
             Still waiting on {quotedTitles(task.waitingOn)}.
-          </p>
+          </P>
         )}
         <LinkedWork waitsOn={task.waitsOn} unblocks={task.unblocks} status={task.status} />
         {task.pastPlanDays !== null && task.canManage && !isEditing && (
@@ -440,10 +445,10 @@ export default function TaskDetailPage({
             aria-label="Past plan"
             className="border-warning-text mb-4 rounded-lg border p-4 text-sm"
           >
-            <p className="mt-0 mb-3">
+            <P className="mt-0 mb-3">
               <strong>{plural(task.pastPlanDays, 'day')} past plan.</strong> {task.assignedToName}{' '}
               has it. Replan it, give it to someone else, or open it up again.
-            </p>
+            </P>
             <div className="flex flex-wrap items-end gap-3">
               <Button size="sm" onClick={() => setReplanning(true)}>
                 Replan
@@ -489,10 +494,10 @@ export default function TaskDetailPage({
           </section>
         )}
         {task.pastPlanDays !== null && !task.canManage && task.assignedToId === user.id && (
-          <p role="status" className="border-warning-text mb-4 rounded-lg border p-3 text-sm">
+          <P role="status" className="border-warning-text mb-4 rounded-lg border p-3 text-sm">
             <strong>{plural(task.pastPlanDays, 'day')} past plan.</strong> The owner has been told.
             Post an update below, or submit your work if it is done.
-          </p>
+          </P>
         )}
         {replanning && task.placement && (
           <ReplanDialog
@@ -509,18 +514,18 @@ export default function TaskDetailPage({
         )}
         {/* The key date is set on the project timeline; here it is only stated. */}
         {task.isAnchor && (
-          <p className="mb-4 text-sm" style={{ color: 'var(--gantt-anchor)' }}>
+          <P className="mb-4 text-sm" style={{ color: 'var(--gantt-anchor)' }}>
             ★ Key date: the date this project is planned around
-          </p>
+          </P>
         )}
         <TaskHelpers projectId={projectId} taskId={taskId} viewerId={user.id} state={task} />
 
         {task.requestedById !== null && (
-          <p className="text-sm text-text-light mt-4 mb-0">
+          <P className="text-sm text-text-light mt-4 mb-0">
             {task.requestedById === user.id
               ? 'Held for you until the owner accepts you onto the project.'
               : `Requested by ${task.requestedByName}, waiting for the owner.`}
-          </p>
+          </P>
         )}
 
         <SubmittedWork submission={task.submission} changesRequested={task.changesRequested} />
@@ -561,8 +566,8 @@ export default function TaskDetailPage({
             className="mt-5 pt-5 border-t border-brand-border max-w-xl"
           >
             <div className="mb-5">
-              <label htmlFor="edit-task-title">Task title</label>
-              <input
+              <FormLabel htmlFor="edit-task-title">Task title</FormLabel>
+              <Input
                 id="edit-task-title"
                 type="text"
                 value={editTitle}
@@ -572,8 +577,8 @@ export default function TaskDetailPage({
             </div>
 
             <div className="mb-5">
-              <label htmlFor="edit-task-description">Description</label>
-              <textarea
+              <FormLabel htmlFor="edit-task-description">Description</FormLabel>
+              <Textarea
                 id="edit-task-description"
                 rows={3}
                 value={editDescription}
@@ -630,11 +635,14 @@ export default function TaskDetailPage({
       </div>
 
       <div className={SECTION_CARD}>
-        <h2 className="text-lg mb-1">Discussion</h2>
-        <p className="text-sm text-text-light mb-4">
+        <H2 className="text-lg mb-1">Discussion</H2>
+        <P className="text-sm text-text-light mb-4">
           About this task only. For the whole project, use the{' '}
-          <Link href={`/projects/${projectId}#discussion`}>project discussion</Link>.
-        </p>
+          <Link className="text-primary-text underline" href={`/projects/${projectId}#discussion`}>
+            project discussion
+          </Link>
+          .
+        </P>
         <CommentThread workItemId={task.id} />
       </div>
       {confirmingClaim && (

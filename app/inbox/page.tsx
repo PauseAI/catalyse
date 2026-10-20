@@ -7,9 +7,11 @@ import { orpc } from '@/lib/orpc'
 import Button from '@/components/Button'
 import InboxList from '@/components/InboxList'
 import ConversationList from '@/components/ConversationList'
+import { H1, H2 } from '@/components/Heading'
 import { useRefreshInbox, type InboxNotification } from '@/components/InboxRow'
 import PageLoading from '@/components/PageLoading'
 import Skeleton from '@/components/Skeleton'
+import { P } from '@/components/Text'
 import {
   CATEGORY_LABELS,
   NOTIFICATION_CATEGORIES,
@@ -107,7 +109,7 @@ export default function InboxPage() {
   return (
     <main className="container py-5 pb-15 max-w-3xl">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h1 className="m-0">Inbox</h1>
+        <H1 className="m-0">Inbox</H1>
         {unreadInView > 0 && filter !== 'message' && (
           <Button
             size="sm"
@@ -142,14 +144,14 @@ export default function InboxPage() {
       ) : isPending ? (
         <Skeleton label="Loading your inbox…" />
       ) : notifications.length === 0 ? (
-        <p className="text-text-light">{EMPTY[filter]}</p>
+        <P className="text-text-light">{EMPTY[filter]}</P>
       ) : (
         sections.map((s) => (
           <section key={s.key} aria-label={s.key === 'all' ? undefined : CATEGORY_LABELS[s.key]}>
             {filter === 'all' && s.key !== 'all' && (
-              <h2 className="text-sm uppercase tracking-wide text-text-light mt-6 mb-2">
+              <H2 className="text-sm uppercase tracking-wide text-text-light mt-6 mb-2">
                 {CATEGORY_LABELS[s.key]}
-              </h2>
+              </H2>
             )}
             <InboxList items={s.items} />
           </section>

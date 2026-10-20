@@ -13,6 +13,11 @@ import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
 import { TeamSuggestionStatus } from '@/generated/prisma/enums'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
+import Textarea from '@/components/ui/Textarea'
 
 type StatusFilter = 'all' | 'active' | 'pending' | 'on_hold' | 'declined'
 type ReviewAction = 'accept' | 'merge' | 'on_hold' | 'decline'
@@ -306,14 +311,14 @@ export default function AdminTeamsPage() {
     <>
       <main className="container py-5 pb-15">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="m-0">Teams</h1>
+          <H1 className="m-0">Teams</H1>
           <Button size="sm" onClick={openAdd}>
             Add team
           </Button>
         </div>
-        <p className="text-text-light mb-6">
+        <P className="text-text-light mb-6">
           Manage active teams and review volunteer suggestions.
-        </p>
+        </P>
 
         <div className="flex flex-wrap gap-4 mb-6">
           <FilterDropdown
@@ -329,7 +334,7 @@ export default function AdminTeamsPage() {
         {loadingItems ? (
           <div className="text-center py-10 text-text-light">Loading…</div>
         ) : items.length === 0 ? (
-          <p className="text-text-light">No teams found.</p>
+          <P className="text-text-light">No teams found.</P>
         ) : (
           <div className="space-y-4">
             {items.map((item) => {
@@ -352,7 +357,7 @@ export default function AdminTeamsPage() {
                       )}
                     </div>
                     {item.kind === 'suggestion' && (
-                      <p className="text-sm text-text-light m-0 mt-1">
+                      <P className="text-sm text-text-light m-0 mt-1">
                         Suggested by{' '}
                         <Link
                           href={`/admin/volunteers/${item.suggestedBy.id}`}
@@ -362,15 +367,18 @@ export default function AdminTeamsPage() {
                         </Link>
                         {' · '}
                         {formatDate(item.createdAt)}
-                      </p>
+                      </P>
                     )}
                     {item.kind === 'suggestion' && item.adminNotes && (
-                      <p className="text-sm text-text-light mt-2 mb-0 italic">{item.adminNotes}</p>
+                      <P className="text-sm text-text-light mt-2 mb-0 italic">{item.adminNotes}</P>
                     )}
                   </div>
                   <div className="shrink-0 flex items-center gap-2">
                     {item.kind === 'team' && (
-                      <Link href={`/admin/teams/${item.id}`}>
+                      <Link
+                        className="text-primary-text underline"
+                        href={`/admin/teams/${item.id}`}
+                      >
                         <Button size="sm" variant="secondary">
                           Manage
                         </Button>
@@ -405,7 +413,7 @@ export default function AdminTeamsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Add team</h2>
+              <H2 role="heading">Add team</H2>
               <Button variant="ghost" icon onClick={() => setShowAdd(false)} aria-label="Close">
                 ×
               </Button>
@@ -413,8 +421,8 @@ export default function AdminTeamsPage() {
             <div className="p-6">
               <form onSubmit={submitAdd}>
                 <div className="mb-5">
-                  <label htmlFor="add-name">Team name</label>
-                  <input
+                  <FormLabel htmlFor="add-name">Team name</FormLabel>
+                  <Input
                     id="add-name"
                     type="text"
                     value={addName}
@@ -423,8 +431,8 @@ export default function AdminTeamsPage() {
                   />
                 </div>
                 <div className="mb-5">
-                  <label htmlFor="add-description">Description</label>
-                  <textarea
+                  <FormLabel htmlFor="add-description">Description</FormLabel>
+                  <Textarea
                     id="add-description"
                     rows={2}
                     value={addDescription}
@@ -433,8 +441,8 @@ export default function AdminTeamsPage() {
                   />
                 </div>
                 <div className="mb-5">
-                  <label htmlFor="add-luma">Luma calendar URL</label>
-                  <input
+                  <FormLabel htmlFor="add-luma">Luma calendar URL</FormLabel>
+                  <Input
                     id="add-luma"
                     type="text"
                     value={addLumaUrl}
@@ -443,8 +451,8 @@ export default function AdminTeamsPage() {
                   />
                 </div>
                 <div className="mb-5">
-                  <label htmlFor="add-doc">Team doc URL</label>
-                  <input
+                  <FormLabel htmlFor="add-doc">Team doc URL</FormLabel>
+                  <Input
                     id="add-doc"
                     type="text"
                     value={addDocUrl}
@@ -476,7 +484,7 @@ export default function AdminTeamsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Review suggestion</h2>
+              <H2 role="heading">Review suggestion</H2>
               <Button
                 variant="ghost"
                 icon
@@ -488,14 +496,14 @@ export default function AdminTeamsPage() {
             </div>
 
             <div className="p-6">
-              <p className="text-text-light mb-1 text-sm">
+              <P className="text-text-light mb-1 text-sm">
                 Suggested by {reviewSuggestion.suggestedBy.name}
-              </p>
-              <p className="font-semibold mb-5">{reviewSuggestion.name}</p>
+              </P>
+              <P className="font-semibold mb-5">{reviewSuggestion.name}</P>
 
               <form onSubmit={(e) => submitReview(e, reviewSuggestion)}>
                 <div className="mb-5">
-                  <label>Action</label>
+                  <FormLabel>Action</FormLabel>
                   <div className="flex flex-col gap-3 mt-2">
                     {(
                       [
@@ -527,8 +535,8 @@ export default function AdminTeamsPage() {
                 {reviewAction === 'accept' && (
                   <>
                     <div className="mb-4">
-                      <label htmlFor="review-name">Team name</label>
-                      <input
+                      <FormLabel htmlFor="review-name">Team name</FormLabel>
+                      <Input
                         id="review-name"
                         type="text"
                         value={reviewEditName}
@@ -537,8 +545,8 @@ export default function AdminTeamsPage() {
                       />
                     </div>
                     <div className="mb-5">
-                      <label htmlFor="review-description">Description</label>
-                      <textarea
+                      <FormLabel htmlFor="review-description">Description</FormLabel>
+                      <Textarea
                         id="review-description"
                         rows={2}
                         value={reviewEditDescription}
@@ -567,9 +575,9 @@ export default function AdminTeamsPage() {
                         onQueryChange={setVolunteerSearchInput}
                         searchable
                       />
-                      <p className="text-sm text-text-light mt-1">
+                      <P className="text-sm text-text-light mt-1">
                         Defaults to the suggester, pick someone else if they shouldn&apos;t lead it.
-                      </p>
+                      </P>
                     </div>
                   </>
                 )}
@@ -590,20 +598,20 @@ export default function AdminTeamsPage() {
 
                 {(reviewAction === 'on_hold' || reviewAction === 'decline') && (
                   <div className="mb-5">
-                    <label htmlFor="admin-notes">
+                    <FormLabel htmlFor="admin-notes">
                       Note for volunteer{' '}
                       <span className="text-text-light font-normal">(optional)</span>
-                    </label>
-                    <textarea
+                    </FormLabel>
+                    <Textarea
                       id="admin-notes"
                       rows={3}
                       value={adminNotes}
                       onChange={(e) => setAdminNotes(e.target.value)}
                       className="w-full"
                     />
-                    <p className="text-sm text-text-light mt-1">
+                    <P className="text-sm text-text-light mt-1">
                       This note will be shared with the volunteer.
-                    </p>
+                    </P>
                   </div>
                 )}
 
@@ -643,15 +651,15 @@ export default function AdminTeamsPage() {
         >
           <div className="bg-surface rounded-xl shadow-lg max-w-md w-full">
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 role="heading">Confirm delete</h2>
+              <H2 role="heading">Confirm delete</H2>
               <Button variant="ghost" icon onClick={() => setDeleteTarget(null)} aria-label="Close">
                 ×
               </Button>
             </div>
             <div className="p-6">
-              <p>
+              <P>
                 Delete <strong>{deleteTarget.name}</strong>? This cannot be undone.
-              </p>
+              </P>
               <div className="pt-4 border-t border-brand-border flex gap-3 justify-end mt-4">
                 <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
                   Cancel

@@ -6,6 +6,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Button from '@/components/Button'
+import { H1, H2, H3 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
+import Textarea from '@/components/ui/Textarea'
 import CommentThread from '@/components/CommentThread'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import FullVolunteerSelect from '@/components/FullVolunteerSelect'
@@ -135,7 +140,15 @@ function QuickTaskCard({
       className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}
     >
       <div className="flex justify-between items-start gap-3 mb-2">
-        <h3 className="m-0">{titleHref ? <Link href={titleHref}>{title}</Link> : title}</h3>
+        <H3 className="m-0">
+          {titleHref ? (
+            <Link className="text-primary-text underline" href={titleHref}>
+              {title}
+            </Link>
+          ) : (
+            title
+          )}
+        </H3>
         <WorkStatusBadge
           status={status}
           quick={quick}
@@ -149,9 +162,9 @@ function QuickTaskCard({
         <div className="flex gap-2 mb-3 flex-wrap items-center">{meta}</div>
       )}
       {description && (
-        <p className="whitespace-pre-wrap mb-4">
+        <P className="whitespace-pre-wrap mb-4">
           <Linkify text={description} />
-        </p>
+        </P>
       )}
       {children}
     </div>
@@ -223,10 +236,10 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
   return (
     <>
       <main className="container py-5 pb-15">
-        <h1>Quick tasks</h1>
-        <p className="text-text-light mb-4">
+        <H1>Quick tasks</H1>
+        <P className="text-text-light mb-4">
           Small, self-contained tasks to help you get started and make an impact quickly.
-        </p>
+        </P>
         <Tabs
           tabs={[
             { key: 'mine', label: `Mine${tasks.length ? ` (${tasks.length})` : ''}` },
@@ -244,9 +257,9 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
             task X" needs to say which list it means. */}
         {tab === 'mine' && (
           <section aria-labelledby="my-quick-tasks">
-            <h2 id="my-quick-tasks" className="mt-0">
+            <H2 id="my-quick-tasks" className="mt-0">
               My quick tasks
-            </h2>
+            </H2>
 
             {loadingTasks ? (
               <Skeleton label="Loading tasks…" count={1} />
@@ -302,9 +315,9 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                   {task.status === QuickTaskStatus.in_progress && (
                     <>
                       {task.changesRequested && (
-                        <p className="text-sm mt-0 mb-3">
+                        <P className="text-sm mt-0 mb-3">
                           <strong>Changes requested:</strong> {task.changesRequested}
-                        </p>
+                        </P>
                       )}
                       <SubmitWorkButton
                         target={{ kind: 'quick', taskId: task.id }}
@@ -321,12 +334,12 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
 
         {tab === 'open' && (
           <section aria-labelledby="browse-quick-tasks">
-            <h2 id="browse-quick-tasks" className="mt-0">
+            <H2 id="browse-quick-tasks" className="mt-0">
               Browse quick tasks
-            </h2>
-            <p className="text-text-light mb-6">
+            </H2>
+            <P className="text-text-light mb-6">
               Open tasks to pick up right now, no need to browse projects first.
-            </p>
+            </P>
 
             {loadingAvailable ? (
               <Skeleton label="Loading tasks…" />
@@ -396,7 +409,12 @@ function VolunteerQuickTasksView({ user }: { user: ApprovedUser }) {
                       task.projectTitle && (
                         <span key="project" className="text-text-light text-sm">
                           Part of:{' '}
-                          <Link href={`/projects/${task.projectId}`}>{task.projectTitle}</Link>
+                          <Link
+                            className="text-primary-text underline"
+                            href={`/projects/${task.projectId}`}
+                          >
+                            {task.projectTitle}
+                          </Link>
                         </span>
                       ),
                       task.estimatedHours !== null && (
@@ -701,13 +719,13 @@ function AdminQuickTasksView() {
     <>
       <main className="container py-5 pb-15">
         <div className="flex justify-between items-center mb-3">
-          <h1>Quick tasks</h1>
+          <H1>Quick tasks</H1>
           <Button onClick={() => setShowCreate(true)}>Create task</Button>
         </div>
 
-        <p className="text-text-light mb-6">
+        <P className="text-text-light mb-6">
           Small, self-contained tasks to help you get started and make an impact quickly.
-        </p>
+        </P>
 
         <div className="mb-6 max-w-[240px]">
           <FilterDropdown
@@ -724,10 +742,10 @@ function AdminQuickTasksView() {
           <div className="text-center py-10 text-text-light">Loading…</div>
         ) : tasks.length === 0 ? (
           <div className={`${SECTION_CARD} text-center`}>
-            <h3>No quick tasks</h3>
-            <p className="text-text-light">
+            <H3>No quick tasks</H3>
+            <P className="text-text-light">
               Create one to verify a volunteer&apos;s skills before giving them a bigger project.
-            </p>
+            </P>
           </div>
         ) : (
           tasks.map((task) => (
@@ -763,7 +781,10 @@ function AdminQuickTasksView() {
                 task.assignedToId && task.assignedToName && (
                   <span key="assignee" className="text-text-light text-sm">
                     Assigned to:{' '}
-                    <Link href={`/admin/volunteers/${task.assignedToId}`}>
+                    <Link
+                      className="text-primary-text underline"
+                      href={`/admin/volunteers/${task.assignedToId}`}
+                    >
                       {task.assignedToName}
                     </Link>
                   </span>
@@ -776,7 +797,7 @@ function AdminQuickTasksView() {
               ]}
             >
               {task.reviewNotes && (
-                <p className="text-sm text-text-light mb-3">Notes: {task.reviewNotes}</p>
+                <P className="text-sm text-text-light mb-3">Notes: {task.reviewNotes}</P>
               )}
 
               <div className="mb-3">
@@ -867,10 +888,10 @@ function AdminQuickTasksView() {
 
         {featuredProjectTasks.length > 0 && (
           <>
-            <h2 className="mt-8">Featured project tasks</h2>
-            <p className="text-text-light mb-6">
+            <H2 className="mt-8">Featured project tasks</H2>
+            <P className="text-text-light mb-6">
               Project tasks flagged to also appear on this page for volunteers.
-            </p>
+            </P>
             {featuredProjectTasks.map((task) => (
               <QuickTaskCard
                 key={`project-task-${task.id}`}
@@ -882,7 +903,13 @@ function AdminQuickTasksView() {
                 meta={[
                   task.projectTitle && (
                     <span key="project" className="text-text-light text-sm">
-                      Part of: <Link href={`/projects/${task.projectId}`}>{task.projectTitle}</Link>
+                      Part of:{' '}
+                      <Link
+                        className="text-primary-text underline"
+                        href={`/projects/${task.projectId}`}
+                      >
+                        {task.projectTitle}
+                      </Link>
                     </span>
                   ),
                   task.estimatedHours !== null && (
@@ -902,7 +929,10 @@ function AdminQuickTasksView() {
                   task.assignedToId && task.assignedToName && (
                     <span key="assignee" className="text-text-light text-sm">
                       Assigned to:{' '}
-                      <Link href={`/admin/volunteers/${task.assignedToId}`}>
+                      <Link
+                        className="text-primary-text underline"
+                        href={`/admin/volunteers/${task.assignedToId}`}
+                      >
                         {task.assignedToName}
                       </Link>
                     </span>
@@ -981,13 +1011,13 @@ function AdminQuickTasksView() {
             className="bg-surface rounded-xl shadow-lg max-w-150 w-full max-h-[90vh] overflow-y-auto"
           >
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 id="create-dialog-title">Create quick task</h2>
+              <H2 id="create-dialog-title">Create quick task</H2>
             </div>
             <div className="p-6">
               <form onSubmit={createTask}>
                 <div className="mb-5">
-                  <label htmlFor="ct-title">Title</label>
-                  <input
+                  <FormLabel htmlFor="ct-title">Title</FormLabel>
+                  <Input
                     id="ct-title"
                     type="text"
                     value={createTitle}
@@ -998,8 +1028,8 @@ function AdminQuickTasksView() {
                   />
                 </div>
                 <div className="mb-5">
-                  <label htmlFor="ct-desc">Description</label>
-                  <textarea
+                  <FormLabel htmlFor="ct-desc">Description</FormLabel>
+                  <Textarea
                     id="ct-desc"
                     rows={4}
                     value={createDesc}
@@ -1027,8 +1057,8 @@ function AdminQuickTasksView() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="ct-hours">Estimated hours</label>
-                    <input
+                    <FormLabel htmlFor="ct-hours">Estimated hours</FormLabel>
+                    <Input
                       id="ct-hours"
                       type="number"
                       min="0.5"
@@ -1040,8 +1070,8 @@ function AdminQuickTasksView() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="ct-deadline">Deadline (optional)</label>
-                    <input
+                    <FormLabel htmlFor="ct-deadline">Deadline (optional)</FormLabel>
+                    <Input
                       id="ct-deadline"
                       type="date"
                       value={createDeadline}
@@ -1078,13 +1108,13 @@ function AdminQuickTasksView() {
             className="bg-surface rounded-xl shadow-lg max-w-150 w-full max-h-[90vh] overflow-y-auto"
           >
             <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <h2 id="edit-dialog-title">Edit quick task</h2>
+              <H2 id="edit-dialog-title">Edit quick task</H2>
             </div>
             <div className="p-6">
               <form onSubmit={(e) => editTask(e, editModal)}>
                 <div className="mb-5">
-                  <label htmlFor="et-title">Title</label>
-                  <input
+                  <FormLabel htmlFor="et-title">Title</FormLabel>
+                  <Input
                     id="et-title"
                     type="text"
                     value={editTitle}
@@ -1094,8 +1124,8 @@ function AdminQuickTasksView() {
                   />
                 </div>
                 <div className="mb-5">
-                  <label htmlFor="et-desc">Description</label>
-                  <textarea
+                  <FormLabel htmlFor="et-desc">Description</FormLabel>
+                  <Textarea
                     id="et-desc"
                     rows={4}
                     value={editDesc}
@@ -1122,8 +1152,8 @@ function AdminQuickTasksView() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="et-hours">Estimated hours</label>
-                    <input
+                    <FormLabel htmlFor="et-hours">Estimated hours</FormLabel>
+                    <Input
                       id="et-hours"
                       type="number"
                       min="0.5"
@@ -1134,8 +1164,8 @@ function AdminQuickTasksView() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="et-deadline">Deadline (optional)</label>
-                    <input
+                    <FormLabel htmlFor="et-deadline">Deadline (optional)</FormLabel>
+                    <Input
                       id="et-deadline"
                       type="date"
                       value={editDeadline}

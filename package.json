@@ -43,7 +43,10 @@
     "predemo:fast": "npm run predemo",
     "demo:fast": "tsx demo/index.ts --fast",
     "demo:snapshot": "tsx demo/snapshot.ts",
-    "demo:compare": "tsx demo/compare.ts"
+    "demo:compare": "tsx demo/compare.ts",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "email:dev": "email dev --dir lib/emails -p 3030"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -54,6 +57,7 @@
     "@orpc/react-query": "^1.14.3",
     "@orpc/server": "^1.14.3",
     "@prisma/client": "^6.19.3",
+    "@react-email/components": "^1.0.12",
     "@tanstack/react-query": "^5.100.11",
     "next": "^16.2.6",
     "next-themes": "^0.4.6",
@@ -61,6 +65,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "resend": "^6.12.2",
+    "tailwind-merge": "^3.7.0",
     "zod": "^4.4.3"
   },
   "engines": {
@@ -69,6 +74,10 @@
   "devDependencies": {
     "@faker-js/faker": "^10.4.0",
     "@playwright/test": "^1.44.0",
+    "@storybook/addon-docs": "^10.6.2",
+    "@storybook/addon-themes": "^10.6.2",
+    "@storybook/nextjs": "^10.6.2",
+    "@storybook/react": "^10.6.2",
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^7.0.1",
@@ -84,11 +93,21 @@
     "jsdom": "^30.0.1",
     "pg": "^8.23.0",
     "prettier": "^3.8.3",
+    "react-email": "^6.11.3",
+    "storybook": "^10.6.2",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
     "typescript": "^5",
     "vitest": "^5.0.0",
     "yaml": "^2.9.1",
     "zod-prisma-types": "^3.3.11"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "core-js-pure@3.50.0": true,
+    "esbuild@0.28.2": true,
+    "prisma@6.19.3": true,
+    "unrs-resolver@1.11.1": true
   }
 }

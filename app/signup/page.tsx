@@ -6,6 +6,11 @@ import Link from 'next/link'
 import Script from 'next/script'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import { H1, H2, H3 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
+import Textarea from '@/components/ui/Textarea'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import Radio from '@/components/Radio'
 import SignupSkills from '@/components/SignupSkills'
@@ -80,13 +85,13 @@ function PreferredRadio({
 /** Guidance for a field, styled so it can't be mistaken for text already typed into one. */
 function FieldHint({ id, children }: { id: string; children: React.ReactNode }) {
   return (
-    <p
+    <P
       id={id}
       className="flex gap-2 rounded-md bg-accent/50 px-3 py-2 mb-2 text-sm text-text-light"
     >
       <span aria-hidden="true">ℹ</span>
       <span>{children}</span>
-    </p>
+    </P>
   )
 }
 
@@ -494,8 +499,8 @@ export default function SignupPage() {
       autoComplete: string,
     ) => (
       <div className="mb-5">
-        <label htmlFor={`${prefix}${method}`}>{label}</label>
-        <input
+        <FormLabel htmlFor={`${prefix}${method}`}>{label}</FormLabel>
+        <Input
           type="text"
           id={`${prefix}${method}`}
           name={name}
@@ -518,15 +523,15 @@ export default function SignupPage() {
     return (
       <>
         <div className="mb-5">
-          <label htmlFor={`${prefix}applicationMessage`} className="required">
+          <FormLabel htmlFor={`${prefix}applicationMessage`} required>
             Your application
-          </label>
+          </FormLabel>
           <FieldHint id={`${prefix}applicationMessage-hint`}>
             Tell us your connection to PauseAI (if you&apos;re already in our chat app channels, how
             we know you), why the mission matters to you, and how you&apos;d like to help. Only
             admins read this; it isn&apos;t on your public profile.
           </FieldHint>
-          <textarea
+          <Textarea
             id={`${prefix}applicationMessage`}
             name="applicationMessage"
             autoComplete="off"
@@ -541,14 +546,14 @@ export default function SignupPage() {
         </div>
 
         <div className="mb-5">
-          <label htmlFor={`${prefix}bio`} className="required">
+          <FormLabel htmlFor={`${prefix}bio`} required>
             About you
-          </label>
+          </FormLabel>
           <FieldHint id={`${prefix}bio-hint`}>
             Shown to other volunteers in the directory if you choose to make your profile visible.
             Tell us about your background and what brings you to PauseAI.
           </FieldHint>
-          <textarea
+          <Textarea
             id={`${prefix}bio`}
             name="bio"
             autoComplete="off"
@@ -561,10 +566,10 @@ export default function SignupPage() {
           />
         </div>
 
-        <h3 className="mt-6">Contact preferences</h3>
-        <p className="text-sm text-text-light mt-1 mb-4">
+        <H3 className="mt-6">Contact preferences</H3>
+        <P className="text-sm text-text-light mt-1 mb-4">
           Add ways for the people you work with to reach you. All optional.
-        </p>
+        </P>
 
         <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-5">
           {contactField(
@@ -587,8 +592,8 @@ export default function SignupPage() {
             'tel',
           )}
           <div className="mb-5">
-            <label htmlFor={`${prefix}email_display`}>Contact email</label>
-            <input
+            <FormLabel htmlFor={`${prefix}email_display`}>Contact email</FormLabel>
+            <Input
               type="text"
               id={`${prefix}email_display`}
               value={contactEmail}
@@ -605,8 +610,8 @@ export default function SignupPage() {
         </div>
 
         <div className="mb-5">
-          <label htmlFor={`${prefix}contactNotes`}>Contact notes</label>
-          <input
+          <FormLabel htmlFor={`${prefix}contactNotes`}>Contact notes</FormLabel>
+          <Input
             type="text"
             id={`${prefix}contactNotes`}
             name="contactNotes"
@@ -617,12 +622,12 @@ export default function SignupPage() {
           />
         </div>
 
-        <h3 className="mt-6">Availability</h3>
+        <H3 className="mt-6">Availability</H3>
         <div className="mb-5">
-          <label htmlFor={`${prefix}availability`} className="required">
+          <FormLabel htmlFor={`${prefix}availability`} required>
             Hours per week you can give (1–40)
-          </label>
-          <input
+          </FormLabel>
+          <Input
             type="number"
             id={`${prefix}availability`}
             name="availabilityHoursPerWeek"
@@ -634,9 +639,9 @@ export default function SignupPage() {
             value={availability}
             onChange={(e) => setAvailability(e.target.value)}
           />
-          <p className="text-sm text-text-light mt-1">
+          <P className="text-sm text-text-light mt-1">
             A rough guess is fine, and you can change it later.
-          </p>
+          </P>
         </div>
         <div className="mb-5">
           <FilterDropdown
@@ -651,11 +656,11 @@ export default function SignupPage() {
           />
         </div>
         {countryValue && chapters && !chapters.some((c) => c.country === countryValue) && (
-          <p className="text-sm text-text-light -mt-3 mb-5" role="note">
+          <P className="text-sm text-text-light -mt-3 mb-5" role="note">
             There&apos;s no PauseAI chapter for{' '}
             {countryValue === OTHER_COUNTRY ? 'your country' : countryLabel(countryValue)} here yet.
             You can still join: our global organisers will look after you until one opens.
-          </p>
+          </P>
         )}
         {countryValue && hasLocalGroups && (
           <div className="mb-5">
@@ -672,8 +677,8 @@ export default function SignupPage() {
         )}
         {showCityInput && (
           <div className="mb-5">
-            <label htmlFor={`${prefix}location`}>City / area</label>
-            <input
+            <FormLabel htmlFor={`${prefix}location`}>City / area</FormLabel>
+            <Input
               type="text"
               id={`${prefix}location`}
               name="location"
@@ -684,7 +689,7 @@ export default function SignupPage() {
           </div>
         )}
 
-        <h3 className="mt-6">Email notifications</h3>
+        <H3 className="mt-6">Email notifications</H3>
         <div className="mb-5">
           <FilterDropdown
             id={`${prefix}emailDigest`}
@@ -745,27 +750,27 @@ export default function SignupPage() {
         <div className="max-w-2xl mx-auto">
           {/* role="status" so a screen reader announces that the form went through. */}
           <div role="status" className={`bg-surface ${BLEED} shadow p-8 text-center`}>
-            <h1>Application received</h1>
-            <p className="text-text-light mt-4 mb-2">
+            <H1>Application received</H1>
+            <P className="text-text-light mt-4 mb-2">
               Thanks for applying! A member of the team usually reviews applications within a few
               days, and we email you when yours is approved.
-            </p>
+            </P>
             {isGoogle ? (
-              <p className="text-text-light">Your Google email is already confirmed.</p>
+              <P className="text-text-light">Your Google email is already confirmed.</P>
             ) : (
               <>
-                <p className="text-text-light">
+                <P className="text-text-light">
                   Meanwhile, confirm your email: we&#39;ve sent a link to {email}.
-                </p>
+                </P>
                 <div className="mt-6 pt-6 border-t border-border">
                   {resendSent ? (
-                    <p className="text-text-light text-sm">
+                    <P className="text-text-light text-sm">
                       {resendCooldown > 0
                         ? `Email sent! You can request another in ${resendCooldown}s.`
                         : 'Email sent! Check your inbox.'}
-                    </p>
+                    </P>
                   ) : (
-                    <p className="text-text-light text-sm">
+                    <P className="text-text-light text-sm">
                       Didn&#39;t receive it?{' '}
                       <button
                         onClick={handleResend}
@@ -774,17 +779,17 @@ export default function SignupPage() {
                       >
                         Resend confirmation email
                       </button>
-                    </p>
+                    </P>
                   )}
                 </div>
               </>
             )}
-            <p className="text-text-light text-sm mt-4">
+            <P className="text-text-light text-sm mt-4">
               Questions? Contact{' '}
               <a href="mailto:uk@pauseai.info" className="underline">
                 uk@pauseai.info
               </a>
-            </p>
+            </P>
           </div>
         </div>
       </main>
@@ -802,25 +807,25 @@ export default function SignupPage() {
       )}
       <main className="container py-5 pb-15">
         <div className="max-w-2xl mx-auto">
-          <h1>{isGoogle ? 'Complete your application' : 'Join Catalyse'}</h1>
-          <p className="text-text-light mb-6">
+          <H1>{isGoogle ? 'Complete your application' : 'Join Catalyse'}</H1>
+          <P className="text-text-light mb-6">
             {isGoogle
               ? 'Your Google account is verified. Fill in your details to apply.'
               : 'Connect with PauseAI projects and fellow volunteers.'}
-          </p>
+          </P>
 
           {stepIndicator}
           {errorAlert}
           {draftRecovered && !isGoogle && step === 1 && (
-            <p className="text-sm text-text-light">
+            <P className="text-sm text-text-light">
               Your answers so far were kept. Enter your password again to carry on.
-            </p>
+            </P>
           )}
 
           {step === 1 && (googleClientId || googleStub) && (
             <>
               <div className={`${formCard} text-center`}>
-                <p className="text-text-light mb-4">Quick sign up with your Google account:</p>
+                <P className="text-text-light mb-4">Quick sign up with your Google account:</P>
                 {googleClientId && <div id="g_signup_btn" className="flex justify-center" />}
                 {googleStub && (
                   <button
@@ -842,12 +847,12 @@ export default function SignupPage() {
 
           {step === 1 && (
             <form method="post" className={formCard} onSubmit={handleAccountStep} noValidate>
-              <h2 className="mt-0">Account</h2>
+              <H2 className="mt-0">Account</H2>
               <div className="mb-5">
-                <label htmlFor="name" className="required">
+                <FormLabel htmlFor="name" required>
                   Your name
-                </label>
-                <input
+                </FormLabel>
+                <Input
                   type="text"
                   id="name"
                   name="name"
@@ -860,10 +865,10 @@ export default function SignupPage() {
               </div>
 
               <div className="mb-5">
-                <label htmlFor="email" className="required">
+                <FormLabel htmlFor="email" required>
                   Email
-                </label>
-                <input
+                </FormLabel>
+                <Input
                   type="email"
                   id="email"
                   name="email"
@@ -876,17 +881,17 @@ export default function SignupPage() {
                     if (e.target.value.trim() === '' && contactPref === 'email') setContactPref('')
                   }}
                 />
-                <p className="text-sm text-text-light mt-1">
+                <P className="text-sm text-text-light mt-1">
                   Used for login and notifications. Not shown publicly. We send a link to confirm it
                   as soon as you apply.
-                </p>
+                </P>
               </div>
 
               <div className="mb-5">
-                <label htmlFor="password" className="required">
+                <FormLabel htmlFor="password" required>
                   Password
-                </label>
-                <input
+                </FormLabel>
+                <Input
                   type="password"
                   id="password"
                   name="password"
@@ -900,10 +905,10 @@ export default function SignupPage() {
               </div>
 
               <div className="mb-5">
-                <label htmlFor="password_confirm" className="required">
+                <FormLabel htmlFor="password_confirm" required>
                   Confirm password
-                </label>
-                <input
+                </FormLabel>
+                <Input
                   type="password"
                   id="password_confirm"
                   name="password_confirm"
@@ -919,23 +924,26 @@ export default function SignupPage() {
               <Button type="submit" className="w-full">
                 Next: About you
               </Button>
-              <p className="text-center text-text-light mt-4">
-                Already have an account? <Link href="/login">Login</Link>
-              </p>
+              <P className="text-center text-text-light mt-4">
+                Already have an account?{' '}
+                <Link className="text-primary-text underline" href="/login">
+                  Login
+                </Link>
+              </P>
             </form>
           )}
 
           {step === 2 && (
             <form className={formCard} onSubmit={handleAboutStep} noValidate>
-              <h2 className="mt-0">About you</h2>
+              <H2 className="mt-0">About you</H2>
               {isGoogle && (
                 <div className="mb-5">
-                  <label htmlFor="g_name">Your name</label>
-                  <input type="text" id="g_name" value={name} disabled />
-                  <p className="text-sm text-text-light mt-1">
+                  <FormLabel htmlFor="g_name">Your name</FormLabel>
+                  <Input type="text" id="g_name" value={name} disabled />
+                  <P className="text-sm text-text-light mt-1">
                     From your Google account. To use a different name, change it on your Google
                     account or update it later in your profile settings.
-                  </p>
+                  </P>
                 </div>
               )}
               {aboutFields(prefix, pendingGoogleAuth?.email ?? email)}
@@ -954,15 +962,15 @@ export default function SignupPage() {
 
           {step === 3 && (
             <form className={formCard} onSubmit={handleFinish} noValidate>
-              <h2 className="mt-0">Skills and privacy</h2>
-              <p className="text-sm text-text-light mt-1 mb-3">
+              <H2 className="mt-0">Skills and privacy</H2>
+              <P className="text-sm text-text-light mt-1 mb-3">
                 Pick skills you can contribute. This helps match you with projects.
-              </p>
+              </P>
               <SignupSkills value={skills} onChange={setSkills} />
 
               <div className="mb-5 mt-4">
-                <label htmlFor={`${prefix}otherSkills`}>Other skills</label>
-                <input
+                <FormLabel htmlFor={`${prefix}otherSkills`}>Other skills</FormLabel>
+                <Input
                   type="text"
                   id={`${prefix}otherSkills`}
                   name="otherSkills"
@@ -973,7 +981,7 @@ export default function SignupPage() {
                 />
               </div>
 
-              <h3 className="mt-6">Privacy</h3>
+              <H3 className="mt-6">Privacy</H3>
               <div className="flex flex-col gap-3">
                 <div>
                   <label className="flex items-center gap-2 font-normal m-0">
@@ -984,10 +992,10 @@ export default function SignupPage() {
                     />
                     Show me in the volunteer directory
                   </label>
-                  <p className="text-sm text-text-light mt-1 mb-0 ml-6">
+                  <P className="text-sm text-text-light mt-1 mb-0 ml-6">
                     Other volunteers can find you and ask to see your contact details. Turn this off
                     and they can&apos;t.
-                  </p>
+                  </P>
                 </div>
                 <div>
                   <label className="flex items-center gap-2 font-normal m-0">
@@ -999,18 +1007,18 @@ export default function SignupPage() {
                     />
                     Allow Google Analytics (recommended)
                   </label>
-                  <p className="text-sm text-text-light mt-1 mb-0 ml-6">
+                  <P className="text-sm text-text-light mt-1 mb-0 ml-6">
                     Anonymous usage figures that help us improve the platform.
-                  </p>
+                  </P>
                 </div>
               </div>
-              <p className="text-sm text-text-light mt-3">
+              <P className="text-sm text-text-light mt-3">
                 People on the projects you join can always reach you. You can change these settings
                 or delete your account at any time.{' '}
-                <Link href="/privacy" target="_blank">
+                <Link className="text-primary-text underline" href="/privacy" target="_blank">
                   Read our privacy policy
                 </Link>
-              </p>
+              </P>
 
               <div className="flex gap-2 mt-3">
                 <Button type="button" variant="secondary" onClick={() => goTo(2)}>

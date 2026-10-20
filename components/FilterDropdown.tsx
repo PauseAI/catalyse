@@ -2,6 +2,8 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
 import { textMatches } from '@/lib/text-match'
 
 export interface FilterOption<T extends string = string> {
@@ -213,12 +215,9 @@ export default function FilterDropdown<T extends string>({
   // min-w-[200px]: deliberate minimum to prevent dropdown from collapsing on short labels
   return (
     <div ref={ref} className="min-w-[200px]">
-      <label
-        htmlFor={id}
-        className={[required && 'required', hideLabel && 'sr-only'].filter(Boolean).join(' ')}
-      >
+      <FormLabel htmlFor={id} required={required} className={hideLabel ? 'sr-only' : undefined}>
         {label}
-      </label>
+      </FormLabel>
       <div className="relative">
         <button
           ref={triggerRef}
@@ -241,7 +240,7 @@ export default function FilterDropdown<T extends string>({
           </span>
         </button>
         {searchable && open && (
-          <input
+          <Input
             ref={inputRef}
             id={id}
             type="search"

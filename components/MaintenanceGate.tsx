@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
+import { H1 } from '@/components/Heading'
+import { P } from '@/components/Text'
 import { orpc } from '@/lib/orpc'
 import { useAuth } from '@/lib/auth-context'
 import { MAINTENANCE_MESSAGE } from '@/lib/maintenance-message'
@@ -51,8 +53,8 @@ export default function MaintenanceGate({ children }: { children: React.ReactNod
   return (
     <main id="main-content" className="container py-5 pb-15">
       <div className="max-w-[400px] my-15 mx-auto text-center">
-        <h1>Down for maintenance</h1>
-        <p className="text-text-light mb-8">{MAINTENANCE_MESSAGE}</p>
+        <H1>Down for maintenance</H1>
+        <P className="text-text-light mb-8">{MAINTENANCE_MESSAGE}</P>
         {user ? (
           <button type="button" onClick={logout} className="text-sm underline cursor-pointer">
             Sign out

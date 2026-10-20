@@ -7,6 +7,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
 import { Badge } from '@/components/Badge'
 import Button from '@/components/Button'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 interface AdminLink {
   href: string
@@ -14,6 +16,8 @@ interface AdminLink {
   /** For global admins only; a chapter's staff run just their own chapter. */
   globalOnly?: boolean
   count?: number
+  /** Opens outside the app's own pages — a plain link, not client-side navigation. */
+  external?: boolean
 }
 
 interface AdminGroup {
@@ -116,18 +120,19 @@ export default function AdminLandingPage() {
         { href: '/admin/platform-settings', label: 'Platform settings', globalOnly: true },
         { href: '/admin/cron-runs', label: 'Cron job runs', globalOnly: true },
         { href: '/admin/api-tokens', label: 'API tokens', globalOnly: true },
+        { href: '/admin/storybook/view/', label: 'Storybook', globalOnly: true, external: true },
       ],
     },
   ]
 
   return (
     <main className="container-wide py-5 pb-15">
-      <h1>{adminAreaName(user.access, user.chapter)}</h1>
+      <H1>{adminAreaName(user.access, user.chapter)}</H1>
 
       {!loadingStats && stats && (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6 max-[500px]:grid-cols-1">
           <div className="bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden">
-            <h2 className="mt-0">Volunteers</h2>
+            <H2 className="mt-0">Volunteers</H2>
             <div className="grid grid-cols-2 gap-5 mt-4">
               <div>
                 <div className="text-4xl font-bold text-primary mb-1">{stats.volunteers.total}</div>
@@ -163,7 +168,7 @@ export default function AdminLandingPage() {
           </div>
 
           <div className="bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden">
-            <h2 className="mt-0">Projects</h2>
+            <H2 className="mt-0">Projects</H2>
             <div className="mt-4">
               {[
                 { label: 'Total', value: stats.projects.total, color: undefined },
@@ -187,7 +192,7 @@ export default function AdminLandingPage() {
           </div>
 
           <div className="bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden">
-            <h2 className="mt-0">Volunteer interest</h2>
+            <H2 className="mt-0">Volunteer interest</H2>
             <div className="grid grid-cols-2 gap-5 mt-4">
               <div>
                 <div className="text-4xl font-bold text-brand-text mb-1">
@@ -209,9 +214,9 @@ export default function AdminLandingPage() {
       <div className="grid gap-5 lg:grid-cols-[2fr_minmax(0,1fr)]">
         <div className="border border-brand-border rounded-lg p-5 h-fit">
           <div className="flex justify-between items-center mb-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-text-light m-0">
+            <H2 className="text-sm font-semibold uppercase tracking-wide text-text-light m-0">
               Notifications
-            </h2>
+            </H2>
             {unreadCount > 0 && (
               <Button size="sm" onClick={() => readAllMutation.mutate({})}>
                 Mark all as read
@@ -219,9 +224,9 @@ export default function AdminLandingPage() {
             )}
           </div>
           {loadingNotifications ? (
-            <p className="text-text-light text-sm m-0">Loading…</p>
+            <P className="text-text-light text-sm m-0">Loading…</P>
           ) : notifications.length === 0 ? (
-            <p className="text-text-light text-sm m-0">No notifications.</p>
+            <P className="text-text-light text-sm m-0">No notifications.</P>
           ) : (
             <div className="flex flex-col gap-3">
               {notifications.map((n) => (
@@ -232,7 +237,7 @@ export default function AdminLandingPage() {
                   <strong className={!n.readAt ? 'text-brand-text' : 'text-text-light'}>
                     {n.title}
                   </strong>
-                  <p className="text-sm mt-1 mb-0 text-text-light max-w-3xl">{n.body}</p>
+                  <P className="text-sm mt-1 mb-0 text-text-light max-w-3xl">{n.body}</P>
                   <div className="flex items-center gap-4 mt-2">
                     {n.link && (
                       <Link href={n.link} className="text-sm underline">
@@ -260,22 +265,37 @@ export default function AdminLandingPage() {
             if (links.length === 0) return null
             return (
               <div key={group.title} className="border border-brand-border rounded-lg p-5 h-fit">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-text-light m-0 mb-3">
+                <H2 className="text-sm font-semibold uppercase tracking-wide text-text-light m-0 mb-3">
                   {group.title}
-                </h2>
+                </H2>
                 <div className="flex flex-col gap-1 -mx-2">
-                  {links.map((link) => (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      className="flex items-center justify-between gap-3 px-2 py-2 rounded-md no-underline text-brand-text hover:bg-accent transition-colors"
-                    >
-                      <span>{link.label}</span>
-                      {!!link.count && (
-                        <Badge variant={link.count > 0 ? 'info' : 'neutral'}>{link.count}</Badge>
-                      )}
-                    </Link>
-                  ))}
+                  {links.map((link) => {
+                    const className =
+                      'flex items-center justify-between gap-3 px-2 py-2 rounded-md no-underline text-brand-text hover:bg-accent transition-colors'
+                    const content = (
+                      <>
+                        <span>{link.label}</span>
+                        {!!link.count && (
+                          <Badge variant={link.count > 0 ? 'info' : 'neutral'}>{link.count}</Badge>
+                        )}
+                      </>
+                    )
+                    return link.external ? (
+                      <a
+                        key={link.label}
+                        href={link.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={className}
+                      >
+                        {content}
+                      </a>
+                    ) : (
+                      <Link key={link.label} href={link.href} className={className}>
+                        {content}
+                      </Link>
+                    )
+                  })}
                 </div>
               </div>
             )

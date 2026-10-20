@@ -4,7 +4,11 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import Checkbox from '@/components/Checkbox'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
+import { P } from '@/components/Text'
+import Textarea from '@/components/ui/Textarea'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 
@@ -70,13 +74,13 @@ export default function MessageDialog({
 
   return (
     <Modal id={id} title={title} isOpen onClose={onClose}>
-      <p className="text-sm text-text-light mb-4">
+      <P className="text-sm text-text-light mb-4">
         {recipientName} will see this in their Inbox and get a copy by email. You can both reply on
         Catalyse; your email address stays private unless you share it below.
-      </p>
+      </P>
       {channels.length > 0 && (
         <div className="mb-5">
-          <p className="text-sm font-medium mb-2">Contact directly:</p>
+          <P className="text-sm font-medium mb-2">Contact directly:</P>
           <div className="flex flex-col gap-2">
             {channels.map((c) => (
               <div key={c.label} className="flex items-center gap-2 text-sm">
@@ -86,14 +90,14 @@ export default function MessageDialog({
             ))}
           </div>
           <hr className="my-4 border-brand-border" />
-          <p className="text-sm text-text-light mb-3">Or send a message via the platform:</p>
+          <P className="text-sm text-text-light mb-3">Or send a message via the platform:</P>
         </div>
       )}
 
       <form onSubmit={handleSubmit}>
         <div className="mb-5">
-          <label htmlFor={`${id}-subject`}>Subject</label>
-          <input
+          <FormLabel htmlFor={`${id}-subject`}>Subject</FormLabel>
+          <Input
             id={`${id}-subject`}
             type="text"
             value={subject}
@@ -102,8 +106,8 @@ export default function MessageDialog({
           />
         </div>
         <div className="mb-5">
-          <label htmlFor={`${id}-message`}>Message</label>
-          <textarea
+          <FormLabel htmlFor={`${id}-message`}>Message</FormLabel>
+          <Textarea
             id={`${id}-message`}
             rows={4}
             value={body}

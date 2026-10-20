@@ -1473,6 +1473,7 @@ export const projectsRouter = {
         viewerCanAdmin: Boolean(volunteer.isAdmin),
         tasks: mappedTasks,
         taskCounts: taskCounts(mappedTasks),
+        daysLate: (await lateProjects([project])).get(project.id) ?? null,
         keyDate,
         allTasksDone,
         interests,

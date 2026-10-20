@@ -3,7 +3,10 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import FormLabel from '@/components/FormLabel'
 import Modal from '@/components/ui/Modal'
+import { P } from '@/components/Text'
+import Textarea from '@/components/ui/Textarea'
 import type { SubmitTarget } from '@/components/SubmitWorkButton'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
@@ -61,18 +64,18 @@ export default function RequestChangesButton({
       <Modal id={id} title="Ask for changes" isOpen={open} onClose={close}>
         <form onSubmit={handleSubmit}>
           <div className="mb-5">
-            <label htmlFor={`${id}-message`}>What needs changing?</label>
-            <textarea
+            <FormLabel htmlFor={`${id}-message`}>What needs changing?</FormLabel>
+            <Textarea
               id={`${id}-message`}
               rows={4}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               required
             />
-            <p className="text-sm text-text-light mt-1 mb-0">
+            <P className="text-sm text-text-light mt-1 mb-0">
               The task goes back to {assigneeName ?? 'the assignee'} as In progress, with this
               message.
-            </p>
+            </P>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={close}>

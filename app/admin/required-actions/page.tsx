@@ -6,6 +6,8 @@ import { useRequireAdmin } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
 import type { RequiredActionKind } from '@/lib/required-actions'
 import { SECTION_CARD } from '@/lib/ui-classes'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 const SECTIONS: Record<RequiredActionKind, { title: string; about: string }> = {
   merge_account: {
@@ -37,23 +39,28 @@ export default function AdminRequiredActionsPage() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Outstanding actions</h1>
-      <p className="text-text-light">
+      <H1>Outstanding actions</H1>
+      <P className="text-text-light">
         What people are asked to settle when they sign in, and who has yet to.
-      </p>
+      </P>
       {kinds?.map(({ kind, people }) => (
         <section key={kind} className={SECTION_CARD} aria-labelledby={`outstanding-${kind}`}>
-          <h2 id={`outstanding-${kind}`}>
+          <H2 id={`outstanding-${kind}`}>
             {SECTIONS[kind].title} ({people.length})
-          </h2>
-          <p className="text-text-light text-sm">{SECTIONS[kind].about}</p>
+          </H2>
+          <P className="text-text-light text-sm">{SECTIONS[kind].about}</P>
           {people.length === 0 ? (
-            <p className="text-text-light">Nobody.</p>
+            <P className="text-text-light">Nobody.</P>
           ) : (
             <ul className="list-none p-0 m-0 grid gap-1">
               {people.map(({ volunteer, detail }) => (
                 <li key={`${volunteer.id}:${detail}`}>
-                  <Link href={`/admin/volunteers/${volunteer.id}`}>{volunteer.name}</Link>
+                  <Link
+                    className="text-primary-text underline"
+                    href={`/admin/volunteers/${volunteer.id}`}
+                  >
+                    {volunteer.name}
+                  </Link>
                   <span className="text-text-light text-sm">
                     {[volunteer.email, detail]
                       .filter(Boolean)

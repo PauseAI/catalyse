@@ -21,6 +21,10 @@ import EmptyState from '@/components/EmptyState'
 import ViewSwitch, { PEOPLE_VIEWS } from '@/components/ViewSwitch'
 import ContactButton from '@/components/ContactButton'
 import ActiveDot from '@/components/ActiveDot'
+import { H1, H3 } from '@/components/Heading'
+import { P } from '@/components/Text'
+import FormLabel from '@/components/FormLabel'
+import Input from '@/components/ui/Input'
 
 type SkillCategory = InferRouterOutputs<AppRouter>['skills']['list'][number]
 type FlatSkill = SkillCategory['skills'][number] & { categoryName: string }
@@ -103,13 +107,13 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
   return (
     <>
       <main className="container py-5 pb-15">
-        <h1>Volunteer directory</h1>
+        <H1>Volunteer directory</H1>
         <ViewSwitch label="People" views={PEOPLE_VIEWS} current="/volunteers" />
 
         <div className="mb-5">
           <div className="mb-3">
-            <label htmlFor="search-volunteers">Search</label>
-            <input
+            <FormLabel htmlFor="search-volunteers">Search</FormLabel>
+            <Input
               id="search-volunteers"
               type="search"
               aria-label="Search"
@@ -192,7 +196,7 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
                   key={v.id}
                   className="card bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden wrap-break-word flex flex-col"
                 >
-                  <h3 className="m-0 mb-2">
+                  <H3 className="m-0 mb-2">
                     <Link
                       href={`/volunteers/${v.id}`}
                       className="text-primary-dark no-underline hover:underline"
@@ -207,13 +211,18 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
                         </span>
                       </Tooltip>
                     )}
-                  </h3>
-                  {v.email && <p className="text-xs text-text-light m-0 mb-2">{v.email}</p>}
+                  </H3>
+                  {v.email && <P className="text-xs text-text-light m-0 mb-2">{v.email}</P>}
                   {v.duplicateOf && (
-                    <p className="text-xs text-text-light m-0 mb-2">
+                    <P className="text-xs text-text-light m-0 mb-2">
                       Duplicate account of{' '}
-                      <Link href={`/volunteers/${v.duplicateOf.id}`}>{v.duplicateOf.name}</Link>
-                    </p>
+                      <Link
+                        className="text-primary-text underline"
+                        href={`/volunteers/${v.duplicateOf.id}`}
+                      >
+                        {v.duplicateOf.name}
+                      </Link>
+                    </P>
                   )}
                   {(volunteerLocation(v) || v.availabilityHoursPerWeek) && (
                     <div className="flex items-center gap-3 flex-wrap text-xs text-text-light mb-2">

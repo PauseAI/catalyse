@@ -1,3 +1,5 @@
+import { H3 } from '@/components/Heading'
+import { P } from '@/components/Text'
 import Tooltip from '@/components/Tooltip'
 import { TASK_STATUS_LABELS } from '@/lib/status-labels'
 import { barTone, statusLabel, toneFill, type BarTone } from './palette'
@@ -114,7 +116,7 @@ export function PlanningTools({ children }: { children?: React.ReactNode }) {
       <div className="mt-3 flex flex-col gap-3">
         {children}
         <section className="flex flex-col gap-1.5">
-          <h3 className="m-0 text-xs font-semibold">What the marks mean</h3>
+          <H3 className="m-0 text-xs font-semibold">What the marks mean</H3>
           <dl className="text-text-light m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
             <Mark name="Key date">
               <span style={{ color: 'var(--gantt-anchor)' }}>★</span>
@@ -198,11 +200,11 @@ export function PlanningTools({ children }: { children?: React.ReactNode }) {
             <dd className="m-0">The day the last item on the plan finishes.</dd>
           </dl>
         </section>
-        <p className="text-text-light m-0 text-xs">
+        <P className="text-text-light m-0 text-xs">
           Drag a bar to move it, its right edge to change duration, or the circle at its end onto
           another row to link them. Click a bar to select it — a × appears on each of its dependency
           arrows, and removes that link.
-        </p>
+        </P>
       </div>
     </details>
   )

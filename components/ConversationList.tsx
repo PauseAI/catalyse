@@ -6,6 +6,7 @@ import Skeleton from './Skeleton'
 import { friendlyDate } from '@/lib/format-date'
 import { orpc } from '@/lib/orpc'
 import { BLEED } from '@/lib/ui-classes'
+import { P } from '@/components/Text'
 
 /** My message conversations, newest first; unread ones stand out. */
 export default function ConversationList() {
@@ -14,9 +15,9 @@ export default function ConversationList() {
   if (isPending) return <Skeleton label="Loading messages…" />
   if (!threads || threads.length === 0) {
     return (
-      <p className="text-text-light">
+      <P className="text-text-light">
         No messages yet. You can message someone from their profile or a project page.
-      </p>
+      </P>
     )
   }
   return (
@@ -42,10 +43,10 @@ export default function ConversationList() {
               </span>
             </div>
             <div className="text-sm">{t.subject}</div>
-            <p className="text-sm text-text-light m-0 line-clamp-1">
+            <P className="text-sm text-text-light m-0 line-clamp-1">
               {t.last.fromMe ? 'You: ' : ''}
               {t.last.body}
-            </p>
+            </P>
             {t.relatedProject && (
               <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-accent text-secondary-dark dark:bg-gray-700 dark:text-gray-300">
                 {t.relatedProject.title}

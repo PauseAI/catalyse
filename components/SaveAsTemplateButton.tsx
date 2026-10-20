@@ -3,7 +3,11 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import Button from '@/components/Button'
+import FormLabel from '@/components/FormLabel'
 import Modal from '@/components/ui/Modal'
+import { P } from '@/components/Text'
+import Input from '@/components/ui/Input'
+import Textarea from '@/components/ui/Textarea'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 
@@ -57,24 +61,24 @@ export default function SaveAsTemplateButton({
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
       >
-        <p className="text-text-light mb-4 text-sm">
+        <P className="text-text-light mb-4 text-sm">
           Saves this project&apos;s tasks, schedule, dependencies and skills as a reusable template.
           Country, local group, team and assignees are never included — a new project made from this
           template always starts with those blank.
-        </p>
-        <label htmlFor="template-title" className="mb-1 block font-medium">
+        </P>
+        <FormLabel htmlFor="template-title" className="mb-1 block font-medium">
           Template title
-        </label>
-        <input
+        </FormLabel>
+        <Input
           id="template-title"
           className="mb-3 w-full"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
-        <label htmlFor="template-description" className="mb-1 block font-medium">
+        <FormLabel htmlFor="template-description" className="mb-1 block font-medium">
           Description (optional)
-        </label>
-        <textarea
+        </FormLabel>
+        <Textarea
           id="template-description"
           rows={3}
           className="mb-4 w-full"

@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import FilterDropdown from '@/components/FilterDropdown'
+import FormLabel from '@/components/FormLabel'
 import { orpc } from '@/lib/orpc'
 
 interface SelectedSkill {
@@ -48,7 +49,7 @@ export default function SkillPicker({
               return (
                 <div key={skill.id} className="flex flex-col gap-1">
                   {/* [test hook] skill-option class used as test selector */}
-                  <label
+                  <FormLabel
                     className={`skill-option relative inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-bg border-2 border-transparent rounded-full cursor-pointer transition-all text-sm select-none hover:bg-accent${selected ? ' bg-secondary! text-white! border-secondary-dark!' : ''}`}
                   >
                     <input
@@ -58,7 +59,7 @@ export default function SkillPicker({
                       className="absolute opacity-0 w-0 h-0 pointer-events-none"
                     />
                     {skill.name}
-                  </label>
+                  </FormLabel>
                   {showProficiency && selected && (
                     <FilterDropdown
                       id={`proficiency-${skill.id}`}

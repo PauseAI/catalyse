@@ -4,6 +4,8 @@ import { useRequireStaff } from '@/lib/hooks/auth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import Button from '@/components/Button'
+import { H1, H2 } from '@/components/Heading'
+import { P } from '@/components/Text'
 import { Badge } from '@/components/Badge'
 import { orpc } from '@/lib/orpc'
 import { formatDate } from '@/lib/format-date'
@@ -48,11 +50,11 @@ export default function TemplatesLibraryPage() {
     <div className="mx-auto max-w-4xl px-4 sm:px-6 py-8">
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
-          <h1 className="m-0">Project templates</h1>
-          <p className="text-text-light m-0">
+          <H1 className="m-0">Project templates</H1>
+          <P className="text-text-light m-0">
             Reusable project structures, shared by every chapter, for running the same program in
             your country or a local group.
-          </p>
+          </P>
         </div>
         <Button href="/templates/new">New template</Button>
       </div>
@@ -76,22 +78,22 @@ export default function TemplatesLibraryPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="m-0 text-lg">{t.title}</h2>
+                <H2 className="m-0 text-lg">{t.title}</H2>
                 <Badge variant="neutral">{t.sourceType}</Badge>
               </div>
-              {t.description && <p className="text-text-light mt-1 mb-0">{t.description}</p>}
-              <p className="text-text-light mt-2 mb-0 text-sm">
+              {t.description && <P className="text-text-light mt-1 mb-0">{t.description}</P>}
+              <P className="text-text-light mt-2 mb-0 text-sm">
                 Used {t.usedCount} time{t.usedCount === 1 ? '' : 's'}
                 {t.createdBy ? ` · Created by ${t.createdBy.name}` : ''}
                 {t.createdAt ? ` · ${formatDate(t.createdAt)}` : ''}
-              </p>
+              </P>
               {(t.sourceCountry || t.sourceLocalGroup || t.sourceTeam) && (
-                <p className="text-text-light mt-1 mb-0 text-sm">
+                <P className="text-text-light mt-1 mb-0 text-sm">
                   Previously:{' '}
                   {[t.sourceCountry, t.sourceLocalGroup, t.sourceTeam?.name]
                     .filter(Boolean)
                     .join(' / ')}
-                </p>
+                </P>
               )}
             </div>
             {canInstantiate && t.sourceType === 'PROJECT' && (

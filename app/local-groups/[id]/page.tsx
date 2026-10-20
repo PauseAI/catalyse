@@ -11,6 +11,8 @@ import Button from '@/components/Button'
 import { countryLabel } from '@/lib/filter-options'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import PageLoading from '@/components/PageLoading'
+import { H1 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 export default function LocalGroupAdoptPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: idStr } = use(params)
@@ -48,7 +50,7 @@ export default function LocalGroupAdoptPage({ params }: { params: Promise<{ id: 
   if (!group) {
     return (
       <main className="container py-5">
-        <p className="text-text-light">Local group not found.</p>
+        <P className="text-text-light">Local group not found.</P>
       </main>
     )
   }
@@ -56,12 +58,12 @@ export default function LocalGroupAdoptPage({ params }: { params: Promise<{ id: 
   return (
     <main className="container py-5 pb-15">
       <div className={`${SECTION_CARD} sm:max-w-125`}>
-        <h1 className="mt-0 mb-1">{group.name}</h1>
-        <p className="text-text-light mb-5">{countryLabel(group.country)}</p>
-        <p className="mb-5">
+        <H1 className="mt-0 mb-1">{group.name}</H1>
+        <P className="text-text-light mb-5">{countryLabel(group.country)}</P>
+        <P className="mb-5">
           Want to set this as your local group? You&apos;ll be listed under {group.name} and matched
           with local projects and volunteers there.
-        </p>
+        </P>
         <div className="flex gap-3">
           <Button
             disabled={adoptMutation.isPending}
@@ -69,7 +71,7 @@ export default function LocalGroupAdoptPage({ params }: { params: Promise<{ id: 
           >
             {adoptMutation.isPending ? 'Saving…' : 'Set as my local group'}
           </Button>
-          <Link href="/settings">
+          <Link className="text-primary-text underline" href="/settings">
             <Button variant="secondary">Not now</Button>
           </Link>
         </div>

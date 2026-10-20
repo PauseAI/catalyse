@@ -12,6 +12,8 @@ import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
 import { countryLabel } from '@/lib/filter-options'
 import { SECTION_CARD } from '@/lib/ui-classes'
+import { H1 } from '@/components/Heading'
+import { P } from '@/components/Text'
 
 /** Members asking to move into the viewer's chapter, or for a global admin, any chapter. */
 function AdminTransfersPageContent() {
@@ -40,32 +42,38 @@ function AdminTransfersPageContent() {
 
   return (
     <main className="container py-5 pb-15">
-      <h1>Chapter moves</h1>
-      <p className="text-text-light">
+      <H1>Chapter moves</H1>
+      <P className="text-text-light">
         Members moving country ask to join the chapter they are moving to. Moving takes them out of
         their old chapter&apos;s local group and staff, but not off the projects and teams they are
         on.
-      </p>
+      </P>
       {user.isAdmin && (
         <div className="mb-5">
           <ChapterFilter value={chapterParam} onChange={setChapterParam} />
         </div>
       )}
       {isLoading ? (
-        <p className="text-text-light">Loading…</p>
+        <P className="text-text-light">Loading…</P>
       ) : requests.length === 0 ? (
-        <p className="text-text-light">Nobody is waiting to move.</p>
+        <P className="text-text-light">Nobody is waiting to move.</P>
       ) : (
         <ul className="list-none p-0 m-0 grid gap-3">
           {requests.map((r) => (
             <li key={r.id} className={`card ${SECTION_CARD} overflow-hidden wrap-break-word`}>
-              <p className="m-0">
-                <Link href={`/volunteers/${r.volunteer.id}`}>{r.volunteer.name}</Link> is moving
-                from {r.fromChapterName ?? 'the holding pool'} to {countryLabel(r.toCountry)}
+              <P className="m-0">
+                <Link
+                  className="text-primary-text underline"
+                  href={`/volunteers/${r.volunteer.id}`}
+                >
+                  {r.volunteer.name}
+                </Link>{' '}
+                is moving from {r.fromChapterName ?? 'the holding pool'} to{' '}
+                {countryLabel(r.toCountry)}
                 {r.toChapterName ? '' : ' (no chapter yet)'}
-              </p>
-              <p className="text-text-light text-sm m-0">Asked {formatDate(r.createdAt)}</p>
-              {r.reason && <p className="mt-2 mb-0">{r.reason}</p>}
+              </P>
+              <P className="text-text-light text-sm m-0">Asked {formatDate(r.createdAt)}</P>
+              {r.reason && <P className="mt-2 mb-0">{r.reason}</P>}
               <div className="flex gap-3 mt-3">
                 <Button
                   size="sm"

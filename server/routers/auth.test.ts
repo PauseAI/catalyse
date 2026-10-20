@@ -416,6 +416,7 @@ describe('changePassword / changeEmail', () => {
     for (const n of [1, 2, 3]) {
       await c.auth.changeEmail({ newEmail: `r${n}@example.com`, password: TEST_PASSWORD })
     }
+    await vi.waitFor(() => expect(emails.sent.length).toBe(3))
     const sent = emails.sent.length
     await expect(
       c.auth.changeEmail({ newEmail: 'r4@example.com', password: TEST_PASSWORD }),
@@ -522,12 +523,16 @@ describe('verifyEmail / resendVerification', () => {
     expect(
       (await prisma.volunteer.findUniqueOrThrow({ where: { id: pending.id } })).emailConfirmed,
     ).toBe(true)
-    expect(emails.last).toMatchObject({ to: pending.email, subject: subjects.received })
+    await vi.waitFor(() =>
+      expect(emails.last).toMatchObject({ to: pending.email, subject: subjects.received }),
+    )
     expect(emails.last.html).toContain(pending.name)
 
     const approved = await createVolunteer({ emailConfirmed: false })
     await anon().auth.verifyEmail({ token: (await tokenFor(approved.id)).token })
-    expect(emails.last).toMatchObject({ to: approved.email, subject: subjects.approved })
+    await vi.waitFor(() =>
+      expect(emails.last).toMatchObject({ to: approved.email, subject: subjects.approved }),
+    )
     expect(emails.last.html).toContain(approved.name)
 
     await prisma.platformSettings.update({
@@ -536,7 +541,9 @@ describe('verifyEmail / resendVerification', () => {
     })
     const open = await createVolunteer({ emailConfirmed: false })
     await anon().auth.verifyEmail({ token: (await tokenFor(open.id)).token })
-    expect(emails.last).toMatchObject({ to: open.email, subject: subjects.welcome })
+    await vi.waitFor(() =>
+      expect(emails.last).toMatchObject({ to: open.email, subject: subjects.welcome }),
+    )
     await prisma.platformSettings.update({
       where: { id: 1 },
       data: { requireApplicationApproval: true },
@@ -672,7 +679,9 @@ describe('verifyEmail / resendVerification', () => {
     const unconfirmed = await createVolunteer({ emailConfirmed: false })
     const res = await clientAs(unconfirmed).auth.resendVerification({})
     expect(res.emailVerificationToken).toBeTruthy()
-    expect(emails.last).toMatchObject({ to: unconfirmed.email, subject: subjects.confirm })
+    await vi.waitFor(() =>
+      expect(emails.last).toMatchObject({ to: unconfirmed.email, subject: subjects.confirm }),
+    )
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     emails.failNext()
     await anon().auth.resendVerification({ email: unconfirmed.email! })
