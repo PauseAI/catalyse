@@ -61,7 +61,13 @@ async function migrateWorkerDb(parallelIndex: number): Promise<void> {
   }
   execSync(`${PRISMA_BINARY} migrate deploy`, {
     cwd: PROJECT_ROOT,
-    env: { ...process.env, DATABASE_URL: workerDbUrl(parallelIndex) },
+    // Prisma's lock is one per database and gives up after 10s, so snapshot lanes migrating
+    // their own schemas at once would time each other out.
+    env: {
+      ...process.env,
+      DATABASE_URL: workerDbUrl(parallelIndex),
+      PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK: '1',
+    },
     stdio: 'pipe',
   })
 }
