@@ -223,8 +223,8 @@ export default function GanttChart({
             left: b.x,
             width: b.width,
             height: HEADER_BAND_HEIGHT,
-            borderLeft: '1px solid var(--gantt-grid-strong)',
-            borderBottom: '1px solid var(--gantt-grid)',
+            borderLeft: '1px solid var(--color-gantt-grid-strong)',
+            borderBottom: '1px solid var(--color-gantt-grid)',
           }}
         >
           {b.label}
@@ -246,8 +246,8 @@ export default function GanttChart({
               height: HEADER_TICK_HEIGHT,
               width: daily ? pxPerDay : undefined,
               paddingLeft: daily ? 0 : 4,
-              borderLeft: `1px solid ${t.major ? 'var(--gantt-grid-strong)' : 'var(--gantt-grid)'}`,
-              background: weekend ? 'var(--gantt-weekend)' : undefined,
+              borderLeft: `1px solid ${t.major ? 'var(--color-gantt-grid-strong)' : 'var(--color-gantt-grid)'}`,
+              background: weekend ? 'var(--color-gantt-weekend)' : undefined,
             }}
           >
             {daily && pxPerDay >= 24 && (
@@ -308,12 +308,12 @@ export default function GanttChart({
                   className="flex items-center px-3 text-sm"
                   style={{
                     height: ROW_HEIGHT,
-                    borderBottom: '1px solid var(--gantt-grid)',
+                    borderBottom: '1px solid var(--color-gantt-grid)',
                     background:
                       focusedId === r.id
-                        ? 'var(--gantt-row-hover)'
+                        ? 'var(--color-gantt-row-hover)'
                         : i % 2 === 1
-                          ? 'var(--gantt-row-alt)'
+                          ? 'var(--color-gantt-row-alt)'
                           : undefined,
                     opacity: related ? 1 : 0.45,
                     transition: 'opacity 120ms ease-out',
@@ -348,7 +348,7 @@ export default function GanttChart({
                     left: b.x,
                     width: b.width,
                     height: bodyHeight,
-                    background: 'var(--gantt-weekend)',
+                    background: 'var(--color-gantt-weekend)',
                   }}
                 />
               ))}
@@ -361,7 +361,7 @@ export default function GanttChart({
                   style={{
                     left: t.x,
                     borderLeft: `1px solid ${
-                      t.major ? 'var(--gantt-grid-strong)' : 'var(--gantt-grid)'
+                      t.major ? 'var(--color-gantt-grid-strong)' : 'var(--color-gantt-grid)'
                     }`,
                   }}
                 />
@@ -375,12 +375,12 @@ export default function GanttChart({
                   style={{
                     top: i * ROW_HEIGHT,
                     height: ROW_HEIGHT,
-                    borderBottom: '1px solid var(--gantt-grid)',
+                    borderBottom: '1px solid var(--color-gantt-grid)',
                     background:
                       focusedId === r.id
-                        ? 'var(--gantt-row-hover)'
+                        ? 'var(--color-gantt-row-hover)'
                         : i % 2 === 1
-                          ? 'var(--gantt-row-alt)'
+                          ? 'var(--color-gantt-row-alt)'
                           : undefined,
                   }}
                 />
@@ -434,7 +434,7 @@ export default function GanttChart({
                   style={{
                     left: finishX,
                     height: bodyHeight,
-                    borderLeft: '2px dashed var(--gantt-finish)',
+                    borderLeft: '2px dashed var(--color-gantt-finish)',
                     opacity: 0.7,
                   }}
                   title={`Ends ${formatDateShort(rangeEnd)}`}
@@ -447,7 +447,7 @@ export default function GanttChart({
                   style={{
                     left: todayX,
                     height: bodyHeight,
-                    borderLeft: '2px solid var(--gantt-today)',
+                    borderLeft: '2px solid var(--color-gantt-today)',
                   }}
                   title="Today"
                 />
@@ -465,7 +465,7 @@ export default function GanttChart({
           >
             <div
               className="bg-surface sticky left-0 flex w-fit items-center gap-3 px-3 py-1"
-              style={{ borderBottom: '1px solid var(--gantt-grid)' }}
+              style={{ borderBottom: '1px solid var(--color-gantt-grid)' }}
             >
               <span className="text-text-light text-xs font-semibold tracking-wide uppercase">
                 No dates ({undated.length})
@@ -486,7 +486,7 @@ export default function GanttChart({
               <div
                 key={r.id}
                 className="flex items-center text-sm"
-                style={{ height: ROW_HEIGHT, borderBottom: '1px solid var(--gantt-grid)' }}
+                style={{ height: ROW_HEIGHT, borderBottom: '1px solid var(--color-gantt-grid)' }}
               >
                 <div
                   className="border-brand-border bg-surface sticky left-0 z-40 flex h-full shrink-0 items-center border-r px-3"

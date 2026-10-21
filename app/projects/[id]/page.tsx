@@ -2311,7 +2311,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                           className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                             s.isRequired
                               ? 'bg-secondary text-white dark:bg-gray-600'
-                              : 'bg-accent text-secondary-dark dark:bg-gray-700 dark:text-gray-300'
+                              : 'bg-chip text-chip-text'
                           }`}
                         >
                           {s.name}
@@ -2579,7 +2579,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 )}
               {tab === 'tasks' && keyDateTask && (
                 <P className="text-text-light mb-3 text-sm">
-                  <span style={{ color: 'var(--gantt-anchor)' }}>★ Key date:</span>{' '}
+                  <span style={{ color: 'var(--color-gantt-anchor)' }}>★ Key date:</span>{' '}
                   <strong>{keyDateTask.title}</strong>. The work it waits for is marked Before; the
                   work that follows it, After.
                 </P>
@@ -2671,7 +2671,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                 className="text-xs whitespace-nowrap"
                                 style={
                                   task.keyDateSide === 'key'
-                                    ? { color: 'var(--gantt-anchor)' }
+                                    ? { color: 'var(--color-gantt-anchor)' }
                                     : undefined
                                 }
                               >

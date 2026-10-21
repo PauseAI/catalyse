@@ -164,7 +164,7 @@ export default function LandingPage() {
                 key={item.when}
                 className="bg-brand-bg border border-brand-border rounded-xl p-4 sm:p-6"
               >
-                <P className="font-heading text-xs font-bold uppercase tracking-widest text-primary-dark mb-2">
+                <P className="text-xs font-bold uppercase tracking-widest text-primary-dark mb-2">
                   {item.when}
                 </P>
                 <P className="text-sm text-text-light mb-0">{item.body}</P>
