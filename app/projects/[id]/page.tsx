@@ -874,8 +874,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [newStatus, setNewStatus] = useState('')
   const [pendingStatus, setPendingStatus] = useState<string | null>(null)
 
-  // Interest section
-  const [interestType, setInterestType] = useState('want_to_contribute')
+  // Offer to lead
   const [interestMessage, setInterestMessage] = useState('')
 
   // Assign or transfer ownership
@@ -930,7 +929,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [reopenTarget, setReopenTarget] = useState<ReopenTarget | null>(null)
   const [withdrawAccepted, setWithdrawAccepted] = useState<boolean | null>(null)
   const [deputyAction, setDeputyAction] = useState<DeputyAction | null>(null)
-  const [showJoin, setShowJoin] = useState(false)
+  const [showOfferToLead, setShowOfferToLead] = useState(false)
   const [showTransferConfirm, setShowTransferConfirm] = useState(false)
   const [showRemoveOwnerConfirm, setShowRemoveOwnerConfirm] = useState(false)
 
@@ -1135,8 +1134,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const expressInterestMutation = useMutation({
     ...orpc.projects.expressInterest.mutationOptions(),
     onSuccess: () => {
-      showToast(interestSentMessage(projectRaw?.owner?.name ?? null), 'success')
-      setShowJoin(false)
+      showToast(interestSentMessage(null), 'success')
+      setShowOfferToLead(false)
       void invalidateProject()
     },
     onError: (err: unknown) =>
@@ -1314,16 +1313,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     project.myInterest?.origin === 'invited' &&
     (project.myInterest.status === InterestStatus.declined ||
       project.myInterest.status === InterestStatus.cancelled)
-
-  const canSeeInterest =
-    !isOwnerOrAdmin &&
-    (project.isSeekingHelp || project.isSeekingOwner) &&
-    !TERMINAL_STATUSES.includes(project.status)
-
-  // The join dialog always offers helping out; leading is only on the table while the
-  // project has no owner, so it's the one option that can drop out of the choice.
-  const canJoinToLead = project.isSeekingOwner
-  const joinHasBothOptions = canJoinToLead
 
   // Until an admin approves it, a proposal's status is the admins' to change.
   // An owner takes a locked project back with Reopen; an admin keeps the picker, to archive it.
@@ -1545,16 +1534,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     setPendingStatus(null)
   }
 
-  function handleExpressInterest(e: React.FormEvent) {
+  function handleOfferToLead(e: React.FormEvent) {
     e.preventDefault()
-    // With leading off the table, helping is the only option — regardless of what the
-    // (unrendered) radio's state happens to hold left over from an earlier visit.
-    const effectiveInterestType = joinHasBothOptions
-      ? (interestType as 'want_to_contribute' | 'want_to_own')
-      : 'want_to_contribute'
     expressInterestMutation.mutate({
       projectId: parseInt(idParam, 10),
-      interestType: effectiveInterestType,
+      interestType: 'want_to_own',
       message: interestMessage.trim() || null,
     })
   }
@@ -1813,8 +1797,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       </Badge>
     </span>
   )
-  const canJoinProject =
-    !isOwnerOrAdmin && !pendingInvite && canSeeInterest && (!project.myInterest || canApplyAgain)
+  const canAskToJoin = !isOwnerOrAdmin && !pendingInvite && (!project.myInterest || canApplyAgain)
+  const canOfferToLead = canAskToJoin && project.isSeekingOwner
+  // Anyone else not on the project joins it by asking to take one of its open tasks.
+  const joinsByClaiming = canAskToJoin && !isDeputy && !project.isMember && canClaimTasks
+  const hasOpenTask = orderedTasks.some(
+    (t) =>
+      t.status === TaskStatus.not_started && t.assignedToId === null && t.requestedById === null,
+  )
   const standingAction = !isOwnerOrAdmin && (
     <>
       {pendingInvite && (
@@ -1870,39 +1860,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </span>
         )}
       <Modal
-        id="join-project"
-        title="Join this project"
-        isOpen={showJoin}
-        onClose={() => setShowJoin(false)}
+        id="offer-to-lead"
+        title="Offer to lead this project"
+        isOpen={showOfferToLead}
+        onClose={() => setShowOfferToLead(false)}
       >
-        <form onSubmit={handleExpressInterest}>
-          {joinHasBothOptions ? (
-            <fieldset className="mb-5">
-              <legend className="mb-2">How would you like to take part?</legend>
-              <FormLabel className="flex items-center gap-2 cursor-pointer mb-2 font-normal">
-                <input
-                  type="radio"
-                  name="interest_type"
-                  value="want_to_contribute"
-                  checked={interestType === 'want_to_contribute'}
-                  onChange={() => setInterestType('want_to_contribute')}
-                />
-                Help out on the project
-              </FormLabel>
-              <FormLabel className="flex items-center gap-2 cursor-pointer font-normal">
-                <input
-                  type="radio"
-                  name="interest_type"
-                  value="want_to_own"
-                  checked={interestType === 'want_to_own'}
-                  onChange={() => setInterestType('want_to_own')}
-                />
-                Lead the project
-              </FormLabel>
-            </fieldset>
-          ) : (
-            <P className="mb-5">Join to help?</P>
-          )}
+        <form onSubmit={handleOfferToLead}>
+          <P className="mb-5">
+            This project has no owner. Its lead plans the work and welcomes the volunteers who ask
+            to join.
+          </P>
           <div className="mb-5">
             <FormLabel htmlFor="interest-message">Message (optional)</FormLabel>
             <Textarea
@@ -1910,14 +1877,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               rows={3}
               value={interestMessage}
               onChange={(e) => setInterestMessage(e.target.value)}
-              placeholder="Say a little about why you'd like to help…"
+              placeholder="Say a little about why you'd like to lead it…"
             />
           </div>
           <P className="text-sm text-text-light">
-            The owner is asked, and you join once they accept.
+            An admin is asked, and you lead the project once they accept.
           </P>
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setShowJoin(false)}>
+            <Button type="button" variant="secondary" onClick={() => setShowOfferToLead(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={expressInterestMutation.isPending}>
@@ -2069,11 +2036,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       }
       actions={
         <>
-          {canJoinProject && (
-            <Button size="sm" onClick={() => setShowJoin(true)}>
-              Join this project
+          {canOfferToLead && (
+            <Button size="sm" onClick={() => setShowOfferToLead(true)}>
+              Offer to lead
             </Button>
           )}
+          {joinsByClaiming &&
+            (hasOpenTask ? (
+              <Button variant="secondary" size="sm" onClick={() => selectTab('tasks')}>
+                Pick a task to join
+              </Button>
+            ) : (
+              <span className="text-sm text-text-light">No open tasks yet</span>
+            ))}
           {project.canMessageOwner && !isAdmin && (
             <Button
               variant="secondary"

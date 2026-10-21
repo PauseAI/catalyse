@@ -43,7 +43,16 @@ async function setup() {
 
 describe('projects within a chapter', () => {
   it('are hidden from a volunteer in another chapter on every route, remote or not', async () => {
-    const { uk: ukChapter, owner, inUk, swedish, remoteInSweden, pooled, task } = await setup()
+    const {
+      sweden,
+      uk: ukChapter,
+      owner,
+      inUk,
+      swedish,
+      remoteInSweden,
+      pooled,
+      task,
+    } = await setup()
     const uk = clientAs(inUk)
 
     expect(titles((await uk.projects.list({ search: 'Scope' })).projects)).toEqual([])
@@ -64,9 +73,10 @@ describe('projects within a chapter', () => {
     expect((await ukLead.projects.ganttOverview({})).projects.map((p) => p.id)).not.toContain(
       swedish.id,
     )
+    const ownerless = await createProject({ nationalChapterId: sweden.id })
     await expect(
-      uk.projects.expressInterest({ projectId: swedish.id, interestType: 'want_to_contribute' }),
-    ).rejects.toMatchObject(notFound)
+      uk.projects.expressInterest({ projectId: ownerless.id, interestType: 'want_to_own' }),
+    ).rejects.toMatchObject({ message: 'Project not found' })
     await expect(
       uk.projects.updateTask({
         projectId: swedish.id,

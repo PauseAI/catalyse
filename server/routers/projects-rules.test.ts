@@ -6,7 +6,7 @@ import {
   createTask,
   createSkill,
 } from '@/test/factories'
-import { clientAs } from '@/test/rpc'
+import { askToJoin, clientAs } from '@/test/rpc'
 import { prisma } from '@/lib/prisma'
 
 /**
@@ -124,11 +124,7 @@ describe('an accepted helper', () => {
     const a = await accepted(project.id, 'a private message')
     const b = await accepted(project.id, 'b private message')
     const applicant = await createVolunteer()
-    await clientAs(applicant).projects.expressInterest({
-      projectId: project.id,
-      interestType: 'want_to_contribute',
-      message: 'pending private message',
-    })
+    await askToJoin(applicant, project.id)
     const view = (await clientAs(a).projects.getById({ id: project.id })) as {
       helpers: { volunteerId: number; message?: string }[]
       interests: unknown
@@ -140,7 +136,7 @@ describe('an accepted helper', () => {
 })
 
 describe('withdrawing from a project', () => {
-  it('releases the tasks the volunteer held, and they cannot take them back', async () => {
+  it('releases the tasks the volunteer held; asking again is open until the owner says no', async () => {
     const project = await createProject({ isSeekingHelp: true })
     const task = await createTask(project.id)
     const me = await createVolunteer()
@@ -158,13 +154,25 @@ describe('withdrawing from a project', () => {
     })) as { status: string; assignedToId: number | null }
     expect(after.status).toBe('not_started')
     expect(after.assignedToId).toBeNull()
-    await expect(
-      c.projects.updateTask({
-        projectId: project.id,
-        taskId: task.id,
-        data: { assigneeId: me.id },
-      }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    const claim = () =>
+      c.projects.updateTask({ projectId: project.id, taskId: task.id, data: { assigneeId: me.id } })
+    expect(await claim()).toEqual({ message: 'Task requested', requested: true })
+    await c.projects.withdrawInterest({ projectId: project.id })
+
+    // Turning down an invite leaves the way open too; being turned down does not.
+    const interest = { workItemId: project.id, volunteerId: me.id }
+    const where = { volunteerId_workItemId: interest }
+    await prisma.workItemInterest.update({
+      where,
+      data: { status: 'declined', origin: 'invited' },
+    })
+    expect(await claim()).toEqual({ message: 'Task requested', requested: true })
+    await prisma.workItem.update({ where: { id: task.id }, data: { requestedById: null } })
+    await prisma.workItemInterest.update({
+      where,
+      data: { status: 'declined', origin: 'applied' },
+    })
+    await expect(claim()).rejects.toMatchObject({ code: 'FORBIDDEN' })
   })
 })
 
