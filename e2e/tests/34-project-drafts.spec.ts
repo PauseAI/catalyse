@@ -14,10 +14,17 @@ test.describe('Admin project drafts', () => {
     adminPage,
     volunteer,
     baseUrl,
+    request,
   }) => {
     const title = fake.projectTitle()
     // Saving a draft lands directly on its edit page.
     const projectId = await adminSaveProjectDraft(baseUrl, adminPage, title)
+    await expect(adminPage).toHaveTitle(`Catalyse | Edit ${title}`)
+
+    // The server renders for nobody in particular, so its HTML never names the draft.
+    const html = await (await request.get(`${baseUrl}/projects/${projectId}`)).text()
+    expect(html).toMatch(/<title>[^<]*Project<\/title>/)
+    expect(html).not.toContain(title)
 
     // Also shows up in "My Drafts" back on the Org Projects page
     await adminPage.goto(`${baseUrl}/admin/projects`)
@@ -58,6 +65,7 @@ test.describe('Admin project drafts', () => {
     await expect(adminPage.getByLabel('project status')).toContainText('To do', {
       timeout: 10_000,
     })
+    await expect(adminPage).toHaveTitle(`Catalyse | ${title}`)
 
     // Never touched the triage queue
     await adminPage.goto(`${baseUrl}/admin/triage`)

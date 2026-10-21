@@ -53,6 +53,7 @@ describe('editor host pages', () => {
     })
     await waitFor(() => expect(document.body.textContent).toContain('Edit project'))
     expect(await screen.findByDisplayValue('Hosted')).toBeInTheDocument()
+    await waitFor(() => expect(document.title).toBe('Catalyse | Edit Hosted'))
 
     await renderApp(<SuggestNewProjectPage />, { as: me })
     expect(await screen.findByRole('heading', { name: 'Propose a project' })).toBeInTheDocument()

@@ -84,6 +84,7 @@ describe('project page — visitor', () => {
     })
     await mount(project.id, me)
     await screen.findByRole('heading', { name: 'Visible project' })
+    expect(document.title).toBe('Catalyse | Visible project')
     // Overview first: the description, skills and the doc link.
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('link', { name: 'Open project doc →' })).toHaveAttribute(
