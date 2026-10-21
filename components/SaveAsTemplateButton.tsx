@@ -98,7 +98,7 @@ export default function SaveAsTemplateButton({
           >
             {saveAsTemplate.isPending ? 'Saving…' : 'Save template'}
           </Button>
-          <Button variant="ghost" onClick={() => setIsOpen(false)}>
+          <Button variant="secondary" onClick={() => setIsOpen(false)}>
             Cancel
           </Button>
         </div>

@@ -175,7 +175,7 @@ export default function CommentComposer({
           {isSubmitting ? busyLabel : submitLabel}
         </Button>
         {onCancel && (
-          <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+          <Button type="button" size="sm" variant="secondary" onClick={onCancel}>
             Cancel
           </Button>
         )}
