@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import ViewSwitch, { PROJECT_VIEWS } from '@/components/ViewSwitch'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useRequireConfirmed } from '@/lib/hooks/auth'
+import { useRequireStaff } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import Button from '@/components/Button'
@@ -24,8 +24,9 @@ const STATUS_FILTERS: { key: string; label: string }[] = [
 ].map((key) => ({ key, label: projectStatusLabel(key) }))
 const DEFAULT_STATUSES = [ProjectStatus.ready, ProjectStatus.in_progress, ProjectStatus.on_hold]
 
+/** Every project's plan at once, for a chapter's lead and deputies and the global admins. */
 export default function RoadmapPage() {
-  const { user, loading } = useRequireConfirmed()
+  const { user, loading } = useRequireStaff()
   const showToast = useToast()
   const queryClient = useQueryClient()
   const [statuses, setStatuses] = useState<string[]>(DEFAULT_STATUSES)
@@ -116,9 +117,7 @@ export default function RoadmapPage() {
           edges={data!.dependencies}
           rangeStart={new Date(data!.scopeStart)}
           rangeEnd={new Date(data!.scopeEnd)}
-          // The server lets only a project's manager move it; across the whole roadmap that
-          // is reliably true only for admins.
-          editable={Boolean(user.isAdmin || user.access.role)}
+          editable
           onReschedule={(patch) =>
             reschedule.mutate({
               items: [
@@ -136,14 +135,8 @@ export default function RoadmapPage() {
       )}
 
       <P className="text-text-light mt-2 text-xs max-w-3xl">
-        Each bar spans a project&apos;s tasks (or its set duration).
-        {(user.isAdmin || user.access.role) && (
-          <>
-            {' '}
-            Drag to shift a project; drag the dot onto another project to say &ldquo;this one comes
-            after that one&rdquo;.
-          </>
-        )}
+        Each bar spans a project&apos;s tasks (or its set duration). Drag to shift a project; drag
+        the dot onto another project to say &ldquo;this one comes after that one&rdquo;.
       </P>
     </main>
   )

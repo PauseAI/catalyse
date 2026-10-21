@@ -248,9 +248,19 @@ describe('projects directory', () => {
     expect(screen.queryByRole('link', { name: /Review applications/ })).toBeNull()
   })
 
-  it('switches between List and Timeline, and offers templates only once one exists', async () => {
+  it('offers chapter staff the Timeline view and templates, once one exists', async () => {
     const me = await createVolunteer()
     await renderApp(<ProjectsPage />, { as: me, url: '/projects' })
+    await screen.findByRole('heading', { name: 'Projects' })
+    expect(screen.queryByRole('navigation', { name: 'Project views' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Start from a template' })).toBeNull()
+    cleanup()
+
+    await prisma.template.create({ data: { title: 'Stall kit', structure: '{}' } })
+    await renderApp(<ProjectsPage />, {
+      as: await createChapterDeputy(await createChapter()),
+      url: '/projects',
+    })
     const views = await screen.findByRole('navigation', { name: 'Project views' })
     expect(within(views).getByRole('link', { name: 'List' })).toHaveAttribute(
       'aria-current',
@@ -260,15 +270,6 @@ describe('projects directory', () => {
       'href',
       '/projects/gantt',
     )
-    expect(screen.queryByRole('link', { name: 'Start from a template' })).toBeNull()
-    cleanup()
-
-    // Templates are for chapter staff.
-    await prisma.template.create({ data: { title: 'Stall kit', structure: '{}' } })
-    await renderApp(<ProjectsPage />, {
-      as: await createChapterDeputy(await createChapter()),
-      url: '/projects',
-    })
     expect(await screen.findByRole('link', { name: 'Start from a template' })).toHaveAttribute(
       'href',
       '/templates',

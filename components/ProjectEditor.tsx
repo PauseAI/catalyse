@@ -131,6 +131,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
   const [skills, setSkills] = useState<SelectedSkill[]>([])
   const [seekingHelp, setSeekingHelp] = useState(true)
   const [autoAccept, setAutoAccept] = useState(true)
+  const [showTimeline, setShowTimeline] = useState(false)
   const [wantToOwn, setWantToOwn] = useState(false)
 
   const isGlobal = Boolean(user?.access.globalAdmin)
@@ -161,6 +162,9 @@ export default function ProjectEditor(props: ProjectEditorProps) {
   const chapterGroups = chapterInView === null ? [] : (localGroupsData?.groups ?? [])
 
   const isDraft = projectId === undefined ? true : projectData?.status === 'draft'
+  // Owner-only fields (deadline, show timeline): the server holds the same line.
+  const canEditOwnerFields =
+    canEdit && (projectData?.viewerCanAdmin || projectData?.ownerId === user?.id || isDraft)
   const taskCount = projectData?.tasks.length ?? 0
   // Org-proposed AND template-originated drafts both skip review and publish straight live —
   // see the self-publish gate in server/routers/projects.ts:publishDraft. A template-originated
@@ -192,6 +196,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
     setProjectDeadline(toDateInputValue(data.deadline))
     setSeekingHelp(data.isSeekingHelp ?? false)
     setAutoAccept(data.autoAcceptTasks)
+    setShowTimeline(data.showTimeline)
     setWantToOwn(data.ownerId === user?.id)
     const isOwner = data.ownerId === user?.id || data.proposedById === user?.id
     setCanEdit(isOwner || data.viewerCanAdmin)
@@ -842,10 +847,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
                   if (toDateInputValue(projectData?.deadline) === projectDeadline) return
                   commitField({ deadline: fromDateInputValue(projectDeadline) })
                 }}
-                disabled={
-                  !canEdit ||
-                  !(projectData?.viewerCanAdmin || projectData?.ownerId === user?.id || isDraft)
-                }
+                disabled={!canEditOwnerFields}
               />
             </div>
           )}
@@ -854,6 +856,24 @@ export default function ProjectEditor(props: ProjectEditorProps) {
             tasks. The deadline is the date the whole project should be done by; the timeline shows
             how far the plan lands from it.
           </P>
+          {projectId !== undefined && (
+            <div className="basis-full">
+              <Checkbox
+                checked={showTimeline}
+                onChange={(e) => {
+                  setShowTimeline(e.target.checked)
+                  commitField({ showTimeline: e.target.checked })
+                }}
+                disabled={!canEditOwnerFields}
+              >
+                Show timeline
+              </Checkbox>
+              <P className="text-sm text-text-light mt-1 mb-0">
+                Adds a Timeline tab to the project page, where anyone who can see the project can
+                follow the plan.
+              </P>
+            </div>
+          )}
         </div>
 
         <div className="mb-5">
