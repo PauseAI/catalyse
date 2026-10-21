@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { flushSync } from 'react-dom'
 import CommentComposer from './CommentComposer'
 import ConfirmDialog from './ui/ConfirmDialog'
 import { formatDateTime } from '@/lib/format-date'
@@ -38,7 +39,10 @@ interface CommentThreadViewProps {
   onSubmit: (content: string, parentId?: number) => Promise<boolean>
   onEdit?: (id: number, content: string) => Promise<boolean>
   onDelete?: (id: number) => Promise<boolean>
-  /** Offers Reply on top-level comments; the reply is posted through `onSubmit`. */
+  /**
+   * Offers Reply on every comment. The reply is posted through `onSubmit` with the id answered,
+   * and shows under that comment's top-level thread.
+   */
   canReply?: boolean
   mentionable?: MentionMember[]
   emptyText?: string
@@ -85,9 +89,29 @@ function EventLine({ event }: { event: EventLineItem }) {
 
 const linkButton = 'text-text-light hover:text-text cursor-pointer text-xs'
 
+/** A thread with more replies than this shows its first and last few, hiding the middle. */
+const COLLAPSE_ABOVE = 4
+const SHOWN_FIRST = 1
+const SHOWN_LAST = 2
+
+function subscribeToHash(onChange: () => void) {
+  window.addEventListener('hashchange', onChange)
+  return () => window.removeEventListener('hashchange', onChange)
+}
+
+// Comments load after hydration, so the server's empty hash never meets a reply it would hide.
+const currentHash = () => (typeof window === 'undefined' ? '' : window.location.hash)
+
+/** Which comment a reply answers, and the thread it lands in. */
+interface ReplyTarget {
+  threadId: number
+  targetId: number
+  name: string
+}
+
 /**
- * Presentational discussion: a list of comments with one level of replies, edit and
- * delete, and a post form; a work item's list also holds its event lines, in the order
+ * Presentational discussion: a list of comments with one level of replies (long threads
+ * collapsed), edit and delete, and a post form; a work item's list also holds its event lines, in the order
  * given. Shared by CommentThread (work items) and
  * BugReportCommentThread. Owns the #comment-{id} anchor/scroll behaviour so any
  * consumer gets permalinks for free.
@@ -106,11 +130,19 @@ export default function CommentThreadView({
   placeholder = 'Add a comment…',
 }: CommentThreadViewProps) {
   const showToast = useToast()
-  const [replyingTo, setReplyingTo] = useState<number | null>(null)
+  const [replying, setReplying] = useState<ReplyTarget | null>(null)
   const [editing, setEditing] = useState<number | null>(null)
   const [deleting, setDeleting] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [removing, setRemoving] = useState(false)
+  const [expanded, setExpanded] = useState<ReadonlySet<number>>(new Set())
+  const hash = useSyncExternalStore(subscribeToHash, currentHash, currentHash)
+
+  /** Shows a thread's hidden replies and moves focus to the first of them. */
+  function expand(thread: number, firstHidden: number) {
+    flushSync(() => setExpanded((prev) => new Set(prev).add(thread)))
+    document.getElementById(`comment-${firstHidden}`)?.focus()
+  }
 
   async function copyCommentLink(id: number) {
     const url = `${window.location.origin}${window.location.pathname}#comment-${id}`
@@ -142,12 +174,15 @@ export default function CommentThreadView({
     if (ok) setDeleting(null)
   }
 
-  function renderComment(c: CommentItem, isReply: boolean) {
+  /** `thread` is the top-level comment a reply sits under; null for a top-level comment. */
+  function renderComment(c: CommentItem, thread: CommentItem | null) {
+    const tabIndex = thread ? -1 : undefined
     if (c.deleted) {
       return (
         <li
           key={c.id}
           id={`comment-${c.id}`}
+          tabIndex={tabIndex}
           className="py-3 border-b border-brand-border last:border-0 scroll-mt-20"
         >
           <P className="m-0 italic text-text-light">Comment removed</P>
@@ -156,10 +191,12 @@ export default function CommentThreadView({
       )
     }
     const saved = editing === c.id ? decodeMentions(c.content) : null
+    const author = c.authorName ?? 'Unknown'
     return (
       <li
         key={c.id}
         id={`comment-${c.id}`}
+        tabIndex={tabIndex}
         className="py-3 border-b border-brand-border last:border-0 scroll-mt-20 rounded transition-shadow"
       >
         {saved ? (
@@ -188,7 +225,7 @@ export default function CommentThreadView({
           <CommentBody content={c.content} />
         )}
         <span className="text-xs text-text-light inline-flex flex-wrap items-center gap-1.5">
-          {c.authorName ?? 'Unknown'} · {c.createdAt ? formatDateTime(c.createdAt) : ''}
+          {author} · {c.createdAt ? formatDateTime(c.createdAt) : ''}
           {c.editedAt && <span>(edited)</span>}
           <button
             type="button"
@@ -212,8 +249,15 @@ export default function CommentThreadView({
               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
             </svg>
           </button>
-          {canReply && canPost && !isReply && (
-            <button type="button" className={linkButton} onClick={() => setReplyingTo(c.id)}>
+          {canReply && canPost && (
+            <button
+              type="button"
+              className={linkButton}
+              aria-label={`Reply to ${author}`}
+              onClick={() =>
+                setReplying({ threadId: (thread ?? c).id, targetId: c.id, name: author })
+              }
+            >
               Reply
             </button>
           )}
@@ -235,26 +279,54 @@ export default function CommentThreadView({
 
   function renderReplies(c: CommentItem) {
     const replies = c.replies ?? []
-    if (replies.length === 0 && replyingTo !== c.id) return null
+    const target = replying?.threadId === c.id ? replying : null
+    if (replies.length === 0 && !target) return null
+    // A permalink to one of the replies opens the thread.
+    const open = expanded.has(c.id) || replies.some((r) => hash === `#comment-${r.id}`)
+    const hidden =
+      replies.length > COLLAPSE_ABOVE && !open ? replies.length - SHOWN_FIRST - SHOWN_LAST : 0
+    const shown = (list: CommentItem[]) => list.map((r) => renderComment(r, c))
     return (
       <div className="mt-2 ml-4 pl-3 border-l-2 border-brand-border">
         {replies.length > 0 && (
-          <ul className="list-none p-0 m-0">{replies.map((r) => renderComment(r, true))}</ul>
+          <ul
+            className="list-none p-0 m-0"
+            aria-label={`Replies to ${c.deleted ? 'a removed comment' : (c.authorName ?? 'Unknown')}`}
+          >
+            {hidden > 0 ? (
+              <>
+                {shown(replies.slice(0, SHOWN_FIRST))}
+                <li className="py-2 border-b border-brand-border">
+                  <button
+                    type="button"
+                    className={`${linkButton} font-semibold`}
+                    onClick={() => expand(c.id, replies[SHOWN_FIRST].id)}
+                  >
+                    Show {hidden} more replies
+                  </button>
+                </li>
+                {shown(replies.slice(-SHOWN_LAST))}
+              </>
+            ) : (
+              shown(replies)
+            )}
+          </ul>
         )}
-        {replyingTo === c.id && (
+        {target && (
           <div className="pt-2">
             <CommentComposer
-              label="Write a reply"
-              submitLabel="Reply"
+              key={target.targetId}
+              label={`Write a reply to ${target.name}`}
+              submitLabel="Post reply"
               busyLabel="Posting…"
               isSubmitting={isSubmitting}
               mentionable={mentionable}
               rows={2}
               autoFocus
-              onCancel={() => setReplyingTo(null)}
+              onCancel={() => setReplying(null)}
               onSubmit={async (content) => {
-                const ok = await onSubmit(content, c.id)
-                if (ok) setReplyingTo(null)
+                const ok = await onSubmit(content, target.targetId)
+                if (ok) setReplying(null)
                 return ok
               }}
             />
@@ -288,7 +360,7 @@ export default function CommentThreadView({
             c.type === 'event' ? (
               <EventLine key={`event-${c.id}`} event={c} />
             ) : (
-              renderComment(c, false)
+              renderComment(c, null)
             ),
           )}
         </ul>
