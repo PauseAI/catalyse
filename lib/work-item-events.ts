@@ -2,6 +2,7 @@ import type { Prisma } from '@/generated/prisma/client'
 import { WorkItemType } from '@/generated/prisma/enums'
 import { formatDateShort } from './format-date'
 import { prisma } from './prisma'
+import { plural } from './plural'
 import { projectStatusLabel } from './project-status'
 import { QUICK_TASK_STATUS_LABELS, TASK_STATUS_LABELS } from './status-labels'
 
@@ -26,6 +27,7 @@ export type EventKind =
   | 'baseline'
   | 'dependency_added'
   | 'dependency_removed'
+  | 'dependency_lag'
   | 'helper_joined'
   | 'helper_left'
   | 'helper_removed'
@@ -306,6 +308,12 @@ function releasedSentence(
   return `${actor} released this`
 }
 
+/** A link's lag: a gap after the task waited on, or a negative one, an overlap with it. */
+function gapPhrase(lagDays: number, predecessor: string): string {
+  if (lagDays < 0) return `let this overlap '${predecessor}' by ${plural(-lagDays, 'day')}`
+  return `set a gap of ${plural(lagDays, 'day')} after '${predecessor}'`
+}
+
 /**
  * One event as a line in the Discussion: "Sam moved this to Done". `nameOf` names the people
  * the event refers to (see eventPersonIds); `itemType` picks the status wording.
@@ -343,10 +351,18 @@ export function describeEvent(
       return `${actor} replanned this to finish ${day(after.finish)}: ${after.reason as string}`
     case 'baseline':
       return `${actor} saved the current dates as the plan`
-    case 'dependency_added':
-      return `${actor} made this wait on '${after.predecessorTitle as string}'`
+    case 'dependency_added': {
+      const title = after.predecessorTitle as string
+      const lag = after.lagDays as number
+      const gap = lag ? `, and ${gapPhrase(lag, title)}` : ''
+      return `${actor} made this wait on '${title}'${gap}`
+    }
     case 'dependency_removed':
       return `${actor} stopped this waiting on '${before.predecessorTitle as string}'`
+    case 'dependency_lag':
+      return after.lagDays === 0
+        ? `${actor} removed the gap after '${after.predecessorTitle as string}'`
+        : `${actor} ${gapPhrase(after.lagDays as number, after.predecessorTitle as string)}`
     case 'helper_joined':
       return `${actor} joined as a helper`
     case 'helper_left':

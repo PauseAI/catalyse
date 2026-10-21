@@ -27,7 +27,11 @@ function item(id: number, over: Partial<ScheduleInput> = {}): ScheduleInput {
     ...over,
   }
 }
-const link = (predecessorId: number, successorId: number) => ({ predecessorId, successorId })
+const link = (predecessorId: number, successorId: number, lagDays = 0) => ({
+  predecessorId,
+  successorId,
+  lagDays,
+})
 
 describe('replan', () => {
   const today = day('2026-10-10')

@@ -2450,7 +2450,7 @@ export const projectsRouter = {
           predecessor: { parentId: input.projectId, type: WorkItemType.TASK },
           successor: { parentId: input.projectId, type: WorkItemType.TASK },
         },
-        select: { id: true, predecessorId: true, successorId: true },
+        select: { id: true, predecessorId: true, successorId: true, lagDays: true },
       })
 
       const views = taskStatusViews(tasks, dependencyRows)

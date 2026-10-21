@@ -61,7 +61,7 @@ type ExportPayload = {
     startDate: string | null
     durationDays: number | null
     featuredAsQuickTask: boolean
-    dependsOn: Array<{ on: number | string }>
+    dependsOn: Array<{ on: number | string; lagDays?: number }>
   }>
 }
 
@@ -76,7 +76,7 @@ async function listTasks(api: Api, projectId: number) {
   expect(res.status, JSON.stringify(res.body)).toBe(200)
   return res.body as {
     tasks: { id: number; title: string; deadline: string | Date | null }[]
-    dependencies: { predecessorId: number; successorId: number }[]
+    dependencies: { predecessorId: number; successorId: number; lagDays: number }[]
   }
 }
 

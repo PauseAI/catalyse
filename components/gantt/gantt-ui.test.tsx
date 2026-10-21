@@ -10,7 +10,7 @@ import GanttPlanMenu, { type GanttPlan } from './GanttPlanMenu'
 import BaselineDialog from './BaselineDialog'
 import GanttDependencyLayer from './GanttDependencyLayer'
 import { barTone, barFill } from './palette'
-import { deltaToDays, patchFromDrag } from './useGanttDrag'
+import { deltaToDays, moveFloor, patchFromDrag } from './useGanttDrag'
 import type { GanttRow } from './types'
 
 const drags = await vi.hoisted(() => import('@/test/dnd').then((m) => m.captureDrags()))
@@ -33,6 +33,8 @@ function placed(
     deadline: null,
     daysLate: null,
     breachesDeadline: false,
+    readyFrom: null,
+    lastPredecessor: null,
     pinnedBeforePredecessor: false,
     pinConflictDays: null,
     pinConflictWith: null,
@@ -185,6 +187,51 @@ describe('palette / drag maths', () => {
       id: 2,
       startDate: null,
       deadline: day('2026-06-04'),
+    })
+  })
+
+  it('keeps a row that waits on others following them, never before they finish', () => {
+    // Ready on 6 June, and held two days after that.
+    const follower = (over: Partial<ScheduledItem> = {}): GanttRow => ({
+      ...rows[1],
+      placement: placed(2, '2026-06-08', '2026-06-09', {
+        endsOnDeadline: true,
+        isDerived: true,
+        deadline: day('2026-06-09'),
+        readyFrom: day('2026-06-06'),
+        lastPredecessor: 1,
+        ...over,
+      }),
+    })
+    const move = (row: GanttRow, px: number) =>
+      patchFromDrag(row, { kind: 'move', rowId: 2 }, px, 30)
+    expect(moveFloor(follower(), 30)).toBe(-60)
+    expect(moveFloor(rows[0], 30)).toBe(-Infinity)
+    // Later: a gap, not a pin.
+    expect(move(follower(), 90)).toEqual({
+      id: 2,
+      startDate: day('2026-06-11'),
+      follow: true,
+      deadline: day('2026-06-12'),
+    })
+    // Earlier than they allow: it lands on the day they do.
+    for (const px of [-60, -300]) {
+      expect(move(follower(), px)).toEqual({
+        id: 2,
+        startDate: day('2026-06-06'),
+        follow: true,
+        deadline: day('2026-06-07'),
+      })
+    }
+    // Already as early as it can be, there is nothing to change.
+    const ready = follower({ start: day('2026-06-06'), readyFrom: day('2026-06-06') })
+    expect(move(ready, -90)).toBeNull()
+    // A pin there still becomes a follower.
+    expect(move({ ...ready, placement: { ...ready.placement, isPinned: true } }, -90)).toEqual({
+      id: 2,
+      startDate: day('2026-06-06'),
+      follow: true,
+      deadline: day('2026-06-09'),
     })
   })
 })
@@ -957,6 +1004,7 @@ describe('GanttItemPanel', () => {
     expect(screen.queryByRole('checkbox', { name: /Key date/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull()
     expect(screen.queryByLabelText('Add a dependency')).toBeNull()
+    expect(screen.queryByText(/lag|gap/i)).toBeNull()
     expect(screen.getByRole('link', { name: 'Book venue' })).toHaveAttribute(
       'href',
       '/projects/1/tasks/1',

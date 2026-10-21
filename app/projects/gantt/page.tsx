@@ -125,6 +125,7 @@ export default function RoadmapPage() {
                 {
                   id: patch.id,
                   startDate: patch.startDate,
+                  ...(patch.follow ? { follow: true } : {}),
                   ...(patch.durationDays !== undefined ? { durationDays: patch.durationDays } : {}),
                 },
               ],

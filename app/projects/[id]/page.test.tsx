@@ -1582,14 +1582,21 @@ describe('project page — timeline tab', () => {
       expect(screen.queryByRole('group', { name: 'Tasks with no dates' })).toBeNull(),
     )
 
-    // Drag a bar (via the captured DndContext), then link two bars.
+    // Drag a bar (via the captured DndContext), then link two bars. Beta waits on Alpha, so it
+    // keeps following it, held there by a gap on the link rather than a pin.
     act(() =>
       ganttDrag()({
         active: { data: { current: { kind: 'move', rowId: b.id } } },
         delta: { x: 800, y: 0 },
       } as never),
     )
-    await waitFor(async () => expect((await row(b.id)).startDate).not.toBeNull())
+    await waitFor(async () =>
+      expect(
+        (await prisma.workItemDependency.findFirstOrThrow({ where: { successorId: b.id } }))
+          .lagDays,
+      ).toBeGreaterThan(0),
+    )
+    expect((await row(b.id)).startDate).toBeNull()
     act(() =>
       ganttDrag()({
         active: { data: { current: { kind: 'link', rowId: b.id } } },
@@ -1691,6 +1698,17 @@ describe('project page — timeline tab', () => {
     await waitFor(async () =>
       expect(await prisma.workItemDependency.count({ where: { successorId: b.id } })).toBe(0),
     )
+    // Waiting on nothing now, a dragged Beta is pinned where it lands.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^Beta:/ })).not.toHaveAccessibleName(/blocked/i),
+    )
+    act(() =>
+      ganttDrag()({
+        active: { data: { current: { kind: 'move', rowId: b.id } } },
+        delta: { x: 400, y: 0 },
+      } as never),
+    )
+    await waitFor(async () => expect((await row(b.id)).startDate).not.toBeNull())
 
     // The critical path is a planning aid, ringed only when asked for.
     expect(screen.queryByRole('button', { name: /on the critical path/ })).toBeNull()

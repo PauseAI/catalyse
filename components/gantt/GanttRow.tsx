@@ -17,6 +17,7 @@ import { windowReading } from '@/lib/task-dates'
 import { quotedTitles } from '@/lib/task-status'
 import { diffInDays } from '@/lib/schedule'
 import { barFill, statusLabel } from './palette'
+import { moveFloor } from './useGanttDrag'
 import {
   dateToX,
   markGeometry,
@@ -161,7 +162,9 @@ export default function GanttRow({
       ? deadlineCentre
       : null
 
-  const moveOffset = draggable ? (moveTransform?.x ?? 0) : 0
+  // Held at the day its predecessors allow, which is where a drop further left lands.
+  const moveOffset =
+    draggable && moveTransform ? Math.max(moveTransform.x, moveFloor(row, pxPerDay)) : 0
   // A milestone has no duration to stretch, so only bars take the resize offset.
   const resizeOffset = draggable && !milestone ? (resizeTransform?.x ?? 0) : 0
 

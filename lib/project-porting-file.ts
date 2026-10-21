@@ -41,6 +41,7 @@ export type CurrentTask = {
 export type CurrentDependency = {
   predecessorId: number
   successorId: number
+  lagDays: number
 }
 
 export type CurrentState = {
@@ -83,10 +84,10 @@ const ymd = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Dates must be written as YYYY-MM-DD')
   .nullable()
 
-/** Unknown keys are stripped, so a `lagDays` from a file exported when links had one is ignored. */
 const DependsOnSchema = z.object({
   /** A `ref` of another task in the file, or the numeric `id` of an existing task. */
   on: z.union([z.string().min(1).max(64), z.number().int().positive()]),
+  lagDays: z.number().int().min(-365).max(365).optional(),
 })
 
 /**
@@ -182,7 +183,7 @@ export type ProjectExportPayload = {
     submissionPrompt: string | null
     submissionAsksLink: boolean
     helpersWanted: number | null
-    dependsOn: Array<{ on: number }>
+    dependsOn: Array<{ on: number; lagDays: number }>
   }>
 }
 

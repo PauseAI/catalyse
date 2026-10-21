@@ -1,6 +1,7 @@
 import { test, expect, readAdminToken } from '../fixtures'
 import { fake } from '../fake'
 import { createApiClient } from '../client'
+import type { Locator, Page } from '@playwright/test'
 import type { RouterClient } from '@orpc/server'
 import type { appRouter } from '../../server/router'
 
@@ -51,7 +52,7 @@ async function schedule(api: Api, projectId: number) {
   expect(res.status, JSON.stringify(res.body)).toBe(200)
   return res.body as {
     tasks: { id: number }[]
-    dependencies: { predecessorId: number; successorId: number }[]
+    dependencies: { predecessorId: number; successorId: number; lagDays: number }[]
     scheduled: {
       id: number
       start: string | Date
@@ -66,6 +67,17 @@ async function schedule(api: Api, projectId: number) {
     scopeStart: string | Date
     scopeEnd: string | Date
   }
+}
+
+/** Presses on the middle of a bar and moves it `dx` pixels sideways, still held. */
+async function pickUpAndMove(page: Page, bar: Locator, dx: number) {
+  await bar.scrollIntoViewIfNeeded()
+  const box = (await bar.boundingBox())!
+  const [x, y] = [box.x + box.width / 2, box.y + box.height / 2]
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(x + dx / 2, y, { steps: 5 })
+  await page.mouse.move(x + dx, y, { steps: 5 })
 }
 
 test.describe('Work item scheduling and dependencies', () => {
@@ -127,6 +139,72 @@ test.describe('Work item scheduling and dependencies', () => {
     await plan.getByRole('button', { name: 'Stop waiting on First' }).click()
     await expect(panel.getByText('Nothing — can start whenever.')).toBeVisible()
     await expect.poll(async () => (await schedule(api, projectId)).dependencies).toHaveLength(0)
+  })
+
+  test('a task dragged later keeps following what it waits on, and cannot go before it finishes', async ({
+    baseUrl,
+    adminPage,
+    snap,
+  }, testInfo) => {
+    // On a phone the chart is too narrow to drag in: it scrolls itself under a pointer at its edge.
+    test.skip(testInfo.project.name.startsWith('mobile'), 'needs a desktop-width chart')
+    const api = createApiClient(baseUrl, readAdminToken(baseUrl))
+    const projectId = await makeProject(api, { startDate: day('2027-09-06') })
+    const first = await addTask(api, projectId, {
+      title: 'Book the hall',
+      startDate: day('2027-09-06'),
+      deadline: day('2027-09-08'),
+    })
+    const second = await addTask(api, projectId, {
+      title: 'Print posters',
+      deadline: day('2027-09-13'),
+    })
+    const res = await api.dependencies.add({ body: { predecessorId: first, successorId: second } })
+    expect(res.status, JSON.stringify(res.body)).toBe(200)
+
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#timeline`)
+    const hall = adminPage.getByRole('button', { name: /^Book the hall:/ })
+    const posters = adminPage.getByRole('button', { name: /^Print posters:/ })
+    // The chart fits the plan to its width, so a day's width is read off the three-day hall.
+    const days = async (n: number) => (n * (await hall.boundingBox())!.width) / 3
+    await expect(posters).toHaveAccessibleName(
+      /^Print posters: 9 September 2027 – 13 September 2027/,
+    )
+
+    // Three days later: still following, with a three-day gap.
+    await pickUpAndMove(adminPage, posters, await days(3))
+    await adminPage.mouse.up()
+    await expect(posters).toHaveAccessibleName(
+      /^Print posters: 12 September 2027 – 16 September 2027/,
+    )
+    await expect
+      .poll(async () => {
+        const s = await schedule(api, projectId)
+        return {
+          lag: s.dependencies[0].lagDays,
+          pinned: s.scheduled.find((p) => p.id === second)!.isPinned,
+        }
+      })
+      .toEqual({ lag: 3, pinned: false })
+
+    // The hall slips a day, and the posters keep their distance (their deadline stays put).
+    await pickUpAndMove(adminPage, hall, await days(1))
+    await adminPage.mouse.up()
+    await expect(hall).toHaveAccessibleName(/^Book the hall: 7 September 2027 – 9 September 2027/)
+    await expect(posters).toHaveAccessibleName(
+      /^Print posters: 13 September 2027 – 16 September 2027/,
+    )
+
+    // Dragged well before the hall is booked, the bar stops at the day after.
+    await pickUpAndMove(adminPage, posters, await days(-10))
+    const [held, before] = [(await posters.boundingBox())!, (await hall.boundingBox())!]
+    expect(Math.abs(held.x - (before.x + before.width))).toBeLessThan(2)
+    await snap(adminPage, 'dragged before what it waits on')
+    await adminPage.mouse.up()
+    await expect(posters).toHaveAccessibleName(
+      /^Print posters: 10 September 2027 – 13 September 2027/,
+    )
+    await expect.poll(async () => (await schedule(api, projectId)).dependencies[0].lagDays).toBe(0)
   })
 
   test('clicking a bar on the timeline opens the item panel', async ({ baseUrl, adminPage }) => {

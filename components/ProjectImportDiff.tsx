@@ -169,8 +169,23 @@ export default function ProjectImportDiff({
         <ul className="space-y-1 text-sm">
           {depChanges.map((d, i) => (
             <li key={i} className="rounded-lg border border-brand-border p-2">
-              {d.op === 'create' ? 'Add' : 'Remove'}: {entityLabel(d.predecessor)} →{' '}
-              {entityLabel(d.successor)}
+              {d.op === 'create' && (
+                <>
+                  Add: {entityLabel(d.predecessor)} → {entityLabel(d.successor)}
+                  {d.lagDays !== 0 ? ` (${d.lagDays}-day gap after it finishes)` : ''}
+                </>
+              )}
+              {d.op === 'delete' && (
+                <>
+                  Remove: {entityLabel(d.predecessor)} → {entityLabel(d.successor)}
+                </>
+              )}
+              {d.op === 'update' && (
+                <>
+                  Gap after it finishes: {entityLabel(d.predecessor)} → {entityLabel(d.successor)} (
+                  {fmt(d.fieldChanges?.[0]?.from)} → {fmt(d.fieldChanges?.[0]?.to)})
+                </>
+              )}
             </li>
           ))}
         </ul>

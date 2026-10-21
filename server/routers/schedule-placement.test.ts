@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createVolunteer, createAdmin, createProject, createTask } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
+import { prisma } from '@/lib/prisma'
 
 /**
  * Where the scheduler puts each task and project, read back through
@@ -29,7 +30,7 @@ async function schedule(projectId: number) {
   const result = await clientAs(admin).projects.listTasks({ projectId })
   return result as unknown as {
     tasks: { id: number }[]
-    dependencies: { predecessorId: number; successorId: number }[]
+    dependencies: { predecessorId: number; successorId: number; lagDays: number }[]
     scheduled: Placed[]
     scopeStart: string | Date
     scopeEnd: string | Date
@@ -40,9 +41,12 @@ async function schedule(projectId: number) {
 const placed = (s: Awaited<ReturnType<typeof schedule>>, id: number): Placed =>
   s.scheduled.find((x) => x.id === id)!
 
-async function link(predecessorId: number, successorId: number) {
+async function link(predecessorId: number, successorId: number, lagDays = 0) {
   const admin = await createAdmin()
-  return clientAs(admin).dependencies.add({ predecessorId, successorId })
+  const dep = await clientAs(admin).dependencies.add({ predecessorId, successorId })
+  // Only a drag sets lag; this stands in for one.
+  if (lagDays) await prisma.workItemDependency.update({ where: { id: dep.id }, data: { lagDays } })
+  return dep
 }
 
 describe('task placement', () => {
@@ -114,6 +118,17 @@ describe('dependencies and the schedule', () => {
     s = await schedule(project.id)
     expect(ymd(placed(s, a.id).end)).toBe('2026-04-07')
     expect(ymd(placed(s, b.id).start)).toBe('2026-04-08')
+  })
+
+  it('adds the lag between predecessor and successor', async () => {
+    const project = await createProject({ startDate: day('2026-05-01') })
+    const a = await createTask(project.id, {
+      startDate: day('2026-05-01'),
+      deadline: day('2026-05-03'),
+    })
+    const b = await createTask(project.id)
+    await link(a.id, b.id, 2)
+    expect(ymd(placed(await schedule(project.id), b.id).start)).toBe('2026-05-06')
   })
 
   it('leaves a pinned successor where it is and flags a pin before its predecessor', async () => {
@@ -250,6 +265,76 @@ describe('rescheduleItems and the schedule', () => {
     expect(ymd(placed(s, b.id).start)).toBe('2027-01-07')
     expect(placed(s, b.id).isPinned).toBe(false)
   })
+
+  it('keeps a dragged task following its predecessors, held by lag on the one finishing last', async () => {
+    const project = await createProject({ startDate: day('2027-01-04') })
+    const a = await createTask(project.id, {
+      startDate: day('2027-01-04'),
+      deadline: day('2027-01-06'),
+    })
+    const c = await createTask(project.id, {
+      startDate: day('2027-01-04'),
+      deadline: day('2027-01-10'),
+    })
+    // Pinned before c finishes; a drag turns it into a follower.
+    const b = await createTask(project.id, {
+      startDate: day('2027-01-05'),
+      deadline: day('2027-01-06'),
+    })
+    await link(a.id, b.id, 3)
+    await link(c.id, b.id)
+    const admin = await createAdmin()
+    const lags = async () =>
+      Object.fromEntries(
+        (await schedule(project.id)).dependencies.map((d) => [d.predecessorId, d.lagDays]),
+      )
+
+    await clientAs(admin).schedule.rescheduleItems({
+      items: [
+        { id: b.id, startDate: day('2027-01-15'), follow: true, deadline: day('2027-01-16') },
+      ],
+    })
+    let s = await schedule(project.id)
+    expect(placed(s, b.id)).toMatchObject({ isPinned: false, isDerived: true })
+    expect(ymd(placed(s, b.id).start)).toBe('2027-01-15')
+    expect(await lags()).toEqual({ [a.id]: 0, [c.id]: 4 })
+
+    // It moves with what it follows.
+    await clientAs(admin).projects.updateTask({
+      projectId: project.id,
+      taskId: c.id,
+      data: { deadline: day('2027-01-12') },
+    })
+    s = await schedule(project.id)
+    expect(ymd(placed(s, b.id).start)).toBe('2027-01-17')
+
+    // Dropped before c finishes, it lands the day after, with no gap.
+    await clientAs(admin).schedule.rescheduleItems({
+      items: [{ id: b.id, startDate: day('2027-01-03'), follow: true }],
+    })
+    s = await schedule(project.id)
+    expect(ymd(placed(s, b.id).start)).toBe('2027-01-13')
+    expect(await lags()).toEqual({ [a.id]: 0, [c.id]: 0 })
+  })
+
+  it('refuses to follow with nothing to follow or no day to hold', async () => {
+    const project = await createProject({ startDate: day('2027-01-04') })
+    const alone = await createTask(project.id)
+    const admin = await createAdmin()
+    await expect(
+      clientAs(admin).schedule.rescheduleItems({
+        items: [{ id: alone.id, startDate: day('2027-01-10'), follow: true }],
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: expect.stringMatching(/nothing/) })
+    await expect(
+      clientAs(admin).schedule.rescheduleItems({
+        items: [{ id: alone.id, startDate: null, follow: true }],
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+    expect(
+      (await prisma.workItem.findUniqueOrThrow({ where: { id: alone.id } })).scheduleUpdatedAt,
+    ).toBeNull()
+  })
 })
 
 describe('ganttOverview', () => {
@@ -269,6 +354,25 @@ describe('ganttOverview', () => {
     expect(ymd(pa.end)).toBe('2027-05-05')
     expect(ymd(pb.start)).toBe('2027-05-06')
     expect(body.dependencies).toMatchObject([{ predecessorId: a.id, successorId: b.id }])
+  })
+
+  it('keeps a dragged project following the one it waits on', async () => {
+    const a = await createProject({ startDate: day('2027-05-01'), durationDays: 5 })
+    const b = await createProject({ startDate: day('2027-05-02') })
+    const dep = await link(a.id, b.id)
+    const admin = await createAdmin()
+    await clientAs(admin).schedule.rescheduleItems({
+      items: [{ id: b.id, startDate: day('2027-05-09'), follow: true }],
+    })
+    expect(
+      await prisma.workItemDependency.findUniqueOrThrow({ where: { id: dep.id } }),
+    ).toMatchObject({ lagDays: 3 })
+    const body = (await clientAs(admin).projects.ganttOverview({})) as {
+      projects: { id: number; placement: { start: string | Date; isPinned: boolean } | null }[]
+    }
+    const pb = body.projects.find((p) => p.id === b.id)!.placement!
+    expect(ymd(pb.start)).toBe('2027-05-09')
+    expect(pb.isPinned).toBe(false)
   })
 
   it('hides archived projects until the archived filter is asked for', async () => {

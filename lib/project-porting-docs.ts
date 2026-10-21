@@ -42,7 +42,7 @@ export const PROJECT_IMPORT_EXAMPLE = {
       ref: 'permit',
       title: 'Apply for the permit',
       deadline: '2026-09-20',
-      dependsOn: [{ on: 101 }],
+      dependsOn: [{ on: 101, lagDays: 2 }],
     },
     {
       ref: 'rally',
@@ -135,14 +135,14 @@ Task: \`id\`, \`ref\`, \`title\` (required), \`description\`, \`status\` (\`not_
 \`dependsOn\` lists what must finish first:
 
 \`\`\`json
-"dependsOn": [{ "on": 101 }, { "on": "permit" }]
+"dependsOn": [{ "on": 101, "lagDays": 2 }, { "on": "permit" }]
 \`\`\`
 
 - \`on\` is either the numeric \`id\` of an existing task in this project, or the \`ref\` of a
   task defined anywhere in this file.
-- Links are finish-to-start only: a task that waits starts the day after everything it waits
-  on has finished. To leave a gap, give it its own \`startDate\`.
-- Cycles are rejected with the loop named.
+- \`lagDays\` is optional and signed, -365 to 365. Positive leaves a gap after the predecessor
+  finishes; negative overlaps them. Omit it for "starts the next day".
+- Links are finish-to-start only, and cycles are rejected with the loop named.
 
 ## \`$schema\` and \`_meta\`
 

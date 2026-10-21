@@ -13,6 +13,7 @@
 
 import {
   computeSchedule,
+  followAt,
   type ScheduleEdge,
   type ScheduleInput,
   type ScheduledItem,
@@ -36,6 +37,8 @@ export type ClientSchedulable = {
 export type PendingPatch = {
   id: number
   startDate: Date | string | null
+  /** Keeps following its predecessors, held at `startDate` by lag (see followAt). */
+  follow?: boolean
   durationDays?: number | null
   /** Tasks only: where the bar ends. */
   deadline?: Date | string | null
@@ -80,11 +83,18 @@ export function scheduleWithPatches(
     const item = toClientScheduleInput(t)
     return {
       ...item,
-      startDate: patch ? asDate(patch.startDate) : item.startDate,
+      startDate: patch ? (patch.follow ? null : asDate(patch.startDate)) : item.startDate,
       durationDays: patch && patch.durationDays !== undefined ? patch.durationDays : t.durationDays,
       deadline: patch && patch.deadline !== undefined ? asDate(patch.deadline) : item.deadline,
     }
   })
 
-  return computeSchedule(items, edges, asDate(origin)!).scheduled
+  const start = asDate(origin)!
+  const placed = computeSchedule(items, edges, start)
+  let links = edges
+  for (const patch of patches) {
+    const at = patch.follow ? followAt(placed, edges, patch.id, asDate(patch.startDate)!) : null
+    if (at) links = [...links.filter((e) => e.successorId !== patch.id), ...at.links]
+  }
+  return computeSchedule(items, links, start).scheduled
 }
