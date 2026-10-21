@@ -762,7 +762,7 @@ export default function SignupPage() {
                 <P className="text-text-light">
                   Meanwhile, confirm your email: we&#39;ve sent a link to {email}.
                 </P>
-                <div className="mt-6 pt-6 border-t border-border">
+                <div className="mt-6 pt-6 border-t border-brand-border">
                   {resendSent ? (
                     <P className="text-text-light text-sm">
                       {resendCooldown > 0
@@ -828,19 +828,15 @@ export default function SignupPage() {
                 <P className="text-text-light mb-4">Quick sign up with your Google account:</P>
                 {googleClientId && <div id="g_signup_btn" className="flex justify-center" />}
                 {googleStub && (
-                  <button
-                    type="button"
-                    onClick={handleGoogleStub}
-                    className="inline-flex items-center gap-2 border border-border rounded px-4 py-2 text-sm font-medium text-text-light hover:bg-accent transition-colors"
-                  >
+                  <Button type="button" variant="outline" size="sm" onClick={handleGoogleStub}>
                     <span>G</span> Sign up with Google (dev stub)
-                  </button>
+                  </Button>
                 )}
               </div>
               <div className="flex items-center my-4 gap-4">
-                <hr className="flex-1 border-none border-t border-brand-border" />
+                <hr className="flex-1 border-brand-border" />
                 <span className="text-text-light text-sm">or sign up with email</span>
-                <hr className="flex-1 border-none border-t border-brand-border" />
+                <hr className="flex-1 border-brand-border" />
               </div>
             </>
           )}
