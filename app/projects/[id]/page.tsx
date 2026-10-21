@@ -948,7 +948,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   // dependency edges the List view doesn't need.
   const { data: timeline } = useQuery({
     ...orpc.projects.listTasks.queryOptions({ input: { projectId: parseInt(idParam, 10) } }),
-    enabled: !!user && !!project && tab === 'timeline',
+    enabled: !!user && !!project?.showTimeline && tab === 'timeline',
   })
 
   const setBaselineMutation = useMutation({
@@ -1008,6 +1008,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     if (!el) return
     scrollToDiscussion.current = false
     el.scrollIntoView({ block: 'start' })
+  }, [tab, project])
+
+  // A link to the timeline of a project that hides it opens the tasks instead.
+  useEffect(() => {
+    if (tab !== 'timeline' || !project || project.showTimeline) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTab('tasks')
+    window.history.replaceState(null, '', '#tasks')
   }, [tab, project])
 
   // A draft has no read-only view of its own — everything happens on its edit page.
@@ -2241,7 +2249,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               tabs={[
                 { key: 'overview', label: 'Overview' },
                 { key: 'tasks', label: `Tasks (${orderedTasks.length})` },
-                { key: 'timeline', label: 'Timeline' },
+                ...(project.showTimeline ? [{ key: 'timeline', label: 'Timeline' }] : []),
                 {
                   key: 'people',
                   label: (
@@ -2570,20 +2578,23 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   ))}
                 </div>
               )}
-              {tab === 'tasks' && canManageTasks && pastPlanCount >= STALE_PLAN_FROM && (
-                <P className="text-text-light mb-3 text-sm">
-                  {pastPlanCount} tasks are past plan. If their bars were never placed, set real
-                  dates on the{' '}
-                  <button
-                    type="button"
-                    className="text-primary-text cursor-pointer border-0 bg-transparent p-0 underline"
-                    onClick={() => selectTab('timeline')}
-                  >
-                    Timeline
-                  </button>{' '}
-                  rather than replanning one at a time.
-                </P>
-              )}
+              {tab === 'tasks' &&
+                canManageTasks &&
+                project.showTimeline &&
+                pastPlanCount >= STALE_PLAN_FROM && (
+                  <P className="text-text-light mb-3 text-sm">
+                    {pastPlanCount} tasks are past plan. If their bars were never placed, set real
+                    dates on the{' '}
+                    <button
+                      type="button"
+                      className="text-primary-text cursor-pointer border-0 bg-transparent p-0 underline"
+                      onClick={() => selectTab('timeline')}
+                    >
+                      Timeline
+                    </button>{' '}
+                    rather than replanning one at a time.
+                  </P>
+                )}
               {tab === 'tasks' && keyDateTask && (
                 <P className="text-text-light mb-3 text-sm">
                   <span style={{ color: 'var(--gantt-anchor)' }}>★ Key date:</span>{' '}

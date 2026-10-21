@@ -131,6 +131,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
   const [skills, setSkills] = useState<SelectedSkill[]>([])
   const [seekingHelp, setSeekingHelp] = useState(true)
   const [autoAccept, setAutoAccept] = useState(true)
+  const [showTimeline, setShowTimeline] = useState(false)
   const [wantToOwn, setWantToOwn] = useState(false)
 
   const isGlobal = Boolean(user?.access.globalAdmin)
@@ -192,6 +193,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
     setProjectDeadline(toDateInputValue(data.deadline))
     setSeekingHelp(data.isSeekingHelp ?? false)
     setAutoAccept(data.autoAcceptTasks)
+    setShowTimeline(data.showTimeline)
     setWantToOwn(data.ownerId === user?.id)
     const isOwner = data.ownerId === user?.id || data.proposedById === user?.id
     setCanEdit(isOwner || data.viewerCanAdmin)
@@ -854,6 +856,28 @@ export default function ProjectEditor(props: ProjectEditorProps) {
             tasks. The deadline is the date the whole project should be done by; the timeline shows
             how far the plan lands from it.
           </P>
+          {/* Set by the owner or an admin, like the deadline; the server holds the same line. */}
+          {projectId !== undefined && (
+            <div className="basis-full">
+              <Checkbox
+                checked={showTimeline}
+                onChange={(e) => {
+                  setShowTimeline(e.target.checked)
+                  commitField({ showTimeline: e.target.checked })
+                }}
+                disabled={
+                  !canEdit ||
+                  !(projectData?.viewerCanAdmin || projectData?.ownerId === user?.id || isDraft)
+                }
+              >
+                Show timeline
+              </Checkbox>
+              <P className="text-sm text-text-light mt-1 mb-0">
+                Adds a Timeline tab to the project page, where anyone who can see the project can
+                follow the plan.
+              </P>
+            </div>
+          )}
         </div>
 
         <div className="mb-5">

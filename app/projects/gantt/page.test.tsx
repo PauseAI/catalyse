@@ -3,7 +3,16 @@ import { screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { DragEndEvent } from '@dnd-kit/core'
 import { prisma } from '@/lib/prisma'
-import { createVolunteer, createAdmin, createProject, createTask } from '@/test/factories'
+import {
+  createVolunteer,
+  createAdmin,
+  createChapter,
+  createChapterDeputy,
+  createChapterLead,
+  createProject,
+  createTask,
+} from '@/test/factories'
+import { navigation } from '@/test/next-navigation'
 import { renderApp } from '@/test/render'
 import RoadmapPage from './page'
 
@@ -22,8 +31,8 @@ vi.mock('@dnd-kit/core', async (importOriginal) => {
 })
 
 describe('roadmap page', () => {
-  it('explains an empty roadmap', async () => {
-    const me = await createVolunteer()
+  it('explains an empty roadmap to a chapter lead', async () => {
+    const me = await createChapterLead(await createChapter())
     await renderApp(<RoadmapPage />, { as: me })
     await screen.findByText(/No projects with a schedule/)
     expect(screen.getByText(/Each bar is a project/)).toHaveTextContent(
@@ -32,24 +41,20 @@ describe('roadmap page', () => {
   })
 
   it('gives a one-day plan as "1 day", not "1 days"', async () => {
-    const me = await createVolunteer()
-    await createProject({ title: 'Road one', durationDays: 1 })
+    const chapter = await createChapter()
+    const me = await createChapterDeputy(chapter)
+    await createProject({ title: 'Road one', durationDays: 1, nationalChapterId: chapter.id })
     await renderApp(<RoadmapPage />, { as: me })
     await screen.findByRole('button', { name: /^Road one:/ })
     expect(screen.getByText('Span').nextElementSibling).toHaveTextContent(/^1 day$/)
   })
 
-  it('is read-only for a volunteer, without the planning marks', async () => {
-    captured.onDragEnd = undefined
-    const me = await createVolunteer()
-    await createProject({ title: 'Road view', durationDays: 3 })
-    await renderApp(<RoadmapPage />, { as: me })
-    const bar = await screen.findByRole('button', { name: /^Road view:/ })
-    expect(bar.getAttribute('aria-label')).not.toMatch(/critical path|anchor/)
-    expect(screen.queryByText(/Drag a bar/)).toBeNull()
-    expect(screen.getByText(/Each bar spans a project/)).not.toHaveTextContent(/Drag to shift/)
-    expect(screen.queryByText('Critical path', { selector: 'span span' })).toBeNull()
-    expect(captured.onDragEnd).toBeUndefined()
+  it('turns a volunteer away to the project list', async () => {
+    await renderApp(<RoadmapPage />, { as: await createVolunteer() })
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledWith('/projects?notice=no-access'),
+    )
+    expect(screen.queryByRole('heading', { name: 'Projects' })).toBeNull()
   })
 
   it('draws projects as bars, toggles status filters, and links/moves projects by drag', async () => {

@@ -292,7 +292,8 @@ function ProjectsPageContent({ user }: { user: ApprovedUser }) {
             <Button href="/suggest">Propose a project</Button>
           </div>
         </div>
-        {!needsConfirmation && (
+        {/* The other view, the all-projects timeline, is for overseeing a chapter. */}
+        {!needsConfirmation && isStaffOrGlobal && (
           <ViewSwitch label="Project views" views={PROJECT_VIEWS} current="/projects" />
         )}
 

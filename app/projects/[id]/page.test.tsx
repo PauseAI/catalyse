@@ -789,6 +789,7 @@ describe('project page — Overview status bar and Discussion', () => {
     const project = await createProject({
       status: 'in_progress',
       assigneeId: owner.id,
+      showTimeline: true,
       description: 'What we are doing',
       deadline: new Date(Date.now() + 10 * DAY),
     })
@@ -843,6 +844,17 @@ describe('project page — Overview status bar and Discussion', () => {
       Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
     expect(follows(screen.getByText('What we are doing'), bar())).toBe(true)
     expect(follows(bar(), discussion)).toBe(true)
+  })
+
+  it('leaves out the Timeline tab of a project that hides it, and opens its tasks for a #timeline link', async () => {
+    const { owner, project } = await mixed()
+    await prisma.workItem.update({ where: { id: project.id }, data: { showTimeline: false } })
+    await mount(project.id, owner, '#timeline')
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: /^Tasks/ })).toHaveAttribute('aria-selected', 'true'),
+    )
+    expect(window.location.hash).toBe('#tasks')
+    expect(screen.queryByRole('tab', { name: 'Timeline' })).toBeNull()
   })
 
   it("shows the project's own deadline lateness in its status bar", async () => {
@@ -984,7 +996,11 @@ describe('project page — Overview status bar and Discussion', () => {
 describe('project page — key date', () => {
   it('labels tasks by their side of the key date and orders the timeline the same way', async () => {
     const owner = await createVolunteer()
-    const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
+    const project = await createProject({
+      status: 'in_progress',
+      assigneeId: owner.id,
+      showTimeline: true,
+    })
     const start = new Date('2030-03-01T00:00:00Z')
     // Created after-first, so the timeline has to reorder them.
     const press = await createTask(project.id, { title: 'Press', durationDays: 1 })
@@ -1016,7 +1032,11 @@ describe('project page — key date', () => {
 describe('project page — past plan', () => {
   it('flags a task past its plan in the list and in the timeline panel', async () => {
     const owner = await createVolunteer()
-    const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
+    const project = await createProject({
+      status: 'in_progress',
+      assigneeId: owner.id,
+      showTimeline: true,
+    })
     const start = new Date(Date.now() - 9 * 86_400_000)
     await createTask(project.id, {
       title: 'Behind',
@@ -1043,7 +1063,11 @@ describe('project page — past plan', () => {
 
   it('points a manager at the timeline when many tasks are past plan at once', async () => {
     const owner = await createVolunteer()
-    const project = await createProject({ status: 'in_progress', assigneeId: owner.id })
+    const project = await createProject({
+      status: 'in_progress',
+      assigneeId: owner.id,
+      showTimeline: true,
+    })
     for (let i = 0; i < 5; i++) {
       await createTask(project.id, {
         title: `Stale ${i}`,
@@ -1527,6 +1551,7 @@ describe('project page — timeline tab', () => {
       title: 'Timed project',
       assigneeId: owner.id,
       status: 'in_progress',
+      showTimeline: true,
       startDate: new Date('2026-06-01T00:00:00Z'),
     })
     const a = await createTask(project.id, {
@@ -1746,6 +1771,7 @@ describe('project page — timeline tab', () => {
       title: 'Empty timeline',
       assigneeId: owner.id,
       status: 'in_progress',
+      showTimeline: true,
     })
     await mount(project.id, owner, '#timeline')
     await screen.findByRole('heading', { name: 'Empty timeline' })
@@ -1840,6 +1866,7 @@ describe('project page — timeline tab', () => {
       title: 'Flyering',
       assigneeId: owner.id,
       status: 'in_progress',
+      showTimeline: true,
       startDate: new Date('2026-06-01T00:00:00Z'),
     })
     await createTask(project.id, { title: 'Hand out leaflets' })
@@ -1863,7 +1890,7 @@ describe('project page — timeline tab', () => {
 
     // With nothing dated, a visitor still sees the undated rows, and no instructions to place them.
     cleanup()
-    const bare = await createProject({ title: 'Bare', status: 'in_progress' })
+    const bare = await createProject({ title: 'Bare', status: 'in_progress', showTimeline: true })
     await createTask(bare.id, { title: 'Undated only' })
     await mount(bare.id, await createVolunteer(), '#timeline')
     await screen.findByText('No dates (1)')
@@ -2100,7 +2127,11 @@ describe('project page — reopening a done task', () => {
 
   it('reopens a done bar from the timeline panel, which is otherwise read-only', async () => {
     const owner = await createVolunteer()
-    const project = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    const project = await createProject({
+      assigneeId: owner.id,
+      status: 'in_progress',
+      showTimeline: true,
+    })
     const done = await createTask(project.id, {
       title: 'Built stage',
       status: 'completed',
