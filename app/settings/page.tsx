@@ -10,9 +10,11 @@ import Radio from '@/components/Radio'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
 import SkillPicker from '@/components/SkillPicker'
 import Tabs from '@/components/Tabs'
+import SectionCard from '@/components/SectionCard'
+import Modal from '@/components/ui/Modal'
 import ChapterMove from '@/components/ChapterMove'
 import { Badge } from '@/components/Badge'
-import { H1, H2, H3 } from '@/components/Heading'
+import { H1, H3 } from '@/components/Heading'
 import { P } from '@/components/Text'
 import FormLabel from '@/components/FormLabel'
 import Input from '@/components/ui/Input'
@@ -54,6 +56,10 @@ const TABS: { key: TabKey; label: string }[] = [
 ]
 
 const VALID_TABS = new Set<string>(TABS.map((t) => t.key))
+
+const SUBHEADING = 'mt-6 mb-3'
+const HINT =
+  'bg-brand-bg border border-brand-border rounded-lg px-4 py-3 mb-3 text-sm text-text-light'
 
 interface SelectedSkill {
   skillId: number
@@ -355,6 +361,12 @@ function SettingsPageContent() {
     changePasswordMutation.mutate({ currentPassword, newPassword })
   }
 
+  function closeDeleteModal() {
+    setShowDeleteModal(false)
+    setDeletePassword('')
+    setDeleteConfirmPassword('')
+  }
+
   function handleDeleteAccount(e: FormEvent) {
     e.preventDefault()
     if (user?.hasPassword) {
@@ -398,484 +410,468 @@ function SettingsPageContent() {
 
       <Tabs tabs={TABS} activeTab={activeTab} onChange={setTab} />
 
-      {activeTab === 'profile' && user.approvalStatus === 'needs_info' && (
-        <div
-          className={`${SECTION_CARD} mb-4 max-w-4xl border-2 border-amber-300 dark:border-amber-700`}
-        >
-          <H2 className="mt-0">Your application</H2>
-          {myApplication?.applicationApplicantNotes && (
-            <>
-              <P className="text-sm font-semibold text-text-light mb-1">Message from the team</P>
-              <div className="bg-background rounded-lg p-4 mb-4 whitespace-pre-wrap text-sm">
-                {myApplication.applicationApplicantNotes}
-              </div>
-            </>
-          )}
-          <div className="mb-4">
-            <FormLabel htmlFor="applicationMessage">Your application</FormLabel>
-            <Textarea
-              id="applicationMessage"
-              rows={5}
-              minLength={20}
-              value={applicationMessage}
-              onChange={(e) => setApplicationMessage(e.target.value)}
-            />
-            {applicationMessage.trim().length < 20 && (
-              <P className="text-sm text-text-light mt-1">Please write at least 20 characters.</P>
+      <div className="max-w-4xl flex flex-col gap-6">
+        {activeTab === 'profile' && user.approvalStatus === 'needs_info' && (
+          <SectionCard
+            as="div"
+            title="Your application"
+            className="border-2 border-amber-300 dark:border-amber-700"
+          >
+            {myApplication?.applicationApplicantNotes && (
+              <>
+                <P className="text-sm font-semibold text-text-light mb-1">Message from the team</P>
+                <div className="bg-brand-bg rounded-lg p-4 mb-4 whitespace-pre-wrap text-sm">
+                  {myApplication.applicationApplicantNotes}
+                </div>
+              </>
             )}
-          </div>
-          <Button
-            onClick={handleResubmitApplication}
-            disabled={
-              updateApplicationMutation.isPending ||
-              resubmitMutation.isPending ||
-              applicationMessage.trim().length < 20
-            }
-          >
-            {updateApplicationMutation.isPending || resubmitMutation.isPending
-              ? 'Resubmitting…'
-              : 'Resubmit for review'}
-          </Button>
-          <P className="text-sm text-text-light mt-3">
-            Update your skills, contact details, or availability below, then resubmit when
-            you&apos;re ready: an admin will review your application again.
-          </P>
-        </div>
-      )}
+            <div className="mb-4">
+              <FormLabel htmlFor="applicationMessage">Your application</FormLabel>
+              <Textarea
+                id="applicationMessage"
+                rows={5}
+                minLength={20}
+                value={applicationMessage}
+                onChange={(e) => setApplicationMessage(e.target.value)}
+              />
+              {applicationMessage.trim().length < 20 && (
+                <P className="text-sm text-text-light mt-1">Please write at least 20 characters.</P>
+              )}
+            </div>
+            <Button
+              onClick={handleResubmitApplication}
+              disabled={
+                updateApplicationMutation.isPending ||
+                resubmitMutation.isPending ||
+                applicationMessage.trim().length < 20
+              }
+            >
+              {updateApplicationMutation.isPending || resubmitMutation.isPending
+                ? 'Resubmitting…'
+                : 'Resubmit for review'}
+            </Button>
+            <P className="text-sm text-text-light mt-3 mb-0">
+              Update your skills, contact details, or availability below, then resubmit when
+              you&apos;re ready: an admin will review your application again.
+            </P>
+          </SectionCard>
+        )}
 
-      {activeTab === 'profile' && user.approvalStatus === 'under_review' && (
-        <div className={`${SECTION_CARD} mb-4 max-w-4xl`}>
-          <P className="text-text-light m-0">
-            Your application has been resubmitted and is awaiting review. You can still update your
-            profile below, but your application won&apos;t need resubmitting again unless an admin
-            asks for more information.
-          </P>
-        </div>
-      )}
+        {activeTab === 'profile' && user.approvalStatus === 'under_review' && (
+          <SectionCard as="div">
+            <P className="text-text-light m-0">
+              Your application has been resubmitted and is awaiting review. You can still update
+              your profile below, but your application won&apos;t need resubmitting again unless an
+              admin asks for more information.
+            </P>
+          </SectionCard>
+        )}
 
-      {activeTab === 'profile' && (
-        <form
-          className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word max-w-4xl`}
-          onSubmit={handleSave}
-        >
-          <H3 className="mt-0 mb-4">Details</H3>
-          <div className="mb-5">
-            <FormLabel htmlFor="name" required>
-              Your name
-            </FormLabel>
-            <Input
-              type="text"
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </div>
-          <div className="mb-5">
-            <FormLabel htmlFor="bio">About you</FormLabel>
-            <aside className="bg-brand-bg border border-brand-border rounded-lg px-4 py-3 mb-2 text-sm text-text-light">
-              Shown to other volunteers in the directory if you choose to make your profile visible
-              in the Privacy &amp; data tab.
+        {activeTab === 'profile' && (
+          <SectionCard as="form" title="Details" onSubmit={handleSave}>
+            <div className="mb-5">
+              <FormLabel htmlFor="name" required>
+                Your name
+              </FormLabel>
+              <Input
+                type="text"
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="mb-5">
+              <FormLabel htmlFor="bio">About you</FormLabel>
+              <aside className={HINT}>
+                Shown to other volunteers in the directory if you choose to make your profile
+                visible in the Privacy &amp; data tab.
+              </aside>
+              <Textarea
+                id="bio"
+                rows={4}
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="Your background and what brings you to PauseAI…"
+              />
+            </div>
+
+            <H3 className={SUBHEADING}>Contact information</H3>
+            <aside className={HINT}>
+              Always visible to you and admins. Shared with the people you work with on a project,
+              and with anyone whose contact request you accept.
             </aside>
-            <Textarea
-              id="bio"
-              rows={4}
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="Your background and what brings you to PauseAI…"
-            />
-          </div>
-
-          <H3 className="mt-6 mb-4">Contact information</H3>
-          <aside className="bg-brand-bg border border-brand-border rounded-lg px-4 py-3 mb-4 text-sm text-text-light">
-            Always visible to you and admins. Shared with the people you work with on a project, and
-            with anyone whose contact request you accept.
-          </aside>
-          <div className="grid grid-cols-2 gap-5 mb-5 max-sm:grid-cols-1">
-            <div>
-              <FormLabel htmlFor="discord_handle">Discord handle</FormLabel>
+            <div className="grid grid-cols-2 gap-5 mb-5 max-sm:grid-cols-1">
+              <div>
+                <FormLabel htmlFor="discord_handle">Discord handle</FormLabel>
+                <Input
+                  type="text"
+                  id="discord_handle"
+                  value={discordHandle}
+                  onChange={(e) => setDiscordHandle(e.target.value)}
+                  placeholder="e.g. username#1234"
+                />
+              </div>
+              <div>
+                <FormLabel htmlFor="signal_number">Signal</FormLabel>
+                <Input
+                  type="text"
+                  id="signal_number"
+                  value={signalNumber}
+                  onChange={(e) => setSignalNumber(e.target.value)}
+                  placeholder="e.g. +44…"
+                />
+              </div>
+              <div>
+                <FormLabel htmlFor="whatsapp_number">WhatsApp</FormLabel>
+                <Input
+                  type="text"
+                  id="whatsapp_number"
+                  value={whatsappNumber}
+                  onChange={(e) => setWhatsappNumber(e.target.value)}
+                  placeholder="e.g. +44…"
+                />
+              </div>
+              <div>
+                <FilterDropdown
+                  id="contact_preference"
+                  label="Preferred contact method"
+                  ariaLabel="Preferred contact method"
+                  value={contactPreference}
+                  options={contactPrefOptions}
+                  onChange={setContactPreference}
+                />
+              </div>
+            </div>
+            <div className="mb-5">
+              <FormLabel htmlFor="contact_notes">Contact notes</FormLabel>
               <Input
                 type="text"
-                id="discord_handle"
-                value={discordHandle}
-                onChange={(e) => setDiscordHandle(e.target.value)}
-                placeholder="e.g. username#1234"
+                id="contact_notes"
+                value={contactNotes}
+                onChange={(e) => setContactNotes(e.target.value)}
+                placeholder="e.g. Best to DM me on Discord first"
               />
             </div>
-            <div>
-              <FormLabel htmlFor="signal_number">Signal</FormLabel>
+
+            <H3 className={SUBHEADING}>Skills &amp; availability</H3>
+            <div className="mb-5">
+              <FormLabel htmlFor="hours">Hours per week</FormLabel>
+              <Input
+                type="number"
+                id="hours"
+                min={0}
+                max={168}
+                value={hours}
+                onChange={(e) => setHours(e.target.value)}
+              />
+            </div>
+            <div className="mb-5">
+              <SkillPicker value={skills} onChange={setSkills} />
+            </div>
+            <div className="mb-5">
+              <FormLabel htmlFor="other_skills">Other skills</FormLabel>
               <Input
                 type="text"
-                id="signal_number"
-                value={signalNumber}
-                onChange={(e) => setSignalNumber(e.target.value)}
-                placeholder="e.g. +44…"
+                id="other_skills"
+                placeholder="Any skills not listed above…"
+                value={otherSkills}
+                onChange={(e) => setOtherSkills(e.target.value)}
               />
             </div>
-            <div>
-              <FormLabel htmlFor="whatsapp_number">WhatsApp</FormLabel>
-              <Input
-                type="text"
-                id="whatsapp_number"
-                value={whatsappNumber}
-                onChange={(e) => setWhatsappNumber(e.target.value)}
-                placeholder="e.g. +44…"
-              />
-            </div>
-            <div>
-              <FilterDropdown
-                id="contact_preference"
-                label="Preferred contact method"
-                ariaLabel="Preferred contact method"
-                value={contactPreference}
-                options={contactPrefOptions}
-                onChange={setContactPreference}
-              />
-            </div>
-          </div>
-          <div className="mb-5">
-            <FormLabel htmlFor="contact_notes">Contact notes</FormLabel>
-            <Input
-              type="text"
-              id="contact_notes"
-              value={contactNotes}
-              onChange={(e) => setContactNotes(e.target.value)}
-              placeholder="e.g. Best to DM me on Discord first"
-            />
-          </div>
 
-          <H3 className="mt-6 mb-4">Skills &amp; availability</H3>
-          <div className="mb-5">
-            <FormLabel htmlFor="hours">Hours per week</FormLabel>
-            <Input
-              type="number"
-              id="hours"
-              min={0}
-              max={168}
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-            />
-          </div>
-          <div className="mb-5">
-            <SkillPicker value={skills} onChange={setSkills} />
-          </div>
-          <div className="mb-5">
-            <FormLabel htmlFor="other_skills">Other skills</FormLabel>
-            <Input
-              type="text"
-              id="other_skills"
-              placeholder="Any skills not listed above…"
-              value={otherSkills}
-              onChange={(e) => setOtherSkills(e.target.value)}
-            />
-          </div>
-
-          {saveButton}
-        </form>
-      )}
-
-      {activeTab === 'profile' && (
-        // Its own form: the country, once set, decides the chapter and is changed only by
-        // asking to move, not by this form's submit — ChapterMove's own buttons are plain
-        // buttons so they don't trigger it.
-        <form
-          className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word max-w-4xl`}
-          onSubmit={handleSave}
-        >
-          <H3 className="mt-0 mb-4">Location</H3>
-          {me?.country ? (
-            <div className="mb-5">
-              <span className="block font-semibold mb-1">Country</span>
-              <P className="m-0">
-                {countryLabel(me.country)} ·{' '}
-                {me.chapter ? `${me.chapter.name} chapter` : 'Holding pool'}
-              </P>
-              <ChapterMove country={me.country} />
-            </div>
-          ) : (
-            <div className="mb-5">
-              <FilterDropdown
-                id="locationCountry"
-                label="Country"
-                ariaLabel="Select country"
-                value={countryValue}
-                options={countryOptions()}
-                onChange={handleCountryChange}
-                searchable
-              />
-            </div>
-          )}
-          {countryValue && hasLocalGroups && (
-            <div className="mb-5">
-              <FilterDropdown
-                id="locationGroup"
-                label="Local group"
-                ariaLabel="Select local group"
-                value={localGroupValue}
-                options={localGroupOptions}
-                onChange={setLocalGroupValue}
-                searchable
-              />
-            </div>
-          )}
-          {showCityInput && (
-            <div className="mb-5">
-              <FormLabel htmlFor="location">City / area</FormLabel>
-              <Input
-                type="text"
-                id="location"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-              />
-            </div>
-          )}
-          <P className="text-sm text-text-light mb-4">
-            Don&apos;t see your local group?{' '}
-            <Link href="/suggest-local-group" className="underline">
-              Suggest one
-            </Link>
-            .
-          </P>
-
-          {saveLocationButton}
-        </form>
-      )}
-
-      {activeTab === 'account' && (
-        <div className="max-w-4xl">
-          <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
-            <H2>Change email</H2>
-            <P className="text-sm text-text-light mb-4">
-              Current email: <strong>{user.email}</strong>
-            </P>
-            <form method="post" onSubmit={handleChangeEmail}>
-              <div className="mb-5">
-                <FormLabel htmlFor="newEmail">New email address</FormLabel>
-                <Input
-                  type="email"
-                  id="newEmail"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="mb-5">
-                <FormLabel htmlFor="email_password">Your password</FormLabel>
-                <Input
-                  type="password"
-                  id="email_password"
-                  value={emailPassword}
-                  onChange={(e) => setEmailPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <Button type="submit" disabled={changeEmailMutation.isPending}>
-                {changeEmailMutation.isPending ? 'Changing…' : 'Change email'}
-              </Button>
-            </form>
-          </div>
-
-          <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
-            <H2>Change password</H2>
-            <form method="post" onSubmit={handleChangePassword}>
-              <div className="mb-5">
-                <FormLabel htmlFor="currentPassword">Current password</FormLabel>
-                <Input
-                  type="password"
-                  id="currentPassword"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="mb-5">
-                <FormLabel htmlFor="newPassword">New password</FormLabel>
-                <Input
-                  type="password"
-                  id="newPassword"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="mb-5">
-                <FormLabel htmlFor="confirm_password">Confirm new password</FormLabel>
-                <Input
-                  type="password"
-                  id="confirm_password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <Button type="submit" disabled={changePasswordMutation.isPending}>
-                {changePasswordMutation.isPending ? 'Changing…' : 'Change password'}
-              </Button>
-            </form>
-          </div>
-
-          <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
-            <H2>Sessions</H2>
-            <P className="text-text-light mb-4">
-              Sign out everywhere except this device — use this if you signed in somewhere you no
-              longer trust.
-            </P>
-            <Button
-              variant="outline"
-              disabled={logoutOtherSessionsMutation.isPending}
-              onClick={() => logoutOtherSessionsMutation.mutate({})}
-            >
-              {logoutOtherSessionsMutation.isPending
-                ? 'Signing out other sessions…'
-                : 'Log out of all other sessions'}
-            </Button>
-          </div>
-
-          <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
-            <H2>Danger zone</H2>
-            <P className="text-text-light mb-4">
-              Permanently delete your account and all associated data. This cannot be undone.
-            </P>
-            <Button variant="danger" onClick={() => setShowDeleteModal(true)}>
-              Delete my account
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'notifications' && (
-        <form
-          className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word max-w-4xl`}
-          onSubmit={handleSave}
-        >
-          <div className="mb-5">
-            <FilterDropdown
-              id="email_digest"
-              label="Keep me in the loop about new projects"
-              ariaLabel="Keep me in the loop about new projects"
-              value={emailDigest}
-              options={emailDigestOptions}
-              onChange={setEmailDigest}
-            />
-          </div>
-          <fieldset className="mb-5 border-0 p-0">
-            <legend className="font-medium mb-2">Also email me</legend>
-            <div className="flex flex-col gap-2">
-              {MUTABLE_EMAIL_CATEGORIES.map((c) => (
-                <Checkbox
-                  key={c}
-                  id={`email_${c}`}
-                  checked={!emailMutedCategories.includes(c)}
-                  onChange={(e) =>
-                    setEmailMutedCategories((muted) =>
-                      e.target.checked ? muted.filter((m) => m !== c) : [...muted, c],
-                    )
-                  }
-                >
-                  {EMAIL_CATEGORY_LABELS[c]}
-                </Checkbox>
-              ))}
-            </div>
-            <P className="text-sm text-text-light mt-1 ml-7">
-              Everything still arrives in your Inbox. Messages from other volunteers are always
-              emailed as well.
-            </P>
-          </fieldset>
-          <fieldset className="mb-5 border-0 p-0">
-            <legend className="font-medium mb-2">Daily summary</legend>
-            <div className="flex flex-col gap-2">
-              {DAILY_SUMMARY_CHOICES.map((c) => (
-                <Radio
-                  key={c.value}
-                  name="daily_summary"
-                  checked={dailySummary === c.value}
-                  onChange={() => setDailySummary(c.value)}
-                >
-                  {c.label}
-                </Radio>
-              ))}
-            </div>
-            <P className="text-sm text-text-light mt-1 ml-7">
-              One message a day, only when something needs you: deadlines coming up, work past its
-              plan, and news on projects you lead. Turning it off never hides the Overdue flag or
-              what is waiting on your Home page.
-            </P>
-          </fieldset>
-          {saveButton}
-        </form>
-      )}
-
-      {activeTab === 'privacy' && (
-        <div className="max-w-4xl">
-          <form
-            className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}
-            onSubmit={handleSave}
-          >
-            <H2 className="mt-0">Privacy settings</H2>
-            <div className="mb-5 flex flex-col gap-3">
-              <Checkbox
-                id="consent_make_profile_visible_in_directory"
-                checked={consentMakeProfileVisibleInDirectory}
-                onChange={(e) => setConsentMakeProfileVisibleInDirectory(e.target.checked)}
-              >
-                Show me in the volunteer directory
-              </Checkbox>
-              <P className="text-sm text-text-light m-0 ml-7">
-                Other volunteers can find you and ask to see your contact details; you choose
-                whether to accept. People on your projects can always reach you.
-              </P>
-            </div>
-
-            <H3 className="mt-6 mb-2">Analytics</H3>
-            <P className="text-sm text-text-light mb-3">
-              Current status: <strong>{me?.cookieConsentAnalytics === false ? 'off' : 'on'}</strong>
-            </P>
-            <div className="mb-5">
-              <Checkbox
-                id="consent_analytics"
-                checked={consentAnalytics}
-                onChange={(e) => setConsentAnalytics(e.target.checked)}
-              >
-                Allow Google Analytics to help us improve the platform
-              </Checkbox>
-              <P className="text-sm text-text-light mt-1 ml-7">
-                Google, our analytics provider, processes this data on our behalf. We never sell it
-                or share it for any other purpose.
-              </P>
-            </div>
             {saveButton}
-          </form>
+          </SectionCard>
+        )}
 
-          <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
-            <H2 className="mt-0">Your data</H2>
-            <P className="text-text-light mb-4">
-              Download all your data in JSON format. This includes your profile, skills, projects
-              and tasks, messages, comments, and notes admins have written about you.
+        {activeTab === 'profile' && (
+          // Its own form: the country, once set, decides the chapter and is changed only by
+          // asking to move, not by this form's submit — ChapterMove's own buttons are plain
+          // buttons so they don't trigger it.
+          <SectionCard as="form" title="Location" onSubmit={handleSave}>
+            {me?.country ? (
+              <div className="mb-5">
+                <span className="block font-semibold mb-1">Country</span>
+                <P className="m-0">
+                  {countryLabel(me.country)} ·{' '}
+                  {me.chapter ? `${me.chapter.name} chapter` : 'Holding pool'}
+                </P>
+                <ChapterMove country={me.country} />
+              </div>
+            ) : (
+              <div className="mb-5">
+                <FilterDropdown
+                  id="locationCountry"
+                  label="Country"
+                  ariaLabel="Select country"
+                  value={countryValue}
+                  options={countryOptions()}
+                  onChange={handleCountryChange}
+                  searchable
+                />
+              </div>
+            )}
+            {countryValue && hasLocalGroups && (
+              <div className="mb-5">
+                <FilterDropdown
+                  id="locationGroup"
+                  label="Local group"
+                  ariaLabel="Select local group"
+                  value={localGroupValue}
+                  options={localGroupOptions}
+                  onChange={setLocalGroupValue}
+                  searchable
+                />
+              </div>
+            )}
+            {showCityInput && (
+              <div className="mb-5">
+                <FormLabel htmlFor="location">City / area</FormLabel>
+                <Input
+                  type="text"
+                  id="location"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                />
+              </div>
+            )}
+            <P className="text-sm text-text-light mb-5">
+              Don&apos;t see your local group?{' '}
+              <Link href="/suggest-local-group" className="underline">
+                Suggest one
+              </Link>
+              .
             </P>
-            <Button
-              variant="secondary"
-              onClick={() => exportMutation.mutate({})}
-              disabled={exportMutation.isPending}
+
+            {saveLocationButton}
+          </SectionCard>
+        )}
+
+        {activeTab === 'account' && (
+          <>
+            <SectionCard
+              title="Change email"
+              description={
+                <>
+                  Current email: <strong>{user.email}</strong>
+                </>
+              }
             >
-              {exportMutation.isPending ? 'Preparing…' : 'Download my data'}
-            </Button>
-          </div>
+              <form method="post" onSubmit={handleChangeEmail}>
+                <div className="mb-5">
+                  <FormLabel htmlFor="newEmail">New email address</FormLabel>
+                  <Input
+                    type="email"
+                    id="newEmail"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="mb-5">
+                  <FormLabel htmlFor="email_password">Your password</FormLabel>
+                  <Input
+                    type="password"
+                    id="email_password"
+                    value={emailPassword}
+                    onChange={(e) => setEmailPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button type="submit" disabled={changeEmailMutation.isPending}>
+                  {changeEmailMutation.isPending ? 'Changing…' : 'Change email'}
+                </Button>
+              </form>
+            </SectionCard>
 
-          <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
-            <H2 className="mt-0">Privacy policy</H2>
-            <P className="text-text-light mb-4">
-              Read our full data practices, GDPR rights, and third-party processor information.
-            </P>
-            <Link href="/privacy" className="underline font-medium">
-              Read privacy policy
-            </Link>
-          </div>
-        </div>
-      )}
+            <SectionCard title="Change password">
+              <form method="post" onSubmit={handleChangePassword}>
+                <div className="mb-5">
+                  <FormLabel htmlFor="currentPassword">Current password</FormLabel>
+                  <Input
+                    type="password"
+                    id="currentPassword"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="mb-5">
+                  <FormLabel htmlFor="newPassword">New password</FormLabel>
+                  <Input
+                    type="password"
+                    id="newPassword"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="mb-5">
+                  <FormLabel htmlFor="confirm_password">Confirm new password</FormLabel>
+                  <Input
+                    type="password"
+                    id="confirm_password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button type="submit" disabled={changePasswordMutation.isPending}>
+                  {changePasswordMutation.isPending ? 'Changing…' : 'Change password'}
+                </Button>
+              </form>
+            </SectionCard>
 
-      {activeTab === 'bug-reports' && (
-        <div className="max-w-4xl">
-          {loadingBugReports ? (
+            <SectionCard
+              title="Sessions"
+              description="Sign out everywhere except this device — use this if you signed in somewhere you no longer trust."
+            >
+              <Button
+                variant="secondary"
+                disabled={logoutOtherSessionsMutation.isPending}
+                onClick={() => logoutOtherSessionsMutation.mutate({})}
+              >
+                {logoutOtherSessionsMutation.isPending
+                  ? 'Signing out other sessions…'
+                  : 'Log out of all other sessions'}
+              </Button>
+            </SectionCard>
+
+            <SectionCard
+              title="Danger zone"
+              description="Permanently delete your account and all associated data. This cannot be undone."
+            >
+              <Button variant="danger" onClick={() => setShowDeleteModal(true)}>
+                Delete my account
+              </Button>
+            </SectionCard>
+          </>
+        )}
+
+        {activeTab === 'notifications' && (
+          <SectionCard as="form" title="Notifications" onSubmit={handleSave}>
+            <div className="mb-5">
+              <FilterDropdown
+                id="email_digest"
+                label="Keep me in the loop about new projects"
+                ariaLabel="Keep me in the loop about new projects"
+                value={emailDigest}
+                options={emailDigestOptions}
+                onChange={setEmailDigest}
+              />
+            </div>
+            <fieldset className="mb-5 border-0 p-0">
+              <legend className="font-medium mb-2">Also email me</legend>
+              <div className="flex flex-col gap-2">
+                {MUTABLE_EMAIL_CATEGORIES.map((c) => (
+                  <Checkbox
+                    key={c}
+                    id={`email_${c}`}
+                    checked={!emailMutedCategories.includes(c)}
+                    onChange={(e) =>
+                      setEmailMutedCategories((muted) =>
+                        e.target.checked ? muted.filter((m) => m !== c) : [...muted, c],
+                      )
+                    }
+                  >
+                    {EMAIL_CATEGORY_LABELS[c]}
+                  </Checkbox>
+                ))}
+              </div>
+              <P className="text-sm text-text-light mt-1 ml-7">
+                Everything still arrives in your Inbox. Messages from other volunteers are always
+                emailed as well.
+              </P>
+            </fieldset>
+            <fieldset className="mb-5 border-0 p-0">
+              <legend className="font-medium mb-2">Daily summary</legend>
+              <div className="flex flex-col gap-2">
+                {DAILY_SUMMARY_CHOICES.map((c) => (
+                  <Radio
+                    key={c.value}
+                    name="daily_summary"
+                    checked={dailySummary === c.value}
+                    onChange={() => setDailySummary(c.value)}
+                  >
+                    {c.label}
+                  </Radio>
+                ))}
+              </div>
+              <P className="text-sm text-text-light mt-1 ml-7">
+                One message a day, only when something needs you: deadlines coming up, work past its
+                plan, and news on projects you lead. Turning it off never hides the Overdue flag or
+                what is waiting on your Home page.
+              </P>
+            </fieldset>
+            {saveButton}
+          </SectionCard>
+        )}
+
+        {activeTab === 'privacy' && (
+          <>
+            <SectionCard as="form" title="Privacy settings" onSubmit={handleSave}>
+              <H3 className="mt-0 mb-3">Volunteer directory</H3>
+              <div className="mb-5">
+                <Checkbox
+                  id="consent_make_profile_visible_in_directory"
+                  checked={consentMakeProfileVisibleInDirectory}
+                  onChange={(e) => setConsentMakeProfileVisibleInDirectory(e.target.checked)}
+                >
+                  Show me in the volunteer directory
+                </Checkbox>
+                <P className="text-sm text-text-light mt-1 ml-7">
+                  Other volunteers can find you and ask to see your contact details; you choose
+                  whether to accept. People on your projects can always reach you.
+                </P>
+              </div>
+
+              <H3 className={SUBHEADING}>Analytics</H3>
+              <P className="text-sm text-text-light mb-3">
+                Current status:{' '}
+                <strong>{me?.cookieConsentAnalytics === false ? 'off' : 'on'}</strong>
+              </P>
+              <div className="mb-5">
+                <Checkbox
+                  id="consent_analytics"
+                  checked={consentAnalytics}
+                  onChange={(e) => setConsentAnalytics(e.target.checked)}
+                >
+                  Allow Google Analytics to help us improve the platform
+                </Checkbox>
+                <P className="text-sm text-text-light mt-1 ml-7">
+                  Google, our analytics provider, processes this data on our behalf. We never sell
+                  it or share it for any other purpose.
+                </P>
+              </div>
+              {saveButton}
+            </SectionCard>
+
+            <SectionCard
+              title="Your data"
+              description="Download all your data in JSON format. This includes your profile, skills, projects and tasks, messages, comments, and notes admins have written about you."
+            >
+              <Button
+                variant="secondary"
+                onClick={() => exportMutation.mutate({})}
+                disabled={exportMutation.isPending}
+              >
+                {exportMutation.isPending ? 'Preparing…' : 'Download my data'}
+              </Button>
+            </SectionCard>
+
+            <SectionCard
+              title="Privacy policy"
+              description="Read our full data practices, GDPR rights, and third-party processor information."
+            >
+              <Button variant="outline" href="/privacy">
+                Read privacy policy
+              </Button>
+            </SectionCard>
+          </>
+        )}
+
+        {activeTab === 'bug-reports' &&
+          (loadingBugReports ? (
             <div className="text-center py-10 text-text-light">Loading…</div>
           ) : myBugReports.length === 0 ? (
             <P>You haven&apos;t reported anything yet.</P>
@@ -884,7 +880,7 @@ function SettingsPageContent() {
               <Link
                 key={r.id}
                 href={`/bugs/${r.id}`}
-                className="card block bg-surface rounded-xl shadow p-6 mb-4 overflow-hidden wrap-break-word w-full"
+                className={`card block ${SECTION_CARD} overflow-hidden wrap-break-word`}
               >
                 <div className="flex justify-between items-start mb-2">
                   <div>
@@ -906,93 +902,72 @@ function SettingsPageContent() {
                 )}
               </Link>
             ))
-          )}
-        </div>
-      )}
+          ))}
+      </div>
 
-      {showDeleteModal && (
-        <div
-          id="deleteModal"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Delete account"
-          className="fixed inset-0 bg-[rgba(29,53,87,0.5)] flex items-center justify-center z-1000 p-5"
-        >
-          <div className="bg-surface rounded-xl shadow-lg max-w-125 w-full max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-5 border-b border-brand-border flex justify-between items-center">
-              <H2 className="m-0 text-xl">Delete your account</H2>
-            </div>
-            <div className="p-6">
-              {user.hasPassword && (
-                <P className="text-text-light mb-4">
-                  This action is permanent and cannot be undone. Please enter your password twice to
-                  confirm.
-                </P>
-              )}
-              <form method="post" onSubmit={handleDeleteAccount}>
-                {user.hasPassword ? (
-                  <>
-                    <div className="mb-5">
-                      <FormLabel htmlFor="delete_password">Enter your password</FormLabel>
-                      <Input
-                        type="password"
-                        id="delete_password"
-                        value={deletePassword}
-                        onChange={(e) => setDeletePassword(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="mb-5">
-                      <FormLabel htmlFor="delete_confirm_password">Confirm your password</FormLabel>
-                      <Input
-                        type="password"
-                        id="delete_confirm_password"
-                        value={deleteConfirmPassword}
-                        onChange={(e) => setDeleteConfirmPassword(e.target.value)}
-                        required
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <P className="text-text-light mb-4">
-                      This action is permanent and cannot be undone.
-                    </P>
-                    <P className="text-text-light mb-4">
-                      Type <strong>DELETE</strong> to confirm.
-                    </P>
-                    <div className="mb-5">
-                      <Input
-                        type="text"
-                        value={deletePassword}
-                        onChange={(e) => setDeletePassword(e.target.value)}
-                        placeholder="DELETE"
-                        required
-                      />
-                    </div>
-                  </>
-                )}
-                <div className="flex gap-2">
-                  <Button type="submit" variant="danger" disabled={deleteAccountMutation.isPending}>
-                    {deleteAccountMutation.isPending ? 'Deleting…' : 'Permanently delete account'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      setShowDeleteModal(false)
-                      setDeletePassword('')
-                      setDeleteConfirmPassword('')
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </div>
+      <Modal
+        id="deleteModal"
+        title="Delete your account"
+        isOpen={showDeleteModal}
+        onClose={closeDeleteModal}
+      >
+        {user.hasPassword && (
+          <P className="text-text-light mb-4">
+            This action is permanent and cannot be undone. Please enter your password twice to
+            confirm.
+          </P>
+        )}
+        <form method="post" onSubmit={handleDeleteAccount}>
+          {user.hasPassword ? (
+            <>
+              <div className="mb-5">
+                <FormLabel htmlFor="delete_password">Enter your password</FormLabel>
+                <Input
+                  type="password"
+                  id="delete_password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="mb-5">
+                <FormLabel htmlFor="delete_confirm_password">Confirm your password</FormLabel>
+                <Input
+                  type="password"
+                  id="delete_confirm_password"
+                  value={deleteConfirmPassword}
+                  onChange={(e) => setDeleteConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <P className="text-text-light mb-4">This action is permanent and cannot be undone.</P>
+              <P className="text-text-light mb-4">
+                Type <strong>DELETE</strong> to confirm.
+              </P>
+              <div className="mb-5">
+                <Input
+                  type="text"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  placeholder="DELETE"
+                  required
+                />
+              </div>
+            </>
+          )}
+          <div className="flex gap-2 justify-end">
+            <Button type="button" variant="secondary" onClick={closeDeleteModal}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="danger" disabled={deleteAccountMutation.isPending}>
+              {deleteAccountMutation.isPending ? 'Deleting…' : 'Permanently delete account'}
+            </Button>
           </div>
-        </div>
-      )}
+        </form>
+      </Modal>
     </main>
   )
 }
