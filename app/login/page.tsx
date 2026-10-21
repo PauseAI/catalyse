@@ -148,9 +148,9 @@ function LoginPageContent() {
               <div className="text-center mb-5">
                 <div id="g_signin_btn" className="flex justify-center" />
                 <div className="flex items-center my-5 gap-4">
-                  <hr className="flex-1 border-none border-t border-brand-border" />
+                  <hr className="flex-1 border-brand-border" />
                   <span className="text-text-light text-sm">or use email</span>
-                  <hr className="flex-1 border-none border-t border-brand-border" />
+                  <hr className="flex-1 border-brand-border" />
                 </div>
               </div>
             )}
