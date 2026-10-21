@@ -313,29 +313,121 @@ describe('CommentThreadView discussion actions', () => {
     expect(screen.getByText('(edited)')).toBeInTheDocument()
     expect(screen.getAllByText('Comment removed')).toHaveLength(2)
     expect(screen.getByText('orphan reply')).toBeInTheDocument()
-    // Reply only on live top-level comments; Edit/Delete only where allowed.
-    expect(screen.getAllByRole('button', { name: 'Reply' })).toHaveLength(1)
+    // Reply on every live comment, naming whom it answers; Edit/Delete only where allowed.
+    expect(screen.getAllByRole('button', { name: /^Reply to / }).map((b) => b.ariaLabel)).toEqual([
+      'Reply to Hal',
+      'Reply to Olive',
+      'Reply to Olive',
+    ])
     expect(screen.getAllByRole('button', { name: 'Edit' })).toHaveLength(1)
     expect(screen.getAllByRole('button', { name: 'Delete' })).toHaveLength(2)
+    // Each thread's replies are a list of their own.
+    const replies = screen.getByRole('list', { name: 'Replies to Hal' })
+    expect(within(replies).getAllByRole('listitem')).toHaveLength(2)
+    expect(
+      within(screen.getByRole('list', { name: 'Replies to a removed comment' })).getByText(
+        'orphan reply',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('posts a reply under its thread', async () => {
     const { onSubmit } = renderThread()
-    await userEvent.click(screen.getByRole('button', { name: 'Reply' }))
-    await userEvent.type(screen.getByLabelText('Write a reply'), 'On it')
-    await userEvent.click(screen.getAllByRole('button', { name: 'Reply' })[1])
+    await userEvent.click(screen.getByRole('button', { name: 'Reply to Hal' }))
+    const box = screen.getByLabelText('Write a reply to Hal')
+    expect(box).toHaveFocus()
+    // An empty reply says why nothing happened.
+    await userEvent.click(screen.getByRole('button', { name: 'Post reply' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Write something first.')
+    expect(onSubmit).not.toHaveBeenCalled()
+    await userEvent.type(box, 'On it')
+    await userEvent.click(screen.getByRole('button', { name: 'Post reply' }))
     expect(onSubmit).toHaveBeenCalledWith('On it', 10)
-    await waitFor(() => expect(screen.queryByLabelText('Write a reply')).toBeNull())
+    await waitFor(() => expect(screen.queryByLabelText('Write a reply to Hal')).toBeNull())
 
     // A failed reply keeps the box; Cancel closes it.
     onSubmit.mockResolvedValueOnce(false)
-    await userEvent.click(screen.getByRole('button', { name: 'Reply' }))
-    await userEvent.type(screen.getByLabelText('Write a reply'), 'Again')
-    await userEvent.click(screen.getAllByRole('button', { name: 'Reply' })[1])
+    await userEvent.click(screen.getByRole('button', { name: 'Reply to Hal' }))
+    await userEvent.type(screen.getByLabelText('Write a reply to Hal'), 'Again')
+    await userEvent.click(screen.getByRole('button', { name: 'Post reply' }))
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2))
-    expect(screen.getByLabelText('Write a reply')).toHaveValue('Again')
+    expect(screen.getByLabelText('Write a reply to Hal')).toHaveValue('Again')
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByLabelText('Write a reply')).toBeNull()
+    expect(screen.queryByLabelText('Write a reply to Hal')).toBeNull()
+  })
+
+  it('answers a reply in the same thread, with the reply it answers', async () => {
+    const { onSubmit } = renderThread()
+    await userEvent.click(screen.getAllByRole('button', { name: 'Reply to Olive' })[0])
+    const box = screen.getByLabelText('Write a reply to Olive')
+    expect(box).toHaveFocus()
+    // The box sits at the foot of the thread, after its replies.
+    const replies = screen.getByRole('list', { name: 'Replies to Hal' })
+    expect(replies.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await userEvent.type(box, 'Thanks')
+    await userEvent.click(screen.getByRole('button', { name: 'Post reply' }))
+    expect(onSubmit).toHaveBeenCalledWith('Thanks', 11)
+
+    // Choosing another comment to answer moves the box and its focus there.
+    await userEvent.click(screen.getByRole('button', { name: 'Reply to Hal' }))
+    await userEvent.click(screen.getAllByRole('button', { name: 'Reply to Olive' })[1])
+    expect(screen.queryByLabelText('Write a reply to Hal')).toBeNull()
+    const orphanBox = screen.getByLabelText('Write a reply to Olive')
+    expect(orphanBox).toHaveFocus()
+    await userEvent.type(orphanBox, 'Still here')
+    await userEvent.click(screen.getByRole('button', { name: 'Post reply' }))
+    expect(onSubmit).toHaveBeenLastCalledWith('Still here', 14)
+  })
+
+  it('collapses the middle of a long thread until asked', async () => {
+    const replies = [1, 2, 3, 4, 5, 6].map((n) => ({
+      id: 100 + n,
+      content: `Reply ${n}`,
+      authorName: 'Olive',
+      createdAt: null,
+    }))
+    renderThread({
+      comments: [{ id: 20, content: 'Long one', authorName: 'Hal', createdAt: null, replies }],
+    })
+    const list = screen.getByRole('list', { name: 'Replies to Hal' })
+    const shownReplies = () =>
+      within(list)
+        .queryAllByText(/^Reply \d$/)
+        .map((p) => p.textContent)
+    expect(shownReplies()).toEqual(['Reply 1', 'Reply 5', 'Reply 6'])
+    await userEvent.click(within(list).getByRole('button', { name: 'Show 3 more replies' }))
+    expect(shownReplies()).toEqual([
+      'Reply 1',
+      'Reply 2',
+      'Reply 3',
+      'Reply 4',
+      'Reply 5',
+      'Reply 6',
+    ])
+    expect(document.getElementById('comment-102')).toHaveFocus()
+    expect(screen.queryByRole('button', { name: /more replies/ })).toBeNull()
+  })
+
+  it('opens a collapsed thread to show a permalinked reply', () => {
+    window.history.replaceState(null, '', '/x#comment-103')
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    const replies = [1, 2, 3, 4, 5].map((n) => ({
+      id: 100 + n,
+      content: `Reply ${n}`,
+      authorName: 'Olive',
+      createdAt: null,
+    }))
+    renderThread({
+      comments: [
+        { type: 'event', id: 1, text: 'Hal started this', createdAt: null },
+        { id: 20, content: 'Long one', authorName: 'Hal', createdAt: null, replies },
+      ],
+    })
+    expect(screen.getByText('Reply 3')).toBeInTheDocument()
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    expect(document.getElementById('comment-103')).toHaveClass('ring-2')
+    window.history.replaceState(null, '', '/x')
   })
 
   it('edits a comment in place, keeping its mentions', async () => {
@@ -380,7 +472,7 @@ describe('CommentThreadView discussion actions', () => {
 
   it('offers no actions without the handlers, or replies when not allowed', () => {
     renderThread({ onEdit: undefined, onDelete: undefined, canReply: false })
-    expect(screen.queryByRole('button', { name: /^(Reply|Edit|Delete)$/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^(Reply|Edit|Delete)/ })).toBeNull()
   })
 })
 
@@ -491,9 +583,9 @@ describe('CommentThread / BugReportCommentThread', () => {
     await clientAs(owner).workItemComments.add({ workItemId: project.id, content: 'Kick-off' })
     await renderApp(<CommentThread workItemId={project.id} />, { as: owner })
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Reply' }))
-    await userEvent.type(screen.getByLabelText('Write a reply'), 'Agenda soon')
-    await userEvent.click(screen.getAllByRole('button', { name: 'Reply' })[1])
+    await userEvent.click(await screen.findByRole('button', { name: `Reply to ${owner.name}` }))
+    await userEvent.type(screen.getByLabelText(`Write a reply to ${owner.name}`), 'Agenda soon')
+    await userEvent.click(screen.getByRole('button', { name: 'Post reply' }))
     expect(await screen.findByText('Agenda soon')).toBeInTheDocument()
 
     await userEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])

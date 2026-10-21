@@ -12,6 +12,7 @@ import {
   createTeam,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
+import { emails } from '@/test/fakes/email'
 
 type Listed = Awaited<ReturnType<ReturnType<typeof clientAs>['workItemComments']['list']>>
 
@@ -207,12 +208,126 @@ describe('workItemComments replies', () => {
       ['I do', top.id],
       ['Me too', top.id],
     ])
-    // The thread starter hears about each reply; the owner hears about the helper's post.
-    await vi.waitFor(async () =>
-      expect(await notesOf('work_item_comment')).toEqual(
-        [owner.id, helper.id, helper.id, owner.id].sort(),
-      ),
+    // Each person replied to hears it as a reply; the thread starter hears of the second reply
+    // as a comment, and the owner of the helper's post.
+    expect(await notesOf('comment_reply')).toEqual([helper.id, owner.id].sort())
+    expect(await notesOf('work_item_comment')).toEqual([owner.id, helper.id].sort())
+  })
+
+  it('tells the person replied to once, by email unless they muted updates', async () => {
+    const { owner, helper, other, project, notesOf } = await discussion()
+    const task = await createTask(project.id, { assigneeId: helper.id })
+    const top = await clientAs(helper).workItemComments.add({
+      workItemId: task.id,
+      content: 'Who has banners?',
+    })
+    const reply = await clientAs(owner).workItemComments.add({
+      workItemId: task.id,
+      content: `I do, ask @[Hana Helper](${other.id})`,
+      parentId: top.id,
+    })
+    expect(
+      await prisma.notification.findFirstOrThrow({
+        where: { type: 'comment_reply', volunteerId: helper.id },
+      }),
+    ).toMatchObject({
+      title: `Olive Owner replied to your comment on "${task.title}"`,
+      body: 'I do, ask @Hana Helper',
+      link: `/projects/${project.id}/tasks/${task.id}#comment-${reply.id}`,
+      entityId: reply.id,
+    })
+    await vi.waitFor(() =>
+      expect(emails.lastTo(String(helper.email))).toMatchObject({
+        subject: `Olive Owner replied to your comment on "${task.title}"`,
+      }),
     )
+    expect(emails.lastTo(String(helper.email)).html).toContain('I do, ask @Hana Helper')
+    // The task's assignee replied to is not also sent the plain comment notice.
+    expect(await notesOf('work_item_comment')).toEqual([owner.id])
+
+    // Mentioning the person replied to tells them once, as a mention; replying to yourself is quiet.
+    await clientAs(helper).workItemComments.add({
+      workItemId: task.id,
+      content: `@[Olive Owner](${owner.id}) thanks`,
+      parentId: reply.id,
+    })
+    await clientAs(helper).workItemComments.add({
+      workItemId: task.id,
+      content: 'And me',
+      parentId: top.id,
+    })
+    expect(await notesOf('comment_reply')).toEqual([helper.id])
+    expect(await notesOf('mention')).toEqual([other.id, owner.id].sort())
+
+    // Someone who muted updates still sees the reply in their Inbox, with no email.
+    await prisma.volunteer.update({
+      where: { id: other.id },
+      data: { emailMutedCategories: ['update'] },
+    })
+    const fromOther = await clientAs(other).workItemComments.add({
+      workItemId: task.id,
+      content: 'Two banners here',
+    })
+    await clientAs(owner).workItemComments.add({
+      workItemId: task.id,
+      content: 'Great',
+      parentId: fromOther.id,
+    })
+    expect(await notesOf('comment_reply')).toEqual([helper.id, other.id].sort())
+    expect(emails.to(String(other.email))).toEqual([])
+  })
+
+  it('tells nobody in particular when the comment replied to has no author left', async () => {
+    const { owner, helper, project, notesOf } = await discussion()
+    const top = await clientAs(helper).workItemComments.add({
+      workItemId: project.id,
+      content: 'Old account',
+    })
+    await prisma.workItemComment.update({ where: { id: top.id }, data: { authorId: null } })
+    await clientAs(owner).workItemComments.add({
+      workItemId: project.id,
+      content: 'Reply',
+      parentId: top.id,
+    })
+    expect(await notesOf('comment_reply')).toEqual([])
+  })
+
+  it('keeps a removed comment in place, and its thread open to replies to its replies', async () => {
+    const { owner, helper, other, project, notesOf } = await discussion()
+    const top = await clientAs(helper).workItemComments.add({
+      workItemId: project.id,
+      content: 'Spam',
+    })
+    const reply = await clientAs(owner).workItemComments.add({
+      workItemId: project.id,
+      content: 'Please keep it on topic',
+      parentId: top.id,
+    })
+    await clientAs(await createAdmin()).workItemComments.delete({ id: top.id })
+    await clientAs(other).workItemComments.add({
+      workItemId: project.id,
+      content: 'Agreed',
+      parentId: reply.id,
+    })
+    const [c] = commentsIn(await clientAs(owner).workItemComments.list({ workItemId: project.id }))
+    expect(c).toMatchObject({ deleted: true, content: '' })
+    expect(c.replies.map((r) => r.content)).toEqual(['Please keep it on topic', 'Agreed'])
+    expect(await notesOf('comment_reply')).toEqual([helper.id, owner.id].sort())
+  })
+
+  it('refuses a reply from someone who cannot post', async () => {
+    const { helper, outsider, project } = await discussion()
+    const top = await clientAs(helper).workItemComments.add({
+      workItemId: project.id,
+      content: 'Hello',
+    })
+    await expect(
+      clientAs(outsider).workItemComments.add({
+        workItemId: project.id,
+        content: 'Hi',
+        parentId: top.id,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
   })
 
   it('refuses a reply to a missing, deleted or foreign comment', async () => {

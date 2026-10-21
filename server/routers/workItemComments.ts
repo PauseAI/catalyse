@@ -3,6 +3,7 @@ import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { canAdminChapter, type ChapterAccess } from '@/lib/chapter-access'
 import { chapterStaffIds, globalAdminWhere } from '@/lib/chapter-access-server'
+import { html } from '@/lib/email'
 import { notifyUser } from '@/lib/notify'
 import {
   canViewWorkItem,
@@ -315,8 +316,9 @@ export const workItemCommentsRouter = {
         throw new ORPCError('FORBIDDEN', { message: 'Not authorized to comment here' })
       }
 
-      // A reply to a reply joins the same top-level thread.
+      // A reply to a reply joins the same top-level thread; its author is still the one told.
       let parent: { id: number; authorId: number | null } | null = null
+      let repliedTo: number | null = null
       if (input.parentId !== undefined) {
         const target = await prisma.workItemComment.findUnique({
           where: { id: input.parentId },
@@ -326,6 +328,7 @@ export const workItemCommentsRouter = {
           throw new ORPCError('NOT_FOUND', { message: 'Comment not found' })
         }
         parent = target.parent ?? target
+        repliedTo = target.authorId
       }
 
       const content = input.content.trim()
@@ -355,8 +358,33 @@ export const workItemCommentsRouter = {
       }
 
       const mentioned = await notifyMentions(loaded, volunteer, comment.id, content)
+      const plain = mentionsToPlain(content).slice(0, 200)
 
-      // Notify the other participants (in-app only); a mention already told its recipient.
+      // The person replied to hears it as a reply, by email too unless they muted updates.
+      const told = new Set(mentioned)
+      if (repliedTo && repliedTo !== volunteer.id && !told.has(repliedTo)) {
+        told.add(repliedTo)
+        const link = `${threadLink(loaded.item)}#comment-${comment.id}`
+        await notifyUser(
+          repliedTo,
+          'comment_reply',
+          `${volunteer.name} replied to your comment on "${loaded.item.title}"`,
+          plain,
+          link,
+          {
+            message: html`<strong>${volunteer.name}</strong> replied to your comment on
+              <strong>${loaded.item.title}</strong>:
+              <div style="padding: 12px; background: #f7fafc; border-radius: 8px; margin: 16px 0;">
+                ${plain}
+              </div>`,
+            ctaLabel: 'Read the reply',
+            ctaUrl: link,
+          },
+          comment.id,
+        )
+      }
+
+      // Notify the other participants (in-app only), once each.
       const recipientIds = new Set<number>()
       for (const id of [
         loaded.item.creatorId,
@@ -365,7 +393,7 @@ export const workItemCommentsRouter = {
         parent?.authorId ?? null,
         ...(loaded.item.type === WorkItemType.TASK ? await taskHelperIds(loaded.item.id) : []),
       ]) {
-        if (id && id !== volunteer.id && !mentioned.has(id)) recipientIds.add(id)
+        if (id && id !== volunteer.id && !told.has(id)) recipientIds.add(id)
       }
       const link = commentLink(loaded.item)
       for (const rid of recipientIds) {
@@ -373,7 +401,7 @@ export const workItemCommentsRouter = {
           rid,
           'work_item_comment',
           `New comment on "${loaded.item.title}"`,
-          mentionsToPlain(content).slice(0, 200),
+          plain,
           link,
         )
       }
