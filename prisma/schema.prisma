@@ -687,11 +687,12 @@ model WorkItemEvent {
 /// Finish-to-start dependency between two WorkItems in the same scheduling scope — that is,
 /// sharing both `type` and `parentId`. That one rule yields exactly the two graphs we want:
 /// TASKs within a single project, and PROJECTs across the portfolio. QUICK_TASK is excluded.
-/// The successor starts the day after its predecessor ends.
+/// The successor starts at predecessor end + 1 day + `lagDays` (negative lag = overlap).
 model WorkItemDependency {
   id            Int       @id @default(autoincrement())
   predecessorId Int       @map("predecessor_id")
   successorId   Int       @map("successor_id")
+  lagDays       Int       @default(0) @map("lag_days")
   createdAt     DateTime? @default(now()) @map("created_at")
   createdById   Int?      @map("created_by_id")
 

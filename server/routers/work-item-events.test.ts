@@ -337,19 +337,36 @@ describe('task writes record an event', () => {
 })
 
 describe('schedule writes record an event', () => {
-  it('dependencies: add, re-add and remove', async () => {
+  it('dependencies: add, re-add, a gap set by dragging, and remove', async () => {
     const { owner, project } = await setup()
-    const venue = await createTask(project.id, { title: 'Venue' })
+    const venue = await createTask(project.id, {
+      title: 'Venue',
+      startDate: day('2027-03-01'),
+      deadline: day('2027-03-02'),
+    })
     const flyers = await createTask(project.id, { title: 'Flyers' })
-    const as = clientAs(owner).dependencies
+    const as = clientAs(owner)
     const link = { predecessorId: venue.id, successorId: flyers.id }
-    const dep = await as.add(link)
-    await as.add(link)
-    await as.remove({ dependencyId: dep.id })
-    const venueLink = { predecessorId: venue.id, predecessorTitle: 'Venue' }
-    expect(await eventsOf(flyers.id)).toMatchObject([
-      { actorId: owner.id, kind: 'dependency_added', before: {}, after: venueLink },
-      { kind: 'dependency_removed', before: venueLink, after: {} },
+    const dep = await as.dependencies.add(link)
+    await as.dependencies.add(link)
+    const drop = (startDate: Date) =>
+      as.schedule.rescheduleItems({ items: [{ id: flyers.id, startDate, follow: true }] })
+    await drop(day('2027-03-05'))
+    await drop(day('2027-03-05'))
+    await drop(day('2027-03-01'))
+    await as.dependencies.remove({ dependencyId: dep.id })
+    const venueLink = (lagDays: number) => ({
+      predecessorId: venue.id,
+      predecessorTitle: 'Venue',
+      lagDays,
+    })
+    expect(
+      (await eventsOf(flyers.id)).filter((e) => e.kind.startsWith('dependency')),
+    ).toMatchObject([
+      { actorId: owner.id, kind: 'dependency_added', before: {}, after: venueLink(0) },
+      { actorId: owner.id, kind: 'dependency_lag', before: venueLink(0), after: venueLink(2) },
+      { kind: 'dependency_lag', before: venueLink(2), after: venueLink(0) },
+      { kind: 'dependency_removed', before: venueLink(0), after: {} },
     ])
     expect(await eventsOf(venue.id)).toEqual([])
   })

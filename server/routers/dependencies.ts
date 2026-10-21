@@ -164,8 +164,11 @@ async function loadManageableDependency(
 }
 
 /** A link as its successor's event records it; the title keeps the line readable later. */
-function linkValues(dep: { predecessorId: number }, predecessorTitle: string): EventValues {
-  return { predecessorId: dep.predecessorId, predecessorTitle }
+function linkValues(
+  dep: { predecessorId: number; lagDays: number },
+  predecessorTitle: string,
+): EventValues {
+  return { predecessorId: dep.predecessorId, predecessorTitle, lagDays: dep.lagDays }
 }
 
 export const dependenciesRouter = {
@@ -183,6 +186,7 @@ export const dependenciesRouter = {
     const prospective: ScheduleEdge = {
       predecessorId: input.predecessorId,
       successorId: input.successorId,
+      lagDays: 0,
     }
     // Drop any current row for this pair so re-adding an existing link is not counted twice.
     const withoutPair = existing.filter(
@@ -227,6 +231,7 @@ export const dependenciesRouter = {
       id: dependency.id,
       predecessorId: dependency.predecessorId,
       successorId: dependency.successorId,
+      lagDays: dependency.lagDays,
       predecessorTitle: predecessor.title,
       successorTitle: successor.title,
     }

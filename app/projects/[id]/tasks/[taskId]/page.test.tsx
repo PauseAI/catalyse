@@ -316,7 +316,7 @@ describe('task detail page', () => {
       sortOrder: 3,
     })
     await prisma.workItemDependency.create({
-      data: { predecessorId: pred.id, successorId: task.id },
+      data: { predecessorId: pred.id, successorId: task.id, lagDays: 1 },
     })
     // Someone not on the project asks for a task: it is held for them, not given.
     const newcomer = await createVolunteer({ name: 'Nia Newcomer' })
@@ -369,6 +369,8 @@ describe('task detail page', () => {
     expect(screen.getByRole('link', { name: 'Predecessor' }).parentElement).toHaveTextContent(
       /^PredecessorTo doUnclaimedNo deadline$/,
     )
+    // A link's lag still counts in the schedule, but the task page never shows or edits it.
+    expect(screen.queryByText(/lag/i)).toBeNull()
     expect(screen.queryByRole('spinbutton')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
     const rule =
@@ -411,7 +413,7 @@ describe('task detail page', () => {
     fireEvent.change(screen.getByLabelText('Deadline'), { target: { value: '' } })
     fireEvent.change(screen.getByLabelText('Start (optional)'), { target: { value: '' } })
     expect(screen.getByText(/Starts when “Predecessor” is done/)).toBeInTheDocument()
-    expect(screen.queryByText(/follow|milestone/i)).toBeNull()
+    expect(screen.queryByText(/follow|lag|milestone/i)).toBeNull()
     await userEvent.click(screen.getByRole('checkbox', { name: /exact dates/ }))
     await userEvent.click(screen.getByRole('checkbox', { name: /quick task/i }))
     await userEvent.type(screen.getByLabelText('What to submit (optional)'), 'Photos of the stall')

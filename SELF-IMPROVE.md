@@ -29,7 +29,7 @@ GitHub issue. An entry here is about the work itself: something in the code
 structure, tooling, tests, docs or diagnostics that made a task slower or more
 confusing than it needed to be, and that will do so again.
 
-## 11x
+## 12x
 
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
       and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
@@ -69,8 +69,10 @@ confusing than it needed to be, and that will do so again.
       run went clean. The chapter-joining PR passed `check-all` locally and failed only in CI: two
       component tests acted before a query had loaded (a chapter deleted before the dialog listed
       it; a `getByText` on a list from a second query), which local timing always won.
+      The dependency-lag rework's run hit `ProjectEditor.test.tsx` once more: Submit opens its
+      dialog only after a fresh fetch, which outlasted `findByText`'s one-second default.
 
-## 6x
+## 7x
 
 - [ ] **Two sessions running vitest at once share one test template database and one
       `coverage/` directory, so one run wipes the other's.** During P4-05 another agent's
@@ -87,7 +89,10 @@ confusing than it needed to be, and that will do so again.
       `PrismaClientInitializationError` while every file passed alone (`--coverage.reportsDirectory`
       at least got past the lock). In Phase 6 even two agents' single-file runs of the project
       page test, against separate regions of it, dropped each other's databases repeatedly, so
-      each waited for the other to finish before its tests counted. A per-run database prefix and reports directory in
+      each waited for the other to finish before its tests counted. The dependency-lag rework, in
+      its own worktree but against the same Postgres, waited for the other worktree's run to end
+      and still lost 78 tests to "table … does not exist" when that worktree started again
+      mid-run: `dropStale` drops every `vitest_` schema, not just its own run's. A per-run database prefix and reports directory in
       `test/pg.ts` and `scripts/test-unit.ts` (from an env var or the pid) would let runs overlap.
 
 ## 5x
@@ -119,6 +124,20 @@ confusing than it needed to be, and that will do so again.
       `renderApp` could start each mount with an empty query cache, or `test/render.tsx`
       could say to use `findBy…` after a remount.
 
+## 3x
+
+- [ ] **A git worktree cannot run the suite until it has the main checkout's env files and a
+      real `node_modules`.** Working beside another session's uncommitted changes, the unit tier
+      failed with "DATABASE_URL is not set" until `.env`/`.env.local` were linked in, and the e2e
+      build failed on a symlinked `node_modules` ("points out of the filesystem root") until it
+      was cloned with `cp -cR`. An Orca worktree for the status-badge review had no
+      `node_modules`, `generated/` or `.env` at all: typecheck needed `npm ci`, then
+      `npm run generate` needed a dummy `DATABASE_URL`, `CHECKPOINT_DISABLE=1` and
+      `node --import tsx` (the sandbox refuses tsx's IPC pipe), and no unit test could run. A
+      `scripts/new-worktree.ts` that links the env files, clones `node_modules` and copies
+      `generated/` would make a side worktree work first time. The dependency-lag rework's
+      Claude worktree had no `.env.local` either, so `npm run generate` failed until it was copied.
+
 ## 2x
 
 - [ ] **A `null`-target guard written for a dialog's confirm or dismiss handler
@@ -137,17 +156,6 @@ confusing than it needed to be, and that will do so again.
       no test fed a new field, a chip's own null guard. An npm script that runs the unit tests
       with coverage limited to files changed since `main` and prints their uncovered lines would
       find these in a minute.
-
-- [ ] **A git worktree cannot run the suite until it has the main checkout's env files and a
-      real `node_modules`.** Working beside another session's uncommitted changes, the unit tier
-      failed with "DATABASE_URL is not set" until `.env`/`.env.local` were linked in, and the e2e
-      build failed on a symlinked `node_modules` ("points out of the filesystem root") until it
-      was cloned with `cp -cR`. An Orca worktree for the status-badge review had no
-      `node_modules`, `generated/` or `.env` at all: typecheck needed `npm ci`, then
-      `npm run generate` needed a dummy `DATABASE_URL`, `CHECKPOINT_DISABLE=1` and
-      `node --import tsx` (the sandbox refuses tsx's IPC pipe), and no unit test could run. A
-      `scripts/new-worktree.ts` that links the env files, clones `node_modules` and copies
-      `generated/` would make a side worktree work first time.
 
 ## 1x
 

@@ -39,7 +39,7 @@ describe('projects.listTasks / getTask', () => {
       createdAt: new Date(Date.now() + 60_000),
     })
     await prisma.workItemDependency.create({
-      data: { predecessorId: a.id, successorId: b.id },
+      data: { predecessorId: a.id, successorId: b.id, lagDays: 1 },
     })
     await expect(clientAs(me).projects.listTasks({ projectId: 999_999 })).rejects.toMatchObject({
       code: 'NOT_FOUND',
@@ -55,10 +55,10 @@ describe('projects.listTasks / getTask', () => {
     ])
     expect(res.tasks[2].blockedBy).toEqual([{ id: a.id, title: a.title }])
     expect(res.dependencies).toEqual([
-      expect.objectContaining({ predecessorId: a.id, successorId: b.id }),
+      expect.objectContaining({ predecessorId: a.id, successorId: b.id, lagDays: 1 }),
     ])
     expect(res.scheduled.find((s) => s.id === b.id)?.start).toEqual(
-      new Date('2026-04-03T00:00:00Z'),
+      new Date('2026-04-04T00:00:00Z'),
     )
     expect(res.scopeOrigin).toEqual(new Date('2026-04-01T00:00:00Z'))
     // The plan ended long ago; the axis still reaches today.

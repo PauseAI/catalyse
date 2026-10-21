@@ -186,14 +186,15 @@ describe('describeEvent', () => {
   })
 
   it('words dependency changes with the task waited on', () => {
-    const link = { predecessorId: 9, predecessorTitle: 'Venue' }
-    expect(say('dependency_added', {}, link)).toBe("Sam made this wait on 'Venue'")
-    expect(say('dependency_removed', link, {})).toBe("Sam stopped this waiting on 'Venue'")
-  })
-
-  it('words a retired kind, such as an old dependency lag change, as a plain change', () => {
-    const lag = (lagDays: number) => ({ predecessorId: 9, predecessorTitle: 'Venue', lagDays })
-    expect(say('dependency_lag', lag(0), lag(2))).toBe('Sam changed this')
+    const link = (lagDays: number) => ({ predecessorId: 9, predecessorTitle: 'Venue', lagDays })
+    expect(say('dependency_added', {}, link(0))).toBe("Sam made this wait on 'Venue'")
+    expect(say('dependency_added', {}, link(2))).toBe(
+      "Sam made this wait on 'Venue', and set a gap of 2 days after 'Venue'",
+    )
+    expect(say('dependency_removed', link(0), {})).toBe("Sam stopped this waiting on 'Venue'")
+    expect(say('dependency_lag', link(0), link(1))).toBe("Sam set a gap of 1 day after 'Venue'")
+    expect(say('dependency_lag', link(1), link(-3))).toBe("Sam let this overlap 'Venue' by 3 days")
+    expect(say('dependency_lag', link(1), link(0))).toBe("Sam removed the gap after 'Venue'")
   })
 
   it('words an edit from the fields it changed', () => {

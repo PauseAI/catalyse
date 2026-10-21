@@ -1,6 +1,6 @@
 'use client'
 
-import { addDays } from '@/lib/schedule'
+import { addDays, diffInDays } from '@/lib/schedule'
 import type { GanttRow } from './types'
 
 /** What a given drag is doing, encoded on the draggable's `data`. */
@@ -14,6 +14,8 @@ export type DragData =
 export type ReschedulePatch = {
   id: number
   startDate: Date | null
+  /** Keep following its predecessors: `startDate` is held as lag after them, not pinned. */
+  follow?: true
   /** Omitted when the gesture doesn't touch the duration. */
   durationDays?: number | null
   /** Tasks only: where the bar ends, omitted when the gesture leaves it. */
@@ -26,9 +28,20 @@ export function deltaToDays(deltaX: number, pxPerDay: number): number {
 }
 
 /**
+ * How far left, in pixels, a row's bar may be dragged: no earlier than its predecessors allow
+ * (`readyFrom`). Unbounded for a row that waits on nothing.
+ */
+export function moveFloor(row: GanttRow, pxPerDay: number): number {
+  const { readyFrom, start } = row.placement
+  return readyFrom ? diffInDays(start, readyFrom) * pxPerDay : -Infinity
+}
+
+/**
  * Turns a finished move/resize drag into the single stored change it implies.
  *  - move   → pins the row's start to where it was dropped (writes startDate); a task's
- *             deadline moves with it, since that is where its bar ends.
+ *             deadline moves with it, since that is where its bar ends. A row that waits on
+ *             others is not pinned but follows them (`follow`), and a drop before they finish
+ *             lands on the day after they do.
  *  - resize → changes only the end: a task's deadline, a project's duration. A 1-day floor
  *             keeps the bar visible.
  * Returns null when the gesture is a no-op.
@@ -43,10 +56,14 @@ export function patchFromDrag(
   if (days === 0) return null
 
   if (data.kind === 'move') {
-    // Moving pins the start; the length is left exactly as it was.
-    const moved = { id: row.id, startDate: addDays(row.placement.start, days) }
-    const { deadline, endsOnDeadline } = row.placement
-    return endsOnDeadline && deadline ? { ...moved, deadline: addDays(deadline, days) } : moved
+    const { start, readyFrom, isPinned, deadline, endsOnDeadline } = row.placement
+    const shift = readyFrom ? Math.max(days, diffInDays(start, readyFrom)) : days
+    // Clamped back onto where it already follows from: nothing to change.
+    if (shift === 0 && !isPinned) return null
+    // The length is left exactly as it was.
+    const moved: ReschedulePatch = { id: row.id, startDate: addDays(start, shift) }
+    if (readyFrom) moved.follow = true
+    return endsOnDeadline && deadline ? { ...moved, deadline: addDays(deadline, shift) } : moved
   }
   if (data.kind === 'resize-end') {
     const current = daysBetween(row.placement.start, row.placement.end) + 1

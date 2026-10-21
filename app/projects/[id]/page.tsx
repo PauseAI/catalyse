@@ -379,6 +379,7 @@ function TaskTimeline({
       items: {
         id: number
         startDate: Date | null
+        follow?: boolean
         durationDays?: number | null
         deadline?: Date | null
       }[]
@@ -392,7 +393,7 @@ function TaskTimeline({
         if (!patch) return t
         return {
           ...t,
-          startDate: patch.startDate,
+          startDate: patch.follow ? null : patch.startDate,
           ...(patch.durationDays !== undefined ? { durationDays: patch.durationDays } : {}),
           ...(patch.deadline !== undefined ? { deadline: patch.deadline } : {}),
         }
@@ -585,6 +586,7 @@ function TaskTimeline({
                   {
                     id: patch.id,
                     startDate: patch.startDate,
+                    ...(patch.follow ? { follow: true } : {}),
                     ...(patch.durationDays !== undefined
                       ? { durationDays: patch.durationDays }
                       : {}),

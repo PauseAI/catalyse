@@ -68,16 +68,32 @@ describe('ProjectImportDiff', () => {
               op: 'create',
               predecessor: { id: 1, title: 'Old' },
               successor: { ref: 'n', title: 'New' },
+              lagDays: 2,
+            },
+            {
+              op: 'create',
+              predecessor: { id: 1, title: 'Old' },
+              successor: { id: 3, title: 'Same' },
+              lagDays: 0,
             },
             {
               op: 'delete',
               predecessor: { id: 2, title: 'Gone' },
               successor: { id: 1, title: 'Old' },
+              lagDays: 0,
+            },
+            {
+              op: 'update',
+              predecessor: { id: 1, title: 'Old' },
+              successor: { id: 3, title: 'Same' },
+              lagDays: 4,
+              fieldChanges: [{ field: 'lagDays', from: 1, to: 4 }],
             },
             {
               op: 'noop',
               predecessor: { id: 1, title: 'Old' },
               successor: { id: 3, title: 'Same' },
+              lagDays: 0,
             },
           ],
         }}
@@ -91,9 +107,9 @@ describe('ProjectImportDiff', () => {
     expect(screen.getByText('New (n)')).toBeInTheDocument()
     expect(screen.getByText('isAnchor: yes')).toBeInTheDocument()
     expect(screen.getByText('featuredAsQuickTask: no')).toBeInTheDocument()
-    expect(screen.getByText('Add: Old → New (n)')).toBeInTheDocument()
+    expect(screen.getByText('Add: Old → New (n) (2-day gap after it finishes)')).toBeInTheDocument()
     expect(screen.getByText('Remove: Gone → Old')).toBeInTheDocument()
-    expect(screen.queryByText(/Old → Same/)).toBeNull()
+    expect(screen.getByText(/Gap after it finishes: Old → Same/)).toBeInTheDocument()
     const box = screen.getByRole('checkbox')
     expect(box).toBeChecked()
     await userEvent.click(box)

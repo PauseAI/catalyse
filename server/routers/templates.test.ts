@@ -44,7 +44,7 @@ async function saveTemplate() {
     submissionPrompt: 'Where did they go up?',
   })
   await prisma.workItemDependency.create({
-    data: { predecessorId: a.id, successorId: b.id },
+    data: { predecessorId: a.id, successorId: b.id, lagDays: 1 },
   })
   const c = clientAs(admin)
   const { id } = await c.templates.saveAsTemplate({
@@ -88,7 +88,7 @@ describe('templates.saveAsTemplate / get / list', () => {
     ])
     expect(structure.tasks.map((x) => x.helpersWanted)).toEqual([3, null])
     expect(structure.tasks[0].skills).toEqual([{ skillId: skill.id, isRequired: false }])
-    expect(structure.tasks[1].dependsOn).toEqual([{ on: `task-${project.id + 1}` }])
+    expect(structure.tasks[1].dependsOn).toEqual([{ on: `task-${project.id + 1}`, lagDays: 1 }])
     expect(JSON.stringify(structure)).not.toContain('Leeds')
 
     await expect(c.templates.get({ id: 999_999 })).rejects.toMatchObject({ code: 'NOT_FOUND' })
@@ -147,7 +147,7 @@ describe('templates.createFromScratch / update / archive', () => {
       submissionPrompt: 'Count?',
       submissionAsksLink: true,
       isAnchor: true,
-      dependsOn: [{ on: 'a' }],
+      dependsOn: [{ on: 'a', lagDays: 0 }],
     })
     // A template with no tasks at all is allowed.
     const bare = await c.templates.createFromScratch({ title: 'Bare', template: { title: 'Bare' } })
@@ -232,7 +232,9 @@ describe('templates.instantiate / canInstantiate', () => {
     const deps = await prisma.workItemDependency.findMany({
       where: { successorId: draft.children[1].id },
     })
-    expect(deps).toEqual([expect.objectContaining({ predecessorId: draft.children[0].id })])
+    expect(deps).toEqual([
+      expect.objectContaining({ predecessorId: draft.children[0].id, lagDays: 1 }),
+    ])
     expect((await c.templates.list()).find((x) => x.id === id)?.usedCount).toBe(1)
   })
 

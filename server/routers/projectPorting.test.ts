@@ -33,7 +33,7 @@ async function setup() {
     submissionPrompt: 'How many?',
   })
   await prisma.workItemDependency.create({
-    data: { predecessorId: a.id, successorId: b.id },
+    data: { predecessorId: a.id, successorId: b.id, lagDays: 1 },
   })
   const c = clientAs(owner)
   const file = await c.projects.exportPlan({ projectId: project.id })
@@ -50,7 +50,7 @@ describe('projects.exportPlan / previewImport', () => {
       submissionPrompt: 'How many?',
       submissionAsksLink: false,
       assigneeEmail: owner.email,
-      dependsOn: [{ on: a.id }],
+      dependsOn: [{ on: a.id, lagDays: 1 }],
     })
     expect(file.$schema).toContain('/api/project-import/schema')
 
@@ -119,7 +119,7 @@ describe('projects.applyImport', () => {
     })
   })
 
-  it('applies project, task and dependency changes in one go, ignoring an old lagDays', async () => {
+  it('applies project, task and dependency changes in one go', async () => {
     const { project, a, b, c, file, owner } = await setup()
     const helper = await createVolunteer()
     const edited = {
@@ -141,7 +141,6 @@ describe('projects.applyImport', () => {
           submissionAsksLink: false,
           helpersWanted: 4,
         },
-        // Files exported when links carried a lag still import; the lag is dropped.
         { ...file.tasks[1], assigneeEmail: null, dependsOn: [{ on: a.id, lagDays: 3 }] },
         {
           ref: 'n',
@@ -167,7 +166,7 @@ describe('projects.applyImport', () => {
       created: 2,
       updated: 2,
       deleted: 0,
-      dependencyChanges: 2,
+      dependencyChanges: 3,
     })
     expect(await prisma.workItem.findUniqueOrThrow({ where: { id: project.id } })).toMatchObject({
       title: 'Renamed',
@@ -216,12 +215,10 @@ describe('projects.applyImport', () => {
       ['New', 'Photos of the stall', true],
       ['New2', null, false],
     ])
-    expect(again.tasks.map((t) => t.dependsOn)).toEqual([
-      [],
-      [{ on: a.id }],
-      [{ on: b.id }],
-      [{ on: created[0].id }],
-    ])
+    const edges = await prisma.workItemDependency.findMany({
+      where: { successor: { parentId: project.id } },
+    })
+    expect(edges.map((e) => e.lagDays).sort()).toEqual([0, 2, 3])
   })
 
   it('deletes only confirmed tasks and removes their dependency links', async () => {

@@ -41,7 +41,7 @@ function state(over: Partial<CurrentState> = {}): CurrentState {
   return {
     project: { id: 1, title: 'Rally', description: 'A rally', status: 'in_progress' },
     tasks: [task(10, { startDate: day('2026-09-02'), durationDays: 3 }), task(11)],
-    dependencies: [{ predecessorId: 10, successorId: 11 }],
+    dependencies: [{ predecessorId: 10, successorId: 11, lagDays: 1 }],
     ...over,
   }
 }
@@ -63,7 +63,7 @@ describe('export serialisation', () => {
     const withUrl = serializeProjectExport(state(), 'https://x.test/')
     expect(withUrl.$schema).toBe('https://x.test/api/project-import/schema')
     expect(withUrl._meta.docs).toBe('https://x.test/projects/1/import')
-    expect(withUrl.tasks[1].dependsOn).toEqual([{ on: 10 }])
+    expect(withUrl.tasks[1].dependsOn).toEqual([{ on: 10, lagDays: 1 }])
     expect(withUrl.tasks[0].startDate).toBe('2026-09-02')
   })
 
@@ -82,9 +82,9 @@ describe('export serialisation', () => {
     const s = state({
       tasks: [task(10), task(11), task(12)],
       dependencies: [
-        { predecessorId: 11, successorId: 12 },
-        { predecessorId: 10, successorId: 12 },
-        { predecessorId: 10, successorId: 11 },
+        { predecessorId: 11, successorId: 12, lagDays: 0 },
+        { predecessorId: 10, successorId: 12, lagDays: 0 },
+        { predecessorId: 10, successorId: 11, lagDays: 0 },
       ],
     })
     expect(serializeProjectExport(s).tasks[2].dependsOn.map((d) => d.on)).toEqual([10, 11])
@@ -98,12 +98,6 @@ describe('export serialisation', () => {
     expect(hashState(a)).toBe(hashState(b))
     expect(hashState(state({ project: { ...a.project, title: 'Other' } }))).not.toBe(hashState(a))
     expect(fromYmd(undefined)).toBeNull()
-  })
-
-  it('keeps the hash that files exported while links carried a lag were given', () => {
-    expect(hashState(state())).toBe(
-      'sha256:379f5e77a7bae6cea5d8924e6ec0e1a2ff550e7457128702925b4e1f2674d8d3',
-    )
   })
 })
 
@@ -210,13 +204,13 @@ describe('computeProjectDiff', () => {
     expect(diff.errors[2].ref).toBe('y')
   })
 
-  it('reconciles dependencies: noop, create by ref, delete, and leave-alone', () => {
+  it('reconciles dependencies: noop, lag update, create by ref, delete, and leave-alone', () => {
     const diff = computeProjectDiff(
       state(),
       file({
         tasks: [
           { id: 10, title: 'Task 10' },
-          { id: 11, title: 'Task 11', dependsOn: [{ on: 10 }] },
+          { id: 11, title: 'Task 11', dependsOn: [{ on: 10, lagDays: 1 }] },
           { ref: 'n', title: 'N', dependsOn: [{ on: 'n2' }, { on: 11 }] },
           { ref: 'n2', title: 'N2' },
         ],
@@ -224,6 +218,20 @@ describe('computeProjectDiff', () => {
     )
     expect(diff.dependencies.map((d) => d.op)).toEqual(['noop', 'create', 'create'])
     expect(diff.dependencies[1].predecessor).toEqual({ ref: 'n2', title: 'N2' })
+
+    const lag = computeProjectDiff(
+      state(),
+      file({
+        tasks: [
+          { id: 10, title: 'Task 10' },
+          { id: 11, title: 'Task 11', dependsOn: [{ on: 10, lagDays: 4 }] },
+        ],
+      }),
+    )
+    expect(lag.dependencies[0]).toMatchObject({
+      op: 'update',
+      fieldChanges: [{ field: 'lagDays', from: 1, to: 4 }],
+    })
 
     // Omitting dependsOn keeps the existing edge; an empty array clears it.
     const kept = computeProjectDiff(state(), file())
@@ -283,7 +291,7 @@ describe('computeProjectDiff', () => {
 
   it('names an unknown local id in a dependency identity', () => {
     // An edge kept from state whose predecessor is a deleted row falls back to `#id`.
-    const s = state({ dependencies: [{ predecessorId: 11, successorId: 10 }] })
+    const s = state({ dependencies: [{ predecessorId: 11, successorId: 10, lagDays: 0 }] })
     const diff = computeProjectDiff(s, file({ tasks: [{ id: 10, title: 'Task 10' }] }))
     expect(diff.dependencies[0].predecessor).toEqual({ id: 11, title: 'Task 11' })
   })
@@ -309,11 +317,11 @@ describe('buildApplyPlan', () => {
             isAnchor: true,
             submissionPrompt: 'Count?',
             submissionAsksLink: true,
-            dependsOn: [{ on: 'n' }],
+            dependsOn: [{ on: 'n', lagDays: 2 }],
           },
           { ref: 'n', title: 'N' },
-          { id: 11, title: 'Task 11', dependsOn: [{ on: 10 }] },
-          { ref: 'n2', title: 'N2', dependsOn: [{ on: 11 }] },
+          { id: 11, title: 'Task 11', dependsOn: [{ on: 10, lagDays: 3 }] },
+          { ref: 'n2', title: 'N2', dependsOn: [{ on: 11, lagDays: 0 }] },
         ],
       }),
     )
@@ -356,9 +364,18 @@ describe('buildApplyPlan', () => {
     expect(plan.assigneeEmails).toEqual(['a@b.c'])
     expect(plan.dependencyPlan).toEqual({
       creates: [
-        { predecessor: { kind: 'created', ref: 'n' }, successor: { kind: 'existing', id: 10 } },
-        { predecessor: { kind: 'existing', id: 11 }, successor: { kind: 'created', ref: 'n2' } },
+        {
+          predecessor: { kind: 'created', ref: 'n' },
+          successor: { kind: 'existing', id: 10 },
+          lagDays: 2,
+        },
+        {
+          predecessor: { kind: 'existing', id: 11 },
+          successor: { kind: 'created', ref: 'n2' },
+          lagDays: 0,
+        },
       ],
+      updates: [{ predecessorId: 10, successorId: 11, lagDays: 3 }],
       deletes: [],
     })
   })
