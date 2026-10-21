@@ -42,6 +42,16 @@ describe('server rendering of client pages', () => {
     expect(await ssr(DashboardPage)).not.toContain('Needs your attention')
   })
 
+  it('renders the privacy policy, a server component, before anyone is known', async () => {
+    const { default: PrivacyPage, metadata } = await import('./privacy/page')
+    expect(metadata.description).toMatch(/your rights under GDPR/)
+    const html = await ssr(PrivacyPage)
+    expect(html).toContain('Our data practices')
+    // Who is reading is only known in the browser, so neither account island renders yet.
+    expect(html).not.toContain('Download my data')
+    expect(html).not.toContain('Log in')
+  })
+
   it('renders the root layout shell around its children', async () => {
     const { default: RootLayout, metadata } = await import('./layout')
     expect(metadata.title).toEqual({

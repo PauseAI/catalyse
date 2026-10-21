@@ -193,6 +193,7 @@ Actions are pinned to commit SHAs with the version in a trailing comment; bump b
 catalyse/
 ├── app/                    # App Router pages and API routes
 ├── components/             # Shared React components
+├── docs/                   # Architecture notes
 ├── lib/                    # Auth, email, Prisma, utilities
 ├── prisma/                 # Prisma schema and migrations
 ├── public/                 # Static assets

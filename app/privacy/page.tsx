@@ -1,46 +1,24 @@
-'use client'
-
+import type { Metadata } from 'next'
 import Link from 'next/link'
-import { useMutation } from '@tanstack/react-query'
-import Button from '@/components/Button'
 import { H1, H2, H4 } from '@/components/Heading'
 import { P } from '@/components/Text'
 import TextLink from '@/components/TextLink'
-import { useAuth } from '@/lib/auth-context'
-import { orpc } from '@/lib/orpc'
-import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import {
   TASK_FINAL_WARNING_AFTER_DAYS,
   TASK_RELEASE_AFTER_DAYS,
   TASK_REMINDER_AFTER_DAYS,
 } from '@/lib/staleness'
+import { ExportData, LogInPrompt } from './account-actions'
 
+export const metadata: Metadata = {
+  title: 'Privacy policy',
+  description:
+    'How Catalyse, the PauseAI volunteer platform, collects, uses and protects your data, and your rights under GDPR.',
+}
+
+/** A server component: the policy is the same for every reader, so it arrives as HTML. */
 export default function PrivacyPage() {
-  const { user, loading } = useAuth()
-  const showToast = useToast()
-
-  const exportMutation = useMutation({
-    ...orpc.privacy.export.mutationOptions(),
-    onSuccess: (data) => {
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `catalyse-data-export-${new Date().toISOString().split('T')[0]}.json`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-      showToast('Data exported successfully!', 'success')
-    },
-    onError: (err: unknown) => {
-      showToast(err instanceof Error ? err.message : 'Export failed', 'error')
-    },
-  })
-
-  if (loading) return null
-
   return (
     <>
       <main className="container py-5 pb-15">
@@ -51,24 +29,7 @@ export default function PrivacyPage() {
             under GDPR.
           </P>
 
-          {user && (
-            <>
-              <div className={`${SECTION_CARD} overflow-hidden wrap-break-word mb-6`}>
-                <H2>Export your data</H2>
-                <P className="text-text-light mb-4">
-                  Download all your data in JSON format. This includes your profile, skills,
-                  projects and tasks, messages, comments, and notes admins have written about you.
-                </P>
-                <Button
-                  variant="secondary"
-                  onClick={() => exportMutation.mutate({})}
-                  disabled={exportMutation.isPending}
-                >
-                  {exportMutation.isPending ? 'Preparing…' : 'Download my data'}
-                </Button>
-              </div>
-            </>
-          )}
+          <ExportData />
 
           <div className={`${SECTION_CARD} overflow-hidden wrap-break-word mb-6`}>
             <H2>Our data practices</H2>
@@ -280,16 +241,7 @@ export default function PrivacyPage() {
             </P>
           </div>
 
-          {!user && (
-            <div className={`${SECTION_CARD} overflow-hidden wrap-break-word text-center mb-6`}>
-              <P className="text-text-light">
-                <Link className="text-primary-text underline" href="/login">
-                  Log in
-                </Link>{' '}
-                to export your data or manage your account.
-              </P>
-            </div>
-          )}
+          <LogInPrompt />
 
           <P className="text-center mt-6">
             <Link className="text-primary-text underline" href="/settings?tab=privacy">

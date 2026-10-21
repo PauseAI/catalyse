@@ -158,6 +158,7 @@ describe('/privacy', () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     await renderApp(<PrivacyPage />, { as: me })
     await userEvent.click(await screen.findByRole('button', { name: 'Download my data' }))
+    expect(screen.queryByText(/to export your data or manage your account/)).toBeNull()
     await screen.findByText('Data exported successfully!')
     expect(click).toHaveBeenCalled()
     localStorage.setItem('authToken', 'stale')
@@ -167,6 +168,7 @@ describe('/privacy', () => {
     cleanup()
     await renderApp(<PrivacyPage />)
     expect(screen.queryByRole('button', { name: 'Download my data' })).toBeNull()
+    expect(await screen.findByText(/to export your data or manage your account/)).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Privacy & data' })).toBeInTheDocument()
     expect(
       screen.getByText(/a reminder after 14 days, a final warning after 21, and after 28 days/),
