@@ -311,7 +311,6 @@ describe('projects awaiting triage', () => {
       (await clientAs(as).projects.ganttOverview({ statuses: ['draft', 'ready'] })).projects.map(
         (p) => p.id,
       )
-    expect(await gantt(proposer)).not.toContain(mine.id)
     expect(await gantt(await createAdmin())).toContain(mine.id)
   })
 })

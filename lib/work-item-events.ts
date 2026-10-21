@@ -71,6 +71,7 @@ const TRACKED_FIELDS = [
   'timeCommitmentHoursPerWeek',
   'isSeekingHelp',
   'autoAcceptTasks',
+  'showTimeline',
   'baselineStartDate',
   'baselineDurationDays',
   'startedAt',
@@ -245,6 +246,7 @@ const FIELD_NAMES: Record<string, string> = {
   timeCommitmentHoursPerWeek: 'time commitment',
   isSeekingHelp: 'call for helpers',
   autoAcceptTasks: 'review setting',
+  showTimeline: 'timeline setting',
 }
 
 const DATE_FIELDS: [string, string][] = [

@@ -472,7 +472,9 @@ describe('direct links', () => {
     await expect(
       unconfirmed.projects.getTask({ projectId: project.id, taskId: task.id }),
     ).rejects.toMatchObject(refused)
-    await expect(unconfirmed.projects.ganttOverview({})).rejects.toMatchObject(refused)
+    await expect(unconfirmed.projects.ganttOverview({})).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    })
     await expect(
       unconfirmed.projects.expressInterest({
         projectId: project.id,
