@@ -114,7 +114,14 @@ export function ProjectCard({
           )
           return parts.length > 0 && <span title="Location">📍 {parts.join(' · ')}</span>
         })()}
-        {p.team && <span title="Team">🧑‍🤝‍🧑 {p.team.name}</span>}
+        {p.team && (
+          <span title="Team">
+            🧑‍🤝‍🧑{' '}
+            <Link href={`/teams/${p.team.id}`} className="hover:underline">
+              {p.team.name}
+            </Link>
+          </span>
+        )}
         {p.projectType && (
           <span title="Type">📋 {PROJECT_TYPE_LABELS[p.projectType] ?? p.projectType}</span>
         )}

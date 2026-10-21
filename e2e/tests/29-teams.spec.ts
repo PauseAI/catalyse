@@ -13,6 +13,7 @@ import {
   adminRemoveMember,
   adminReviewJoinRequest,
 } from '../actions/teams'
+import { adminCreateProjectViaApi } from '../actions/projects'
 
 interface TeamMemberBody {
   id: number
@@ -280,5 +281,26 @@ test.describe('Teams', () => {
       const updated = await getTeamByName(baseUrl, teamName)
       expect(updated.members.map((m) => m.id)).not.toContain(member.id)
     }).toPass({ timeout: 10_000 })
+  })
+
+  test('The team named on a project links to the team page', async ({
+    adminPage,
+    baseUrl,
+    snap,
+  }) => {
+    const teamName = fake.teamName()
+    const team = await createTeamViaApi(baseUrl, teamName)
+    const projectId = await adminCreateProjectViaApi(baseUrl, fake.projectTitle(), fake.note(), {
+      teamId: team.id,
+    })
+
+    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    const teamLink = adminPage.getByRole('link', { name: teamName })
+    await expect(teamLink).toBeVisible()
+    await snap(adminPage, 'project names its team')
+    await teamLink.click()
+
+    await adminPage.waitForURL(`${baseUrl}/teams/${team.id}`)
+    await expect(adminPage.getByRole('heading', { level: 1, name: teamName })).toBeVisible()
   })
 })

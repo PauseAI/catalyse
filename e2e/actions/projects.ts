@@ -134,12 +134,13 @@ export async function adminCreateProjectViaApi(
   baseUrl: string,
   title: string,
   description: string,
-  { chapterId }: { chapterId?: number } = {},
+  { chapterId, teamId }: { chapterId?: number; teamId?: number } = {},
 ): Promise<number> {
   const adminApi = createApiClient(baseUrl, readAdminToken(baseUrl))
   const created = await adminApi.admin.projects.create({
     body: {
       ...(chapterId !== undefined && { chapterId }),
+      ...(teamId !== undefined && { teamId }),
       title,
       description,
       projectType: null,

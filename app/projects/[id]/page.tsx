@@ -2029,7 +2029,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     <>
       {locationParts.length > 0 && <span>📍 {locationParts.join(' · ')}</span>}
       {locationParts.length > 0 && project.team && ' · '}
-      {project.team && <span>🧑‍🤝‍🧑 {project.team.name}</span>}
+      {project.team && (
+        <span>
+          🧑‍🤝‍🧑{' '}
+          <Link href={`/teams/${project.team.id}`} className="hover:underline">
+            {project.team.name}
+          </Link>
+        </span>
+      )}
     </>
   )
 
