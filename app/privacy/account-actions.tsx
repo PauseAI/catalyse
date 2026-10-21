@@ -40,8 +40,8 @@ export function ExportData() {
     <div className={`${SECTION_CARD} overflow-hidden wrap-break-word mb-6`}>
       <H2>Export your data</H2>
       <P className="text-text-light mb-4">
-        Download all your data in JSON format. This includes your profile, skills, project
-        interests, and messages.
+        Download all your data in JSON format. This includes your profile, skills, projects and
+        tasks, messages, comments, and notes admins have written about you.
       </P>
       <Button
         variant="secondary"
