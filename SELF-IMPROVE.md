@@ -269,3 +269,12 @@ confusing than it needed to be, and that will do so again.
       log in `tmp/e2e-server-4.log` said `EADDRINUSE`. Global setup checking the port is free
       before it starts a server, and naming the process that holds it, would make this a
       one-line diagnosis; a per-worktree port block would avoid it.
+
+- [ ] **Snapshot pictures still hold values that differ every run, so a refactor compared
+      against its base ref shows changed pictures with no code behind them.** The Tailwind theme
+      audit's `--against` run reported 17 changed per desktop lane, and each had to be cropped
+      against its baseline to dismiss: "Saved 10:49 AM" draft times, `Date.now()` suffixes in
+      fake titles, API tokens, the inbox unread dot landing before or after the shot, and the
+      roadmap's order of same-dated projects. The date rewrite before capture could cover clock
+      times and epoch numbers, `e2e/fake.ts` could seed the suffixes, and the token page could
+      mask its token.
