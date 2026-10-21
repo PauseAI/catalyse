@@ -2,11 +2,17 @@ import { describe, it, expect } from 'vitest'
 import {
   volunteerLocation,
   buildLocalGroupOptionsForCountry,
-  countryLabel,
+  countryOptions,
   projectLocationParts,
-  COUNTRY_OPTIONS,
   NO_LOCAL_GROUP,
 } from './filter-options'
+import { countryName } from './countries'
+
+const countries = [
+  { code: 'Austria', name: 'Austria', enabled: false },
+  { code: 'UK', name: 'United Kingdom', enabled: true },
+]
+const label = (code: string | null) => (code ? countryName(countries, code) : '')
 
 const groups = [
   { name: 'London', country: 'UK' },
@@ -23,13 +29,26 @@ describe('buildLocalGroupOptionsForCountry', () => {
   })
 })
 
-describe('countryLabel', () => {
-  it('resolves codes to labels and falls back to the raw value', () => {
-    expect(countryLabel('UK')).toBe('United Kingdom')
-    expect(countryLabel('Narnia')).toBe('Narnia')
-    expect(countryLabel(null)).toBe('')
-    expect(COUNTRY_OPTIONS[0].value).toBe('')
-    expect(COUNTRY_OPTIONS.some((o) => o.value === '')).toBe(true)
+describe('countryOptions', () => {
+  it('offers the enabled countries between a placeholder and Other, keeping a disabled current one', () => {
+    expect(countryOptions(countries)).toEqual([
+      { value: '', label: 'Select…' },
+      { value: 'UK', label: 'United Kingdom' },
+      { value: 'Other', label: 'Other' },
+    ])
+    expect(countryOptions(countries, 'Austria').map((o) => o.value)).toEqual([
+      '',
+      'Austria',
+      'UK',
+      'Other',
+    ])
+  })
+})
+
+describe('countryName', () => {
+  it('resolves codes to names and falls back to the raw value', () => {
+    expect(countryName(countries, 'UK')).toBe('United Kingdom')
+    expect(countryName(countries, 'Narnia')).toBe('Narnia')
   })
 })
 
@@ -46,12 +65,12 @@ describe('projectLocationParts', () => {
 
 describe('volunteerLocation', () => {
   it('joins town, local group and country once each', () => {
-    expect(volunteerLocation({ location: 'Manchester', localGroup: null, country: 'UK' })).toBe(
-      'Manchester · United Kingdom',
-    )
-    expect(volunteerLocation({ location: 'Leeds', localGroup: 'Leeds', country: 'UK' })).toBe(
-      'Leeds · United Kingdom',
-    )
-    expect(volunteerLocation({ location: null, localGroup: null, country: null })).toBe('')
+    expect(
+      volunteerLocation({ location: 'Manchester', localGroup: null, country: 'UK' }, label),
+    ).toBe('Manchester · United Kingdom')
+    expect(
+      volunteerLocation({ location: 'Leeds', localGroup: 'Leeds', country: 'UK' }, label),
+    ).toBe('Leeds · United Kingdom')
+    expect(volunteerLocation({ location: null, localGroup: null, country: null }, label)).toBe('')
   })
 })

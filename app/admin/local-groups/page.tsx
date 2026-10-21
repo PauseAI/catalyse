@@ -10,7 +10,7 @@ import { suggestionStatusVariant } from '@/lib/status-labels'
 import Radio from '@/components/Radio'
 import FilterDropdown, { FilterOption, useFilterOptions } from '@/components/FilterDropdown'
 import { orpc } from '@/lib/orpc'
-import { COUNTRY_OPTIONS, countryLabel } from '@/lib/filter-options'
+import { useCountries } from '@/lib/hooks/countries'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
 import { LocalGroupSuggestionStatus } from '@/generated/prisma/enums'
@@ -44,10 +44,6 @@ type DisplayGroup = { kind: 'group' } & LocalGroup
 type DisplaySuggestion = { kind: 'suggestion' } & Suggestion
 type DisplayItem = DisplayGroup | DisplaySuggestion
 
-const SUGGESTION_COUNTRIES = COUNTRY_OPTIONS.filter(
-  (o) => o.value && o.value !== 'Remote' && o.value !== 'Other',
-)
-
 const STATUS_FILTER_OPTIONS: FilterOption<StatusFilter>[] = [
   { value: 'all', label: 'All statuses' },
   { value: 'active', label: 'Active' },
@@ -65,6 +61,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default function AdminLocalGroupsPage() {
   const { user, loading } = useRequireStaff()
+  const { label: countryLabel, enabled: enabledCountries, loaded: countriesLoaded } = useCountries()
   const showToast = useToast()
   const queryClient = useQueryClient()
 
@@ -203,10 +200,13 @@ export default function AdminLocalGroupsPage() {
     ...orpc.admin.localGroups.deleteSuggestion.mutationOptions(),
   })
 
-  // Chapter staff run their own country's groups; a global admin any country's.
+  // Chapter staff run their own country's groups; a global admin any enabled country's.
+  const ownCountry = user?.chapter?.country
   const groupCountries = user?.access.globalAdmin
-    ? SUGGESTION_COUNTRIES
-    : SUGGESTION_COUNTRIES.filter((c) => c.value === '' || c.value === user?.chapter?.country)
+    ? enabledCountries(editGroup?.country)
+    : ownCountry
+      ? [{ value: ownCountry, label: countryLabel(ownCountry) }]
+      : []
 
   const displayItems = countryFilter ? items.filter((i) => i.country === countryFilter) : items
 
@@ -369,7 +369,7 @@ export default function AdminLocalGroupsPage() {
           />
         </div>
 
-        {loadingItems ? (
+        {loadingItems || !countriesLoaded ? (
           <div className="text-center py-10 text-text-light">Loading…</div>
         ) : displayItems.length === 0 ? (
           <P className="text-text-light">No local groups found.</P>

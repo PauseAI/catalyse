@@ -29,12 +29,11 @@ import {
   type MutableEmailCategory,
 } from '@/lib/notification-categories'
 import {
-  COUNTRY_OPTIONS,
   NO_LOCAL_GROUP,
   buildLocalGroupOptionsForCountry,
-  countryLabel,
   type LocalGroupOption,
 } from '@/lib/filter-options'
+import { useCountries } from '@/lib/hooks/countries'
 
 type TabKey = 'profile' | 'account' | 'notifications' | 'privacy' | 'bug-reports'
 
@@ -71,6 +70,7 @@ export default function SettingsPage() {
 
 function SettingsPageContent() {
   const { user, loading, refreshUser, logout, setToken } = useRequireAuth()
+  const { label: countryLabel, options: countryOptions, loaded: countriesLoaded } = useCountries()
   const showToast = useToast()
   const queryClient = useQueryClient()
 
@@ -373,7 +373,7 @@ function SettingsPageContent() {
 
   if (loading || !user) return null
 
-  if (loadingProfile) {
+  if (loadingProfile || !countriesLoaded) {
     return (
       <main className="container py-5 pb-15">
         <div className="text-center py-10 text-text-light">Loading…</div>
@@ -599,7 +599,7 @@ function SettingsPageContent() {
                 label="Country"
                 ariaLabel="Select country"
                 value={countryValue}
-                options={COUNTRY_OPTIONS}
+                options={countryOptions()}
                 onChange={handleCountryChange}
                 searchable
               />

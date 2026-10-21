@@ -9,7 +9,7 @@ import { useRequireAdmin } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
-import { countryLabel } from '@/lib/filter-options'
+import { useCountries } from '@/lib/hooks/countries'
 import { H1, H2 } from '@/components/Heading'
 import { P } from '@/components/Text'
 import FormLabel from '@/components/FormLabel'
@@ -21,6 +21,7 @@ const NO_COUNTRY = '__none__'
 /** Every national chapter, opening one for a new country, and placing the holding pool. */
 export default function AdminChaptersPage() {
   const { user, loading } = useRequireAdmin()
+  const { label: countryLabel, loaded: countriesLoaded } = useCountries()
   const showToast = useToast()
   const queryClient = useQueryClient()
   const [country, setCountry] = useState('')
@@ -60,7 +61,7 @@ export default function AdminChaptersPage() {
     onError,
   })
 
-  if (loading || !user?.isAdmin || !data) return null
+  if (loading || !user?.isAdmin || !data || !countriesLoaded) return null
 
   const chapterOptions = data.chapters.map((c) => ({ value: String(c.id), label: c.name }))
 

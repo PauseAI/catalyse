@@ -477,3 +477,17 @@ describe('signup with Google', () => {
     expect(sessionStorage.getItem('google_pending_auth')).toBeNull()
   })
 })
+
+describe('the country picker', () => {
+  it('offers only the enabled countries', async () => {
+    await prisma.country.update({ where: { code: 'Kenya' }, data: { enabled: false } })
+    await renderApp(<SignupPage />)
+    await onStep('Account')
+    await accountStep()
+    await userEvent.click(screen.getByRole('button', { name: 'Select country' }))
+    expect(await screen.findByRole('option', { name: 'Ghana' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Kenya' })).toBeNull()
+    expect(screen.queryByRole('option', { name: 'Austria' })).toBeNull()
+    await prisma.country.update({ where: { code: 'Kenya' }, data: { enabled: true } })
+  })
+})
