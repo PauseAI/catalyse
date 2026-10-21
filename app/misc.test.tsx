@@ -14,6 +14,9 @@ import AdminCreateProjectPage from './admin/projects/new/page'
 import ProjectImportPage from './projects/[id]/import/page'
 import sitemap from './sitemap'
 import robots from './robots'
+import manifest from './manifest'
+import fs from 'fs'
+import path from 'path'
 
 describe('static pages', () => {
   it('error page logs and offers a retry', async () => {
@@ -36,6 +39,19 @@ describe('static pages', () => {
   it('sitemap and robots derive from APP_URL', () => {
     expect(sitemap().map((e) => e.url)).toContain('http://localhost:3000/privacy')
     expect(robots().sitemap).toBe('http://localhost:3000/sitemap.xml')
+  })
+
+  it('manifest makes the app installable, with icons that exist', () => {
+    const m = manifest()
+    expect(m).toMatchObject({
+      short_name: 'Catalyse',
+      display: 'standalone',
+      start_url: '/dashboard',
+    })
+    expect(m.icons?.map((icon) => icon.purpose)).toEqual(['any', 'any', 'maskable'])
+    for (const icon of m.icons ?? []) {
+      expect(fs.existsSync(path.join('public', icon.src)), icon.src).toBe(true)
+    }
   })
 
   it('/profile redirects to settings', async () => {
