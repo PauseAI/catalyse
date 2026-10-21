@@ -3,6 +3,7 @@ import { prisma } from './prisma'
 import { calculateMatchScore } from './matching'
 import { isSeekingOwner, UNAPPROVED_STATUSES } from './project-status'
 import {
+  InterestOrigin,
   InterestStatus,
   ProjectStatus,
   QuickTaskStatus,
@@ -40,14 +41,15 @@ export type ProjectPrivy = { team: boolean; chapter: boolean }
 
 const PROJECT_HIDDEN_STATUSES: string[] = UNAPPROVED_STATUSES
 
-// A volunteer the owner declined or removed, or who withdrew, is no longer a contributor
-// on that project: they cannot self-claim its tasks and its tasks are hidden from their
-// Quick Tasks browse list. An owner or admin can still assign them a task explicitly.
-export const CLAIM_BLOCKING_INTEREST_STATUSES: InterestStatus[] = [
-  InterestStatus.declined,
-  InterestStatus.withdrawn,
-  InterestStatus.removed,
-]
+// A volunteer the owner turned down or took off a project cannot claim its tasks, which is how
+// anyone asks to join, and its tasks are hidden from their Quick Tasks browse list. Withdrawing,
+// or turning down an invite, leaves the way open. An owner or admin can still assign them a task.
+export const CLAIM_BLOCKING_INTEREST: Prisma.WorkItemInterestWhereInput = {
+  OR: [
+    { status: InterestStatus.removed },
+    { status: InterestStatus.declined, origin: { not: InterestOrigin.invited } },
+  ],
+}
 
 /**
  * Can `viewer` see this work item (and therefore its comment thread)?

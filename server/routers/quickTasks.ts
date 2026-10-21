@@ -13,7 +13,7 @@ import {
   SUBMISSION_ASK_FIELDS,
 } from '@/lib/schemas'
 import {
-  CLAIM_BLOCKING_INTEREST_STATUSES,
+  CLAIM_BLOCKING_INTEREST,
   CLEARED_SUBMISSION,
   projectScopeWhere,
   resolveClaimViewers,
@@ -110,12 +110,11 @@ export const quickTasksRouter = {
   // The open, unclaimed browse pool: real quick tasks plus project tasks a
   // project owner/admin has flagged to also surface here (featuredAsQuickTask).
   available: approvedProcedure.handler(async ({ context }) => {
-    // Projects this volunteer was declined from or withdrew from — they can't claim
-    // those tasks, so don't advertise them here either.
+    // Projects this volunteer cannot claim on are not advertised here either.
     const blockedInterests = await prisma.workItemInterest.findMany({
       where: {
         volunteerId: context.volunteer.id,
-        status: { in: CLAIM_BLOCKING_INTEREST_STATUSES },
+        ...CLAIM_BLOCKING_INTEREST,
         workItem: { type: WorkItemType.PROJECT },
       },
       select: { workItemId: true },

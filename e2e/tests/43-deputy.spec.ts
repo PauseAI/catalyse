@@ -1,5 +1,9 @@
 import { test, expect, createApprovedVolunteerNamed, dismissCookieConsentScript } from '../fixtures'
-import { adminCreateProjectViaApi, transferProjectOwnership } from '../actions/projects'
+import {
+  adminCreateProjectViaApi,
+  askToJoinViaApi,
+  transferProjectOwnership,
+} from '../actions/projects'
 import { createApiClient } from '../client'
 import { fake } from '../fake'
 
@@ -15,14 +19,7 @@ test.describe('Deputy', () => {
     await transferProjectOwnership(baseUrl, adminPage, projectId, volunteer.name)
 
     const helper = await createApprovedVolunteerNamed(baseUrl, fake.person().name)
-    const helperApi = createApiClient(baseUrl, helper.token)
-    expect(
-      (
-        await helperApi.projects.expressInterest({
-          body: { projectId, interestType: 'want_to_contribute' },
-        })
-      ).status,
-    ).toBe(200)
+    await askToJoinViaApi(baseUrl, helper.token, projectId)
 
     await volunteer.page.goto(`${baseUrl}/projects`)
     const ownerToken = await volunteer.page.evaluate(() => localStorage.getItem('authToken'))

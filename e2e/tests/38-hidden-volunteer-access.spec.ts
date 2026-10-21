@@ -1,7 +1,11 @@
 import { test, expect } from '../fixtures'
 import { createApprovedVolunteerNamed, readAdminToken } from '../fixtures'
 import { createApiClient } from '../client'
-import { adminCreateProjectViaApi, transferProjectOwnership } from '../actions/projects'
+import {
+  adminCreateProjectViaApi,
+  askToJoinViaApi,
+  transferProjectOwnership,
+} from '../actions/projects'
 import { fake } from '../fake'
 
 // A volunteer who opts out of the public directory
@@ -66,11 +70,7 @@ test.describe('Directory-hidden volunteer access', () => {
     const applicant = await createApprovedVolunteerNamed(baseUrl, fake.personName(), {
       hidden: true,
     })
-    const applicantApi = createApiClient(baseUrl, applicant.token)
-    const expressed = await applicantApi.projects.expressInterest({
-      body: { projectId, interestType: 'want_to_contribute' },
-    })
-    expect(expressed.status).toBe(200)
+    await askToJoinViaApi(baseUrl, applicant.token, projectId)
 
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}#people`)
     await expect(volunteer.page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })

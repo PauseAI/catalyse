@@ -142,18 +142,9 @@ describe('project page — visitor', () => {
     )
     await screen.findByText(/You've left the project/)
     await waitFor(() => expect(screen.queryByLabelText('Add a comment')).toBeNull())
-    await userEvent.click(await screen.findByRole('button', { name: 'Join this project' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Join this project' }))
-    await userEvent.type(await screen.findByLabelText('Message (optional)'), 'Pick me')
-    await userEvent.click(screen.getByRole('button', { name: 'Send request' }))
-    await screen.findByText(/You'll get a notification when they reply/)
-    // A request to help waits among the actions, beside its Withdraw button.
-    expect(await within(group('Actions')).findByText('Request sent')).toHaveAttribute(
-      'data-emphasis',
-      'outline',
-    )
-    expect(within(group('Status')).queryByLabelText('interest status')).toBeNull()
+    // A team member is still on the project through the team, so nothing asks them to join.
+    expect(screen.queryByRole('button', { name: 'Pick a task to join' })).toBeNull()
+    expect(screen.queryByText('No open tasks yet')).toBeNull()
 
     const contact = screen.getByRole('button', { name: 'Message owner' })
     await userEvent.click(contact)
@@ -204,21 +195,26 @@ describe('project page — visitor', () => {
     await mount(project.id, me)
     await screen.findByRole('heading', { name: 'Ownerless' })
     expect(screen.queryByRole('link', { name: 'Open project doc →' })).toBeNull()
-    // Nobody owns it: an empty chip, with Join beside it rather than among the page's actions.
+    // Nobody owns it: an empty chip, with the offer to lead beside it rather than among the
+    // page's actions, and no task yet to ask for.
     const person = screen.getByText('Owner', { exact: true }).parentElement!
-    expect(person).toHaveTextContent(/^OwnerNo owner yet· No helpers yetJoin this project$/)
-    expect(within(person).getByRole('button', { name: 'Join this project' })).toBeInTheDocument()
-    expect(within(group('Actions')).queryByRole('button', { name: 'Join this project' })).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Join this project' }))
-    await userEvent.click(screen.getByLabelText('Lead the project'))
-    await userEvent.click(screen.getByLabelText('Help out on the project'))
-    await userEvent.click(screen.getByLabelText('Lead the project'))
-    await userEvent.click(screen.getByRole('button', { name: 'Send request' }))
+    expect(person).toHaveTextContent(
+      /^OwnerNo owner yet· No helpers yetOffer to leadNo open tasks yet$/,
+    )
+    expect(within(group('Actions')).queryByRole('button', { name: 'Offer to lead' })).toBeNull()
+    await userEvent.click(within(person).getByRole('button', { name: 'Offer to lead' }))
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(screen.getByRole('button', { name: 'Offer to lead' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Offer to lead' }))
+    const offer = await screen.findByRole('dialog', { name: 'Offer to lead this project' })
+    await userEvent.type(within(offer).getByLabelText('Message (optional)'), 'I can run it')
+    await userEvent.click(within(offer).getByRole('button', { name: 'Send request' }))
     await screen.findByText(/You'll get a notification when they reply/)
     const interest = await prisma.workItemInterest.findFirstOrThrow({
       where: { workItemId: project.id, volunteerId: me.id },
     })
-    expect(interest.interestType).toBe('want_to_own')
+    expect(interest).toMatchObject({ interestType: 'want_to_own', message: 'I can run it' })
     // The sender's request to lead takes the Seeking owner flag's place, after the other flags;
     // Withdraw stays among the actions.
     const status = group('Status')
@@ -280,7 +276,8 @@ describe('project page — visitor', () => {
     })
     await mount(project.id, me)
     await screen.findByText("You're on this project as its lead")
-    expect(screen.queryByRole('button', { name: 'Join this project' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Offer to lead' })).toBeNull()
+    expect(screen.queryByText('No open tasks yet')).toBeNull()
     cleanup()
     await prisma.workItemInterest.update({
       where: { id: interest.id },
@@ -1325,11 +1322,11 @@ describe('project page — invites', () => {
     expect(actions).toContainElement(screen.getByRole('button', { name: 'Accept' }))
     expect(actions).toContainElement(screen.getByRole('button', { name: 'Decline' }))
     expect(screen.queryByRole('region', { name: /invited you/ })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Join this project' })).toBeNull()
+    expect(screen.queryByText('No open tasks yet')).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Decline' }))
     await screen.findByText('Invite declined.')
-    // Declining leaves the way open to apply.
-    await screen.findByRole('button', { name: 'Join this project' })
+    // Declining leaves the way open to ask to join.
+    await screen.findByText('No open tasks yet')
     expect(screen.queryByText(/invited you/)).toBeNull()
 
     await clientAs(owner).projects.invite({ projectId: project.id, volunteerId: me.id })
@@ -1969,7 +1966,7 @@ describe('project page — remaining edges', () => {
     expect(screen.queryByRole('button', { name: 'project status' })).toBeNull()
   })
 
-  it('a visitor can only ask to help on an owned project, and sees errors for interest, contact and outcome', async () => {
+  it('a visitor joins an owned project by asking for a task, and sees errors for interest, contact and outcome', async () => {
     const me = await createVolunteer()
     const owner = await createVolunteer()
     await connect(me, owner)
@@ -1981,25 +1978,31 @@ describe('project page — remaining edges', () => {
     })
     await mount(project.id, me)
     await screen.findByRole('heading', { name: 'Interest edges' })
-    await userEvent.click(screen.getByRole('button', { name: 'Join this project' }))
-    // It has an owner, so there is no lead to ask to be — no radio, just a single confirm.
-    expect(screen.getByText('Join to help?')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Help out on the project')).toBeNull()
-    expect(screen.queryByLabelText('Lead the project')).toBeNull()
-    await userEvent.keyboard('{Escape}')
-    // Claiming a task that no longer exists, then declining the withdraw confirmation.
+    // It has an owner, so there is no lead to offer to be, and no task yet to ask for.
+    expect(screen.getByText('No open tasks yet')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Offer to lead' })).toBeNull()
+    // With an open task the header points to the list. Claiming a task that no longer exists:
     const gone = await createTask(project.id, { title: 'Gone task' })
     cleanup()
-    await mount(project.id, me, '#tasks')
-    await screen.findByRole('button', { name: 'Ask to take this' })
-    await prisma.workItem.delete({ where: { id: gone.id } })
-    await userEvent.click(screen.getByRole('button', { name: 'Ask to take this' }))
-    await screen.findByText('Project or task not found')
-    await prisma.workItemInterest.create({
-      data: { workItemId: project.id, volunteerId: me.id, interestType: 'want_to_contribute' },
-    })
-    cleanup()
     await mount(project.id, me)
+    await userEvent.click(await screen.findByRole('button', { name: 'Pick a task to join' }))
+    expect(window.location.hash).toBe('#tasks')
+    await prisma.workItem.delete({ where: { id: gone.id } })
+    await userEvent.click(await screen.findByRole('button', { name: 'Ask to take this' }))
+    await screen.findByText('Project or task not found')
+    // Asking for a task asks to join; the request waits among the actions, beside Withdraw.
+    await createTask(project.id, { title: 'Wanted task' })
+    cleanup()
+    queryClient.clear()
+    await mount(project.id, me, '#tasks')
+    await userEvent.click(await screen.findByRole('button', { name: 'Ask to take this' }))
+    await screen.findByText(/Requested\. The task is held for you/)
+    expect(await within(group('Actions')).findByText('Request sent')).toHaveAttribute(
+      'data-emphasis',
+      'outline',
+    )
+    expect(within(group('Status')).queryByLabelText('interest status')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Pick a task to join' })).toBeNull()
     await userEvent.click(await screen.findByRole('button', { name: 'Withdraw request' }))
     await userEvent.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }),
@@ -2014,13 +2017,19 @@ describe('project page — remaining edges', () => {
     )
     await screen.findByText('Request withdrawn. You can ask again at any time.')
     await prisma.workItemInterest.deleteMany({ where: { volunteerId: me.id } })
+    // An offer to lead fails once the project has found an owner.
+    await prisma.workItem.update({ where: { id: project.id }, data: { assigneeId: null } })
     cleanup()
+    queryClient.clear()
     await mount(project.id, me)
-    await userEvent.click(await screen.findByRole('button', { name: 'Join this project' }))
-    await prisma.workItem.update({ where: { id: project.id }, data: { isSeekingHelp: false } })
+    await userEvent.click(await screen.findByRole('button', { name: 'Offer to lead' }))
+    await prisma.workItem.update({ where: { id: project.id }, data: { assigneeId: owner.id } })
     await userEvent.click(screen.getByRole('button', { name: 'Send request' }))
-    await screen.findByText('This project is not currently seeking volunteers')
-    await userEvent.click(screen.getByRole('button', { name: 'Message owner' }))
+    await screen.findByText('This project is not looking for a lead')
+    cleanup()
+    queryClient.clear()
+    await mount(project.id, me)
+    await userEvent.click(await screen.findByRole('button', { name: 'Message owner' }))
     await userEvent.type(screen.getByLabelText('Subject'), 'Hi')
     await userEvent.type(screen.getByLabelText('Message'), 'There')
     // The connection is gone by the time the message is sent.

@@ -5,6 +5,7 @@ import { loadAccess } from '@/lib/chapter-access-server'
 import { withoutChapterRights } from '@/lib/view-as'
 import type { Context } from '@/server/context'
 import { appRouter } from '@/server/router'
+import { createTask } from './factories'
 
 /**
  * A fully typed in-process client for the whole oRPC router, acting as `volunteer` (or
@@ -36,3 +37,17 @@ export function clientAs(signedIn: Volunteer | null, extra: Partial<Context> = {
 }
 
 export const anon = () => clientAs(null)
+
+/**
+ * `volunteer` asks to join the project the way a volunteer does: by asking to take one of its
+ * tasks, made here for the purpose. Returns the task, held for them until the owner answers.
+ */
+export async function askToJoin(volunteer: Volunteer, projectId: number) {
+  const task = await createTask(projectId)
+  await clientAs(volunteer).projects.updateTask({
+    projectId,
+    taskId: task.id,
+    data: { assigneeId: volunteer.id },
+  })
+  return task
+}
