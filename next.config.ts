@@ -38,6 +38,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: '/:path*', headers: securityHeaders },
+      // Browsers check for a new worker on every load; a cached copy would delay a fix.
+      { source: '/sw.js', headers: [{ key: 'Cache-Control', value: 'no-cache' }] },
       // Storybook's preview pane is its own document (iframe.html) framed by the manager
       // (index.html) of the same route — `frame-ancestors 'none'` above would stop the
       // browser rendering it at all, leaving the preview pane stuck loading forever.
