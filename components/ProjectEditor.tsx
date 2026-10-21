@@ -380,7 +380,11 @@ export default function ProjectEditor(props: ProjectEditorProps) {
         window.history.replaceState(null, '', `/projects/${result.id}/edit`)
         invalidateMyDrafts()
         // Edits made while the create was in flight had no project to save to.
-        const patch = changedSince(sent, latestPayload.current as CreateProjectInput, user?.id)
+        const patch = changedSince(
+          sent,
+          latestPayload.current as CreateProjectInput,
+          latestUserId.current,
+        )
         if (patch) updateMutation.mutate({ id: result.id, ...patch })
         return result.id
       })
@@ -404,10 +408,13 @@ export default function ProjectEditor(props: ProjectEditorProps) {
   // Every field goes into the draft as it stands when the timer fires, so the timer restarts on
   // any change to the payload, not just the two fields that start it.
   const autosavePayloadKey = JSON.stringify(buildCreatePayload())
-  // What a create would send now, for comparing with what an in-flight create did send.
+  // What a create would send now, for comparing with what an in-flight create did send, and
+  // who is signed in now: the create can start before the session has loaded.
   const latestPayload = useRef<CreateProjectInput | null>(null)
+  const latestUserId = useRef<number | undefined>(undefined)
   useEffect(() => {
     latestPayload.current = buildCreatePayload()
+    latestUserId.current = user?.id
   })
   useEffect(() => {
     if (!readyToAutosave || creatingDraft || autosaveError) return
