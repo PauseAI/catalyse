@@ -1738,7 +1738,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       {requestPending && (
         <>
           {!leadRequestPending && requestStatus}
-          <Button variant="secondary" size="sm" onClick={() => setWithdrawAccepted(false)}>
+          <Button variant="warning" size="sm" onClick={() => setWithdrawAccepted(false)}>
             Withdraw request
           </Button>
         </>
@@ -1750,7 +1750,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             {project.myInterest?.interestType === 'want_to_own' ? ' as its lead' : ''}
           </span>
           {isDeputy && <Badge>Deputy</Badge>}
-          <Button variant="secondary" size="sm" onClick={() => setWithdrawAccepted(true)}>
+          <Button variant="warning" size="sm" onClick={() => setWithdrawAccepted(true)}>
             Leave project
           </Button>
         </>
@@ -2476,7 +2476,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                       <Button type="submit" disabled={createTaskMutation.isPending}>
                         {createTaskMutation.isPending ? 'Creating…' : 'Create task'}
                       </Button>
-                      <Button type="button" variant="ghost" onClick={() => setShowTaskForm(false)}>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setShowTaskForm(false)}
+                      >
                         Cancel
                       </Button>
                     </div>

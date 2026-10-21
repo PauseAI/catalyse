@@ -80,7 +80,7 @@ describe('ProjectCard', () => {
     expect(screen.getByText('👤 Owen')).toHaveAttribute('title', 'Owner')
     expect(screen.getByText('⚡ high priority')).toHaveAttribute('title', 'Priority')
     expect(screen.getByText(/x{150}…/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'View details' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'View details' })).toBeInTheDocument()
   })
 
   it('handles the ownerless card, proposer display, custom action, and unknown status/type', () => {
