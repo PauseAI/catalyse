@@ -177,11 +177,9 @@ export function ProjectCard({
           <div />
         )}
         {action ?? (
-          <Link className="text-primary-text underline" href={`/projects/${p.id}`}>
-            <Button variant="secondary" size="sm">
-              View details
-            </Button>
-          </Link>
+          <Button href={`/projects/${p.id}`} variant="secondary" size="sm">
+            View details
+          </Button>
         )}
       </div>
     </div>

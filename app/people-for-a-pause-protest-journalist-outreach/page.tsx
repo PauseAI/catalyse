@@ -22,6 +22,7 @@ import Modal from '@/components/ui/Modal'
 import { Badge } from '@/components/Badge'
 import { H1, H2, H3 } from '@/components/Heading'
 import { P } from '@/components/Text'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import FormLabel from '@/components/FormLabel'
 import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
@@ -34,7 +35,7 @@ const PHONE_STORAGE_KEY = 'outreachPhone'
 type Task = NonNullable<Awaited<ReturnType<typeof client.journalistOutreach.claimNext>>>
 type Leaning = Task['leaning']
 
-const card = 'bg-surface rounded-xl shadow p-4 sm:p-6 mb-4 overflow-hidden wrap-break-word'
+const card = `${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`
 
 function RequestLinkForm({ onSignIn }: { onSignIn: (token: string) => void }) {
   const { user } = useAuth()

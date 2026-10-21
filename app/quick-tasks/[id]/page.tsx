@@ -70,7 +70,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
     return (
       <main className="container py-5">
         <P className="text-text-light">Task not found.</P>
-        <Button href="/quick-tasks" variant="secondary" size="sm">
+        <Button href="/quick-tasks" variant="outline" size="sm">
           Back to quick tasks
         </Button>
       </main>
