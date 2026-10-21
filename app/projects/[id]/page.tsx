@@ -3,6 +3,7 @@
 import React, { use, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRequireConfirmed } from '@/lib/hooks/auth'
+import { useDocumentTitle } from '@/lib/hooks/useDocumentTitle'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -952,6 +953,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   })
   const project = projectRaw
   const canClaimTasks = project?.canClaimTasks ?? false
+  useDocumentTitle(project?.title)
 
   // Only loaded once the Timeline tab is opened — it carries the computed schedule and the
   // dependency edges the List view doesn't need.
