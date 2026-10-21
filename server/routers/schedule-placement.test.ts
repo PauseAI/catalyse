@@ -225,7 +225,7 @@ describe('dependencies and the schedule', () => {
   })
 
   it('keeps a non-manager read-only: no linking, and the schedule says so', async () => {
-    const project = await createProject({ startDate: day('2026-10-01') })
+    const project = await createProject({ startDate: day('2026-10-01'), showTimeline: true })
     const a = await createTask(project.id)
     const b = await createTask(project.id)
     const bystander = await createVolunteer()

@@ -87,6 +87,7 @@ import {
   authedProcedure,
   approvedProcedure,
   confirmedProcedure,
+  staffProcedure,
   asProjectAdmin,
 } from '../procedures'
 import {
@@ -1711,6 +1712,14 @@ export const projectsRouter = {
         }
         data.autoAcceptTasks = body.autoAcceptTasks
       }
+      if (body.showTimeline !== undefined && body.showTimeline !== project.showTimeline) {
+        if (!canReassign) {
+          throw new ORPCError('FORBIDDEN', {
+            message: 'Only the project owner or an admin can show or hide the timeline',
+          })
+        }
+        data.showTimeline = body.showTimeline
+      }
 
       // Gaining an owner starts the work. Losing one leaves the status as it is: the work is
       // still where it was, and the derived isSeekingOwner shows the project needs an owner.
@@ -2422,6 +2431,15 @@ export const projectsRouter = {
       ) {
         throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
       }
+      // A hidden timeline stays open to whoever plans the tasks, for replanning from a task page.
+      const managesTasks = canManageProjectTasks(
+        project,
+        volunteer,
+        await isProjectDeputy(project.id, volunteer.id),
+      )
+      if (!project.showTimeline && !managesTasks) {
+        throw new ORPCError('FORBIDDEN', { message: "This project's timeline is hidden" })
+      }
       const locked = isProjectLocked(project)
 
       const tasks = await prisma.workItem.findMany({
@@ -2478,13 +2496,7 @@ export const projectsRouter = {
         scopeOrigin: origin,
         projectDeadline: project.deadline,
         canSetKeyDate: !locked && canManageProject(project, volunteer),
-        canManageTasks:
-          !locked &&
-          canManageProjectTasks(
-            project,
-            volunteer,
-            await isProjectDeputy(project.id, volunteer.id),
-          ),
+        canManageTasks: !locked && managesTasks,
         canCreateTasks:
           !locked &&
           canCreateProjectTask(
@@ -2807,12 +2819,12 @@ export const projectsRouter = {
     }),
 
   /**
-   * Portfolio roadmap: one placed bar per visible project, plus the project-to-project edges
-   * between them. Defaults to active statuses; completed/archived are opt-in via `statuses`.
-   * Reuses the team-visibility rule from `list` — a team-tagged project stays hidden from
-   * non-members.
+   * Portfolio roadmap, for overseeing a chapter's work: one placed bar per visible project,
+   * plus the project-to-project edges between them. Defaults to active statuses;
+   * completed/archived are opt-in via `statuses`. Reuses the scope rule from `list`, so a
+   * chapter's staff see their own chapter and a team-tagged project stays hidden from non-members.
    */
-  ganttOverview: confirmedProcedure
+  ganttOverview: staffProcedure
     .input(
       z.object({
         statuses: z.array(z.string()).optional(),
@@ -2823,15 +2835,10 @@ export const projectsRouter = {
     )
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
-      const requested =
+      const statuses =
         input.statuses && input.statuses.length > 0
           ? input.statuses
           : [ProjectStatus.ready, ProjectStatus.in_progress, ProjectStatus.on_hold]
-      // Proposals awaiting triage are for admins: a chapter's staff see their own chapter's.
-      const statuses =
-        volunteer.isAdmin || isStaff(context.access)
-          ? requested
-          : requested.filter((s) => !UNAPPROVED_STATUSES.includes(s))
 
       const visible = await prisma.workItem.findMany({
         where: {

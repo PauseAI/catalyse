@@ -7,6 +7,8 @@ import {
   createTask,
   createTeam,
   createLocalGroup,
+  createChapter,
+  createChapterLead,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 import { startOfUtcDay } from '@/lib/schedule'
@@ -24,6 +26,7 @@ describe('projects.listTasks / getTask', () => {
       assigneeId: owner.id,
       status: 'in_progress',
       startDate: new Date('2026-04-01T00:00:00Z'),
+      showTimeline: true,
     })
     const a = await createTask(project.id, {
       sortOrder: 1,
@@ -277,8 +280,10 @@ describe('projects.setBaseline', () => {
 })
 
 describe('projects.ganttOverview', () => {
-  it('places visible projects with their edges and task counts', async () => {
-    const me = await createVolunteer()
+  it("places a chapter's visible projects for its lead, with their edges and task counts", async () => {
+    const chapter = await createChapter()
+    const me = await createChapterLead(chapter)
+    const inChapter = { nationalChapterId: chapter.id }
     const team = await createTeam()
     const group = await createLocalGroup({ name: 'Gantt Town' })
     const a = await createProject({
@@ -286,12 +291,18 @@ describe('projects.ganttOverview', () => {
       durationDays: 3,
       reach: 'LOCAL',
       localGroupId: group.id,
+      ...inChapter,
     })
-    const b = await createProject({ title: 'gantt b', status: 'in_progress', assigneeId: me.id })
+    const b = await createProject({
+      title: 'gantt b',
+      status: 'in_progress',
+      assigneeId: me.id,
+      ...inChapter,
+    })
     await createTask(b.id)
     await createTask(b.id)
-    const hidden = await createProject({ teamId: team.id })
-    const done = await createProject({ status: 'completed' })
+    const hidden = await createProject({ teamId: team.id, ...inChapter })
+    const done = await createProject({ status: 'completed', ...inChapter })
     await prisma.workItemDependency.createMany({
       data: [
         { predecessorId: a.id, successorId: b.id },
@@ -308,7 +319,11 @@ describe('projects.ganttOverview', () => {
     expect(res.projects.find((p) => p.id === a.id)!.placement).not.toBeNull()
 
     // A project with no length of its own spans its dated tasks; an undated one does not count.
-    const spanned = await createProject({ title: 'gantt c', startDate: day('2027-05-01') })
+    const spanned = await createProject({
+      title: 'gantt c',
+      startDate: day('2027-05-01'),
+      ...inChapter,
+    })
     await createTask(spanned.id)
     await createTask(spanned.id, { startDate: day('2027-05-01'), deadline: day('2027-05-05') })
     const placed = (await clientAs(me).projects.ganttOverview({})).projects.find(
