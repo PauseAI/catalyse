@@ -163,7 +163,7 @@ export default function ApplicationReviewPage() {
   return (
     <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-5 pb-15">
       <div className="mb-6">
-        <Button variant="ghost" size="sm" onClick={() => router.push('/admin/applications')}>
+        <Button variant="outline" size="sm" onClick={() => router.push('/admin/applications')}>
           ← Back to applications
         </Button>
       </div>
@@ -311,7 +311,7 @@ export default function ApplicationReviewPage() {
         </FormLabel>
         <Textarea
           id="admin-notes"
-          className="w-full border border-field-border rounded-lg p-3 text-sm mb-4 bg-background"
+          className="text-sm mb-4"
           rows={4}
           value={adminNotes}
           onChange={(e) => setAdminNotes(e.target.value)}
@@ -326,7 +326,7 @@ export default function ApplicationReviewPage() {
         </FormLabel>
         <Textarea
           id="applicant-notes"
-          className="w-full border border-field-border rounded-lg p-3 text-sm mb-6 bg-background"
+          className="text-sm mb-6"
           rows={4}
           value={applicantNotes}
           onChange={(e) => setApplicantNotes(e.target.value)}
@@ -334,7 +334,7 @@ export default function ApplicationReviewPage() {
         />
 
         <div className="flex gap-2 justify-end">
-          <Button variant="ghost" onClick={() => handleSaveNotes(app.id)} disabled={submitting}>
+          <Button variant="secondary" onClick={() => handleSaveNotes(app.id)} disabled={submitting}>
             Save notes
           </Button>
           {canAction && (
