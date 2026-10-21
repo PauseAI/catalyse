@@ -85,7 +85,7 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
             {' · '}
             <Link
               href={`/projects/${thread.relatedProject.id}`}
-              className="inline-block text-xs px-2 py-0.5 rounded-full bg-accent text-secondary-dark no-underline dark:bg-gray-700 dark:text-gray-300"
+              className="inline-block text-xs px-2 py-0.5 rounded-full bg-chip text-chip-text no-underline"
             >
               {thread.relatedProject.title}
             </Link>
@@ -98,7 +98,7 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
           <li
             key={m.id}
             className={`rounded-xl p-4 max-w-[85%] wrap-break-word ${
-              m.fromMe ? 'self-end bg-accent dark:bg-gray-700' : 'self-start bg-surface shadow'
+              m.fromMe ? 'self-end bg-chip' : 'self-start bg-surface shadow'
             }`}
           >
             <div className="flex items-baseline justify-between gap-3 mb-1">

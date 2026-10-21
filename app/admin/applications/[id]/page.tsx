@@ -212,7 +212,7 @@ export default function ApplicationReviewPage() {
             {app.skills.map((s) => (
               <span
                 key={s.id}
-                className="inline-flex items-center px-3 py-1 bg-accent text-secondary-dark rounded-full text-sm font-medium dark:bg-gray-700 dark:text-gray-300"
+                className="inline-flex items-center px-3 py-1 bg-chip text-chip-text rounded-full text-sm font-medium"
               >
                 {s.name}
               </span>

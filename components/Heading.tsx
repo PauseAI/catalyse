@@ -3,10 +3,7 @@ import { twMerge } from 'tailwind-merge'
 
 type HeadingProps = ComponentPropsWithoutRef<'h1'>
 
-// Arbitrary value, not the `font-heading` utility: the theme's `--font-family-heading` key
-// (app/globals.css) isn't the `--font-*` namespace Tailwind v4 generates font-family utilities
-// from, so that utility doesn't exist — this references the same custom property directly.
-const base = 'font-[family-name:var(--font-heading)] font-bold text-heading'
+const base = 'font-heading font-bold text-heading'
 
 export function H1({ className, ...props }: HeadingProps) {
   return <h1 className={twMerge(base, 'text-[2rem] mb-4', className)} {...props} />
