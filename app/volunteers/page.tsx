@@ -241,7 +241,7 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
                       {v.skills.slice(0, 3).map((s) => (
                         <span
                           key={s.id}
-                          className="inline-flex items-center px-2 py-0.5 bg-accent text-secondary-dark rounded-full text-xs font-medium dark:bg-gray-700 dark:text-gray-300"
+                          className="inline-flex items-center px-2 py-0.5 bg-chip text-chip-text rounded-full text-xs font-medium"
                         >
                           {s.name}
                         </span>

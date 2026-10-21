@@ -128,7 +128,7 @@ describe('palette / drag maths', () => {
     expect(barTone('archived')).toBe('hold')
     expect(barTone('ready')).toBe('todo')
     expect(barTone('blocked')).toBe('todo')
-    expect(barFill('ready')).toBe('var(--gantt-bar-todo)')
+    expect(barFill('ready')).toBe('var(--color-gantt-bar-todo)')
     expect(deltaToDays(70, 30)).toBe(2)
     expect(patchFromDrag(rows[0], { kind: 'move', rowId: 1 }, 5, 30)).toBeNull()
     expect(patchFromDrag(rows[0], { kind: 'move', rowId: 1 }, 60, 30)).toEqual({
@@ -410,7 +410,7 @@ describe('GanttChart', () => {
     expect(flexible).toHaveTextContent('6h')
     expect(flexible.style.background).toContain('color-mix')
     const fixed = screen.getByRole('button', { name: /^Staff the stall: .*on this day/ })
-    expect(fixed.style.boxShadow).toContain('var(--gantt-finish)')
+    expect(fixed.style.boxShadow).toContain('var(--color-gantt-finish)')
   })
 
   it('highlights related rows on hover and syncs the header scroll', async () => {
@@ -677,9 +677,9 @@ describe('GanttDependencyLayer', () => {
     )
     const remove = screen.getByRole('button', { name: 'Remove dependency A → B' })
     fireEvent.mouseEnter(remove)
-    expect(remove.style.borderColor).toBe('var(--gantt-today)')
+    expect(remove.style.borderColor).toBe('var(--color-gantt-today)')
     fireEvent.mouseLeave(remove)
-    expect(remove.style.borderColor).toBe('var(--gantt-link-active)')
+    expect(remove.style.borderColor).toBe('var(--color-gantt-link-active)')
     fireEvent.click(remove)
     expect(onRemove).toHaveBeenCalledWith(5)
     // Read-only, and with an off-window endpoint, nothing is removable or drawn.

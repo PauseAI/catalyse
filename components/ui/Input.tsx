@@ -8,7 +8,7 @@ type InputProps = Omit<ComponentPropsWithoutRef<'input'>, 'type'> & {
 }
 
 const base =
-  'w-full p-3 border-2 rounded-lg text-[1rem] border-brand-border dark:border-secondary bg-surface text-brand-text transition-colors duration-200 focus:outline-none focus:border-secondary aria-invalid:border-error focus:aria-invalid:border-error'
+  'w-full p-3 border-2 rounded-lg text-[1rem] border-field-border bg-surface text-brand-text transition-colors duration-200 focus:outline-none focus:border-secondary aria-invalid:border-error focus:aria-invalid:border-error'
 
 const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   { type = 'text', className, ...props },

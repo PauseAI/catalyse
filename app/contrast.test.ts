@@ -14,43 +14,73 @@ function contrast(a: string, b: string): number {
 }
 
 const css = readFileSync(path.join(__dirname, 'globals.css'), 'utf8')
-function tokens(selector: string): Record<string, string> {
-  const block = css.slice(css.indexOf(selector)).split('}')[0]
+const LIGHT = '@theme static {'
+const DARK = "[data-theme='dark'] {"
+function block(selector: string, source = css): string {
+  return source.slice(source.indexOf(selector)).split('}')[0]
+}
+function tokens(selector: string, source = css): Record<string, string> {
   return Object.fromEntries(
-    [...block.matchAll(/--([\w-]+):\s*(#[0-9a-fA-F]{6})/g)].map((m) => [m[1], m[2]]),
+    [...block(selector, source).matchAll(/--color-([\w-]+):\s*(#[0-9a-fA-F]{6})/g)].map((m) => [
+      m[1],
+      m[2],
+    ]),
   )
 }
 
+describe('the offline page', () => {
+  const html = readFileSync(path.join(__dirname, '..', 'public', 'offline.html'), 'utf8')
+  it.each([
+    [LIGHT, ':root {'],
+    [DARK, DARK],
+  ])('copies the %s tokens it uses', (appSelector, pageSelector) => {
+    const page = tokens(pageSelector, html)
+    const app = tokens(appSelector)
+    expect(Object.keys(page)).toContain('brand-bg')
+    for (const [name, value] of Object.entries(page))
+      expect([name, value]).toEqual([name, app[name]])
+  })
+})
+
 // Every colour used for text, against every background it is drawn on.
-const TEXT = ['text', 'heading', 'text-light', 'primary-text', 'error', 'success', 'warning-text']
-const BACKGROUNDS = ['background', 'surface']
+const TEXT = [
+  'brand-text',
+  'heading',
+  'text-light',
+  'primary-text',
+  'error',
+  'success',
+  'warning-text',
+]
+const BACKGROUNDS = ['brand-bg', 'surface']
 
 describe.each([
-  ['light', ':root {'],
-  ['dark', "[data-theme='dark'] {"],
+  ['light', LIGHT],
+  ['dark', DARK],
 ])('%s theme text contrast', (_theme, selector) => {
   const t = tokens(selector)
   it.each(TEXT.flatMap((fg) => BACKGROUNDS.map((bg) => [fg, bg])))(
-    '--%s on --%s meets WCAG AA (4.5:1)',
+    '--color-%s on --color-%s meets WCAG AA (4.5:1)',
     (fg, bg) => {
       expect(contrast(t[fg], t[bg])).toBeGreaterThanOrEqual(4.5)
     },
   )
 })
 
-// `--secondary-dark` is a fill (button hover); as a text colour it is grey on the dark page.
-// Headings use `--heading`, and text on the orange fill uses `text-gray-900`.
+// `--color-secondary-dark` is a fill (button hover); as a text colour it is grey on the dark page.
+// Headings use `--color-heading`, and text on the orange fill uses `text-gray-900`.
 const ON_PRIMARY = '#111827'
 
 describe.each([
-  ['light', ':root {'],
-  ['dark', "[data-theme='dark'] {"],
+  ['light', LIGHT],
+  ['dark', DARK],
 ])('%s theme text on the orange fill', (_theme, selector) => {
-  it('gray-900 on --primary meets WCAG AA (4.5:1)', () => {
+  it('gray-900 on --color-primary meets WCAG AA (4.5:1)', () => {
     expect(contrast(ON_PRIMARY, tokens(selector).primary)).toBeGreaterThanOrEqual(4.5)
   })
 })
 
+const root = path.join(__dirname, '..')
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const full = path.join(dir, name)
@@ -58,10 +88,20 @@ function sourceFiles(dir: string): string[] {
     return /\.tsx$/.test(name) && !/\.test\./.test(name) ? [full] : []
   })
 }
+function linesMatching(test: (line: string) => boolean): string[] {
+  return ['app', 'components']
+    .flatMap((d) => sourceFiles(path.join(root, d)))
+    .flatMap((file) =>
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .filter(test)
+        .map((line) => `${path.relative(root, file)}: ${line.trim()}`),
+    )
+}
 
 describe('outline buttons', () => {
-  it('are drawn in the text colours, which are measured above, not in --secondary', () => {
-    const button = readFileSync(path.join(__dirname, '..', 'components', 'Button.tsx'), 'utf8')
+  it('are drawn in the text colours, which are measured above, not in --color-secondary', () => {
+    const button = readFileSync(path.join(root, 'components', 'Button.tsx'), 'utf8')
     const outline = button.match(/outline:\s*'([^']*)'/)?.[1] ?? ''
     expect(outline).toContain('text-brand-text')
     expect(outline).toContain('border-text-light')
@@ -70,20 +110,16 @@ describe('outline buttons', () => {
 })
 
 describe('text-secondary and text-secondary-dark', () => {
-  it('are not text colours: --secondary is a fill, and text-secondary-dark only sits on the accent pill', () => {
-    const root = path.join(__dirname, '..')
-    const offenders = ['app', 'components']
-      .flatMap((d) => sourceFiles(path.join(root, d)))
-      .flatMap((file) =>
-        readFileSync(file, 'utf8')
-          .split('\n')
-          .filter(
-            (line) =>
-              (line.includes('text-secondary-dark') && !line.includes('dark:text-gray-300')) ||
-              /\btext-secondary(?![-\w])/.test(line),
-          )
-          .map((line) => `${path.relative(root, file)}: ${line.trim()}`),
-      )
-    expect(offenders).toEqual([])
+  it('are not text colours: both are fills, grey on the dark page', () => {
+    expect(linesMatching((line) => /\btext-secondary(-dark)?(?![-\w])/.test(line))).toEqual([])
+  })
+})
+
+describe('dark: utilities', () => {
+  it('never recolour a token, which the dark block already redefines', () => {
+    const names = [...block(LIGHT).matchAll(/--color-([\w-]+):/g)].map((m) => m[1])
+    const onToken = new RegExp(`\\bdark:(?:[\\w-]+:)*[a-z]+-(?:${names.join('|')})(?![-\\w])`)
+    expect(names).toContain('surface')
+    expect(linesMatching((line) => onToken.test(line))).toEqual([])
   })
 })

@@ -74,17 +74,17 @@ export default function GanttLegend({ statuses = DEFAULT_STATUSES }: { statuses?
       <Swatch label="Today">
         <span
           className="block h-3 w-0.5"
-          style={{ background: 'var(--gantt-today)' }}
+          style={{ background: 'var(--color-gantt-today)' }}
           aria-hidden="true"
         />
       </Swatch>
       <Swatch label="Deadline (red once it is missed)">
-        <span aria-hidden="true" style={{ color: 'var(--gantt-today)' }}>
+        <span aria-hidden="true" style={{ color: 'var(--color-gantt-today)' }}>
           ▲
         </span>
       </Swatch>
       <Swatch label="Key date" hint={ANCHOR_HINT}>
-        <span aria-hidden="true" style={{ color: 'var(--gantt-anchor)' }}>
+        <span aria-hidden="true" style={{ color: 'var(--color-gantt-anchor)' }}>
           ★
         </span>
       </Swatch>
@@ -119,7 +119,7 @@ export function PlanningTools({ children }: { children?: React.ReactNode }) {
           <H3 className="m-0 text-xs font-semibold">What the marks mean</H3>
           <dl className="text-text-light m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
             <Mark name="Key date">
-              <span style={{ color: 'var(--gantt-anchor)' }}>★</span>
+              <span style={{ color: 'var(--color-gantt-anchor)' }}>★</span>
             </Mark>
             <dd className="m-0">
               The fixed point the plan is built around — the event date itself. Set it from a bar’s
@@ -128,7 +128,7 @@ export function PlanningTools({ children }: { children?: React.ReactNode }) {
             <Mark name="Critical path">
               <span
                 className="block h-3 w-6 rounded-sm"
-                style={{ boxShadow: 'inset 0 0 0 2px var(--gantt-critical)' }}
+                style={{ boxShadow: 'inset 0 0 0 2px var(--color-gantt-critical)' }}
               />
             </Mark>
             <dd className="m-0">
@@ -138,14 +138,14 @@ export function PlanningTools({ children }: { children?: React.ReactNode }) {
             <Mark name="Original plan">
               <span
                 className="block h-1 w-6 rounded-full"
-                style={{ background: 'var(--gantt-baseline)' }}
+                style={{ background: 'var(--color-gantt-baseline)' }}
               />
             </Mark>
             <dd className="m-0">A thin rule above the bar: where it sat when the plan was set.</dd>
             <Mark name="Actual">
               <span
                 className="block h-1 w-6 rounded-full"
-                style={{ background: 'var(--gantt-actual)' }}
+                style={{ background: 'var(--color-gantt-actual)' }}
               />
             </Mark>
             <dd className="m-0">
@@ -155,7 +155,7 @@ export function PlanningTools({ children }: { children?: React.ReactNode }) {
               <span
                 className="block h-2.5 w-2.5 rounded-full"
                 style={{
-                  background: 'var(--gantt-today)',
+                  background: 'var(--color-gantt-today)',
                   boxShadow: '0 0 0 1.5px var(--color-surface)',
                 }}
               />
@@ -165,7 +165,7 @@ export function PlanningTools({ children }: { children?: React.ReactNode }) {
               <span
                 className="block h-3 w-6 rounded-sm"
                 style={{
-                  background: 'color-mix(in srgb, var(--gantt-bar-todo) 40%, transparent)',
+                  background: 'color-mix(in srgb, var(--color-gantt-bar-todo) 40%, transparent)',
                 }}
               />
             </Mark>
@@ -174,8 +174,8 @@ export function PlanningTools({ children }: { children?: React.ReactNode }) {
               <span
                 className="block h-3 w-6 rounded-sm"
                 style={{
-                  background: 'var(--gantt-bar-todo)',
-                  boxShadow: 'inset 0 0 0 2px var(--gantt-finish)',
+                  background: 'var(--color-gantt-bar-todo)',
+                  boxShadow: 'inset 0 0 0 2px var(--color-gantt-finish)',
                 }}
               />
             </Mark>
@@ -184,7 +184,7 @@ export function PlanningTools({ children }: { children?: React.ReactNode }) {
               <span
                 className="block h-2.5 w-2.5"
                 style={{
-                  background: 'var(--gantt-bar-todo)',
+                  background: 'var(--color-gantt-bar-todo)',
                   borderRadius: 1,
                   transform: 'rotate(45deg)',
                 }}
@@ -194,7 +194,7 @@ export function PlanningTools({ children }: { children?: React.ReactNode }) {
             <Mark name="Project end">
               <span
                 className="block h-3"
-                style={{ borderLeft: '2px dashed var(--gantt-finish)' }}
+                style={{ borderLeft: '2px dashed var(--color-gantt-finish)' }}
               />
             </Mark>
             <dd className="m-0">The day the last item on the plan finishes.</dd>
