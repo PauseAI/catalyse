@@ -87,13 +87,14 @@ enum ChapterAuditAction {
 /// can never have two; deputies are ChapterDeputy rows. Both are members of the chapter.
 model NationalChapter {
   id        Int      @id @default(autoincrement())
-  /// A value from COUNTRIES (lib/countries.ts), e.g. "UK".
+  /// A Country's code, e.g. "UK".
   country   String   @unique
   name      String
   leadId    Int?     @unique @map("lead_id")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
+  countryEntry          Country                  @relation(fields: [country], references: [code], onDelete: Restrict, onUpdate: NoAction)
   lead                  Volunteer?               @relation("ChapterLead", fields: [leadId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   deputies              ChapterDeputy[]
   members               Volunteer[]              @relation("ChapterMembers")
@@ -1264,6 +1265,18 @@ model AnonymisedEmail {
   reapplyAllowedAt DateTime? @map("reapply_allowed_at")
 
   @@map("anonymised_emails")
+}
+
+/// A country people can say they live in. `code` is what volunteers, chapters and local groups
+/// store, e.g. "UK". A disabled country is offered in no picker, but values already stored still
+/// show its name.
+model Country {
+  code    String           @id
+  name    String
+  enabled Boolean          @default(true)
+  chapter NationalChapter?
+
+  @@map("countries")
 }
 
 model PlatformSettings {

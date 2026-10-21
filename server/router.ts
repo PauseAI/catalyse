@@ -8,6 +8,7 @@ import { messagesRouter } from './routers/messages'
 import { contactsRouter } from './routers/contacts'
 import { bugReportsRouter } from './routers/bugReports'
 import { chaptersRouter } from './routers/chapters'
+import { countriesRouter } from './routers/countries'
 import { chapterTransfersRouter } from './routers/chapterTransfers'
 import { localGroupsRouter } from './routers/localGroups'
 import { localGroupSuggestionsRouter } from './routers/localGroupSuggestions'
@@ -38,6 +39,7 @@ import { adminBugReportsRouter } from './routers/admin/bugReports'
 import { adminApiTokensRouter } from './routers/admin/apiTokens'
 import { adminAdminsRouter } from './routers/admin/admins'
 import { adminChaptersRouter } from './routers/admin/chapters'
+import { adminCountriesRouter } from './routers/admin/countries'
 import { adminPlatformSettingsRouter } from './routers/admin/platformSettings'
 import { adminStatsRouter } from './routers/admin/stats'
 import { adminTriageRouter } from './routers/admin/triage'
@@ -65,6 +67,7 @@ export const appRouter = {
   bugReports: bugReportsRouter,
   bugReportComments: bugReportCommentsRouter,
   chapters: chaptersRouter,
+  countries: countriesRouter,
   chapterTransfers: chapterTransfersRouter,
   localGroups: localGroupsRouter,
   localGroupSuggestions: localGroupSuggestionsRouter,
@@ -96,6 +99,7 @@ export const appRouter = {
     apiTokens: adminApiTokensRouter,
     admins: adminAdminsRouter,
     chapters: adminChaptersRouter,
+    countries: adminCountriesRouter,
     requiredActions: adminRequiredActionsRouter,
     platformSettings: adminPlatformSettingsRouter,
     stats: adminStatsRouter,

@@ -10,7 +10,7 @@ import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
-import { countryLabel } from '@/lib/filter-options'
+import { useCountries } from '@/lib/hooks/countries'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import { InferRouterOutputs } from '@orpc/server'
 import { AppRouter } from '@/server/router'
@@ -47,6 +47,7 @@ function ApplicationsPageContent() {
 
   const enabled = !!user
   const [chapterParam, setChapterParam] = useUrlParam('chapter')
+  const { loaded: countriesLoaded } = useCountries()
   const chapter = chapterSelection(chapterParam)
 
   const mine = useQuery({
@@ -117,7 +118,7 @@ function ApplicationsPageContent() {
         </div>
       )}
 
-      {anyLoading && totalCount === 0 ? (
+      {(anyLoading && totalCount === 0) || !countriesLoaded ? (
         <P className="text-text-light mt-6">Loading…</P>
       ) : totalCount === 0 ? (
         <P className="text-text-light mt-6">No applications to review.</P>
@@ -242,6 +243,7 @@ function ApplicationCard({
   onStartReview: (id: number) => void
   onNavigate: (id: number) => void
 }) {
+  const { label: countryLabel } = useCountries()
   const anonymiseDate = app.anonymiseAt ? new Date(app.anonymiseAt) : null
   // Date.now() is intentionally impure here — we want the current wall-clock
   // time to compute days remaining. Alternatives (prop drilling, context, ref)

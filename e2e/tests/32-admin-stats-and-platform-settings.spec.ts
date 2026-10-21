@@ -1,4 +1,4 @@
-import { test, expect } from '../fixtures'
+import { test, expect, readAdminToken } from '../fixtures'
 import { createApiClient } from '../client'
 import { ensureChapter, makeChapterStaff } from '../actions/chapters'
 
@@ -64,6 +64,44 @@ test.describe('Admin Platform Settings', () => {
     // Restore original state so this test doesn't leak into others that assume approval is on.
     await toggle.click({ force: true })
     await expect(adminPage.getByText('Settings saved')).toBeVisible({ timeout: 10_000 })
+  })
+
+  test('Super admin disables a country and signup no longer offers it', async ({
+    adminPage,
+    page,
+    baseUrl,
+    snap,
+  }) => {
+    // Austria starts disabled; no other spec uses it, and the test leaves it disabled.
+    const api = createApiClient(baseUrl, readAdminToken(baseUrl))
+    await api.admin.countries.setEnabled({ code: 'Austria', enabled: true })
+
+    const countryPicker = async () => {
+      await page.goto(`${baseUrl}/signup`)
+      await page.getByLabel('Your name').fill('Country Checker')
+      await page.getByLabel('Email', { exact: true }).fill('country.checker@example.com')
+      await page.getByLabel('Password', { exact: true }).fill('a-long-password')
+      await page.getByLabel('Confirm password').fill('a-long-password')
+      await page.getByRole('button', { name: 'Next: About you' }).click()
+      await page.getByLabel('Select country', { exact: true }).click()
+      await page.getByRole('searchbox', { name: 'Select country' }).fill('Aus')
+    }
+    await countryPicker()
+    await expect(page.getByRole('option', { name: 'Austria', exact: true })).toBeVisible()
+
+    await adminPage.goto(`${baseUrl}/admin/platform-settings`)
+    const countries = adminPage.getByRole('region', { name: 'Countries' })
+    const austria = countries.getByRole('checkbox', { name: 'Austria' })
+    await expect(austria).toBeChecked({ timeout: 10_000 })
+    await snap(adminPage, 'countries')
+    // The switch is a decorative sibling of the sr-only input (see the approval toggle above).
+    await austria.click({ force: true })
+    await expect(adminPage.getByText('Austria disabled')).toBeVisible()
+    await expect(austria).not.toBeChecked()
+
+    await countryPicker()
+    await expect(page.getByRole('option', { name: 'Australia', exact: true })).toBeVisible()
+    await expect(page.getByRole('option', { name: 'Austria', exact: true })).toHaveCount(0)
   })
 
   test('A chapter deputy cannot open platform settings', async ({ volunteer, baseUrl }) => {

@@ -11,6 +11,7 @@ import ActiveDot from '@/components/ActiveDot'
 import Linkify from '@/components/Linkify'
 import { useToast } from '@/lib/toast'
 import { volunteerLocation } from '@/lib/filter-options'
+import { useCountries } from '@/lib/hooks/countries'
 import { orpc } from '@/lib/orpc'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import { H1, H2, H3, H4 } from '@/components/Heading'
@@ -20,6 +21,7 @@ import TextLink from '@/components/TextLink'
 export default function VolunteerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { user, loading } = useRequireAuth()
+  const { label: countryLabel, loaded: countriesLoaded } = useCountries()
   const showToast = useToast()
   const queryClient = useQueryClient()
   const respond = useMutation({
@@ -49,7 +51,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
 
   if (loading || !user) return null
 
-  if (loadingProfile) {
+  if (loadingProfile || !countriesLoaded) {
     return (
       <>
         <main className="container py-5 pb-15">
@@ -149,8 +151,10 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
               </P>
             )}
 
-            {volunteerLocation(volunteer) && (
-              <P className="text-text-light mb-4 text-sm">📍 {volunteerLocation(volunteer)}</P>
+            {volunteerLocation(volunteer, countryLabel) && (
+              <P className="text-text-light mb-4 text-sm">
+                📍 {volunteerLocation(volunteer, countryLabel)}
+              </P>
             )}
 
             <div id="volunteerBio" className="whitespace-pre-wrap mb-5">

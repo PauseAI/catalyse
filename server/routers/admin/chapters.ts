@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { env } from '@/lib/env'
-import { COUNTRIES, countryName, isCountry } from '@/lib/countries'
+import { listCountries } from '@/lib/countries-server'
 import { canAdminChapter, canAppointDeputies, type ChapterAccess } from '@/lib/chapter-access'
 import {
   appointDeputy,
@@ -74,25 +74,30 @@ export const adminChaptersRouter = {
         deputyCount: c._count.deputies,
       })),
       poolCount,
-      availableCountries: COUNTRIES.filter((c) => !taken.has(c.value)),
+      // Disabled ones too: opening a chapter enables its country.
+      availableCountries: (await listCountries())
+        .filter((c) => !taken.has(c.code))
+        .map((c) => ({ value: c.code, label: c.name })),
     }
   }),
 
   /**
-   * Opens a chapter for a country. Everyone in the holding pool who said they live there, and
-   * the local group suggestions they made, move into it.
+   * Opens a chapter for a listed country, enabling it. Everyone in the holding pool who said
+   * they live there, and the local group suggestions they made, move into it.
    */
   create: adminProcedure
     .input(z.object({ country: z.string() }))
     .handler(async ({ input, context }) => {
       const { country } = input
-      if (!isCountry(country)) throw new ORPCError('BAD_REQUEST', { message: 'Unknown country' })
+      const listed = await prisma.country.findUnique({ where: { code: country } })
+      if (!listed) throw new ORPCError('BAD_REQUEST', { message: 'Unknown country' })
       if (await prisma.nationalChapter.findUnique({ where: { country } })) {
         throw new ORPCError('BAD_REQUEST', { message: 'That country already has a chapter' })
       }
-      const name = countryName(country)
+      const { name } = listed
       return prisma.$transaction(async (tx) => {
         const chapter = await tx.nationalChapter.create({ data: { country, name } })
+        await tx.country.update({ where: { code: country }, data: { enabled: true } })
         const placed = await tx.volunteer.updateMany({
           where: { nationalChapterId: null, country, deletedAt: null },
           data: { nationalChapterId: chapter.id },

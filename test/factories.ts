@@ -2,7 +2,6 @@ import { prisma } from '@/lib/prisma'
 import { hashPassword } from '@/lib/auth'
 import { ApprovalStatus, WorkItemType, ProjectStatus } from '@/generated/prisma/enums'
 import type { Prisma } from '@/generated/prisma/client'
-import { COUNTRIES } from '@/lib/countries'
 import { globalAdminEmail } from './admin-emails'
 
 let seq = 0
@@ -115,9 +114,13 @@ export async function createLocalGroup(
   })
 }
 
-/** The chapter for a listed country, made if it does not exist yet. */
+/** The chapter for a country, made if it does not exist yet, as is a country not listed. */
 export async function chapterFor(country: string) {
-  const name = COUNTRIES.find((c) => c.value === country)?.label ?? country
+  const { name } = await prisma.country.upsert({
+    where: { code: country },
+    update: {},
+    create: { code: country, name: country },
+  })
   return prisma.nationalChapter.upsert({
     where: { country },
     update: {},
@@ -132,10 +135,12 @@ export async function createChapter(
   const taken = new Set(
     (await prisma.nationalChapter.findMany({ select: { country: true } })).map((c) => c.country),
   )
-  const listed = COUNTRIES.find((c) => !taken.has(c.value))
-  if (!listed) throw new Error('createChapter: every listed country already has a chapter')
+  const listed = (
+    await prisma.country.findMany({ where: { enabled: true }, orderBy: { name: 'asc' } })
+  ).find((c) => !taken.has(c.code))
+  if (!listed) throw new Error('createChapter: every enabled country already has a chapter')
   return prisma.nationalChapter.create({
-    data: { country: listed.value, name: listed.label, ...overrides },
+    data: { country: listed.code, name: listed.name, ...overrides },
   })
 }
 

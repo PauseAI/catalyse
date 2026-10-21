@@ -1,10 +1,11 @@
 import { ORPCError } from '@orpc/server'
 import { prisma } from './prisma'
-import { OTHER_COUNTRY, isCountry } from './countries'
+import { OTHER_COUNTRY } from './countries'
+import { isEnabledCountry } from './countries-server'
 
-/** A country someone may say they live in: a listed one, or Other. */
-export function assertKnownCountry(country: string): void {
-  if (!isCountry(country) && country !== OTHER_COUNTRY) {
+/** A country someone may say they live in: an enabled one, or Other. */
+export async function assertKnownCountry(country: string): Promise<void> {
+  if (country !== OTHER_COUNTRY && !(await isEnabledCountry(country))) {
     throw new ORPCError('BAD_REQUEST', { message: 'Choose your country from the list' })
   }
 }
@@ -14,7 +15,7 @@ export function assertKnownCountry(country: string): void {
  * when it has none. A local group, given by name, must be one of that chapter's.
  */
 export async function placement(country: string, localGroup?: string | null) {
-  assertKnownCountry(country)
+  await assertKnownCountry(country)
   const chapter = await prisma.nationalChapter.findUnique({ where: { country } })
   return {
     country,
