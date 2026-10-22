@@ -1,9 +1,6 @@
 [build]
-builder = "NIXPACKS"
-# trigger.mjs has no dependencies on the app. The default `npm run build` runs
-# `prisma generate`, which needs DATABASE_URL, and this service has none.
-buildCommand = "true"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.cron"
 
 [deploy]
-startCommand = "node scripts/cron-trigger/trigger.mjs"
 restartPolicyType = "NEVER"

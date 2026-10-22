@@ -1,0 +1,8 @@
+# trigger.mjs has no dependencies on the app, so this image carries only Node and the script.
+# Keep the tag in step with Dockerfile.
+FROM node:24.22.1-bookworm-slim
+
+WORKDIR /app
+COPY scripts/cron-trigger/trigger.mjs ./
+
+CMD ["node", "trigger.mjs"]
