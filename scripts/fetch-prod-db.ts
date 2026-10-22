@@ -207,7 +207,9 @@ async function main(): Promise<void> {
     process.exit(1)
   }
 
-  const latest = files.reduce((a, b) => (a.uploadTimestamp > b.uploadTimestamp ? a : b))
+  // Names carry the time the dump was taken (catalyse-YYYY-MM-DD_HHMMSS.dump) and sort by it;
+  // uploadTimestamp is reset whenever a file is copied between buckets.
+  const latest = files.reduce((a, b) => (a.fileName > b.fileName ? a : b))
   logger.info(`Latest backup: ${latest.fileName} (${(latest.contentLength / 1024).toFixed(0)} KB)`)
 
   logger.info('Downloading...')
