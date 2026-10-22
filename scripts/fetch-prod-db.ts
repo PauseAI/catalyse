@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 /**
- * Restores the latest prod backup from B2 into the database at DATABASE_URL, then anonymises it
- * and seeds the dev accounts (scripts/anonymise-db.ts). If the scrub fails the database is
- * emptied again, so raw prod data never outlives it. Refuses to touch the production environment.
+ * Restores the latest prod backup from B2 into the database at DATABASE_URL, migrates it to this
+ * checkout's schema (the scrub names every current column, and the backup can predate the newest
+ * migrations), then anonymises it and seeds the dev accounts (scripts/anonymise-db.ts). If the
+ * migration or the scrub fails the database is emptied again, so raw prod data never outlives
+ * it. Refuses to touch the production environment.
  *
  * Usage:
  *   npx tsx scripts/fetch-prod-db.ts              # reads B2 creds from .env.b2
@@ -214,8 +216,13 @@ async function main(): Promise<void> {
   logger.info(`Restoring into ${new URL(dbUrl).pathname.slice(1)}...`)
   await restoreDump(dumpPath, dbUrl)
 
-  logger.info('Anonymising and seeding dev accounts...')
   try {
+    logger.info('Applying migrations...')
+    execFileSync('npx', ['prisma', 'migrate', 'deploy'], {
+      stdio: 'inherit',
+      env: { ...process.env, CHECKPOINT_DISABLE: '1' },
+    })
+    logger.info('Anonymising and seeding dev accounts...')
     await anonymiseDatabase(dbUrl)
   } catch (err) {
     await emptyDatabase(dbUrl)
