@@ -92,6 +92,7 @@ describe('project page — visitor', () => {
       'https://doc.example',
     )
     expect(screen.getByText('Olive Owner')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Crew' })).toHaveAttribute('href', `/teams/${team.id}`)
     expect(screen.getByText('You match 0 of 1 skill')).toBeInTheDocument()
 
     await openTab(/^Tasks/)

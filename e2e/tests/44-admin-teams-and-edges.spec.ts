@@ -74,12 +74,17 @@ test.describe('Edges', () => {
     const context = await browser.newContext()
     const page = await context.newPage()
     try {
+      // The policy is server-rendered, so it is in the HTML before any script runs.
+      const html = await (await page.request.get(`${baseUrl}/privacy`)).text()
+      expect(html).toContain('Your GDPR rights')
       await page.goto(`${baseUrl}/privacy`)
+      await expect(page).toHaveTitle('Catalyse | Privacy policy')
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 10_000 })
       // Signed out: the header offers a login, in the bar or behind the phone menu.
       const menu = page.getByRole('button', { name: 'Open menu' })
       if (await menu.isVisible()) await menu.click()
       await expect(page.getByRole('link', { name: 'Login' })).toBeVisible()
+      await expect(page.getByText('to export your data or manage your account.')).toBeVisible()
     } finally {
       await context.close()
     }
