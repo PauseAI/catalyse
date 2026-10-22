@@ -49,6 +49,8 @@ export type AttentionItem = {
   /** Set for an item that is a notification, so opening it marks it read. */
   notificationId: number | null
   at: Date | null
+  /** Waits on the viewer as chapter staff or global admin, not as themselves: Home's Admin section. */
+  asStaff?: true
 }
 
 export type WorkKind = 'project' | 'task' | 'team'
@@ -184,7 +186,14 @@ async function attentionFor(viewer: Viewer): Promise<AttentionItem[]> {
             },
           ],
         },
-        select: { id: true, type: true, title: true, parentId: true, submittedAt: true },
+        select: {
+          id: true,
+          type: true,
+          title: true,
+          parentId: true,
+          submittedAt: true,
+          creatorId: true,
+        },
       }),
       prisma.workItem.findMany({
         where: {
@@ -363,6 +372,8 @@ async function attentionFor(viewer: Viewer): Promise<AttentionItem[]> {
       action: 'Review',
       notificationId: null,
       at: t.submittedAt,
+      // A Quick Task nobody set is the chapter's to review.
+      ...(t.type === WorkItemType.QUICK_TASK && t.creatorId === null && { asStaff: true }),
     })
   }
 

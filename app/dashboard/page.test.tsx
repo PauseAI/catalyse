@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import {
   createChapter,
+  createChapterDeputy,
   createMember,
   createVolunteer,
   createProject,
@@ -48,7 +49,9 @@ describe('home', () => {
     expect(within(checklist).queryByRole('link', { name: 'Pick a first task' })).toBeNull()
     expect(within(checklist).getByText('Pick a first task')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: /Needs your attention/ })).toBeNull()
-    expect(screen.queryByRole('region', { name: 'My work' })).toBeNull()
+    expect(
+      screen.queryByRole('region', { name: /Your tasks|Projects you manage|Your teams/ }),
+    ).toBeNull()
     expect(screen.queryByRole('link', { name: 'Propose a project' })).toBeNull()
     // Notifications live in the Inbox.
     expect(screen.queryByRole('region', { name: /Notifications/ })).toBeNull()
@@ -75,7 +78,8 @@ describe('home', () => {
       'href',
       '/quick-tasks',
     )
-    expect(screen.getByText('Nothing is waiting on you right now.')).toBeInTheDocument()
+    // Nothing waiting, so no section saying so.
+    expect(screen.queryByRole('region', { name: /Needs your attention/ })).toBeNull()
     expect(screen.getByText(/not working on anything yet/)).toBeInTheDocument()
 
     const find = screen.getByRole('button', { name: /Find something to do/ })
@@ -91,7 +95,7 @@ describe('home', () => {
     expect(screen.queryByRole('link', { name: 'Open starter' })).toBeNull()
   })
 
-  it('orders attention, my work, then a folded Find; filters work; acts on items', async () => {
+  it('orders attention, each kind of work, then a folded Find; acts on items', async () => {
     const skill = await createSkill()
     const chapter = await createChapter()
     const me = await createMember(chapter, {
@@ -137,9 +141,19 @@ describe('home', () => {
 
     await renderApp(<HomePage />, { as: me, url: '/dashboard' })
     const attention = await screen.findByRole('region', { name: /Needs your attention/ })
-    const work = screen.getByRole('region', { name: 'My work' })
+    const tasks = screen.getByRole('region', { name: /Your tasks/ })
+    const managed = screen.getByRole('region', { name: /Projects you manage/ })
+    const teams = screen.getByRole('region', { name: /Your teams/ })
     const find = screen.getByRole('region', { name: 'Find something to do' })
-    expect(before(attention, work) && before(work, find)).toBe(true)
+    expect(
+      before(attention, tasks) &&
+        before(tasks, managed) &&
+        before(managed, teams) &&
+        before(teams, find),
+    ).toBe(true)
+    // Not part of any project but their own, and no admin role.
+    expect(screen.queryByRole('region', { name: /Other projects/ })).toBeNull()
+    expect(screen.queryByRole('region', { name: /^Admin/ })).toBeNull()
     // Nothing left to get started on: a task is claimed.
     expect(screen.queryByRole('region', { name: 'Getting started' })).toBeNull()
 
@@ -159,24 +173,14 @@ describe('home', () => {
     // Other items are not notifications, so nothing is marked.
     await userEvent.click(within(attention).getByRole('link', { name: /^Add update:/ }))
 
-    const rows = () =>
-      within(work)
+    const rows = (section: HTMLElement) =>
+      within(section)
         .getAllByRole('listitem')
         .map((li) => li.textContent)
-    expect(rows()).toEqual([
-      expect.stringContaining('Scout'),
-      expect.stringContaining('Westminster'),
-      expect.stringContaining('Comms team'),
-    ])
-    expect(within(work).getByText('in Westminster')).toBeInTheDocument()
-    await userEvent.click(within(work).getByRole('button', { name: 'Teams' }))
-    expect(rows()).toEqual([expect.stringContaining('Comms team')])
-    expect(within(work).getByRole('button', { name: 'Teams' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-    await userEvent.click(within(work).getByRole('button', { name: 'Tasks' }))
-    expect(rows()).toEqual([expect.stringContaining('Scout')])
+    expect(rows(tasks)).toEqual([expect.stringContaining('Scout')])
+    expect(within(tasks).getByText('in Westminster')).toBeInTheDocument()
+    expect(rows(managed)).toEqual([expect.stringContaining('Westminster')])
+    expect(rows(teams)).toEqual([expect.stringContaining('Comms team')])
 
     // Find is folded because there is work of my own; it opens on request.
     const toggle = within(find).getByRole('button', { name: /Find something to do/ })
@@ -188,14 +192,13 @@ describe('home', () => {
     expect(within(find).getByRole('link', { name: 'Local one' })).toBeInTheDocument()
   })
 
-  it('moves finished projects out of My work into a folded Finished section after Find', async () => {
+  it('moves finished projects into a folded Finished section after Find', async () => {
     const me = await createVolunteer()
     await createProject({ title: 'Wrapped up', assigneeId: me.id, status: 'completed' })
     await createProject({ title: 'Shelved', assigneeId: me.id, status: 'archived' })
     await renderApp(<HomePage />, { as: me, url: '/dashboard' })
-    const work = await screen.findByRole('region', { name: 'My work' })
-    expect(within(work).getByText(/Nothing on the go right now/)).toBeInTheDocument()
-    expect(within(work).queryByText('Wrapped up')).toBeNull()
+    expect(await screen.findByText(/Nothing on the go right now/)).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /Projects you manage/ })).toBeNull()
     // With nothing current, Find opens as it would for someone new.
     expect(screen.getByRole('button', { name: /Find something to do/ })).toHaveAttribute(
       'aria-expanded',
@@ -227,8 +230,8 @@ describe('home', () => {
     })
     await createTask(project.id, { durationDays: 12 })
     await renderApp(<HomePage />, { as: me, url: '/dashboard' })
-    const work = await screen.findByRole('region', { name: 'My work' })
-    const row = within(work).getByRole('link', { name: 'Behind' }).closest('li')!
+    const managed = await screen.findByRole('region', { name: /Projects you manage/ })
+    const row = within(managed).getByRole('link', { name: 'Behind' }).closest('li')!
     // The deadline has passed, so the row counts from it rather than from the plan's forecast.
     expect(within(row).getByText(/^\d+ days late$/)).toHaveAttribute('data-emphasis', 'filled')
   })
@@ -242,8 +245,11 @@ describe('home', () => {
     const team = await createTeam({ name: 'Crew' })
     await prisma.teamMembership.create({ data: { teamId: team.id, volunteerId: me.id } })
     await renderApp(<HomePage />, { as: me, url: '/dashboard' })
-    const work = await screen.findByRole('region', { name: 'My work' })
-    const row = (name: string) => within(work).getByRole('link', { name }).closest('li')!
+    const others = await screen.findByRole('region', { name: /Other projects you're part of/ })
+    const teams = screen.getByRole('region', { name: /Your teams/ })
+    const row = (name: string) => screen.getByRole('link', { name }).closest('li')!
+    expect(others).toContainElement(row('Unowned'))
+    expect(teams).toContainElement(row('Crew'))
     expect(within(row('Unowned')).getByText('Asked to lead')).not.toHaveClass('status-badge')
     expect(within(row('Unowned')).getByText('To do')).toHaveClass('status-badge')
     expect(within(row('Unowned')).getByLabelText('No owner yet')).toBeInTheDocument()
@@ -253,7 +259,7 @@ describe('home', () => {
     expect(within(row('Crew')).queryByLabelText(/^Owner|No owner yet/)).toBeNull()
   })
 
-  it('lists what needs attention now first, saying why, then everything else', async () => {
+  it('lists work that needs attention now with what is waiting, saying why', async () => {
     const me = await createVolunteer()
     const project = await createProject({
       title: 'Leafleting',
@@ -283,21 +289,18 @@ describe('home', () => {
       deadline: new Date('2020-01-02T00:00:00Z'),
     })
     await renderApp(<HomePage />, { as: me, url: '/dashboard' })
-    const work = await screen.findByRole('region', { name: 'My work' })
-
-    // Sub-headings inside My work, not sections of their own.
-    const now = within(work).getByRole('heading', { level: 3, name: 'Needs attention now' })
-    const rest = within(work).getByRole('heading', { level: 3, name: 'Everything else' })
-    const [urgentList, restList] = within(work).getAllByRole('list')
-    expect(before(now, urgentList) && before(urgentList, rest) && before(rest, restList)).toBe(true)
-    const titles = (list: HTMLElement) =>
-      within(list)
+    const attention = await screen.findByRole('region', { name: /Needs your attention/ })
+    const tasks = screen.getByRole('region', { name: /Your tasks/ })
+    const managed = screen.getByRole('region', { name: /Projects you manage/ })
+    const titles = (section: HTMLElement) =>
+      within(section)
         .getAllByRole('listitem')
         .map((li) => within(li).getAllByRole('link')[0].textContent)
-    expect(titles(urgentList)).toEqual(['Late quick', 'Soon', 'Big job'])
-    expect(titles(restList)).toEqual(['Far off', 'Leafleting', 'Undated'])
+    expect(titles(attention)).toEqual(['Late quick', 'Soon', 'Big job'])
+    expect(titles(tasks)).toEqual(['Far off', 'Undated'])
+    expect(titles(managed)).toEqual(['Leafleting'])
 
-    const row = (name: string) => within(work).getByRole('link', { name }).closest('li')!
+    const row = (name: string) => screen.getByRole('link', { name }).closest('li')!
     expect(within(row('Late quick')).getByText(/^\d+ days late$/)).toHaveClass('status-badge')
     // Already late or merely due soon reads as a badge, and no plain date repeats it.
     expect(row('Late quick')).not.toHaveTextContent('Due 2 Jan 2020')
@@ -316,16 +319,13 @@ describe('home', () => {
     expect(within(row('Leafleting')).getByLabelText(`Owner ${me.name}`)).toBeInTheDocument()
     expect(within(row('Undated')).getByLabelText(`Assigned to ${me.name}`)).toBeInTheDocument()
     // Each row is one link, stretched over the whole row.
-    for (const li of within(work).getAllByRole('listitem')) {
+    for (const li of [attention, tasks, managed].flatMap((s) =>
+      within(s).getAllByRole('listitem'),
+    )) {
       expect(li).toHaveClass('relative')
       expect(within(li).getAllByRole('link')).toHaveLength(1)
       expect(within(li).getByRole('link')).toHaveClass('after:inset-0')
     }
-
-    // A filter can leave only one part, which then needs no sub-heading of its own.
-    await userEvent.click(within(work).getByRole('button', { name: 'Projects' }))
-    expect(within(work).queryByRole('heading', { level: 3 })).toBeNull()
-    expect(within(work).getByRole('link', { name: 'Leafleting' })).toBeInTheDocument()
   })
 
   it('puts a task past its plan at the top for its owner, and flags it for the assignee', async () => {
@@ -357,12 +357,11 @@ describe('home', () => {
     cleanup()
 
     await renderApp(<HomePage />, { as: sam, url: '/dashboard' })
-    const work = await screen.findByRole('region', { name: 'My work' })
-    const row = (await within(work).findByRole('link', { name: 'Slipped' })).closest('li')!
+    const row = (await screen.findByRole('link', { name: 'Slipped' })).closest('li')!
     expect(within(row).getByText(/^\d+ days late$/)).toHaveAttribute('data-emphasis', 'filled')
   })
 
-  it('says so when a filter leaves nothing, and when nothing matches', async () => {
+  it('says so when nothing matches', async () => {
     const skill = await createSkill()
     const me = await createVolunteer({
       country: 'ZZ',
@@ -371,9 +370,7 @@ describe('home', () => {
     const team = await createTeam()
     await prisma.teamMembership.create({ data: { teamId: team.id, volunteerId: me.id } })
     await renderApp(<HomePage />, { as: me, url: '/dashboard#tab-suggested' })
-    const work = await screen.findByRole('region', { name: 'My work' })
-    await userEvent.click(within(work).getByRole('button', { name: 'Projects' }))
-    expect(within(work).getByText('Nothing here. Try another filter.')).toBeInTheDocument()
+    await screen.findByRole('region', { name: /Your teams/ })
     // #tab-suggested opens Find even though there is work.
     expect(screen.getByRole('button', { name: /Find something to do/ })).toHaveAttribute(
       'aria-expanded',
@@ -391,13 +388,10 @@ describe('home', () => {
     const scrollIntoView = vi.fn()
     Element.prototype.scrollIntoView = scrollIntoView
 
+    // Applications would be among other projects; with none, it lands on the ones they manage.
     await renderApp(<HomePage />, { as: me, url: '/dashboard#tab-applications' })
-    const work = await screen.findByRole('region', { name: 'My work' })
-    expect(within(work).getByRole('button', { name: 'Projects' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-    expect(scrollIntoView).toHaveBeenCalled()
+    const managed = await screen.findByRole('region', { name: /Projects you manage/ })
+    await waitFor(() => expect(scrollIntoView.mock.contexts[0]).toBe(managed))
 
     // The hash can also change while the page is open; an unknown one does nothing.
     act(() => {
@@ -413,6 +407,44 @@ describe('home', () => {
       'aria-expanded',
       'true',
     )
+  })
+
+  it('gives chapter staff an Admin section of what waits on them in that role', async () => {
+    const [home, away] = [await createChapter(), await createChapter()]
+    const deputy = await createChapterDeputy(home)
+    await createVolunteer({ approvalStatus: 'pending', nationalChapterId: home.id })
+    await createVolunteer({ approvalStatus: 'pending', nationalChapterId: away.id })
+    await createProject({ status: 'pending_review', nationalChapterId: home.id })
+    const unset = await createQuickTask({
+      title: 'Nobody set this',
+      status: 'under_review',
+      assigneeId: (await createMember(home)).id,
+      creatorId: null,
+      nationalChapterId: home.id,
+    })
+
+    await renderApp(<HomePage />, { as: deputy, url: '/dashboard' })
+    const admin = await screen.findByRole('region', { name: /^Admin/ })
+    expect(within(admin).getByRole('link', { name: /^Review: "Nobody set this"/ })).toHaveAttribute(
+      'href',
+      `/quick-tasks/${unset.id}`,
+    )
+    // Their chapter's applications and proposals only, counted as on the admin page.
+    const applications = await within(admin).findByRole('link', { name: 'Applications to review' })
+    expect(applications).toHaveAttribute('href', '/admin/applications')
+    expect(applications.closest('li')).toHaveTextContent(/1$/)
+    expect(within(admin).getByRole('link', { name: 'Proposals to triage' })).toHaveAttribute(
+      'href',
+      '/admin/triage',
+    )
+    // Bug reports and duplicates are the global admins'.
+    expect(within(admin).queryByRole('link', { name: 'Open bug reports' })).toBeNull()
+    expect(within(admin).getByRole('link', { name: 'Admin area →' })).toHaveAttribute(
+      'href',
+      '/admin',
+    )
+    // Their own attention list leaves out what they review as staff.
+    expect(screen.queryByRole('region', { name: /Needs your attention/ })).toBeNull()
   })
 
   it('sends the old notifications tab to the Inbox', async () => {

@@ -172,7 +172,7 @@ export default function ProjectImportDiff({
               {d.op === 'create' && (
                 <>
                   Add: {entityLabel(d.predecessor)} → {entityLabel(d.successor)}
-                  {d.lagDays !== 0 ? ` (lag ${d.lagDays}d)` : ''}
+                  {d.lagDays !== 0 ? ` (${d.lagDays}-day gap after it finishes)` : ''}
                 </>
               )}
               {d.op === 'delete' && (
@@ -182,7 +182,7 @@ export default function ProjectImportDiff({
               )}
               {d.op === 'update' && (
                 <>
-                  Lag: {entityLabel(d.predecessor)} → {entityLabel(d.successor)} (
+                  Gap after it finishes: {entityLabel(d.predecessor)} → {entityLabel(d.successor)} (
                   {fmt(d.fieldChanges?.[0]?.from)} → {fmt(d.fieldChanges?.[0]?.to)})
                 </>
               )}

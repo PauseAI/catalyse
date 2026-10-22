@@ -13,6 +13,7 @@ import { handedIn } from '@/lib/overdue'
 import WorkRow, { PersonAvatar, STRETCHED_LINK } from '@/components/WorkRow'
 import Modal from '@/components/ui/Modal'
 import Skeleton from '@/components/Skeleton'
+import { Badge } from '@/components/Badge'
 import { BLEED } from '@/lib/ui-classes'
 import { H1, H2, H3 } from '@/components/Heading'
 import { P } from '@/components/Text'
@@ -22,29 +23,26 @@ import type { InferRouterOutputs } from '@orpc/server'
 
 type Home = InferRouterOutputs<AppRouter>['dashboard']['get']
 type FindRow = NonNullable<Home['find']>['quickTasks']
+type Work = Home['work'][number]
+type Attention = Home['attention'][number]
 
-const WORK_FILTERS = [
-  { key: 'all', label: 'All' },
-  { key: 'project', label: 'Projects' },
-  { key: 'task', label: 'Tasks' },
-  { key: 'team', label: 'Teams' },
-] as const
-type WorkFilter = (typeof WORK_FILTERS)[number]['key']
-
-// My work's buckets are small grey labels, so they never read as a section like "Needs your
-// attention" above them.
-const SUB_HEADING = 'text-sm font-semibold text-text-light mb-2'
 // The whole row is its title link, so it highlights as one.
 const ROW_CLASSES =
   'p-4 wrap-break-word transition-colors hover:bg-accent/40 dark:hover:bg-white/[0.06]'
 const ROW_META_CLASSES = 'text-sm text-text-light mt-1 flex flex-wrap items-center gap-x-2 gap-y-1'
 
-// Links into the old tabbed dashboard still land somewhere sensible.
-const PROJECT_HASHES = ['#tab-projects', '#tab-owned', '#tab-interests', '#tab-proposed']
-const LEGACY_HASHES: Record<string, { section: string; filter?: WorkFilter }> = {
-  ...Object.fromEntries(PROJECT_HASHES.map((h) => [h, { section: 'my-work', filter: 'project' }])),
-  '#tab-applications': { section: 'my-work', filter: 'project' },
-  '#tab-suggested': { section: 'find' },
+const MANAGING_ROLES: Work['role'][] = ['Lead', 'Deputy']
+
+// Links into the old tabbed dashboard scroll to the first of their sections that is showing.
+const MANAGED_FIRST = ['managed', 'other-projects']
+const OTHER_FIRST = ['other-projects', 'managed']
+const LEGACY_HASHES: Record<string, string[]> = {
+  '#tab-projects': OTHER_FIRST,
+  '#tab-owned': MANAGED_FIRST,
+  '#tab-interests': OTHER_FIRST,
+  '#tab-proposed': OTHER_FIRST,
+  '#tab-applications': OTHER_FIRST,
+  '#tab-suggested': ['find'],
 }
 
 function Count({ n }: { n: number }) {
@@ -175,7 +173,6 @@ export default function HomePage() {
   const { user, loading } = useRequireAuth()
   const queryClient = useQueryClient()
   const router = useRouter()
-  const [filter, setFilter] = useState<WorkFilter>('all')
   const [findOpen, setFindOpen] = useState<boolean | null>(null)
   const [finishedOpen, setFinishedOpen] = useState(false)
   const [emailBannerDismissed, setEmailBannerDismissed] = useState(false)
@@ -184,6 +181,13 @@ export default function HomePage() {
   const { data, isPending: loadingData } = useQuery({
     ...orpc.dashboard.get.queryOptions(),
     enabled: !!user,
+  })
+
+  const isStaff = Boolean(user?.access.globalAdmin || user?.access.role)
+  // The same counts as the admin area's landing page, so the two never disagree.
+  const { data: adminCounts } = useQuery({
+    ...orpc.admin.overview.counts.queryOptions(),
+    enabled: isStaff,
   })
 
   const markReadMutation = useMutation({
@@ -198,19 +202,19 @@ export default function HomePage() {
     document.title = 'Catalyse | Home'
   }, [])
 
-  // Old `#tab-…` links pick a filter or open a section, then scroll to it once it exists;
-  // the notifications tab is the Inbox now.
+  // Old `#tab-…` links open a section, then scroll to it once it exists; the notifications tab
+  // is the Inbox now.
   useEffect(() => {
     if (window.location.hash === '#tab-notifications') router.replace('/inbox')
   }, [router])
   useEffect(() => {
     if (loadingData) return
     function follow() {
-      const target = LEGACY_HASHES[window.location.hash]
-      if (!target) return
-      if (target.filter) setFilter(target.filter)
-      if (target.section === 'find') setFindOpen(true)
-      document.getElementById(target.section)?.scrollIntoView({ block: 'start' })
+      const sections = LEGACY_HASHES[window.location.hash]
+      if (!sections) return
+      if (sections.includes('find')) setFindOpen(true)
+      const shown = sections.map((id) => document.getElementById(id)).find(Boolean)
+      shown?.scrollIntoView({ block: 'start' })
     }
     follow()
     window.addEventListener('hashchange', follow)
@@ -231,16 +235,43 @@ export default function HomePage() {
   const welcome = welcomeDismissed ? null : data.approvalWelcome
   const current = data.work.filter((w) => !w.done)
   const finished = data.work.filter((w) => w.done)
-  const work = current.filter((w) => filter === 'all' || w.kind === filter)
   // Discovery waits until someone has nothing of their own to get on with.
   const showFind = findOpen ?? current.length === 0
 
-  const urgent = work.filter((w) => w.needsAttention)
-  const rest = work.filter((w) => !w.needsAttention)
+  // Work that needs acting on now sits with the rest of what is waiting on them.
+  const urgent = current.filter((w) => w.needsAttention)
+  const calm = current.filter((w) => !w.needsAttention)
+  const tasks = calm.filter((w) => w.kind === 'task')
+  const managed = calm.filter((w) => w.kind === 'project' && MANAGING_ROLES.includes(w.role))
+  const otherProjects = calm.filter((w) => w.kind === 'project' && !MANAGING_ROLES.includes(w.role))
+  const teams = calm.filter((w) => w.kind === 'team')
+  const ownAttention = data.attention.filter((a) => !a.asStaff)
+  const staffAttention = data.attention.filter((a) => a.asStaff)
+
+  const adminLinks = [
+    {
+      href: '/admin/applications',
+      label: 'Applications to review',
+      count: adminCounts?.pendingApplications,
+    },
+    { href: '/admin/triage', label: 'Proposals to triage', count: adminCounts?.pendingTriage },
+    { href: '/admin/bugs', label: 'Open bug reports', count: adminCounts?.openBugReports },
+    {
+      href: '/admin/duplicates',
+      label: 'Possible duplicate accounts',
+      count: adminCounts?.possibleDuplicates,
+    },
+    {
+      href: '/admin',
+      label: 'Unread admin notifications',
+      count: adminCounts?.unreadNotifications,
+    },
+  ].filter((l): l is typeof l & { count: number } => Boolean(l.count))
+  const adminCount = adminLinks.reduce((n, l) => n + l.count, 0) + staffAttention.length
 
   const today = new Date()
   // `[status] Title … person`, the whole row one link.
-  const workRow = (w: (typeof work)[number]) => {
+  const workRow = (w: Work) => {
     const title = (
       <Link href={w.href} className={`font-semibold ${STRETCHED_LINK}`}>
         {w.title}
@@ -313,9 +344,53 @@ export default function HomePage() {
       />
     )
   }
-  const workList = (rows: typeof work) => (
+  const workList = (rows: Work[]) => (
     <ul className={`list-none p-0 my-0 bg-surface shadow ${BLEED}`}>{rows.map(workRow)}</ul>
   )
+  const attentionList = (items: Attention[]) => (
+    <ul className={`list-none p-0 my-0 bg-surface shadow ${BLEED}`}>
+      {items.map((a) => (
+        <li
+          key={a.key}
+          className="flex items-start justify-between gap-3 p-4 border-b border-brand-border last:border-0 wrap-break-word"
+        >
+          <div className="min-w-0">
+            <span className="text-primary mr-2" aria-hidden="true">
+              ●
+            </span>
+            <strong>{a.title}</strong>
+            {a.detail && (
+              <P className="text-sm text-text-light m-0 mt-1 line-clamp-2">{a.detail}</P>
+            )}
+          </div>
+          <Button
+            href={a.href}
+            size="sm"
+            variant="secondary"
+            aria-label={`${a.action}: ${a.title}`}
+            onClick={() => {
+              if (a.notificationId !== null) {
+                markReadMutation.mutate({ id: a.notificationId })
+              }
+            }}
+          >
+            {a.action}
+          </Button>
+        </li>
+      ))}
+    </ul>
+  )
+  // A section of My work, left out while it has nothing in it.
+  const workSection = (id: string, title: string, rows: Work[]) =>
+    rows.length > 0 && (
+      <section id={id} aria-labelledby={`${id}-heading`} className="mb-8 scroll-mt-20">
+        <H2 id={`${id}-heading`}>
+          {title}
+          <Count n={rows.length} />
+        </H2>
+        {workList(rows)}
+      </section>
+    )
 
   function dismissWelcome(notificationId: number) {
     setWelcomeDismissed(true)
@@ -396,104 +471,72 @@ export default function HomePage() {
         )}
 
         {isMember && (
-          <section aria-labelledby="attention" className="mb-8">
-            <H2 id="attention">
-              Needs your attention
-              <Count n={data.attention.length} />
-            </H2>
-            {data.attention.length === 0 ? (
-              <P className="text-text-light">Nothing is waiting on you right now.</P>
-            ) : (
-              <ul className={`list-none p-0 my-0 bg-surface shadow ${BLEED}`}>
-                {data.attention.map((a) => (
-                  <li
-                    key={a.key}
-                    className="flex items-start justify-between gap-3 p-4 border-b border-brand-border last:border-0 wrap-break-word"
-                  >
-                    <div className="min-w-0">
-                      <span className="text-primary mr-2" aria-hidden="true">
-                        ●
-                      </span>
-                      <strong>{a.title}</strong>
-                      {a.detail && (
-                        <P className="text-sm text-text-light m-0 mt-1 line-clamp-2">{a.detail}</P>
-                      )}
-                    </div>
-                    <Button
-                      href={a.href}
-                      size="sm"
-                      variant="secondary"
-                      aria-label={`${a.action}: ${a.title}`}
-                      onClick={() => {
-                        if (a.notificationId !== null) {
-                          markReadMutation.mutate({ id: a.notificationId })
-                        }
-                      }}
-                    >
-                      {a.action}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
+          <>
+            {ownAttention.length + urgent.length > 0 && (
+              <section aria-labelledby="attention" className="mb-8">
+                <H2 id="attention">
+                  Needs your attention
+                  <Count n={ownAttention.length + urgent.length} />
+                </H2>
+                <div className="flex flex-col gap-3">
+                  {ownAttention.length > 0 && attentionList(ownAttention)}
+                  {urgent.length > 0 && workList(urgent)}
+                </div>
+              </section>
             )}
-          </section>
-        )}
 
-        {isMember && (
-          <section id="my-work" aria-labelledby="my-work-heading" className="mb-8 scroll-mt-20">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-              <H2 id="my-work-heading" className="m-0">
-                My work
-              </H2>
-              <div role="group" aria-label="Show" className="flex flex-wrap gap-2">
-                {WORK_FILTERS.map((f) => (
-                  <Button
-                    key={f.key}
-                    size="sm"
-                    variant={filter === f.key ? 'primary' : 'outline'}
-                    aria-pressed={filter === f.key}
-                    onClick={() => setFilter(f.key)}
-                  >
-                    {f.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-            {work.length === 0 ? (
-              <P className="text-text-light">
-                {current.length === 0 ? (
-                  <>
-                    {finished.length > 0
-                      ? 'Nothing on the go right now.'
-                      : "You're not working on anything yet."}{' '}
-                    <Link className="text-primary-text underline" href="/quick-tasks">
-                      Pick up a quick task
-                    </Link>{' '}
-                    or{' '}
-                    <Link className="text-primary-text underline" href="/projects">
-                      browse projects
-                    </Link>
-                    .
-                  </>
-                ) : (
-                  'Nothing here. Try another filter.'
-                )}
+            {current.length === 0 && (
+              <P className="text-text-light mb-8">
+                {finished.length > 0
+                  ? 'Nothing on the go right now.'
+                  : "You're not working on anything yet."}{' '}
+                <Link className="text-primary-text underline" href="/quick-tasks">
+                  Pick up a quick task
+                </Link>{' '}
+                or{' '}
+                <Link className="text-primary-text underline" href="/projects">
+                  browse projects
+                </Link>
+                .
               </P>
-            ) : urgent.length === 0 ? (
-              workList(rest)
-            ) : (
-              <>
-                <H3 className={`${SUB_HEADING} mt-0`}>Needs attention now</H3>
-                {workList(urgent)}
-                {rest.length > 0 && (
-                  <>
-                    <H3 className={`${SUB_HEADING} mt-5`}>Everything else</H3>
-                    {workList(rest)}
-                  </>
-                )}
-              </>
             )}
-          </section>
+            {workSection('tasks', 'Your tasks', tasks)}
+            {workSection('managed', 'Projects you manage', managed)}
+            {workSection('other-projects', "Other projects you're part of", otherProjects)}
+            {workSection('teams', 'Your teams', teams)}
+
+            {isStaff && adminCount > 0 && (
+              <section id="admin" aria-labelledby="admin-heading" className="mb-8 scroll-mt-20">
+                <div className="flex flex-wrap items-baseline justify-between gap-3">
+                  <H2 id="admin-heading">
+                    Admin
+                    <Count n={adminCount} />
+                  </H2>
+                  <Link href="/admin" className="text-sm">
+                    Admin area →
+                  </Link>
+                </div>
+                <div className="flex flex-col gap-3">
+                  {staffAttention.length > 0 && attentionList(staffAttention)}
+                  {adminLinks.length > 0 && (
+                    <ul className={`list-none p-0 my-0 bg-surface shadow ${BLEED}`}>
+                      {adminLinks.map((l) => (
+                        <li
+                          key={l.href}
+                          className="flex items-center justify-between gap-3 p-4 border-b border-brand-border last:border-0"
+                        >
+                          <Link href={l.href} className="font-semibold">
+                            {l.label}
+                          </Link>
+                          <Badge variant="info">{l.count}</Badge>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </section>
+            )}
+          </>
         )}
 
         {isMember && data.find && (
