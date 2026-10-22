@@ -1,6 +1,0 @@
-# pg_dump/pg_restore for the backup job and preview seeding. The client major must be >= the
-# Railway Postgres service's major (pg_dump refuses newer servers); everything here runs 18.
-# Nixpacks' built-in nixpkgs pin predates postgresql_18, so point at a nixos-25.11 commit.
-[phases.setup]
-nixpkgsArchive = 'b6018f87da91d19d0ab4cf979885689b469cdd41'
-nixPkgs = ['...', 'postgresql_18']

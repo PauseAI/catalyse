@@ -138,7 +138,7 @@ export async function checkClientVersion(): Promise<{ client: number; server: nu
   const server = Number(/\d+/.exec(v)?.[0])
   if (client < server)
     throw new Error(
-      `pg_dump ${client} cannot back up a PostgreSQL ${server} server — bump postgresql_${server} in nixpacks.toml`,
+      `pg_dump ${client} cannot back up a PostgreSQL ${server} server — bump postgresql-client-${server} in the Dockerfile`,
     )
   return { client, server }
 }
