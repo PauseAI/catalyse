@@ -199,27 +199,29 @@ async function releaseTasksHeldBy(
 async function notifyOwnerOfInterest(
   project: { id: number; title: string; assigneeId: number | null },
   volunteer: { name: string },
-  message: string,
+  taskTitle: string,
+  note: string | undefined,
   interestId: number,
 ): Promise<void> {
   if (!project.assigneeId) return
+  const asked = `${volunteer.name} asked to take '${taskTitle}'`
   await notifyUser(
     project.assigneeId,
     'new_interest',
     `Someone's interested in '${project.title}'!`,
-    `${volunteer.name} asked to help out on the project`,
+    (note ? `${asked}: ${note}` : asked).slice(0, 200),
     `/projects/${project.id}`,
     {
-      subject: `${volunteer.name} wants to help out on '${project.title}'`,
-      message: html`<strong>${volunteer.name}</strong> has expressed interest in your project
-        <strong>${project.title}</strong>.`,
+      subject: `${asked} on '${project.title}'`,
+      message: html`<strong>${volunteer.name}</strong> asked to take
+        <strong>${taskTitle}</strong> on your project <strong>${project.title}</strong>.`,
       projectTitle: project.title,
       projectId: project.id,
-      extraHtml: html`<div
-        style="padding: 12px; background: #f7fafc; border-radius: 8px; margin: 16px 0;"
-      >
-        <strong>Their message:</strong> ${message}
-      </div>`,
+      extraHtml: note
+        ? html`<div style="padding: 12px; background: #f7fafc; border-radius: 8px; margin: 16px 0;">
+            <strong>Their message:</strong> ${note}
+          </div>`
+        : undefined,
     },
     interestId,
   )
@@ -3029,7 +3031,7 @@ export const projectsRouter = {
             : await prisma.workItemInterest.create({
                 data: { ...request, volunteerId: volunteer.id, workItemId: input.projectId },
               })
-          await notifyOwnerOfInterest(project, volunteer, message, row.id)
+          await notifyOwnerOfInterest(project, volunteer, task.title, input.message, row.id)
           return { message: 'Task requested', requested: true }
         }
       }

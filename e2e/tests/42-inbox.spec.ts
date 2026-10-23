@@ -31,9 +31,7 @@ test.describe('Inbox', () => {
     await expect(page).toHaveURL(`${baseUrl}/inbox`)
 
     // The Inbox opens on Needs action, where it can be answered in place.
-    const row = page
-      .getByRole('listitem')
-      .filter({ hasText: `${applicant.name} asked to help out` })
+    const row = page.getByRole('listitem').filter({ hasText: `${applicant.name} asked to take` })
     await row.getByRole('button', { name: 'Accept' }).click()
     await expect(row).toHaveCount(0, { timeout: 10_000 })
     await expect(inboxLink(page)).toHaveText('Inbox', { timeout: 10_000 })

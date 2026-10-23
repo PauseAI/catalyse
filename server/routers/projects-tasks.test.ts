@@ -1063,11 +1063,13 @@ describe('claiming before joining', () => {
     who: Awaited<ReturnType<typeof createVolunteer>>,
     projectId: number,
     taskId: number,
+    message?: string,
   ) =>
     clientAs(who).projects.updateTask({
       projectId,
       taskId,
       data: { assigneeId: who.id },
+      message,
     })
 
   it('holds the task and asks the owner, who hands it over by accepting', async () => {
@@ -1103,8 +1105,14 @@ describe('claiming before joining', () => {
         await prisma.notification.findFirst({
           where: { volunteerId: owner.id, type: 'new_interest' },
         }),
-      ).toMatchObject({ entityId: interest.id }),
+      ).toMatchObject({ entityId: interest.id, body: "Nell New asked to take 'Poster'" }),
     )
+    await vi.waitFor(() =>
+      expect(emails.lastTo(owner.email!)).toMatchObject({
+        subject: `Nell New asked to take 'Poster' on '${project.title}'`,
+      }),
+    )
+    expect(emails.lastTo(owner.email!)!.html).not.toContain('Their message')
     // Held: nobody else can take it, and it is not offered on the Quick Tasks page.
     await expect(claim(member, project.id, t.id)).rejects.toMatchObject({
       message: 'This task has already been claimed',
@@ -1117,13 +1125,24 @@ describe('claiming before joining', () => {
 
     // A second task, still waiting on the same request, is still new information for the owner.
     const t2 = await createTask(project.id, { title: 'Flyer' })
-    await claim(me, project.id, t2.id)
+    await claim(me, project.id, t2.id, 'I design for a living')
     expect(
-      await prisma.notification.count({ where: { volunteerId: owner.id, type: 'new_interest' } }),
-    ).toBe(2)
+      await prisma.notification.findMany({
+        where: { volunteerId: owner.id, type: 'new_interest' },
+        orderBy: { id: 'asc' },
+      }),
+    ).toMatchObject([{}, { body: "Nell New asked to take 'Flyer': I design for a living" }])
+    await vi.waitFor(() =>
+      expect(emails.lastTo(owner.email!)?.html).toContain(
+        'Their message:</strong> I design for a living',
+      ),
+    )
     expect(
       await prisma.workItemInterest.findFirstOrThrow({ where: { id: interest.id } }),
-    ).toMatchObject({ status: 'pending', message: "Asked to take 'Flyer'" })
+    ).toMatchObject({
+      status: 'pending',
+      message: "Asked to take 'Flyer': I design for a living",
+    })
 
     await clientAs(owner).projects.respondToInterest({
       projectId: project.id,

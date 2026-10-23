@@ -73,11 +73,8 @@ describe('projects.expressInterest / withdrawInterest', () => {
 
     const held = await askToJoin(me, p.id)
     await notified(owner.id, 'new_interest', {
-      body: `${me.name} asked to help out on the project`,
+      body: `${me.name} asked to take '${held.title}'`,
     })
-    await vi.waitFor(() =>
-      expect(emails.lastTo(owner.email!)?.html).toContain(`Their message:</strong> Asked to take`),
-    )
 
     await expect(
       clientAs(owner).projects.withdrawInterest({ projectId: p.id }),
