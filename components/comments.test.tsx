@@ -379,6 +379,40 @@ describe('CommentThreadView discussion actions', () => {
     expect(onSubmit).toHaveBeenLastCalledWith('Still here', 14)
   })
 
+  it('quotes the reply answered, unless it is the thread starter', () => {
+    renderThread({
+      comments: [
+        {
+          id: 30,
+          content: 'Root',
+          authorName: 'Hal',
+          createdAt: null,
+          replies: [
+            { id: 31, content: 'First reply', authorName: 'Olive', createdAt: null },
+            {
+              id: 32,
+              content: 'Second reply',
+              authorName: 'Otto',
+              createdAt: null,
+              repliedTo: { id: 31, authorName: 'Olive', content: 'First reply', deleted: false },
+            },
+            {
+              id: 33,
+              content: 'Third reply',
+              authorName: 'Gail',
+              createdAt: null,
+              repliedTo: { id: 999, authorName: 'Gone', content: '', deleted: true },
+            },
+          ],
+        },
+      ],
+    })
+    expect(screen.getByText('Replying to Olive: "First reply"')).toBeInTheDocument()
+    expect(screen.getByText('Replying to a removed comment')).toBeInTheDocument()
+    // The first reply answers the thread starter directly: no quote needed.
+    expect(screen.getAllByText(/^Replying to/)).toHaveLength(2)
+  })
+
   it('collapses the middle of a long thread until asked', async () => {
     const replies = [1, 2, 3, 4, 5, 6].map((n) => ({
       id: 100 + n,

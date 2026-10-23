@@ -208,10 +208,48 @@ describe('workItemComments replies', () => {
       ['I do', top.id],
       ['Me too', top.id],
     ])
+    // A reply to the thread's own top-level comment needs no quote; a reply to a reply
+    // carries one, so it's clear which reply it answers.
+    expect(comments[1].replies.map((r) => r.repliedTo)).toEqual([
+      null,
+      { id: reply.id, authorName: owner.name, content: 'I do', deleted: false },
+    ])
     // Each person replied to hears it as a reply; the thread starter hears of the second reply
     // as a comment, and the owner of the helper's post.
     expect(await notesOf('comment_reply')).toEqual([helper.id, owner.id].sort())
     expect(await notesOf('work_item_comment')).toEqual([owner.id, helper.id].sort())
+  })
+
+  it('truncates a long quote, and shows a since-removed one as removed', async () => {
+    const { owner, helper, project } = await discussion()
+    const root = await clientAs(helper).workItemComments.add({
+      workItemId: project.id,
+      content: 'Root',
+    })
+    const long = await clientAs(helper).workItemComments.add({
+      workItemId: project.id,
+      content: 'x'.repeat(200),
+      parentId: root.id,
+    })
+    await clientAs(owner).workItemComments.add({
+      workItemId: project.id,
+      content: 'Quoting the long one',
+      parentId: long.id,
+    })
+    const [before] = commentsIn(
+      await clientAs(owner).workItemComments.list({ workItemId: project.id }),
+    )
+    expect(before.replies[1].repliedTo).toMatchObject({ content: `${'x'.repeat(140)}…` })
+
+    await clientAs(helper).workItemComments.delete({ id: long.id })
+    const [after] = commentsIn(
+      await clientAs(owner).workItemComments.list({ workItemId: project.id }),
+    )
+    expect(after.replies[1].repliedTo).toMatchObject({
+      authorName: helper.name,
+      content: '',
+      deleted: true,
+    })
   })
 
   it('tells the person replied to once, by email unless they muted updates', async () => {

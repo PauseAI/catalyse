@@ -19,6 +19,8 @@ export interface CommentItem {
   canEdit?: boolean
   canDelete?: boolean
   replies?: CommentItem[]
+  /** Set only when this reply answers another reply, not the thread's own top-level comment. */
+  repliedTo?: { id: number; authorName: string | null; content: string; deleted: boolean } | null
 }
 
 /** A recorded change, shown among the comments: no author line, no reply, edit or delete. */
@@ -199,6 +201,13 @@ export default function CommentThreadView({
         tabIndex={tabIndex}
         className="py-3 border-b border-brand-border last:border-0 scroll-mt-20 rounded transition-shadow"
       >
+        {c.repliedTo && (
+          <P className="m-0 mb-1 pl-2 border-l-2 border-brand-border text-xs text-text-light italic">
+            Replying to{' '}
+            {c.repliedTo.deleted ? 'a removed comment' : (c.repliedTo.authorName ?? 'Unknown')}
+            {!c.repliedTo.deleted && `: "${c.repliedTo.content}"`}
+          </P>
+        )}
         {saved ? (
           <CommentComposer
             label="Edit comment"

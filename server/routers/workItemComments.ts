@@ -214,6 +214,14 @@ async function eventLines(item: LoadedWorkItem) {
   }))
 }
 
+const QUOTE_LENGTH = 140
+
+/** The text shown above a reply that quotes an earlier one: plain, and cut to one line's worth. */
+function quoteSnippet(content: string): string {
+  const plain = mentionsToPlain(content)
+  return plain.length > QUOTE_LENGTH ? `${plain.slice(0, QUOTE_LENGTH)}…` : plain
+}
+
 /**
  * Newest first. At the same moment an event goes above a comment, since a comment can cause one
  * (the assignee's first starts the work); then the later row of one type first.
@@ -261,10 +269,12 @@ export const workItemCommentsRouter = {
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       })
       const canPost = await resolveCanPost(loaded.item, loaded.parent, viewer)
+      const rowsById = new Map(rows.map((r) => [r.id, r]))
 
       const shape = (c: (typeof rows)[number]) => {
         const deleted = c.deletedAt !== null
         const isAuthor = c.authorId === viewer.id
+        const quoted = c.repliedToId ? rowsById.get(c.repliedToId) : null
         return {
           id: c.id,
           parentId: c.parentId,
@@ -277,6 +287,14 @@ export const workItemCommentsRouter = {
           deleted,
           canEdit: !deleted && isAuthor && canPost,
           canDelete: !deleted && (isAuthor || viewer.isAdmin),
+          repliedTo: quoted
+            ? {
+                id: quoted.id,
+                authorName: quoted.author?.name ?? null,
+                content: quoted.deletedAt ? '' : quoteSnippet(quoted.content),
+                deleted: quoted.deletedAt !== null,
+              }
+            : null,
         }
       }
       // Top-level comments newest first; each one's replies oldest first beneath it.
@@ -317,8 +335,11 @@ export const workItemCommentsRouter = {
       }
 
       // A reply to a reply joins the same top-level thread; its author is still the one told.
+      // Its target is quoted too, unless that's the thread's own top-level comment: a reply
+      // already sits under that one, so quoting it back would say nothing new.
       let parent: { id: number; authorId: number | null } | null = null
       let repliedTo: number | null = null
+      let repliedToId: number | null = null
       if (input.parentId !== undefined) {
         const target = await prisma.workItemComment.findUnique({
           where: { id: input.parentId },
@@ -329,6 +350,7 @@ export const workItemCommentsRouter = {
         }
         parent = target.parent ?? target
         repliedTo = target.authorId
+        repliedToId = target.parent ? target.id : null
       }
 
       const content = input.content.trim()
@@ -338,6 +360,7 @@ export const workItemCommentsRouter = {
           authorId: volunteer.id,
           content,
           parentId: parent?.id ?? null,
+          repliedToId,
         },
       })
 
