@@ -125,14 +125,13 @@ export default function RoadmapPage() {
                 {
                   id: patch.id,
                   startDate: patch.startDate,
+                  ...(patch.follow ? { follow: true } : {}),
                   ...(patch.durationDays !== undefined ? { durationDays: patch.durationDays } : {}),
                 },
               ],
             })
           }
-          onLink={(predecessorId, successorId) =>
-            addDep.mutate({ predecessorId, successorId, lagDays: 0 })
-          }
+          onLink={(predecessorId, successorId) => addDep.mutate({ predecessorId, successorId })}
         />
       )}
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   computeSchedule,
   findDependencyCycle,
+  followAt,
   type ScheduleEdge,
   type ScheduleInput,
 } from './schedule'
@@ -134,19 +135,55 @@ describe('computeSchedule', () => {
     expect(byId.get(1)!.pinConflictWith).toBeNull()
   })
 
-  it('names the predecessor that binds hardest, lag included', () => {
+  it('names the predecessor that finishes last, and measures a pin without lag', () => {
+    const { byId } = computeSchedule(
+      [
+        item(1, { startDate: day('2026-03-10'), durationDays: 5 }),
+        item(2, { startDate: day('2026-03-10'), durationDays: 8 }),
+        item(3, { startDate: day('2026-03-10') }),
+        item(4, { startDate: day('2026-03-18') }),
+      ],
+      [link(1, 3, 9), link(2, 3), link(2, 4, 3)],
+      origin,
+    )
+    // 1 ends 14 Mar; 2 ends 17 Mar and permits 18 Mar. Lag does not move a pin's limit.
+    expect(byId.get(3)).toMatchObject({
+      pinConflictWith: 2,
+      pinConflictDays: 8,
+      lastPredecessor: 2,
+    })
+    expect(ymd(byId.get(3)!.readyFrom!)).toBe('2026-03-18')
+    expect(byId.get(4)).toMatchObject({ pinnedBeforePredecessor: false, pinConflictDays: null })
+    expect(byId.get(1)).toMatchObject({ readyFrom: null, lastPredecessor: null })
+  })
+
+  it('holds a derived item back by the lag on each link, the latest permitted start winning', () => {
     const { byId } = computeSchedule(
       [
         item(1, { startDate: day('2026-03-10'), durationDays: 5 }),
         item(2, { startDate: day('2026-03-10'), durationDays: 2 }),
-        item(3, { startDate: day('2026-03-10') }),
+        item(3),
+        item(4),
       ],
-      [link(1, 3), link(2, 3, 6)],
+      [link(1, 3, 2), link(2, 3), link(2, 4, 6)],
       origin,
     )
-    // 1 permits 15 Mar; 2 ends 11 Mar and with six days' lag permits 18 Mar.
-    expect(byId.get(3)!.pinConflictWith).toBe(2)
-    expect(byId.get(3)!.pinConflictDays).toBe(8)
+    // 1 ends 14 Mar, so two days' lag starts 3 on 17 Mar, though it was ready on 15 Mar.
+    expect(ymd(byId.get(3)!.start)).toBe('2026-03-17')
+    expect(ymd(byId.get(3)!.readyFrom!)).toBe('2026-03-15')
+    // 2 ends 11 Mar: ready on 12 Mar, six days on is 18 Mar.
+    expect(ymd(byId.get(4)!.start)).toBe('2026-03-18')
+    expect(byId.get(4)!.isDerived).toBe(true)
+  })
+
+  it('never readies an item before the scope begins', () => {
+    const { byId } = computeSchedule(
+      [item(1, { startDate: day('2026-02-01') }), item(2)],
+      [link(1, 2)],
+      origin,
+    )
+    expect(ymd(byId.get(2)!.readyFrom!)).toBe('2026-03-02')
+    expect(ymd(byId.get(2)!.start)).toBe('2026-03-02')
   })
 
   it('counts days late or to spare against the deadline', () => {
@@ -206,6 +243,44 @@ describe('computeSchedule', () => {
       origin,
     )
     expect(scheduled).toHaveLength(2)
+  })
+})
+
+describe('followAt', () => {
+  // 1 ends 14 Mar and 2 ends 17 Mar, so 3 is ready on 18 Mar.
+  const items = [
+    item(1, { startDate: day('2026-03-10'), durationDays: 5 }),
+    item(2, { startDate: day('2026-03-10'), durationDays: 8 }),
+    item(3, { startDate: day('2026-03-20') }),
+    item(4),
+  ]
+  const edges = [link(1, 3, 4), link(2, 3), link(1, 2, 0)]
+  const schedule = computeSchedule(items, edges, origin)
+
+  it('puts the gap on the link to the predecessor finishing last, and none on the others', () => {
+    const at = followAt(schedule, edges, 3, new Date('2026-03-21T15:00:00Z'))!
+    expect(ymd(at.start)).toBe('2026-03-21')
+    expect(at.links).toEqual([link(1, 3, 0), link(2, 3, 3)])
+    // Stored, the links put it where it was dropped without a pin.
+    const after = computeSchedule(
+      items.map((i) => (i.id === 3 ? { ...i, startDate: null } : i)),
+      [...at.links, link(1, 2)],
+      origin,
+    )
+    expect(ymd(after.byId.get(3)!.start)).toBe('2026-03-21')
+  })
+
+  it('clamps a drop before the predecessors finish to the day after, with no gap', () => {
+    for (const drop of ['2026-03-18', '2026-03-12']) {
+      const at = followAt(schedule, edges, 3, day(drop))!
+      expect(ymd(at.start)).toBe('2026-03-18')
+      expect(at.links).toEqual([link(1, 3, 0), link(2, 3, 0)])
+    }
+  })
+
+  it('has nothing to follow for an item that waits on nothing, or is not in the schedule', () => {
+    expect(followAt(schedule, edges, 4, day('2026-03-20'))).toBeNull()
+    expect(followAt(schedule, edges, 99, day('2026-03-20'))).toBeNull()
   })
 })
 

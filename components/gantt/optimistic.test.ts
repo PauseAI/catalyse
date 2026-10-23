@@ -164,4 +164,24 @@ describe('scheduleWithPatches', () => {
 
     expect(optimistic).toEqual(authoritative)
   })
+
+  it('keeps a follower derived, held where it was dropped and moving with what it follows', () => {
+    // 1 ends 12 Mar and 2 ends 14 Mar, so 3 is ready on 15 Mar.
+    const tasks = [
+      task(1, { startDate: day('2026-03-10'), deadline: '2026-03-12' }),
+      task(2, { startDate: day('2026-03-10'), deadline: '2026-03-14' }),
+      task(3, { startDate: day('2026-03-11'), deadline: '2026-03-12' }),
+    ]
+    const edges = [link(1, 3, 5), link(2, 3)]
+    const dropped = scheduleWithPatches(tasks, edges, origin, [
+      { id: 3, startDate: day('2026-03-18'), follow: true, deadline: day('2026-03-19') },
+    ])
+    expect(found(dropped, 3)).toMatchObject({ isPinned: false, isDerived: true })
+    expect(ymd(found(dropped, 3).start)).toBe('2026-03-18')
+
+    const clamped = scheduleWithPatches(tasks, edges, origin, [
+      { id: 3, startDate: day('2026-03-02'), follow: true },
+    ])
+    expect(ymd(found(clamped, 3).start)).toBe('2026-03-15')
+  })
 })

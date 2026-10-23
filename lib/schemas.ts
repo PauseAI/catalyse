@@ -306,11 +306,10 @@ export const UpdateProjectTaskSchema = WorkItemSchema.pick({
     ...SUBMISSION_ASK_FIELDS,
   })
 
-/** A finish-to-start link. Lag is signed: positive leaves a gap, negative overlaps. */
+/** A finish-to-start link: the successor starts the day after the predecessor ends. */
 export const DependencyBodySchema = z.object({
   predecessorId: z.number().int(),
   successorId: z.number().int(),
-  lagDays: z.number().int().min(-365).max(365).optional().default(0),
 })
 
 export const CreateProjectUpdateSchema = WorkItemCommentSchema.pick({

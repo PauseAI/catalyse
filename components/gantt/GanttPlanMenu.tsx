@@ -7,7 +7,6 @@ import FormLabel from '@/components/FormLabel'
 import { H4 } from '@/components/Heading'
 import { P } from '@/components/Text'
 import Tooltip from '@/components/Tooltip'
-import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import { ANCHOR_HINT } from './GanttLegend'
 
@@ -16,7 +15,6 @@ export type PlanLink = {
   dependencyId: number
   predecessorId: number
   predecessorTitle: string
-  lagDays: number
 }
 
 export type GanttPlan = {
@@ -28,66 +26,15 @@ export type GanttPlan = {
   isAnchor: boolean
   onAddDependency: (predecessorId: number) => void
   onRemoveDependency: (dependencyId: number) => void
-  onSetLag: (dependencyId: number, lagDays: number) => void
   /** The key date is the owner's and an admin's; omit for a deputy. */
   onSetAnchor?: (isAnchor: boolean) => void
 }
 
 const POPOVER_WIDTH = 288
-const MAX_LAG = 365
-
-/** Saves on blur or Enter, and only a whole number of days that differs from the stored one. */
-function GapField({
-  link,
-  busy,
-  onSetLag,
-}: {
-  link: PlanLink
-  busy?: boolean
-  onSetLag: GanttPlan['onSetLag']
-}) {
-  const id = useId()
-  const commit = (input: HTMLInputElement) => {
-    const days = Number(input.value)
-    if (input.value.trim() === '' || !Number.isInteger(days) || Math.abs(days) > MAX_LAG) {
-      input.value = String(link.lagDays)
-      return
-    }
-    if (days !== link.lagDays) onSetLag(link.dependencyId, days)
-  }
-  return (
-    <form
-      className="mt-1 flex items-center gap-2"
-      onSubmit={(e) => {
-        e.preventDefault()
-        commit(e.currentTarget.elements.namedItem('gap') as HTMLInputElement)
-      }}
-    >
-      <FormLabel htmlFor={id} className="text-text-light m-0 text-xs font-normal">
-        Gap after it finishes (days)
-      </FormLabel>
-      <Input
-        // Re-seeded whenever the stored gap changes underneath it.
-        key={link.lagDays}
-        id={id}
-        name="gap"
-        type="number"
-        step={1}
-        min={-MAX_LAG}
-        max={MAX_LAG}
-        defaultValue={link.lagDays}
-        disabled={busy}
-        aria-label={`Gap after “${link.predecessorTitle}” finishes (days)`}
-        className="w-16 px-2 py-1 text-sm"
-        onBlur={(e) => commit(e.currentTarget)}
-      />
-    </form>
-  )
-}
 
 /**
- * The owner's planning actions for one task — what it waits on, the gap after each, and the key
- * date — behind a ⋯ button. Opens in a layer of its own so the chart's scroller cannot clip it.
+ * The owner's planning actions for one task — what it waits on and the key date — behind a ⋯
+ * button. Opens in a layer of its own so the chart's scroller cannot clip it.
  */
 export default function GanttPlanMenu({ plan, busy }: { plan: GanttPlan; busy?: boolean }) {
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
@@ -165,20 +112,20 @@ export default function GanttPlanMenu({ plan, busy }: { plan: GanttPlan; busy?: 
               ) : (
                 <ul className="m-0 list-none space-y-2 p-0">
                   {plan.links.map((l) => (
-                    <li key={l.dependencyId} className="border-brand-border rounded-md border p-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="leading-snug">{l.predecessorTitle}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => plan.onRemoveDependency(l.dependencyId)}
-                          aria-label={`Stop waiting on ${l.predecessorTitle}`}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                      <GapField link={l} busy={busy} onSetLag={plan.onSetLag} />
+                    <li
+                      key={l.dependencyId}
+                      className="border-brand-border flex items-center justify-between gap-2 rounded-md border p-2"
+                    >
+                      <span className="leading-snug">{l.predecessorTitle}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => plan.onRemoveDependency(l.dependencyId)}
+                        aria-label={`Stop waiting on ${l.predecessorTitle}`}
+                      >
+                        Remove
+                      </Button>
                     </li>
                   ))}
                 </ul>

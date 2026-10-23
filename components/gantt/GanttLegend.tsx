@@ -202,8 +202,9 @@ export function PlanningTools({ children }: { children?: React.ReactNode }) {
         </section>
         <P className="text-text-light m-0 text-xs">
           Drag a bar to move it, its right edge to change duration, or the circle at its end onto
-          another row to link them. Click a bar to select it — a × appears on each of its dependency
-          arrows, and removes that link.
+          another row to link them. A bar that waits on another keeps following it: dragged later,
+          it stays that many days after it, and it cannot go before it finishes. Click a bar to
+          select it — a × appears on each of its dependency arrows, and removes that link.
         </P>
       </div>
     </details>

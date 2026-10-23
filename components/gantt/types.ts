@@ -29,5 +29,4 @@ export type GanttEdge = {
   id?: number
   predecessorId: number
   successorId: number
-  lagDays: number
 }

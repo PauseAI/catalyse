@@ -9,6 +9,9 @@
  *   - pinned    — it has a `startDate`, and sits there regardless of what moves around it; or
  *   - derived   — it has none, and starts once every predecessor has finished (+1 day +lag).
  * An item with neither a pin nor a predecessor falls back to the scope's origin.
+ *
+ * Lag only ever holds a derived item later than its predecessors allow (see followAt); it never
+ * lets one start earlier, so a pin is measured against the predecessors alone.
  */
 
 const MS_PER_DAY = 86_400_000
@@ -60,6 +63,13 @@ export type ScheduledItem = {
    */
   daysLate: number | null
   breachesDeadline: boolean
+  /**
+   * The earliest day its predecessors allow, lag aside: the day after the last of them finishes,
+   * and not before the scope's origin. Null when it waits on nothing placed.
+   */
+  readyFrom: Date | null
+  /** The predecessor that finishes last, which sets `readyFrom`. */
+  lastPredecessor: number | null
   /** Pin is earlier than the dependencies allow. The pin wins; this flags the conflict. */
   pinnedBeforePredecessor: boolean
   /** Days the pin would have to move later to satisfy its predecessors; null when it need not. */
@@ -234,17 +244,20 @@ export function computeSchedule(
     const preds = predecessorsOf.get(id) ?? []
 
     let earliest = scopeOrigin
+    let readyFrom = scopeOrigin
     let isDerived = false
-    let bindingPredecessor: number | null = null
+    let lastPredecessor: number | null = null
+    let lastEnd = 0
     for (const edge of preds) {
       const predSpan = spans.get(edge.predecessorId)
       if (!predSpan) continue // predecessor sat on a cycle; ignore this constraint
       isDerived = true
-      const permitted = addDays(predSpan.end, 1 + edge.lagDays)
-      if (bindingPredecessor === null || permitted.getTime() > earliest.getTime()) {
-        bindingPredecessor = edge.predecessorId
+      if (lastPredecessor === null || predSpan.end.getTime() > lastEnd) {
+        lastPredecessor = edge.predecessorId
+        lastEnd = predSpan.end.getTime()
       }
-      earliest = laterOf(earliest, permitted)
+      readyFrom = laterOf(readyFrom, addDays(predSpan.end, 1))
+      earliest = laterOf(earliest, addDays(predSpan.end, 1 + edge.lagDays))
     }
 
     const pinned = item.startDate ? startOfUtcDay(item.startDate) : null
@@ -274,7 +287,7 @@ export function computeSchedule(
 
     const gap = deadline ? diffInDays(deadline, end) : null
     const daysLate = endsOnDeadline && gap !== null && gap <= 0 ? null : gap
-    const pinConflict = pinned !== null && isDerived && pinned.getTime() < earliest.getTime()
+    const pinConflict = pinned !== null && isDerived && pinned.getTime() < readyFrom.getTime()
 
     const scheduledItem: ScheduledItem = {
       id,
@@ -285,9 +298,11 @@ export function computeSchedule(
       deadline,
       daysLate,
       breachesDeadline: daysLate !== null && daysLate > 0,
+      readyFrom: isDerived ? readyFrom : null,
+      lastPredecessor,
       pinnedBeforePredecessor: pinConflict,
-      pinConflictDays: pinConflict ? diffInDays(pinned, earliest) : null,
-      pinConflictWith: pinConflict ? bindingPredecessor : null,
+      pinConflictDays: pinConflict ? diffInDays(pinned, readyFrom) : null,
+      pinConflictWith: pinConflict ? lastPredecessor : null,
       endsOnDeadline,
       isCritical: false,
       isAnchor: item.isAnchor === true,
@@ -363,5 +378,30 @@ function markCriticalPath(
       // The successor is only held up by this item if it starts the moment this one permits.
       return successor.start.getTime() === addDays(item.end, 1 + edge.lagDays).getTime()
     })
+  }
+}
+
+/**
+ * An item that waits on others, dropped on `start`, keeps following them: it stays derived, and
+ * the link to the predecessor finishing last carries the gap that holds it there while its other
+ * links carry none. A drop before `readyFrom` lands on `readyFrom`, with no gap. Returns where it
+ * lands and its incoming links with their new lag, or null when it waits on nothing placed.
+ */
+export function followAt(
+  schedule: Schedule,
+  edges: ScheduleEdge[],
+  id: number,
+  start: Date,
+): { start: Date; links: ScheduleEdge[] } | null {
+  const item = schedule.byId.get(id)
+  if (!item?.readyFrom || item.lastPredecessor === null) return null
+  const last = schedule.byId.get(item.lastPredecessor)!
+  const at = laterOf(startOfUtcDay(start), item.readyFrom)
+  const gap = diffInDays(addDays(last.end, 1), at)
+  return {
+    start: at,
+    links: edges
+      .filter((e) => e.successorId === id)
+      .map((e) => ({ ...e, lagDays: e.predecessorId === item.lastPredecessor ? gap : 0 })),
   }
 }

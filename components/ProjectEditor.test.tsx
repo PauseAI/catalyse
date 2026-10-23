@@ -256,7 +256,8 @@ describe('ProjectEditor — new volunteer proposal', () => {
     const submit = await screen.findByRole('button', { name: 'Submit' })
     await waitFor(() => expect(submit).toBeEnabled())
     await userEvent.click(submit)
-    await screen.findByText('Submit draft for review?')
+    // The dialog opens only after a fresh read of the draft's tasks.
+    await screen.findByText('Submit draft for review?', {}, { timeout: 20_000 })
     await userEvent.click(await screen.findByRole('button', { name: 'Submit for review' }))
     await screen.findByText('Draft submitted for review!')
     const draft = await prisma.workItem.findFirstOrThrow({

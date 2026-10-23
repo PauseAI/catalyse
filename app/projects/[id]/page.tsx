@@ -379,6 +379,7 @@ function TaskTimeline({
       items: {
         id: number
         startDate: Date | null
+        follow?: boolean
         durationDays?: number | null
         deadline?: Date | null
       }[]
@@ -392,7 +393,7 @@ function TaskTimeline({
         if (!patch) return t
         return {
           ...t,
-          startDate: patch.startDate,
+          startDate: patch.follow ? null : patch.startDate,
           ...(patch.durationDays !== undefined ? { durationDays: patch.durationDays } : {}),
           ...(patch.deadline !== undefined ? { deadline: patch.deadline } : {}),
         }
@@ -436,11 +437,6 @@ function TaskTimeline({
     ...orpc.dependencies.remove.mutationOptions(),
     onSuccess: () => void invalidate(),
     onError: onErr('remove dependency'),
-  })
-  const setLag = useMutation({
-    ...orpc.dependencies.updateLag.mutationOptions(),
-    onSuccess: () => void invalidate(),
-    onError: onErr('change the gap'),
   })
   const updateTask = useMutation({
     ...orpc.projects.updateTask.mutationOptions(),
@@ -501,11 +497,7 @@ function TaskTimeline({
   }
 
   const busy =
-    reschedule.isPending ||
-    addDep.isPending ||
-    removeDep.isPending ||
-    setLag.isPending ||
-    updateTask.isPending
+    reschedule.isPending || addDep.isPending || removeDep.isPending || updateTask.isPending
 
   const selectedLinks = selectedRow
     ? timeline.dependencies.filter((d) => d.successorId === selectedRow.id)
@@ -543,13 +535,11 @@ function TaskTimeline({
             dependencyId: d.id,
             predecessorId: d.predecessorId,
             predecessorTitle: taskById.get(d.predecessorId)?.title ?? `#${d.predecessorId}`,
-            lagDays: d.lagDays,
           })),
           isAnchor: selectedTask.isAnchor,
           onAddDependency: (predecessorId) =>
-            addDep.mutate({ predecessorId, successorId: selectedTask.id, lagDays: 0 }),
+            addDep.mutate({ predecessorId, successorId: selectedTask.id }),
           onRemoveDependency: (dependencyId) => removeDep.mutate({ dependencyId }),
-          onSetLag: (dependencyId, lagDays) => setLag.mutate({ dependencyId, lagDays }),
           onSetAnchor: timeline.canSetKeyDate
             ? (isAnchor) =>
                 updateTask.mutate(
@@ -596,6 +586,7 @@ function TaskTimeline({
                   {
                     id: patch.id,
                     startDate: patch.startDate,
+                    ...(patch.follow ? { follow: true } : {}),
                     ...(patch.durationDays !== undefined
                       ? { durationDays: patch.durationDays }
                       : {}),
@@ -604,9 +595,7 @@ function TaskTimeline({
                 ],
               })
             }
-            onLink={(predecessorId, successorId) =>
-              addDep.mutate({ predecessorId, successorId, lagDays: 0 })
-            }
+            onLink={(predecessorId, successorId) => addDep.mutate({ predecessorId, successorId })}
             onUnlink={(dependencyId) => removeDep.mutate({ dependencyId })}
             selectedMenu={planMenu}
             busy={busy}
