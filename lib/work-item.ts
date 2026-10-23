@@ -455,6 +455,7 @@ export type EnrichedProject = ScheduleFieldsLike & {
   reviewedAt: Date | null
   collaborationLink: string | null
   autoAcceptTasks: boolean
+  showTimeline: boolean
   outcome: string | null
   outcomeNotes: string | null
   completedAt: Date | null
@@ -514,6 +515,7 @@ export function withProjectExtras(
     updatedAt: p.updatedAt,
     isSeekingHelp: p.isSeekingHelp,
     autoAcceptTasks: p.autoAcceptTasks,
+    showTimeline: p.showTimeline,
     // Derived, not stored — see isSeekingOwner() in lib/project-status.ts.
     isSeekingOwner: isSeekingOwner(p),
     // An owned project with an empty backlog. Surfaced as a badge rather than a status:

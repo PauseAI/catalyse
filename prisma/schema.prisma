@@ -535,6 +535,8 @@ model WorkItem {
   isSeekingHelp              Boolean?  @default(false) @map("is_seeking_help")
   // Submitted tasks go straight to Done instead of waiting for the owner to accept them.
   autoAcceptTasks            Boolean   @default(true) @map("auto_accept_tasks")
+  // Whether the project page offers its Timeline tab; the owner turns it on once there's a plan.
+  showTimeline               Boolean   @default(false) @map("show_timeline")
   outcome                    String? // TODO: enum — successful, partial, not_completed, ongoing
   outcomeNotes               String?   @map("outcome_notes")
   completedAt                DateTime? @map("completed_at")

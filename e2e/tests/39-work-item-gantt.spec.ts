@@ -1,4 +1,4 @@
-import { test, expect, readAdminToken } from '../fixtures'
+import { test, expect, readAdminToken, createApprovedVolunteer, signedInPage } from '../fixtures'
 import { fake } from '../fake'
 import { createApiClient } from '../client'
 import type { Locator, Page } from '@playwright/test'
@@ -9,7 +9,11 @@ type Api = RouterClient<typeof appRouter>
 
 const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`)
 
-async function makeProject(api: Api, opts: { startDate?: Date } = {}): Promise<number> {
+/** A project with its timeline shown, unless `timeline: false` leaves it hidden as new ones are. */
+async function makeProject(
+  api: Api,
+  opts: { startDate?: Date; timeline?: boolean } = {},
+): Promise<number> {
   const created = await api.admin.projects.create({
     body: {
       title: fake.projectTitle(),
@@ -27,7 +31,12 @@ async function makeProject(api: Api, opts: { startDate?: Date } = {}): Promise<n
     },
   })
   expect(created.status, JSON.stringify(created.body)).toBe(200)
-  return (created.body as { id: number }).id
+  const id = (created.body as { id: number }).id
+  if (opts.timeline !== false) {
+    const shown = await api.projects.update({ body: { id, showTimeline: true } })
+    expect(shown.status, JSON.stringify(shown.body)).toBe(200)
+  }
+  return id
 }
 
 async function addTask(
@@ -68,6 +77,80 @@ async function schedule(api: Api, projectId: number) {
     scopeEnd: string | Date
   }
 }
+
+test.describe('Who sees a timeline', () => {
+  test('a project hides its Timeline tab until it is set to show it, then a volunteer sees it', async ({
+    baseUrl,
+    adminPage,
+    browser,
+    snap,
+  }) => {
+    const api = createApiClient(baseUrl, readAdminToken(baseUrl))
+    const projectId = await makeProject(api, { startDate: day('2027-09-06'), timeline: false })
+    await addTask(api, projectId, {
+      title: 'Shown task',
+      startDate: day('2027-09-07'),
+      deadline: day('2027-09-09'),
+    })
+    const volunteer = await createApprovedVolunteer(baseUrl)
+    const page = await signedInPage(browser, volunteer.token)
+    try {
+      // A link to a hidden timeline opens the tasks instead.
+      await page.goto(`${baseUrl}/projects/${projectId}#timeline`)
+      await expect(page.getByRole('tab', { name: /^Tasks/ })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      )
+      await expect(page).toHaveURL(new RegExp(`/projects/${projectId}#tasks$`))
+      await expect(page.getByRole('tab', { name: 'Timeline' })).toHaveCount(0)
+
+      await adminPage.goto(`${baseUrl}/projects/${projectId}/edit`)
+      const toggle = adminPage.getByRole('checkbox', { name: 'Show timeline' })
+      await expect(toggle).not.toBeChecked()
+      await adminPage.getByText('Show timeline', { exact: true }).click()
+      await expect(toggle).toBeChecked()
+      await expect
+        .poll(async () => {
+          const res = await api.projects.getById({ body: { id: projectId } })
+          return (res.body as { showTimeline: boolean }).showTimeline
+        })
+        .toBe(true)
+      await snap(adminPage, 'show timeline ticked')
+
+      await page.reload()
+      await page.getByRole('tab', { name: 'Timeline' }).click()
+      await expect(page.getByRole('button', { name: /^Shown task:/ })).toBeVisible()
+    } finally {
+      await page.context().close()
+    }
+  })
+
+  test('the all-projects timeline is offered to admins, and a volunteer is turned away', async ({
+    baseUrl,
+    adminPage,
+    browser,
+  }) => {
+    await adminPage.goto(`${baseUrl}/projects`)
+    const views = adminPage.getByRole('navigation', { name: 'Project views' })
+    await views.getByRole('link', { name: 'Timeline' }).click()
+    await expect(adminPage).toHaveURL(`${baseUrl}/projects/gantt`)
+    await expect(adminPage.getByText(/^Each bar is a project/)).toBeVisible()
+
+    const volunteer = await createApprovedVolunteer(baseUrl)
+    const page = await signedInPage(browser, volunteer.token)
+    try {
+      await page.goto(`${baseUrl}/projects`)
+      await expect(page.getByRole('heading', { name: 'Projects', exact: true })).toBeVisible()
+      await expect(page.getByRole('navigation', { name: 'Project views' })).toHaveCount(0)
+
+      await page.goto(`${baseUrl}/projects/gantt`)
+      await expect(page.getByText("That page is for a chapter's organisers.")).toBeVisible()
+      await expect(page).toHaveURL(new RegExp('/projects(\\?|$)'))
+    } finally {
+      await page.context().close()
+    }
+  })
+})
 
 /** Presses on the middle of a bar and moves it `dx` pixels sideways, still held. */
 async function pickUpAndMove(page: Page, bar: Locator, dx: number) {

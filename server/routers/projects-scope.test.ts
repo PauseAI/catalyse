@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import {
   createChapter,
+  createChapterLead,
   createMember,
   createProject,
   createTask,
@@ -29,6 +30,7 @@ async function setup() {
       nationalChapterId: sweden.id,
       assigneeId: owner.id,
       isSeekingHelp: true,
+      showTimeline: true,
       skills: { create: [{ skillId: skill.id, isRequired: true }] },
       ...extra,
     })
@@ -41,7 +43,7 @@ async function setup() {
 
 describe('projects within a chapter', () => {
   it('are hidden from a volunteer in another chapter on every route, remote or not', async () => {
-    const { owner, inUk, swedish, remoteInSweden, pooled, task } = await setup()
+    const { uk: ukChapter, owner, inUk, swedish, remoteInSweden, pooled, task } = await setup()
     const uk = clientAs(inUk)
 
     expect(titles((await uk.projects.list({ search: 'Scope' })).projects)).toEqual([])
@@ -58,7 +60,8 @@ describe('projects within a chapter', () => {
       notFound,
     )
     await expect(uk.workItemComments.list({ workItemId: task.id })).rejects.toMatchObject(notFound)
-    expect((await uk.projects.ganttOverview({})).projects.map((p) => p.id)).not.toContain(
+    const ukLead = clientAs(await createChapterLead(ukChapter))
+    expect((await ukLead.projects.ganttOverview({})).projects.map((p) => p.id)).not.toContain(
       swedish.id,
     )
     await expect(
@@ -118,7 +121,6 @@ describe('projects within a chapter', () => {
     expect((await t.projects.getTask({ projectId: swedish.id, taskId: task.id })).title).toBe(
       'Scope task',
     )
-    expect((await t.projects.ganttOverview({})).projects.map((p) => p.id)).toContain(swedish.id)
   })
 })
 
