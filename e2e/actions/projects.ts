@@ -354,16 +354,18 @@ export async function setProjectStatus(
 }
 
 /**
- * Asks to join the project on the open page the way a volunteer does: from the header, to its
- * Tasks tab, and Ask to take this on the task named.
+ * Asks to join the project on the open page the way a volunteer does: browse its open tasks
+ * from the header, pick the one named, and send the request.
  */
 export async function askToTakeTask(page: Page, taskTitle = 'Initial task'): Promise<void> {
-  await page.getByRole('button', { name: 'Pick a task to join' }).click()
+  await page.getByRole('button', { name: 'Join and claim a task' }).click()
   await page
+    .getByRole('dialog', { name: 'Choose a task to join' })
     .getByRole('listitem')
-    .filter({ has: page.getByRole('link', { name: taskTitle, exact: true }) })
+    .filter({ has: page.getByText(taskTitle, { exact: true }) })
     .getByRole('button', { name: 'Ask to take this' })
     .click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Ask to take this' }).click()
   await expect(getAlert(page)).toContainText('Requested. The task is held for you', {
     timeout: 10_000,
   })

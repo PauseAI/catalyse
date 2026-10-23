@@ -143,7 +143,7 @@ describe('project page — visitor', () => {
     await screen.findByText(/You've left the project/)
     await waitFor(() => expect(screen.queryByLabelText('Add a comment')).toBeNull())
     // A team member is still on the project through the team, so nothing asks them to join.
-    expect(screen.queryByRole('button', { name: 'Pick a task to join' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Join and claim a task' })).toBeNull()
     expect(screen.queryByText('No open tasks yet')).toBeNull()
 
     const contact = screen.getByRole('button', { name: 'Message owner' })
@@ -362,6 +362,9 @@ describe('project page — joining and held tasks', () => {
     expect(screen.getByRole('button', { name: '6 helpers' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Edit project' })).toBeNull()
     await userEvent.click(await screen.findByRole('button', { name: 'Ask to take this' }))
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Ask to take this' }),
+    )
     await screen.findByText(/^Requested\. The task is held for you/)
     await screen.findByText('Held for you: waiting for the owner')
     await screen.findByText('Request sent')
@@ -1981,14 +1984,48 @@ describe('project page — remaining edges', () => {
     // It has an owner, so there is no lead to offer to be, and no task yet to ask for.
     expect(screen.getByText('No open tasks yet')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Offer to lead' })).toBeNull()
-    // With an open task the header points to the list. Claiming a task that no longer exists:
+    // Browsing opens a picker; picking a task that disappears before the request is confirmed:
     const gone = await createTask(project.id, { title: 'Gone task' })
     cleanup()
     await mount(project.id, me)
-    await userEvent.click(await screen.findByRole('button', { name: 'Pick a task to join' }))
-    expect(window.location.hash).toBe('#tasks')
+    await userEvent.click(await screen.findByRole('button', { name: 'Join and claim a task' }))
+    await screen.findByRole('dialog', { name: 'Choose a task to join' })
+    // Escape closes the picker, and picking a task then backing out loses nothing.
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Choose a task to join' })).toBeNull()
+    await userEvent.click(await screen.findByRole('button', { name: 'Join and claim a task' }))
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Choose a task to join' })).getByRole(
+        'button',
+        { name: 'Ask to take this' },
+      ),
+    )
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }),
+    )
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await userEvent.click(await screen.findByRole('button', { name: 'Join and claim a task' }))
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Choose a task to join' })).getByRole(
+        'button',
+        { name: 'Ask to take this' },
+      ),
+    )
+    // Escape backs out of the request too, same as Cancel.
+    await screen.findByRole('dialog')
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await userEvent.click(await screen.findByRole('button', { name: 'Join and claim a task' }))
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Choose a task to join' })).getByRole(
+        'button',
+        { name: 'Ask to take this' },
+      ),
+    )
     await prisma.workItem.delete({ where: { id: gone.id } })
-    await userEvent.click(await screen.findByRole('button', { name: 'Ask to take this' }))
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Ask to take this' }),
+    )
     await screen.findByText('Project or task not found')
     // Asking for a task asks to join; the request waits among the actions, beside Withdraw.
     await createTask(project.id, { title: 'Wanted task' })
@@ -1996,13 +2033,19 @@ describe('project page — remaining edges', () => {
     queryClient.clear()
     await mount(project.id, me, '#tasks')
     await userEvent.click(await screen.findByRole('button', { name: 'Ask to take this' }))
+    const ask = await screen.findByRole('dialog')
+    await userEvent.type(within(ask).getByLabelText('Message (optional)'), 'Keen to help')
+    await userEvent.click(within(ask).getByRole('button', { name: 'Ask to take this' }))
     await screen.findByText(/Requested\. The task is held for you/)
     expect(await within(group('Actions')).findByText('Request sent')).toHaveAttribute(
       'data-emphasis',
       'outline',
     )
     expect(within(group('Status')).queryByLabelText('interest status')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Pick a task to join' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Join and claim a task' })).toBeNull()
+    expect(
+      (await prisma.workItemInterest.findFirstOrThrow({ where: { volunteerId: me.id } })).message,
+    ).toBe("Asked to take 'Wanted task': Keen to help")
     await userEvent.click(await screen.findByRole('button', { name: 'Withdraw request' }))
     await userEvent.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }),

@@ -6,6 +6,9 @@ import {
   createProject,
   createTask,
   createTeam,
+  createChapter,
+  createChapterLead,
+  createMember,
 } from '@/test/factories'
 import { emails } from '@/test/fakes/email'
 import { askToJoin, clientAs } from '@/test/rpc'
@@ -111,6 +114,41 @@ describe('projects.expressInterest / withdrawInterest', () => {
     await vi.waitFor(async () =>
       expect(await prisma.notification.count({ where: { type: 'new_interest' } })).toBe(1),
     )
+  })
+
+  it("tells the chapter's staff when someone offers to lead an ownerless project", async () => {
+    const chapter = await createChapter()
+    const lead = await createChapterLead(chapter)
+    const me = await createMember(chapter)
+    const p = await createProject({
+      nationalChapterId: chapter.id,
+      status: 'ready',
+      isSeekingHelp: true,
+    })
+    await clientAs(me).projects.expressInterest({
+      projectId: p.id,
+      interestType: 'want_to_own',
+      message: 'I can run it',
+    })
+    const interest = await interestRow(me.id, p.id)
+    await notified(lead.id, 'project_lead_offer', {
+      title: `Wants to lead: '${p.title}'`,
+      entityId: interest.id,
+    })
+    await vi.waitFor(() =>
+      expect(emails.lastTo(lead.email!)?.html).toContain('Their message:</strong> I can run it'),
+    )
+
+    await clientAs(lead).projects.respondToInterest({
+      projectId: p.id,
+      interestId: interest.id,
+      status: 'accepted',
+    })
+    expect(
+      await prisma.notification.count({
+        where: { type: 'project_lead_offer', entityId: interest.id },
+      }),
+    ).toBe(0)
   })
 })
 

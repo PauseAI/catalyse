@@ -1115,12 +1115,15 @@ describe('claiming before joining', () => {
       requestedByName: 'Nell New',
     })
 
-    // A second task asks nothing new of the owner.
+    // A second task, still waiting on the same request, is still new information for the owner.
     const t2 = await createTask(project.id, { title: 'Flyer' })
     await claim(me, project.id, t2.id)
     expect(
       await prisma.notification.count({ where: { volunteerId: owner.id, type: 'new_interest' } }),
-    ).toBe(1)
+    ).toBe(2)
+    expect(
+      await prisma.workItemInterest.findFirstOrThrow({ where: { id: interest.id } }),
+    ).toMatchObject({ status: 'pending', message: "Asked to take 'Flyer'" })
 
     await clientAs(owner).projects.respondToInterest({
       projectId: project.id,

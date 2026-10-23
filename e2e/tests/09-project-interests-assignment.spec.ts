@@ -31,14 +31,17 @@ test.describe('Project Interests and Assignment', () => {
 
     await askToTakeTask(volunteer.page)
 
-    // The task waits for them, and the request waits on the owner.
-    await expect(volunteer.page.getByText('Held for you: waiting for the owner')).toBeVisible({
-      timeout: 10_000,
-    })
     await expect(volunteer.page.getByLabel('interest status')).toContainText('Request sent', {
       timeout: 10_000,
     })
-    await expect(volunteer.page.getByRole('button', { name: 'Pick a task to join' })).toHaveCount(0)
+    await expect(volunteer.page.getByRole('button', { name: 'Join and claim a task' })).toHaveCount(
+      0,
+    )
+    // The task itself waits for them too, on the tab that lists it.
+    await volunteer.page.getByRole('tab', { name: /^Tasks/ }).click()
+    await expect(volunteer.page.getByText('Held for you: waiting for the owner')).toBeVisible({
+      timeout: 10_000,
+    })
   })
 
   test('A project with no open task says so, in place of a way to join', async ({
@@ -60,7 +63,9 @@ test.describe('Project Interests and Assignment', () => {
 
     await volunteer.page.goto(`${baseUrl}/projects/${projectId}`)
     await expect(volunteer.page.getByText('No open tasks yet')).toBeVisible({ timeout: 10_000 })
-    await expect(volunteer.page.getByRole('button', { name: 'Pick a task to join' })).toHaveCount(0)
+    await expect(volunteer.page.getByRole('button', { name: 'Join and claim a task' })).toHaveCount(
+      0,
+    )
     await expect(volunteer.page.getByRole('button', { name: 'Offer to lead' })).toHaveCount(0)
   })
 
@@ -208,9 +213,11 @@ test.describe('Project Interests and Assignment', () => {
     })
 
     // The way to ask comes back
-    await expect(volunteer.page.getByRole('button', { name: 'Pick a task to join' })).toBeVisible({
-      timeout: 10_000,
-    })
+    await expect(volunteer.page.getByRole('button', { name: 'Join and claim a task' })).toBeVisible(
+      {
+        timeout: 10_000,
+      },
+    )
   })
 
   test('Admin adds a volunteer to a project straight away', async ({
@@ -411,7 +418,7 @@ test.describe('Project Interests and Assignment', () => {
 
     // Nothing asks the project's owner to join it
     await expect(
-      volunteer.page.getByRole('button', { name: 'Pick a task to join' }),
+      volunteer.page.getByRole('button', { name: 'Join and claim a task' }),
     ).not.toBeVisible({
       timeout: 5_000,
     })

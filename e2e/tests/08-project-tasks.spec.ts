@@ -90,6 +90,10 @@ test.describe('Project Tasks', () => {
 
     // Not on the project yet: claiming asks to join and holds the task meanwhile.
     await volunteer.page.getByRole('button', { name: 'Ask to take this' }).click()
+    await volunteer.page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Ask to take this' })
+      .click()
     await expect(getAlert(volunteer.page)).toContainText('Requested. The task is held for you', {
       timeout: 10_000,
     })
