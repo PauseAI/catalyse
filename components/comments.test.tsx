@@ -442,6 +442,40 @@ describe('CommentThreadView discussion actions', () => {
     expect(screen.queryByRole('button', { name: /more replies/ })).toBeNull()
   })
 
+  it('expands every folded thread at once', async () => {
+    const repliesFor = (prefix: string) =>
+      [1, 2, 3, 4, 5, 6].map((n) => ({
+        id: prefix === 'a' ? 200 + n : 300 + n,
+        content: `${prefix} reply ${n}`,
+        authorName: 'Olive',
+        createdAt: null,
+      }))
+    renderThread({
+      comments: [
+        {
+          id: 20,
+          content: 'Thread A',
+          authorName: 'Hal',
+          createdAt: null,
+          replies: repliesFor('a'),
+        },
+        {
+          id: 21,
+          content: 'Thread B',
+          authorName: 'Gail',
+          createdAt: null,
+          replies: repliesFor('b'),
+        },
+      ],
+    })
+    expect(screen.getAllByText(/^Show 3 more replies$/)).toHaveLength(2)
+    await userEvent.click(screen.getByRole('button', { name: 'Expand all replies' }))
+    expect(screen.queryByRole('button', { name: /more replies/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Expand all replies' })).toBeNull()
+    expect(screen.getByText('a reply 3')).toBeInTheDocument()
+    expect(screen.getByText('b reply 3')).toBeInTheDocument()
+  })
+
   it('opens a collapsed thread to show a permalinked reply', () => {
     window.history.replaceState(null, '', '/x#comment-103')
     const scrollIntoView = vi.fn()

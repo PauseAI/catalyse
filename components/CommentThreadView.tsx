@@ -146,6 +146,17 @@ export default function CommentThreadView({
     document.getElementById(`comment-${firstHidden}`)?.focus()
   }
 
+  /** Top-level comments with enough replies to be folded, open or not. */
+  const foldableThreadIds = comments
+    .filter((c): c is CommentItem & { type?: 'comment' } => c.type !== 'event')
+    .filter((c) => (c.replies?.length ?? 0) > COLLAPSE_ABOVE)
+    .map((c) => c.id)
+  const hasFoldedThreads = foldableThreadIds.some((id) => !expanded.has(id))
+
+  function expandAll() {
+    setExpanded((prev) => new Set([...prev, ...foldableThreadIds]))
+  }
+
   async function copyCommentLink(id: number) {
     const url = `${window.location.origin}${window.location.pathname}#comment-${id}`
     try {
@@ -365,6 +376,13 @@ export default function CommentThreadView({
         <P className="text-text-light">{emptyText}</P>
       ) : (
         <ul className="list-none p-0 m-0">
+          {hasFoldedThreads && (
+            <li className="pb-2">
+              <button type="button" className={`${linkButton} font-semibold`} onClick={expandAll}>
+                Expand all replies
+              </button>
+            </li>
+          )}
           {comments.map((c) =>
             c.type === 'event' ? (
               <EventLine key={`event-${c.id}`} event={c} />
