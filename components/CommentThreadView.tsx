@@ -1,18 +1,22 @@
 'use client'
 
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore, type MouseEvent } from 'react'
 import { flushSync } from 'react-dom'
+import Link from 'next/link'
 import CommentComposer from './CommentComposer'
 import ConfirmDialog from './ui/ConfirmDialog'
 import { formatDateTime } from '@/lib/format-date'
 import { decodeMentions, splitMentions, type MentionMember } from '@/lib/mentions'
 import { useToast } from '@/lib/toast'
 import { P } from '@/components/Text'
+import { PersonInitials } from '@/components/WorkItemHeader'
 
 export interface CommentItem {
   id: number
   content: string
   authorName: string | null
+  /** Null once the author's account is gone, or for an item with no comments author at all. */
+  authorId?: number | null
   createdAt: Date | null
   editedAt?: Date | null
   deleted?: boolean
@@ -91,6 +95,29 @@ function EventLine({ event }: { event: EventLineItem }) {
 
 const linkButton = 'text-text-light hover:text-text cursor-pointer text-xs'
 
+/** The quote above a reply, linking to the comment it answers. */
+function RepliedToQuote({ target }: { target: NonNullable<CommentItem['repliedTo']> }) {
+  function focusTarget(e: MouseEvent) {
+    e.preventDefault()
+    window.location.hash = `comment-${target.id}`
+  }
+  return (
+    <a
+      href={`#comment-${target.id}`}
+      onClick={focusTarget}
+      className="mb-1 flex items-center gap-1 pl-2 border-l-2 border-brand-border text-xs text-text-light italic hover:text-text"
+    >
+      <span aria-hidden="true">↱</span>
+      {!target.deleted && <PersonInitials name={target.authorName ?? 'Unknown'} size="xs" />}
+      <span className="min-w-0 truncate">
+        {target.deleted
+          ? 'a removed comment'
+          : `${target.authorName ?? 'Unknown'}: "${target.content}"`}
+      </span>
+    </a>
+  )
+}
+
 /** A thread with more replies than this shows its first and last few, hiding the middle. */
 const COLLAPSE_ABOVE = 4
 const SHOWN_FIRST = 1
@@ -167,18 +194,16 @@ export default function CommentThreadView({
     }
   }
 
-  const scrolledToHashRef = useRef(false)
+  // Fires on the initial permalink load and whenever a reply's quote link focuses another comment.
   useEffect(() => {
-    if (scrolledToHashRef.current || comments.length === 0) return
-    const hash = window.location.hash
-    if (!hash.startsWith('#comment-')) return
+    if (!hash.startsWith('#comment-') || comments.length === 0) return
     const el = document.getElementById(hash.slice(1))
     if (!el) return
-    scrolledToHashRef.current = true
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     el.classList.add('ring-2', 'ring-primary')
-    setTimeout(() => el.classList.remove('ring-2', 'ring-primary'), 2000)
-  }, [comments])
+    const timer = setTimeout(() => el.classList.remove('ring-2', 'ring-primary'), 2000)
+    return () => clearTimeout(timer)
+  }, [hash, comments.length])
 
   async function confirmDelete() {
     setRemoving(true)
@@ -212,40 +237,19 @@ export default function CommentThreadView({
         tabIndex={tabIndex}
         className="py-3 border-b border-brand-border last:border-0 scroll-mt-20 rounded transition-shadow"
       >
-        {c.repliedTo && (
-          <P className="m-0 mb-1 pl-2 border-l-2 border-brand-border text-xs text-text-light italic">
-            Replying to{' '}
-            {c.repliedTo.deleted ? 'a removed comment' : (c.repliedTo.authorName ?? 'Unknown')}
-            {!c.repliedTo.deleted && `: "${c.repliedTo.content}"`}
-          </P>
-        )}
-        {saved ? (
-          <CommentComposer
-            label="Edit comment"
-            submitLabel="Save"
-            busyLabel="Saving…"
-            isSubmitting={saving}
-            initialText={saved.text}
-            initialPicked={saved.picked}
-            mentionable={mentionable}
-            autoFocus
-            onCancel={() => setEditing(null)}
-            onSubmit={async (content) => {
-              setSaving(true)
-              const ok = await (onEdit as (id: number, content: string) => Promise<boolean>)(
-                c.id,
-                content,
-              )
-              setSaving(false)
-              if (ok) setEditing(null)
-              return ok
-            }}
-          />
-        ) : (
-          <CommentBody content={c.content} />
-        )}
-        <span className="text-xs text-text-light inline-flex flex-wrap items-center gap-1.5">
-          {author} · {c.createdAt ? formatDateTime(c.createdAt) : ''}
+        {c.repliedTo && <RepliedToQuote target={c.repliedTo} />}
+        <span className="mb-1 text-xs text-text-light inline-flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center gap-1">
+            <PersonInitials name={author} size="xs" />
+            {c.authorId ? (
+              <Link href={`/volunteers/${c.authorId}`} className="hover:text-text hover:underline">
+                {author}
+              </Link>
+            ) : (
+              author
+            )}
+          </span>{' '}
+          · {c.createdAt ? formatDateTime(c.createdAt) : ''}
           {c.editedAt && <span>(edited)</span>}
           <button
             type="button"
@@ -292,6 +296,31 @@ export default function CommentThreadView({
             </button>
           )}
         </span>
+        {saved ? (
+          <CommentComposer
+            label="Edit comment"
+            submitLabel="Save"
+            busyLabel="Saving…"
+            isSubmitting={saving}
+            initialText={saved.text}
+            initialPicked={saved.picked}
+            mentionable={mentionable}
+            autoFocus
+            onCancel={() => setEditing(null)}
+            onSubmit={async (content) => {
+              setSaving(true)
+              const ok = await (onEdit as (id: number, content: string) => Promise<boolean>)(
+                c.id,
+                content,
+              )
+              setSaving(false)
+              if (ok) setEditing(null)
+              return ok
+            }}
+          />
+        ) : (
+          <CommentBody content={c.content} />
+        )}
         {renderReplies(c)}
       </li>
     )

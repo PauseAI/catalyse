@@ -8,7 +8,7 @@ import { renderApp } from '@/test/render'
 import { clientAs } from '@/test/rpc'
 import CommentThread from './CommentThread'
 import BugReportCommentThread from './BugReportCommentThread'
-import CommentThreadView from './CommentThreadView'
+import CommentThreadView, { type CommentItem } from './CommentThreadView'
 import CommentComposer from './CommentComposer'
 import Footer from './Footer'
 import AiEditingHelp from './AiEditingHelp'
@@ -53,8 +53,9 @@ describe('CommentThreadView', () => {
         onSubmit={async () => true}
       />,
     )
-    expect(screen.getByText('Unknown ·')).toBeInTheDocument()
-    expect(screen.getByText(/Ann · 1 January 2026/)).toBeInTheDocument()
+    expect(screen.getByText('Unknown')).toBeInTheDocument()
+    expect(screen.getByText('Ann')).toBeInTheDocument()
+    expect(screen.getByText(/1 January 2026/)).toBeInTheDocument()
   })
 
   it('submits trimmed content and clears on success, copies permalinks', async () => {
@@ -379,6 +380,18 @@ describe('CommentThreadView discussion actions', () => {
     expect(onSubmit).toHaveBeenLastCalledWith('Still here', 14)
   })
 
+  it("links a comment's author to their profile, unless their account is gone", () => {
+    renderThread({
+      comments: [
+        { id: 1, content: 'First', authorName: 'Ann', authorId: 7, createdAt: null },
+        { id: 2, content: 'Second', authorName: null, authorId: null, createdAt: null },
+      ],
+    })
+    expect(screen.getByRole('link', { name: 'Ann' })).toHaveAttribute('href', '/volunteers/7')
+    expect(screen.getByText('Unknown')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Unknown' })).toBeNull()
+  })
+
   it('quotes the reply answered, unless it is the thread starter', () => {
     renderThread({
       comments: [
@@ -407,10 +420,41 @@ describe('CommentThreadView discussion actions', () => {
         },
       ],
     })
-    expect(screen.getByText('Replying to Olive: "First reply"')).toBeInTheDocument()
-    expect(screen.getByText('Replying to a removed comment')).toBeInTheDocument()
+    const quoteLink = screen.getByRole('link', { name: 'Olive: "First reply"' })
+    expect(quoteLink).toHaveAttribute('href', '#comment-31')
+    const removedLink = screen.getByRole('link', { name: 'a removed comment' })
+    expect(removedLink).toHaveAttribute('href', '#comment-999')
     // The first reply answers the thread starter directly: no quote needed.
-    expect(screen.getAllByText(/^Replying to/)).toHaveLength(2)
+    expect(screen.getAllByRole('link')).toHaveLength(2)
+  })
+
+  it('focuses the quoted comment when its link is clicked, opening its fold', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    const replies: CommentItem[] = [
+      ...[1, 2, 3, 4, 5].map((n) => ({
+        id: 100 + n,
+        content: `Reply ${n}`,
+        authorName: 'Olive',
+        createdAt: null,
+      })),
+      {
+        id: 106,
+        content: 'Quoting the second reply',
+        authorName: 'Gail',
+        createdAt: null,
+        repliedTo: { id: 102, authorName: 'Olive', content: 'Reply 2', deleted: false },
+      },
+    ]
+    renderThread({
+      comments: [{ id: 20, content: 'Long one', authorName: 'Hal', createdAt: null, replies }],
+    })
+    await userEvent.click(screen.getByRole('link', { name: 'Olive: "Reply 2"' }))
+    expect(window.location.hash).toBe('#comment-102')
+    expect(screen.getByText('Reply 2')).toBeInTheDocument()
+    expect(scrollIntoView).toHaveBeenCalled()
+    expect(document.getElementById('comment-102')).toHaveClass('ring-2')
+    window.history.replaceState(null, '', '/x')
   })
 
   it('collapses the middle of a long thread until asked', async () => {
@@ -618,7 +662,7 @@ describe('CommentThread / BugReportCommentThread', () => {
     const line = await screen.findByText(/^Olive assigned this to Hal · /)
     const items = [...document.querySelectorAll('ul > li')].map((li) => li.textContent)
     expect(items[0]).toMatch(/^Olive assigned this to Hal · /)
-    expect(items[1]).toMatch(/^Who can take this\?/)
+    expect(items[1]).toContain('Who can take this?')
     expect(line.id).toMatch(/^event-\d+$/)
     expect(within(line).queryByRole('button')).toBeNull()
   })
