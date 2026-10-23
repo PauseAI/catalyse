@@ -29,6 +29,7 @@ const NEEDS_ACTION_TYPES = [
   // Admin-only (hidden from the Inbox, but their emails follow this category).
   'new_volunteer_signup',
   'new_project_proposal',
+  'project_lead_offer',
   'local_group_suggestion',
   'team_suggestion',
   'chapter_transfer_request',

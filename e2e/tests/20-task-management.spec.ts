@@ -2,6 +2,7 @@ import { test, expect, readAdminToken, confirmVolunteerEmail, approveVolunteer }
 import { fake } from '../fake'
 import { createApiClient } from '../client'
 import { goToInbox } from '../actions/dashboard'
+import { askToJoinViaApi } from '../actions/projects'
 import type { RouterClient } from '@orpc/server'
 import type { appRouter } from '@/server/router'
 
@@ -244,10 +245,7 @@ test.describe('Task Assignment', () => {
 
     const interested = await signupApprovedVolunteer(baseUrl)
     const other = await signupApprovedVolunteer(baseUrl)
-    const interestedApi = createApiClient(baseUrl, interested.token)
-    await interestedApi.projects.expressInterest({
-      body: { projectId, interestType: 'want_to_contribute' },
-    })
+    await askToJoinViaApi(baseUrl, interested.token, projectId)
 
     await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(adminPage.getByText('Group test task')).toBeVisible({ timeout: 10_000 })

@@ -12,7 +12,7 @@ import { createSkillViaApi } from '../actions/skills'
 import {
   adminCreateProjectViaApi,
   transferProjectOwnership,
-  joinProject,
+  askToTakeTask,
 } from '../actions/projects'
 import { createApiClient } from '../client'
 import { connectVolunteers } from '../actions/contacts'
@@ -50,18 +50,14 @@ test.describe('GDPR & Privacy', () => {
     // this long test drifts, and its final frame should be somewhere still.
     await adminPage.goto(`${baseUrl}/dashboard`)
 
-    // Admin creates a seeking-help project (no owner); volunteer expresses interest
+    // Admin creates a seeking-help project (no owner); volunteer asks to take its task
     const seekingProjectId = await adminCreateProjectViaApi(
       baseUrl,
       fake.projectTitle(),
       'GDPR test seeking-help project',
     )
     await volunteer.page.goto(`${baseUrl}/projects/${seekingProjectId}`)
-    await joinProject(volunteer.page)
-    await expect(getAlert(volunteer.page)).toContainText(
-      "You'll get a notification when they reply",
-      { timeout: 10_000 },
-    )
+    await askToTakeTask(volunteer.page)
 
     // Sign up a second volunteer (vol2) — used as owner for the contact project and as the inbound sender
     const vol2 = fake.person()

@@ -3,6 +3,7 @@ import {
   adminCreateProjectViaApi,
   proposeProject,
   transferProjectOwnership,
+  askToJoinViaApi,
 } from '../actions/projects'
 import { homeHeading } from '../actions/dashboard'
 import { createApiClient } from '../client'
@@ -62,11 +63,7 @@ test.describe('Home', () => {
     await transferProjectOwnership(baseUrl, adminPage, projectId, volunteer.name)
 
     const applicant = await createApprovedVolunteerNamed(baseUrl, fake.person().name)
-    const applicantApi = createApiClient(baseUrl, applicant.token)
-    const applied = await applicantApi.projects.expressInterest({
-      body: { projectId, interestType: 'want_to_contribute' },
-    })
-    expect(applied.status).toBe(200)
+    await askToJoinViaApi(baseUrl, applicant.token, projectId)
 
     const page = volunteer.page
     await page.goto(`${baseUrl}/dashboard`)

@@ -25,7 +25,7 @@ import {
   type DatesValue,
 } from '@/lib/task-dates'
 import { Badge, StatusFlag } from '@/components/Badge'
-import WorkRow, { PersonAvatar, type WorkRowParts } from '@/components/WorkRow'
+import { PersonAvatar } from '@/components/WorkRow'
 import {
   INTEREST_STATUS_LABELS,
   interestHistoryLabel,
@@ -42,7 +42,14 @@ import {
   INTEREST_DECLINED_MESSAGE,
   volunteerRemovedMessage,
 } from '@/lib/action-messages'
-import { ASSIGN_PICKED, UNASSIGN, claimLabel, type ClaimViewer } from '@/lib/action-labels'
+import {
+  ASSIGN_PICKED,
+  UNASSIGN,
+  ASK_TO_TAKE,
+  CLAIMING,
+  claimLabel,
+  type ClaimViewer,
+} from '@/lib/action-labels'
 import CommentThread from '@/components/CommentThread'
 import ChangesRequestedBanner from '@/components/ChangesRequestedBanner'
 import StatusSplitButton from '@/components/StatusSplitButton'
@@ -101,37 +108,18 @@ import {
 import { InterestStatus, ProjectStatus, TaskStatus, WorkItemType } from '@/generated/prisma/enums'
 import type { InferRouterOutputs } from '@orpc/server'
 import type { AppRouter } from '@/server/router'
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-  arrayMove,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
+import { arrayMove } from '@dnd-kit/sortable'
+import { TaskList, isTaskOpenToClaim, type ProjectTask } from '@/components/ProjectTaskList'
 import PageLoading from '@/components/PageLoading'
 import WorkItemCard from '@/components/WorkItemCard'
 import HelpersWantedField, { helpersWantedPayload } from '@/components/HelpersWantedField'
 import { helperSummary } from '@/lib/helper-summary'
 import { BLEED, SECTION_CARD } from '@/lib/ui-classes'
-import {
-  TASK_FILTERS,
-  matchesTaskFilter,
-  tasksByStatus,
-  type TaskFilter,
-} from '@/lib/task-list-order'
+import { TASK_FILTERS, type TaskFilter } from '@/lib/task-list-order'
 import TaskStatusBar, { taskFilterHash } from '@/components/TaskStatusBar'
 
 // ── Types ────────────────────────────────────────────────────────────────────
-
-type ProjectTask = InferRouterOutputs<AppRouter>['projects']['getById']['tasks'][number]
 
 // Both lists come from lib/project-status.ts, which the server's permission check reads
 // too — they used to be hand-synced copies.
@@ -217,108 +205,6 @@ function ActionMenu({
           document.body,
         )}
     </div>
-  )
-}
-
-type TaskRowParts = WorkRowParts
-
-/** A task row in "Your order", with a handle to drag it to a new place. */
-function SortableTaskItem({ task, ...parts }: TaskRowParts & { task: ProjectTask }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: task.id,
-  })
-  return (
-    <WorkRow
-      {...parts}
-      rowRef={setNodeRef}
-      style={{
-        // dynamic: drag transform/transition/opacity
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-      }}
-      handle={
-        <span
-          {...attributes}
-          {...listeners}
-          className="w-4 shrink-0 leading-none text-text-light text-center text-base mt-1 cursor-grab"
-          title="Drag to reorder"
-          aria-label={`Drag to reorder ${task.title}`}
-        >
-          ⠿
-        </span>
-      }
-    />
-  )
-}
-
-/**
- * The Tasks tab's list. By default it is grouped by what can happen next (`tasksByStatus`), with
- * done tasks folded under "Done (N)"; under a `filter` it is only the matching tasks, in the same
- * order and unfolded; in `yourOrder` it is the manual order, which a manager drags to change.
- */
-function TaskList({
-  tasks,
-  yourOrder,
-  filter,
-  sensors,
-  onDragEnd,
-  rowParts,
-}: {
-  tasks: ProjectTask[]
-  yourOrder: boolean
-  filter: TaskFilter | null
-  sensors: ReturnType<typeof useSensors>
-  onDragEnd: (event: DragEndEvent) => void
-  rowParts: (task: ProjectTask) => TaskRowParts
-}) {
-  const list = 'list-none p-0 m-0'
-  if (yourOrder) {
-    return (
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-          <ul className={list}>
-            {tasks.map((task) => (
-              <SortableTaskItem key={task.id} task={task} {...rowParts(task)} />
-            ))}
-          </ul>
-        </SortableContext>
-      </DndContext>
-    )
-  }
-  const { open, done } = tasksByStatus(tasks)
-  if (filter) {
-    const shown = [...open, ...done].filter((t) => matchesTaskFilter(t, filter))
-    return shown.length === 0 ? (
-      <P className="text-text-light">No {filter} tasks.</P>
-    ) : (
-      <ul className={list}>
-        {shown.map((task) => (
-          <WorkRow key={task.id} {...rowParts(task)} />
-        ))}
-      </ul>
-    )
-  }
-  return (
-    <>
-      <ul className={list}>
-        {open.map((task) => (
-          <WorkRow key={task.id} {...rowParts(task)} />
-        ))}
-      </ul>
-      {done.length > 0 && (
-        <details className="mt-2">
-          <summary className="cursor-pointer py-2 text-sm font-medium text-text-light">
-            Done ({done.length})
-          </summary>
-          <ul className={list}>
-            {done.map((task) => (
-              <WorkRow key={task.id} {...rowParts(task)} />
-            ))}
-          </ul>
-        </details>
-      )}
-    </>
   )
 }
 
@@ -870,12 +756,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   )
 
+  // Asking to take a task
+  const [showTaskPicker, setShowTaskPicker] = useState(false)
+  const [claimTarget, setClaimTarget] = useState<ProjectTask | null>(null)
+  const [claimMessage, setClaimMessage] = useState('')
+
   // Status section
   const [newStatus, setNewStatus] = useState('')
   const [pendingStatus, setPendingStatus] = useState<string | null>(null)
 
-  // Interest section
-  const [interestType, setInterestType] = useState('want_to_contribute')
+  // Offer to lead
   const [interestMessage, setInterestMessage] = useState('')
 
   // Assign or transfer ownership
@@ -930,7 +820,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [reopenTarget, setReopenTarget] = useState<ReopenTarget | null>(null)
   const [withdrawAccepted, setWithdrawAccepted] = useState<boolean | null>(null)
   const [deputyAction, setDeputyAction] = useState<DeputyAction | null>(null)
-  const [showJoin, setShowJoin] = useState(false)
+  const [showOfferToLead, setShowOfferToLead] = useState(false)
   const [showTransferConfirm, setShowTransferConfirm] = useState(false)
   const [showRemoveOwnerConfirm, setShowRemoveOwnerConfirm] = useState(false)
 
@@ -1135,8 +1025,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const expressInterestMutation = useMutation({
     ...orpc.projects.expressInterest.mutationOptions(),
     onSuccess: () => {
-      showToast(interestSentMessage(projectRaw?.owner?.name ?? null), 'success')
-      setShowJoin(false)
+      showToast(interestSentMessage(null), 'success')
+      setShowOfferToLead(false)
       void invalidateProject()
     },
     onError: (err: unknown) =>
@@ -1314,16 +1204,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     project.myInterest?.origin === 'invited' &&
     (project.myInterest.status === InterestStatus.declined ||
       project.myInterest.status === InterestStatus.cancelled)
-
-  const canSeeInterest =
-    !isOwnerOrAdmin &&
-    (project.isSeekingHelp || project.isSeekingOwner) &&
-    !TERMINAL_STATUSES.includes(project.status)
-
-  // The join dialog always offers helping out; leading is only on the table while the
-  // project has no owner, so it's the one option that can drop out of the choice.
-  const canJoinToLead = project.isSeekingOwner
-  const joinHasBothOptions = canJoinToLead
 
   // Until an admin approves it, a proposal's status is the admins' to change.
   // An owner takes a locked project back with Reopen; an admin keeps the picker, to archive it.
@@ -1516,12 +1396,29 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     })
   }
 
-  function handleClaimTask(taskId: number) {
+  function handleClaimTask(taskId: number, message?: string) {
     updateTaskMutation.mutate({
       projectId: parseInt(idParam, 10),
       taskId,
       data: { assigneeId: user!.id },
+      ...(message ? { message } : {}),
     })
+  }
+
+  /** Taking a task someone is already on skips straight to it; asking opens for a message first. */
+  function startClaimingTask(task: ProjectTask) {
+    if (project!.claimViewer.onProject || project!.claimViewer.invited) handleClaimTask(task.id)
+    else {
+      setClaimTarget(task)
+      setClaimMessage('')
+    }
+  }
+
+  function confirmClaimTask(e: React.FormEvent, task: ProjectTask) {
+    e.preventDefault()
+    handleClaimTask(task.id, claimMessage.trim() || undefined)
+    setClaimTarget(null)
+    setShowTaskPicker(false)
   }
 
   function handleUnassignTask(taskId: number) {
@@ -1545,16 +1442,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     setPendingStatus(null)
   }
 
-  function handleExpressInterest(e: React.FormEvent) {
+  function handleOfferToLead(e: React.FormEvent) {
     e.preventDefault()
-    // With leading off the table, helping is the only option — regardless of what the
-    // (unrendered) radio's state happens to hold left over from an earlier visit.
-    const effectiveInterestType = joinHasBothOptions
-      ? (interestType as 'want_to_contribute' | 'want_to_own')
-      : 'want_to_contribute'
     expressInterestMutation.mutate({
       projectId: parseInt(idParam, 10),
-      interestType: effectiveInterestType,
+      interestType: 'want_to_own',
       message: interestMessage.trim() || null,
     })
   }
@@ -1813,8 +1705,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       </Badge>
     </span>
   )
-  const canJoinProject =
-    !isOwnerOrAdmin && !pendingInvite && canSeeInterest && (!project.myInterest || canApplyAgain)
+  const canAskToJoin = !isOwnerOrAdmin && !pendingInvite && (!project.myInterest || canApplyAgain)
+  const canOfferToLead = canAskToJoin && project.isSeekingOwner
+  // Anyone else not on the project joins it by asking to take one of its open tasks.
+  const joinsByClaiming = canAskToJoin && !isDeputy && !project.isMember && canClaimTasks
+  const openTasks = orderedTasks.filter(isTaskOpenToClaim)
+  const hasOpenTask = openTasks.length > 0
   const standingAction = !isOwnerOrAdmin && (
     <>
       {pendingInvite && (
@@ -1870,39 +1766,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </span>
         )}
       <Modal
-        id="join-project"
-        title="Join this project"
-        isOpen={showJoin}
-        onClose={() => setShowJoin(false)}
+        id="offer-to-lead"
+        title="Offer to lead this project"
+        isOpen={showOfferToLead}
+        onClose={() => setShowOfferToLead(false)}
       >
-        <form onSubmit={handleExpressInterest}>
-          {joinHasBothOptions ? (
-            <fieldset className="mb-5">
-              <legend className="mb-2">How would you like to take part?</legend>
-              <FormLabel className="flex items-center gap-2 cursor-pointer mb-2 font-normal">
-                <input
-                  type="radio"
-                  name="interest_type"
-                  value="want_to_contribute"
-                  checked={interestType === 'want_to_contribute'}
-                  onChange={() => setInterestType('want_to_contribute')}
-                />
-                Help out on the project
-              </FormLabel>
-              <FormLabel className="flex items-center gap-2 cursor-pointer font-normal">
-                <input
-                  type="radio"
-                  name="interest_type"
-                  value="want_to_own"
-                  checked={interestType === 'want_to_own'}
-                  onChange={() => setInterestType('want_to_own')}
-                />
-                Lead the project
-              </FormLabel>
-            </fieldset>
-          ) : (
-            <P className="mb-5">Join to help?</P>
-          )}
+        <form onSubmit={handleOfferToLead}>
+          <P className="mb-5">
+            This project has no owner. Its lead plans the work and welcomes the volunteers who ask
+            to join.
+          </P>
           <div className="mb-5">
             <FormLabel htmlFor="interest-message">Message (optional)</FormLabel>
             <Textarea
@@ -1910,14 +1783,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               rows={3}
               value={interestMessage}
               onChange={(e) => setInterestMessage(e.target.value)}
-              placeholder="Say a little about why you'd like to help…"
+              placeholder="Say a little about why you'd like to lead it…"
             />
           </div>
           <P className="text-sm text-text-light">
-            The owner is asked, and you join once they accept.
+            An admin is asked, and you lead the project once they accept.
           </P>
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setShowJoin(false)}>
+            <Button type="button" variant="secondary" onClick={() => setShowOfferToLead(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={expressInterestMutation.isPending}>
@@ -1925,6 +1798,98 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </Button>
           </div>
         </form>
+      </Modal>
+      <Modal
+        id="task-picker"
+        title="Choose a task to join"
+        size="wide"
+        fullScreenOnMobile
+        isOpen={showTaskPicker}
+        onClose={() => setShowTaskPicker(false)}
+      >
+        {openTasks.length === 0 ? (
+          <P className="text-text-light">No open tasks yet.</P>
+        ) : (
+          <TaskList
+            tasks={openTasks}
+            yourOrder={false}
+            filter={null}
+            sensors={taskDragSensors}
+            onDragEnd={() => {}}
+            rowParts={(task) => ({
+              status: null,
+              title: <span className="font-medium">{task.title}</span>,
+              below: task.description ? (
+                <P className="text-text-light text-sm mt-1 line-clamp-2">{task.description}</P>
+              ) : null,
+              person: <PersonAvatar name={null} />,
+              chips: (
+                <>
+                  <DueChip
+                    deadline={task.deadline}
+                    done={false}
+                    viewer={{ isAssignee: false, canReview: false }}
+                    className="text-xs"
+                  />
+                  {helperSummary(task.helperCount, task.helpersWanted) && (
+                    <span className="text-text-light text-xs whitespace-nowrap">
+                      {helperSummary(task.helperCount, task.helpersWanted)}
+                    </span>
+                  )}
+                  {task.estimatedHours !== null && (
+                    <span className="text-text-light text-xs whitespace-nowrap">
+                      ~{task.estimatedHours}h
+                    </span>
+                  )}
+                </>
+              ),
+              primaryAction: (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setShowTaskPicker(false)
+                    startClaimingTask(task)
+                  }}
+                >
+                  {ASK_TO_TAKE}
+                </Button>
+              ),
+            })}
+          />
+        )}
+      </Modal>
+      <Modal
+        id="claim-task"
+        title={claimTarget ? `${ASK_TO_TAKE}: '${claimTarget.title}'` : ASK_TO_TAKE}
+        isOpen={claimTarget !== null}
+        onClose={() => setClaimTarget(null)}
+      >
+        {claimTarget && (
+          <form onSubmit={(e) => confirmClaimTask(e, claimTarget)}>
+            <P className="mb-5">
+              The owner is asked, and the task is held for you while they decide.
+            </P>
+            <div className="mb-5">
+              <FormLabel htmlFor="claim-message">Message (optional)</FormLabel>
+              <Textarea
+                id="claim-message"
+                rows={3}
+                value={claimMessage}
+                onChange={(e) => setClaimMessage(e.target.value)}
+                placeholder="Say a little about why you'd like to take it…"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setClaimTarget(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updateTaskMutation.isPending}>
+                {updateTaskMutation.isPending ? CLAIMING : ASK_TO_TAKE}
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </>
   )
@@ -2069,11 +2034,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       }
       actions={
         <>
-          {canJoinProject && (
-            <Button size="sm" onClick={() => setShowJoin(true)}>
-              Join this project
+          {canOfferToLead && (
+            <Button size="sm" onClick={() => setShowOfferToLead(true)}>
+              Offer to lead
             </Button>
           )}
+          {joinsByClaiming &&
+            (hasOpenTask ? (
+              <Button variant="secondary" size="sm" onClick={() => setShowTaskPicker(true)}>
+                Join and claim a task
+              </Button>
+            ) : (
+              <span className="text-sm text-text-light">No open tasks yet</span>
+            ))}
           {project.canMessageOwner && !isAdmin && (
             <Button
               variant="secondary"
@@ -2739,18 +2712,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         ),
                         primaryAction: (
                           <>
-                            {task.status === TaskStatus.not_started &&
-                              task.assignedToId === null &&
-                              task.requestedById === null &&
-                              canClaimTasks && (
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => handleClaimTask(task.id)}
-                                >
-                                  {claimLabel(project.claimViewer)}
-                                </Button>
-                              )}
+                            {isTaskOpenToClaim(task) && canClaimTasks && (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => startClaimingTask(task)}
+                              >
+                                {claimLabel(project.claimViewer)}
+                              </Button>
+                            )}
                             {!locked && !handedIn(task.status) && task.assignedToId === user.id && (
                               <SubmitWorkButton
                                 target={{

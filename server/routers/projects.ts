@@ -11,7 +11,7 @@ import {
   projectScopeSql,
   projectScopeWhere,
   resolveProjectPrivy,
-  CLAIM_BLOCKING_INTEREST_STATUSES,
+  CLAIM_BLOCKING_INTEREST,
   serializeTask,
   applyScheduleWrite,
   baselineLength,
@@ -93,6 +93,7 @@ import {
 import {
   OWNER_ALLOWED_STATUSES,
   SEEKING_OWNER_SQL,
+  SEEKING_OWNER_STATUSES,
   TERMINAL_STATUSES,
   UNAPPROVED_STATUSES,
   MAX_VOLUNTEER_DRAFTS,
@@ -148,13 +149,13 @@ function assertCanManageProject(
   }
 }
 
-/** Has this volunteer been declined from, or withdrawn from, this project? */
+/** Did the owner turn this volunteer down, or take them off the project? */
 async function isBlockedFromClaiming(projectId: number, volunteerId: number): Promise<boolean> {
   const blocking = await prisma.workItemInterest.findFirst({
     where: {
       workItemId: projectId,
       volunteerId,
-      status: { in: CLAIM_BLOCKING_INTEREST_STATUSES },
+      ...CLAIM_BLOCKING_INTEREST,
     },
     select: { id: true },
   })
@@ -194,31 +195,31 @@ async function releaseTasksHeldBy(
   })
 }
 
-/** Tells a project's owner that someone wants to help or lead it. */
+/** Tells a project's owner that someone asked to join it by taking one of its tasks. */
 async function notifyOwnerOfInterest(
   project: { id: number; title: string; assigneeId: number | null },
   volunteer: { name: string },
-  interestType: string,
-  message: string | null,
+  taskTitle: string,
+  note: string | undefined,
   interestId: number,
 ): Promise<void> {
   if (!project.assigneeId) return
-  const role = interestType === 'want_to_own' ? 'lead' : 'help out on'
+  const asked = `${volunteer.name} asked to take '${taskTitle}'`
   await notifyUser(
     project.assigneeId,
     'new_interest',
     `Someone's interested in '${project.title}'!`,
-    `${volunteer.name} asked to ${role} the project`,
+    (note ? `${asked}: ${note}` : asked).slice(0, 200),
     `/projects/${project.id}`,
     {
-      subject: `${volunteer.name} wants to ${role} '${project.title}'`,
-      message: html`<strong>${volunteer.name}</strong> has expressed interest in your project
-        <strong>${project.title}</strong>.`,
+      subject: `${asked} on '${project.title}'`,
+      message: html`<strong>${volunteer.name}</strong> asked to take
+        <strong>${taskTitle}</strong> on your project <strong>${project.title}</strong>.`,
       projectTitle: project.title,
       projectId: project.id,
-      extraHtml: message
+      extraHtml: note
         ? html`<div style="padding: 12px; background: #f7fafc; border-radius: 8px; margin: 16px 0;">
-            <strong>Their message:</strong> ${message}
+            <strong>Their message:</strong> ${note}
           </div>`
         : undefined,
     },
@@ -1839,7 +1840,10 @@ export const projectsRouter = {
       return { message: `Project '${project.title}' deleted` }
     }),
 
-  /** Asks to help on or lead a project; given a `taskId`, joins that task as a helper. */
+  /**
+   * Asks to lead a project that has no owner; given a `taskId`, joins that task as a helper.
+   * Anyone else joins a project by claiming one of its tasks (`updateTask`).
+   */
   expressInterest: confirmedProcedure
     .input(
       z
@@ -1858,19 +1862,22 @@ export const projectsRouter = {
       if (input.taskId !== undefined) {
         return joinTaskAsHelper(input.projectId, input.taskId, volunteer, input.message ?? null)
       }
+      if (input.interestType !== 'want_to_own') {
+        throw new ORPCError('BAD_REQUEST', {
+          message: 'Join a project by claiming one of its tasks',
+        })
+      }
+      // The same test as `isSeekingOwner`.
       const project = await prisma.workItem.findFirst({
         where: {
           id: input.projectId,
           type: WorkItemType.PROJECT,
-          status: { notIn: [...TERMINAL_STATUSES, ...UNAPPROVED_STATUSES] },
-          // Seeking help is a stored flag; seeking an owner is simply having none.
-          OR: [{ isSeekingHelp: true }, { assigneeId: null }],
+          assigneeId: null,
+          status: { in: SEEKING_OWNER_STATUSES },
         },
       })
       if (!project) {
-        throw new ORPCError('NOT_FOUND', {
-          message: 'This project is not currently seeking volunteers',
-        })
+        throw new ORPCError('NOT_FOUND', { message: 'This project is not looking for a lead' })
       }
 
       if (!(await canReachProject(project, volunteer))) {
@@ -1895,10 +1902,10 @@ export const projectsRouter = {
         throw new ORPCError('BAD_REQUEST', { message: "You've already expressed interest" })
       }
 
+      // An ownerless project has no owner to tell, so its chapter's staff hear about it instead.
       const { interestType, message = null } = input
-
-      const interest = existing
-        ? await prisma.workItemInterest.update({
+      const row = await (existing
+        ? prisma.workItemInterest.update({
             where: {
               volunteerId_workItemId: { volunteerId: volunteer.id, workItemId: input.projectId },
             },
@@ -1912,7 +1919,7 @@ export const projectsRouter = {
               invitedById: null,
             },
           })
-        : await prisma.workItemInterest.create({
+        : prisma.workItemInterest.create({
             data: {
               volunteerId: volunteer.id,
               workItemId: input.projectId,
@@ -1921,9 +1928,29 @@ export const projectsRouter = {
               status: InterestStatus.pending,
               origin: InterestOrigin.applied,
             },
-          })
+          }))
 
-      await notifyOwnerOfInterest(project, volunteer, interestType, message, interest.id)
+      await notifyChapterStaff(
+        project.nationalChapterId,
+        'project_lead_offer',
+        `Wants to lead: '${project.title}'`,
+        `${volunteer.name} has offered to lead this ownerless project`,
+        '/admin/triage',
+        {
+          message: html`<strong>${volunteer.name}</strong> has offered to lead the ownerless project
+            <strong>${project.title}</strong>.`,
+          projectTitle: project.title,
+          projectId: project.id,
+          extraHtml: message
+            ? html`<div
+                style="padding: 12px; background: #f7fafc; border-radius: 8px; margin: 16px 0;"
+              >
+                <strong>Their message:</strong> ${message}
+              </div>`
+            : undefined,
+        },
+        row.id,
+      )
 
       return { message: 'Interest expressed successfully' }
     }),
@@ -2035,6 +2062,7 @@ export const projectsRouter = {
       })
 
       await clearNotifications('new_interest', input.interestId)
+      await clearNotifications('project_lead_offer', input.interestId)
 
       if (status === InterestStatus.removed) {
         await endDeputyRole(project, interest.volunteerId, interest.volunteer.name)
@@ -2887,6 +2915,8 @@ export const projectsRouter = {
         projectId: z.number().int(),
         taskId: z.number().int(),
         data: UpdateProjectTaskSchema,
+        // Only the self-claim path reads this: a note for the owner, not a task field.
+        message: z.string().trim().max(1000).optional(),
       }),
     )
     .use(projectEditable, (input) => input.projectId)
@@ -2982,24 +3012,26 @@ export const projectsRouter = {
             }
             await recordChange(tx, { row: task, data, actorId: volunteer.id, kind: 'requested' })
           })
-          if (interest?.status !== InterestStatus.pending) {
-            const message = `Asked to take '${task.title}'`
-            const request = {
-              interestType: 'want_to_contribute',
-              message,
-              status: InterestStatus.pending,
-              origin: InterestOrigin.applied,
-              respondedAt: null,
-              responseMessage: null,
-              invitedById: null,
-            }
-            const row = interest
-              ? await prisma.workItemInterest.update({ where: { id: interest.id }, data: request })
-              : await prisma.workItemInterest.create({
-                  data: { ...request, volunteerId: volunteer.id, workItemId: input.projectId },
-                })
-            await notifyOwnerOfInterest(project, volunteer, 'want_to_contribute', message, row.id)
+          // Each held task tells the owner on its own: a second request while the first is
+          // still pending is still new information, not a repeat of it.
+          const message = input.message
+            ? `Asked to take '${task.title}': ${input.message}`
+            : `Asked to take '${task.title}'`
+          const request = {
+            interestType: 'want_to_contribute',
+            message,
+            status: InterestStatus.pending,
+            origin: InterestOrigin.applied,
+            respondedAt: null,
+            responseMessage: null,
+            invitedById: null,
           }
+          const row = interest
+            ? await prisma.workItemInterest.update({ where: { id: interest.id }, data: request })
+            : await prisma.workItemInterest.create({
+                data: { ...request, volunteerId: volunteer.id, workItemId: input.projectId },
+              })
+          await notifyOwnerOfInterest(project, volunteer, task.title, input.message, row.id)
           return { message: 'Task requested', requested: true }
         }
       }

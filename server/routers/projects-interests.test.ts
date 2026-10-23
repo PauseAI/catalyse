@@ -6,8 +6,12 @@ import {
   createProject,
   createTask,
   createTeam,
+  createChapter,
+  createChapterLead,
+  createMember,
 } from '@/test/factories'
-import { clientAs } from '@/test/rpc'
+import { emails } from '@/test/fakes/email'
+import { askToJoin, clientAs } from '@/test/rpc'
 
 const interestRow = (volunteerId: number, workItemId: number) =>
   prisma.workItemInterest.findUniqueOrThrow({
@@ -21,18 +25,29 @@ const notified = (volunteerId: number, type: string, expected: object = {}) =>
   )
 
 describe('projects.expressInterest / withdrawInterest', () => {
-  it('records interest on a seeking project and notifies the owner', async () => {
+  it('takes an offer to lead an ownerless project, and refuses a plain request to join', async () => {
     const owner = await createVolunteer()
     const me = await createVolunteer()
     const c = clientAs(me)
-    const closed = await createProject({
+    const p = await createProject({
       assigneeId: owner.id,
-      isSeekingHelp: false,
+      isSeekingHelp: true,
       status: 'in_progress',
     })
+    // A volunteer joins by asking to take a task, and a project with an owner wants no lead.
     await expect(
-      c.projects.expressInterest({ projectId: closed.id, interestType: 'want_to_contribute' }),
-    ).rejects.toMatchObject({ message: 'This project is not currently seeking volunteers' })
+      c.projects.expressInterest({ projectId: p.id, interestType: 'want_to_contribute' }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'Join a project by claiming one of its tasks',
+    })
+    await expect(
+      c.projects.expressInterest({ projectId: p.id, interestType: 'want_to_own' }),
+    ).rejects.toMatchObject({ message: 'This project is not looking for a lead' })
+    const proposal = await createProject({ status: 'pending_review' })
+    await expect(
+      c.projects.expressInterest({ projectId: proposal.id, interestType: 'want_to_own' }),
+    ).rejects.toMatchObject({ message: 'This project is not looking for a lead' })
     const team = await createTeam()
     const teamP = await createProject({ teamId: team.id })
     await expect(
@@ -52,25 +67,14 @@ describe('projects.expressInterest / withdrawInterest', () => {
     expect(
       await c.projects.expressInterest({ projectId: proposed.id, interestType: 'want_to_own' }),
     ).toEqual({ message: 'Interest expressed successfully' })
-
-    const p = await createProject({
-      assigneeId: owner.id,
-      isSeekingHelp: true,
-      status: 'in_progress',
-    })
-    expect(
-      await c.projects.expressInterest({
-        projectId: p.id,
-        interestType: 'want_to_contribute',
-        message: 'pick me',
-      }),
-    ).toEqual({ message: 'Interest expressed successfully' })
-    await notified(owner.id, 'new_interest', {
-      body: `${me.name} asked to help out on the project`,
-    })
     await expect(
-      c.projects.expressInterest({ projectId: p.id, interestType: 'want_to_contribute' }),
+      c.projects.expressInterest({ projectId: proposed.id, interestType: 'want_to_own' }),
     ).rejects.toMatchObject({ message: "You've already expressed interest" })
+
+    const held = await askToJoin(me, p.id)
+    await notified(owner.id, 'new_interest', {
+      body: `${me.name} asked to take '${held.title}'`,
+    })
 
     await expect(
       clientAs(owner).projects.withdrawInterest({ projectId: p.id }),
@@ -88,18 +92,60 @@ describe('projects.expressInterest / withdrawInterest', () => {
     expect(
       (await prisma.workItem.findUniqueOrThrow({ where: { id: doneTask.id } })).assigneeId,
     ).toBe(me.id)
+    expect(
+      (await prisma.workItem.findUniqueOrThrow({ where: { id: held.id } })).requestedById,
+    ).toBeNull()
 
-    // Re-expressing after withdrawal reuses the row; an unowned project notifies nobody.
-    await c.projects.expressInterest({ projectId: p.id, interestType: 'want_to_own' })
-    expect(await interestRow(me.id, p.id)).toMatchObject({
+    // Offering again after withdrawing reuses the row; an ownerless project notifies nobody.
+    await c.projects.withdrawInterest({ projectId: proposed.id })
+    await c.projects.expressInterest({
+      projectId: proposed.id,
+      interestType: 'want_to_own',
+      message: 'I can run it',
+    })
+    expect(await interestRow(me.id, proposed.id)).toMatchObject({
       status: 'pending',
       interestType: 'want_to_own',
+      message: 'I can run it',
     })
-    const unowned = await createProject()
-    await c.projects.expressInterest({ projectId: unowned.id, interestType: 'want_to_own' })
     await vi.waitFor(async () =>
-      expect(await prisma.notification.count({ where: { type: 'new_interest' } })).toBe(2),
+      expect(await prisma.notification.count({ where: { type: 'new_interest' } })).toBe(1),
     )
+  })
+
+  it("tells the chapter's staff when someone offers to lead an ownerless project", async () => {
+    const chapter = await createChapter()
+    const lead = await createChapterLead(chapter)
+    const me = await createMember(chapter)
+    const p = await createProject({
+      nationalChapterId: chapter.id,
+      status: 'ready',
+      isSeekingHelp: true,
+    })
+    await clientAs(me).projects.expressInterest({
+      projectId: p.id,
+      interestType: 'want_to_own',
+      message: 'I can run it',
+    })
+    const interest = await interestRow(me.id, p.id)
+    await notified(lead.id, 'project_lead_offer', {
+      title: `Wants to lead: '${p.title}'`,
+      entityId: interest.id,
+    })
+    await vi.waitFor(() =>
+      expect(emails.lastTo(lead.email!)?.html).toContain('Their message:</strong> I can run it'),
+    )
+
+    await clientAs(lead).projects.respondToInterest({
+      projectId: p.id,
+      interestId: interest.id,
+      status: 'accepted',
+    })
+    expect(
+      await prisma.notification.count({
+        where: { type: 'project_lead_offer', entityId: interest.id },
+      }),
+    ).toBe(0)
   })
 })
 
@@ -113,10 +159,7 @@ describe('projects.respondToInterest', () => {
       status: 'in_progress',
       isSeekingHelp: true,
     })
-    await clientAs(helper).projects.expressInterest({
-      projectId: p.id,
-      interestType: 'want_to_contribute',
-    })
+    const held = await askToJoin(helper, p.id)
     const interest = await interestRow(helper.id, p.id)
     const c = clientAs(owner)
     await expect(
@@ -148,6 +191,11 @@ describe('projects.respondToInterest', () => {
     expect(await interestRow(helper.id, p.id)).toMatchObject({
       status: 'accepted',
       responseMessage: 'welcome',
+    })
+    // The task they asked to take is theirs.
+    expect(await prisma.workItem.findUniqueOrThrow({ where: { id: held.id } })).toMatchObject({
+      assigneeId: helper.id,
+      requestedById: null,
     })
     await notified(helper.id, 'interest_accepted', {
       title: `Accepted: your interest in '${p.title}'`,
@@ -197,15 +245,10 @@ describe('projects.respondToInterest', () => {
       status: 'in_progress',
     })
 
-    // A project that already has an owner keeps them: the would-be lead joins as a helper.
-    await clientAs(other).projects.expressInterest({ projectId: p.id, interestType: 'want_to_own' })
-    await vi.waitFor(async () =>
-      expect(
-        await prisma.notification.count({
-          where: { volunteerId: owner.id, body: `${other.name} asked to lead the project` },
-        }),
-      ).toBe(1),
-    )
+    // An offer to lead that waited while the project found an owner joins them as a helper.
+    await prisma.workItemInterest.create({
+      data: { workItemId: p.id, volunteerId: other.id, interestType: 'want_to_own' },
+    })
     await c.projects.respondToInterest({
       projectId: p.id,
       interestId: (await interestRow(other.id, p.id)).id,
@@ -226,10 +269,7 @@ describe('interest history', () => {
     const admin = clientAs(await createAdmin())
     const apply = async () => {
       const v = await createVolunteer()
-      await clientAs(v).projects.expressInterest({
-        projectId: p.id,
-        interestType: 'want_to_contribute',
-      })
+      await askToJoin(v, p.id)
       return v
     }
     const add = async () => {
@@ -319,10 +359,7 @@ describe('projects.assign', () => {
     })
 
     const applicant = await createVolunteer()
-    await clientAs(applicant).projects.expressInterest({
-      projectId: p.id,
-      interestType: 'want_to_contribute',
-    })
+    await askToJoin(applicant, p.id)
     await c.projects.assign({ projectId: p.id, volunteerId: applicant.id })
     expect((await interestRow(applicant.id, p.id)).status).toBe('accepted')
     expect(await interestRow(applicant.id, p.id)).toMatchObject({
@@ -440,8 +477,19 @@ describe('projects.invite / respondToInvite / cancelInvite', () => {
     expect((await o.projects.getById({ id: p.id })).interests).toEqual([
       expect.objectContaining({ volunteerId: vol.id, invitedByName: 'Ola Owner' }),
     ])
+    // An offer to lead waits on an invite too.
+    const ownerless = await createProject()
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: ownerless.id,
+        volunteerId: vol.id,
+        interestType: 'want_to_contribute',
+        status: 'invited',
+        origin: 'invited',
+      },
+    })
     await expect(
-      v.projects.expressInterest({ projectId: p.id, interestType: 'want_to_contribute' }),
+      v.projects.expressInterest({ projectId: ownerless.id, interestType: 'want_to_own' }),
     ).rejects.toMatchObject({ message: expect.stringContaining('accept the invite instead') })
     // Nor can the owner answer on their behalf: an invite waits on the invitee.
     for (const status of ['accepted', 'declined'] as const) {
@@ -518,8 +566,8 @@ describe('projects.invite / respondToInvite / cancelInvite', () => {
       o.projects.cancelInvite({ projectId: p.id, interestId: row.id }),
     ).rejects.toMatchObject({ message: 'This invite has already been answered' })
 
-    // After a declined or cancelled invite they can still apply.
-    await v.projects.expressInterest({ projectId: p.id, interestType: 'want_to_contribute' })
+    // After a declined or cancelled invite they can still ask to join.
+    await askToJoin(vol, p.id)
     expect(await interestRow(vol.id, p.id)).toMatchObject({
       status: 'pending',
       origin: 'applied',

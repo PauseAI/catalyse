@@ -5,7 +5,7 @@ import {
   dismissCookieConsentScript,
   readAdminToken,
 } from '../fixtures'
-import { adminCreateProjectViaApi } from '../actions/projects'
+import { adminCreateProjectViaApi, askToJoinViaApi } from '../actions/projects'
 import { createApiClient } from '../client'
 import { fake } from '../fake'
 
@@ -55,34 +55,15 @@ test.describe('Task helpers', () => {
     const lead = volunteer
     await lead.page.goto(`${baseUrl}/dashboard`)
     const leadToken = await lead.page.evaluate(() => localStorage.getItem('authToken'))
-    const leadApi = createApiClient(baseUrl, leadToken)
-    expect(
-      (
-        await leadApi.projects.expressInterest({
-          body: { projectId, interestType: 'want_to_contribute' },
-        })
-      ).status,
-    ).toBe(200)
+    await askToJoinViaApi(baseUrl, leadToken, projectId)
     await acceptIntoProject(adminApi, projectId, lead.name)
 
     const helperA = await createApprovedVolunteerNamed(baseUrl, fake.person().name)
-    expect(
-      (
-        await createApiClient(baseUrl, helperA.token).projects.expressInterest({
-          body: { projectId, interestType: 'want_to_contribute' },
-        })
-      ).status,
-    ).toBe(200)
+    await askToJoinViaApi(baseUrl, helperA.token, projectId)
     await acceptIntoProject(adminApi, projectId, helperA.name)
 
     const helperB = await createApprovedVolunteerNamed(baseUrl, fake.person().name)
-    expect(
-      (
-        await createApiClient(baseUrl, helperB.token).projects.expressInterest({
-          body: { projectId, interestType: 'want_to_contribute' },
-        })
-      ).status,
-    ).toBe(200)
+    await askToJoinViaApi(baseUrl, helperB.token, projectId)
     await acceptIntoProject(adminApi, projectId, helperB.name)
 
     const taskUrl = `${baseUrl}/projects/${projectId}/tasks/${taskId}`

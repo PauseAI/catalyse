@@ -254,3 +254,10 @@ confusing than it needed to be, and that will do so again.
       fire-and-forget send is never guaranteed landed by the time the triggering call resolves,
       and to wrap the assertion in `vi.waitFor` the way nearby DB checks already do, would save
       re-discovering this the next time anything in the send path gains a genuine await.
+
+- [ ] **`npm run typecheck` skips `e2e/` (the root `tsconfig.json` excludes it), and
+      `e2e/tsconfig.json` does not compile on its own (module resolution, implicit anys), so a
+      broken import in an e2e helper only shows when Playwright runs that spec.** An edit to
+      `e2e/actions/projects.ts` dropped `openProjectMore`; typecheck and lint passed, and the
+      first sign was three failing specs ten minutes into `check-all`. Fixing `e2e/tsconfig.json`
+      and running it from `typecheck` would have caught it in seconds.

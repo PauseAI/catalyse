@@ -1,6 +1,7 @@
 import { Page, expect } from '@playwright/test'
 import { getAlert, readAdminToken, type Snap } from '../fixtures'
 import { createApiClient } from '../client'
+import { fake } from '../fake'
 import { selectFilterDropdown } from './ui'
 
 import { PROJECT_STATUS_LABELS } from '../../lib/project-status'
@@ -352,19 +353,57 @@ export async function setProjectStatus(
   await expect(getAlert(page)).toBeVisible({ timeout: 10_000 })
 }
 
-/** Asks to join the project on the open page, as a helper or its lead, with an optional note. */
-export async function joinProject(
-  page: Page,
-  opts: { lead?: boolean; message?: string } = {},
-): Promise<void> {
-  await page.getByRole('button', { name: 'Join this project' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Join this project' })
-  await expect(dialog.getByRole('radio', { name: 'Help out on the project' })).toBeChecked({
+/**
+ * Asks to join the project on the open page the way a volunteer does: browse its open tasks
+ * from the header, pick the one named, and send the request.
+ */
+export async function askToTakeTask(page: Page, taskTitle = 'Initial task'): Promise<void> {
+  await page.getByRole('button', { name: 'Join and claim a task' }).click()
+  await page
+    .getByRole('dialog', { name: 'Choose a task to join' })
+    .getByRole('listitem')
+    .filter({ has: page.getByText(taskTitle, { exact: true }) })
+    .getByRole('button', { name: 'Ask to take this' })
+    .click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Ask to take this' }).click()
+  await expect(getAlert(page)).toContainText('Requested. The task is held for you', {
     timeout: 10_000,
   })
-  if (opts.lead) await dialog.getByRole('radio', { name: 'Lead the project' }).click()
+}
+
+/** Offers to lead the ownerless project on the open page, with an optional note. */
+export async function offerToLead(page: Page, opts: { message?: string } = {}): Promise<void> {
+  await page.getByRole('button', { name: 'Offer to lead' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Offer to lead this project' })
   if (opts.message) await dialog.getByLabel('Message (optional)').fill(opts.message)
   await dialog.getByRole('button', { name: 'Send request' }).click()
+  await expect(getAlert(page)).toContainText("You'll get a notification when they reply", {
+    timeout: 10_000,
+  })
+}
+
+/**
+ * Has the volunteer signed in with `token` ask to join the project through the API, as the page
+ * does: an admin adds a task, and they ask to take it. Returns the task's id.
+ */
+export async function askToJoinViaApi(
+  baseUrl: string,
+  token: string | null,
+  projectId: number,
+): Promise<number> {
+  const adminApi = createApiClient(baseUrl, readAdminToken(baseUrl))
+  const created = await adminApi.projects.createTask({
+    body: { projectId, title: fake.quickTaskTitle() },
+  })
+  if (created.status !== 200) throw new Error(`Task creation failed: ${JSON.stringify(created)}`)
+  const taskId = (created.body as { id: number }).id
+  const api = createApiClient(baseUrl, token)
+  const me = (await api.auth.me()).body as { id: number }
+  const asked = await api.projects.updateTask({
+    body: { projectId, taskId, data: { assigneeId: me.id } },
+  })
+  if (asked.status !== 200) throw new Error(`Asking for the task failed: ${JSON.stringify(asked)}`)
+  return taskId
 }
 
 /** Opens the More menu in the bar beside the project page's tabs. */

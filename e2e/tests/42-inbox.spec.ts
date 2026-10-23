@@ -4,6 +4,7 @@ import {
   proposeProject,
   adminApproveProject,
   transferProjectOwnership,
+  askToJoinViaApi,
 } from '../actions/projects'
 import { goToInbox, inboxLink } from '../actions/dashboard'
 import { createApiClient } from '../client'
@@ -19,10 +20,7 @@ test.describe('Inbox', () => {
     const projectId = await adminCreateProjectViaApi(baseUrl, title, 'Inbox e2e project')
     await transferProjectOwnership(baseUrl, adminPage, projectId, volunteer.name)
     const applicant = await createApprovedVolunteerNamed(baseUrl, fake.person().name)
-    const applied = await createApiClient(baseUrl, applicant.token).projects.expressInterest({
-      body: { projectId, interestType: 'want_to_contribute' },
-    })
-    expect(applied.status).toBe(200)
+    await askToJoinViaApi(baseUrl, applicant.token, projectId)
 
     const page = volunteer.page
     await page.goto(`${baseUrl}/projects`)
@@ -33,9 +31,7 @@ test.describe('Inbox', () => {
     await expect(page).toHaveURL(`${baseUrl}/inbox`)
 
     // The Inbox opens on Needs action, where it can be answered in place.
-    const row = page
-      .getByRole('listitem')
-      .filter({ hasText: `${applicant.name} asked to help out` })
+    const row = page.getByRole('listitem').filter({ hasText: `${applicant.name} asked to take` })
     await row.getByRole('button', { name: 'Accept' }).click()
     await expect(row).toHaveCount(0, { timeout: 10_000 })
     await expect(inboxLink(page)).toHaveText('Inbox', { timeout: 10_000 })
