@@ -35,6 +35,10 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
+  // Next's dev server refuses its hot-reload connection from other hosts; DEV_ALLOWED_ORIGINS
+  // (comma-separated hosts, e.g. a tailnet preview host) lets them in. Dev only.
+  allowedDevOrigins: process.env.DEV_ALLOWED_ORIGINS?.split(',').filter(Boolean) ?? [],
+
   async headers() {
     return [
       { source: '/:path*', headers: securityHeaders },
