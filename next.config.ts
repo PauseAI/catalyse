@@ -35,6 +35,9 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
+  // Ties each page to the deploy it was built from: Next reloads a page that navigates into a
+  // newer deploy, and UpdatePrompt reads it to offer a refresh.
+  deploymentId: process.env.RAILWAY_GIT_COMMIT_SHA,
   // Next's dev server refuses its hot-reload connection from other hosts; DEV_ALLOWED_ORIGINS
   // (comma-separated hosts, e.g. a tailnet preview host) lets them in. Dev only.
   allowedDevOrigins: process.env.DEV_ALLOWED_ORIGINS?.split(',').filter(Boolean) ?? [],
@@ -42,6 +45,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: '/:path*', headers: securityHeaders },
+      // Browsers check for a new worker on every load; a cached copy would delay a fix.
+      { source: '/sw.js', headers: [{ key: 'Cache-Control', value: 'no-cache' }] },
       // Storybook's preview pane is its own document (iframe.html) framed by the manager
       // (index.html) of the same route — `frame-ancestors 'none'` above would stop the
       // browser rendering it at all, leaving the preview pane stuck loading forever.

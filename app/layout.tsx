@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Montserrat, Roboto_Slab, Saira_Condensed } from 'next/font/google'
 import { AuthProvider } from '@/lib/auth-context'
 import { ThemeProvider } from '@/components/ThemeProvider'
@@ -10,8 +10,11 @@ import Header from '@/components/Header'
 import MaintenanceGate from '@/components/MaintenanceGate'
 import Footer from '@/components/Footer'
 import Analytics from '@/components/Analytics'
+import ServiceWorker from '@/components/ServiceWorker'
+import UpdatePrompt from '@/components/UpdatePrompt'
 import RequiredActions from '@/components/required-actions/RequiredActions'
 import Script from 'next/script'
+import { THEME_COLOR } from '@/lib/theme-color'
 import './globals.css'
 
 const montserrat = Montserrat({
@@ -38,6 +41,14 @@ export const metadata: Metadata = {
     default: 'Catalyse | PauseAI Volunteer Platform',
   },
   description: 'PauseAI volunteer platform',
+  appleWebApp: { title: 'Catalyse', statusBarStyle: 'default' },
+}
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: THEME_COLOR.light },
+    { media: '(prefers-color-scheme: dark)', color: THEME_COLOR.dark },
+  ],
 }
 
 export default function RootLayout({
@@ -76,12 +87,14 @@ export default function RootLayout({
                     <Footer />
                     <FloatingActions />
                     <Analytics />
+                    <UpdatePrompt />
                   </MaintenanceGate>
                 </RequiredActionsProvider>
               </ToastProvider>
             </AuthProvider>
           </ThemeProvider>
         </Providers>
+        <ServiceWorker />
       </body>
     </html>
   )

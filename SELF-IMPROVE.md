@@ -261,3 +261,11 @@ confusing than it needed to be, and that will do so again.
       `e2e/actions/projects.ts` dropped `openProjectMore`; typecheck and lint passed, and the
       first sign was three failing specs ten minutes into `check-all`. Fixing `e2e/tsconfig.json`
       and running it from `typecheck` would have caught it in seconds.
+
+- [ ] **Every worktree's e2e run starts its servers on the same ports (4000 up), so a
+      `next-server` another worktree left behind fails global setup with "did not become
+      ready within 30s".** The PWA work waited for the other worktree's Playwright to exit,
+      then lost two runs to an orphan of its server still holding port 4004; only the server
+      log in `tmp/e2e-server-4.log` said `EADDRINUSE`. Global setup checking the port is free
+      before it starts a server, and naming the process that holds it, would make this a
+      one-line diagnosis; a per-worktree port block would avoid it.
