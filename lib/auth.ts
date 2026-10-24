@@ -52,6 +52,11 @@ export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }
 
+/** How rejected and anonymised addresses are kept: the SHA-256 of the normalised address. */
+export function hashEmail(email: string): string {
+  return createHash('sha256').update(email.toLowerCase().trim()).digest('hex')
+}
+
 export async function createSession(volunteerId: number): Promise<string> {
   const token = generateAuthToken()
   await prisma.session.create({

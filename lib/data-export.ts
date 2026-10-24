@@ -1,7 +1,6 @@
-import { createHash } from 'crypto'
 import type { RuntimeDataModel } from '@prisma/client/runtime/library'
 import { prisma } from '@/lib/prisma'
-import { isSuperAdmin } from '@/lib/auth'
+import { hashEmail, isSuperAdmin } from '@/lib/auth'
 import type { Volunteer } from '@/generated/prisma/client'
 
 /**
@@ -50,6 +49,7 @@ export const EXPORTED_LINKS: readonly string[] = [
   'ChapterTransferRequest.volunteer',
   'ContactRequest.from',
   'ContactRequest.to',
+  'DeletionRequest.volunteerEmail',
   'DeletionRequest.volunteerId',
   'DistinctAccountPair.volunteerA',
   'DistinctAccountPair.volunteerB',
@@ -75,6 +75,7 @@ export const EXPORTED_LINKS: readonly string[] = [
   'TeamMembership.volunteer',
   'TeamSuggestion.suggestedBy',
   'Template.createdBy',
+  'Volunteer.mergedInto',
   'WorkItem.assignee',
   'WorkItem.creator',
   'WorkItem.requestedBy',
@@ -84,6 +85,15 @@ export const EXPORTED_LINKS: readonly string[] = [
   'WorkItemEvent.actor',
   'WorkItemInterest.volunteer',
 ]
+
+/**
+ * Links whose rows are someone else's record, exported as only the columns about this person.
+ * A journalist's name, address and notes are the journalist's data.
+ */
+export const EXPORTED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
+  'ExperimentalJournalist.claimedBy': ['id', 'claimedById', 'claimedAt'],
+  'ExperimentalJournalist.contactedBy': ['id', 'contactedById', 'contactedAt', 'sentLeaning'],
+}
 
 const STAFF_ACTION = "a decision taken about someone else; it is that person's data"
 
@@ -96,7 +106,6 @@ export const OMITTED_LINKS: Readonly<Record<string, string>> = {
   'ChapterAuditEvent.actor': STAFF_ACTION,
   'ChapterDeputy.appointedBy': STAFF_ACTION,
   'ChapterTransferRequest.decidedBy': STAFF_ACTION,
-  'DeletionRequest.volunteerEmail': 'the same rows as DeletionRequest.volunteerId',
   'DistinctAccountPair.dismissedBy': STAFF_ACTION,
   'LocalGroupSuggestion.reviewedBy': STAFF_ACTION,
   'ProjectDeputy.appointedBy': STAFF_ACTION,
@@ -104,8 +113,8 @@ export const OMITTED_LINKS: Readonly<Record<string, string>> = {
   'SkillEndorsement.endorsedBy': 'endorsements of other people',
   'TeamJoinRequest.reviewedBy': STAFF_ACTION,
   'TeamSuggestion.reviewedBy': STAFF_ACTION,
-  'Volunteer.duplicateOf': "another account's own export covers it",
-  'Volunteer.mergedInto': 'merged accounts are listed under AccountMerge',
+  'Volunteer.duplicateOf':
+    "an admin's guess at the same person, until both accounts confirm a merge",
   'Volunteer.reviewer': 'applications reviewed for other people',
   'VolunteerSkill.volunteer': 'exported as `skills`',
   'WorkItem.reviewedBy': STAFF_ACTION,
@@ -130,7 +139,7 @@ export const SECRET_FIELDS: Readonly<Record<string, readonly string[]>> = {
 /** Columns whose names look secret but hold nothing that is: exported as they are. */
 export const PLAIN_FIELDS: Readonly<Record<string, readonly string[]>> = {}
 
-const SECRET_LOOKING = /token|hash|password|secret/i
+const SECRET_LOOKING = /token|hash|password|secret|key|code|otp/i
 const PERSON_ID = /^(v|.+V)olunteerId$/
 const EMAIL = /^(e|.+E)mail$/
 const EMAIL_HASH = /^(e|.+E)mailHash$/
@@ -169,11 +178,6 @@ export function userLinks(dataModel: DataModel): UserLink[] {
   return links
 }
 
-/** How the app stores an address it may no longer hold: rejected applications, anonymised accounts. */
-export function emailHash(email: string): string {
-  return createHash('sha256').update(email.toLowerCase().trim()).digest('hex')
-}
-
 /** What stops the export being trusted: unclassified or stale links, and undeclared secrets. */
 export function classificationProblems(dataModel: DataModel): string[] {
   const problems: string[] = []
@@ -196,6 +200,14 @@ export function classificationProblems(dataModel: DataModel): string[] {
         problems.push(
           `${model}.${field} looks secret but is in neither SECRET_FIELDS nor PLAIN_FIELDS`,
         )
+    }
+  }
+  for (const [link, columns] of Object.entries(EXPORTED_COLUMNS)) {
+    const [model] = link.split('.')
+    const fields = dataModel.models[model]?.fields.map((f) => f.name) ?? []
+    for (const column of columns) {
+      if (!fields.includes(column))
+        problems.push(`EXPORTED_COLUMNS names ${model}.${column}, which is not in the schema`)
     }
   }
   for (const [list, byModel] of Object.entries({ SECRET_FIELDS, PLAIN_FIELDS })) {
@@ -224,7 +236,9 @@ function withoutSecrets(model: string, row: Row): Row {
   return Object.fromEntries(Object.entries(row).filter(([k]) => !secrets.includes(k)))
 }
 
-type Delegate = { findMany(args: { where: Row }): Promise<Row[]> }
+type Delegate = {
+  findMany(args: { where: Row; select?: Record<string, true> }): Promise<Row[]>
+}
 
 function delegateFor(model: string): Delegate {
   const key = model[0].toLowerCase() + model.slice(1)
@@ -259,7 +273,7 @@ export async function linkedRecords(
   const matching = (l: UserLink): Row | null => {
     if (l.matchBy === 'id') return { [l.foreignKey]: subject.id }
     if (email === null) return null
-    if (l.matchBy === 'emailHash') return { [l.foreignKey]: emailHash(email) }
+    if (l.matchBy === 'emailHash') return { [l.foreignKey]: hashEmail(email) }
     if (l.matchBy === 'participant')
       return { [l.foreignKey]: { in: participants.map((p) => p.id) } }
     return { [l.foreignKey]: byAddress }
@@ -268,7 +282,10 @@ export async function linkedRecords(
   for (let i = 0; i < links.length; i += QUERIES_AT_ONCE) {
     const batch = links.slice(i, i + QUERIES_AT_ONCE).map((l) => {
       const where = matching(l)
-      return where ? delegateFor(l.model).findMany({ where }) : Promise.resolve([])
+      if (!where) return Promise.resolve([])
+      const columns = EXPORTED_COLUMNS[l.name]
+      const select = columns && Object.fromEntries(columns.map((c) => [c, true as const]))
+      return delegateFor(l.model).findMany({ where, select })
     })
     rows.push(...(await Promise.all(batch)))
   }

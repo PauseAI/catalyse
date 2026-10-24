@@ -1,9 +1,9 @@
-import { createHash } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { chapterCarers } from '@/lib/chapter-access-server'
 import { sendPendingApplicationsSummaryEmail } from '@/lib/email'
 import { APPLICATION_ANONYMISATION_MS } from '@/lib/applications'
 import { ApprovalStatus } from '@/generated/prisma/enums'
+import { hashEmail } from '@/lib/auth'
 
 function startOfToday(): Date {
   const now = new Date()
@@ -77,7 +77,7 @@ export async function runApplicationsAnonymisationJob(): Promise<Record<string, 
   let anonymised = 0
   for (const v of toAnonymise) {
     if (v.email) {
-      const emailHash = createHash('sha256').update(v.email.toLowerCase().trim()).digest('hex')
+      const emailHash = hashEmail(v.email)
       await prisma.rejectedApplication.create({
         data: {
           emailHash,

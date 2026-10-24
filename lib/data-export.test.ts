@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
+  EXPORTED_COLUMNS,
   EXPORTED_LINKS,
   OMITTED_LINKS,
   classificationProblems,
-  emailHash,
   exportProfile,
   linkedRecords,
   schemaDataModel,
@@ -19,6 +19,7 @@ import {
   nextSeq,
 } from '@/test/factories'
 import { prisma } from '@/lib/prisma'
+import { hashEmail } from '@/lib/auth'
 
 const schema = schemaDataModel()
 
@@ -113,14 +114,16 @@ describe('data export classification', () => {
 
   it('fails on a secret-looking column in an exported model', () => {
     const dataModel = withModels((m) => {
-      ;(m.Notification as { fields: unknown[] }).fields.push({
-        name: 'unsubscribeToken',
-        kind: 'scalar',
-        type: 'String',
-      })
+      ;(m.Notification as { fields: unknown[] }).fields.push(
+        { name: 'unsubscribeToken', kind: 'scalar', type: 'String' },
+        { name: 'apiKey', kind: 'scalar', type: 'String' },
+        { name: 'resetCode', kind: 'scalar', type: 'String' },
+      )
     })
     expect(classificationProblems(dataModel)).toEqual([
       'Notification.unsubscribeToken looks secret but is in neither SECRET_FIELDS nor PLAIN_FIELDS',
+      'Notification.apiKey looks secret but is in neither SECRET_FIELDS nor PLAIN_FIELDS',
+      'Notification.resetCode looks secret but is in neither SECRET_FIELDS nor PLAIN_FIELDS',
     ])
   })
 
@@ -134,6 +137,16 @@ describe('data export classification', () => {
       'ContactRequest.from is classified but no longer in the schema',
       'ContactRequest.to is classified but no longer in the schema',
       'SECRET_FIELDS names Session.tokenHash, which is not in the schema',
+    ])
+  })
+
+  it('fails on a narrowed link whose columns the schema no longer has', () => {
+    const dataModel = withModels((m) => {
+      const journalist = m.ExperimentalJournalist as { fields: { name: string }[] }
+      journalist.fields = journalist.fields.filter((f) => f.name !== 'claimedAt')
+    })
+    expect(classificationProblems(dataModel)).toEqual([
+      'EXPORTED_COLUMNS names ExperimentalJournalist.claimedAt, which is not in the schema',
     ])
   })
 })
@@ -232,7 +245,7 @@ const rowFor: Record<string, (who: Person, other: Person) => Promise<Row>> = {
   'AdminNote.volunteer': (who, other) =>
     prisma.adminNote.create({ data: { volunteerId: who.id, authorId: other.id, content: 'note' } }),
   'AnonymisedEmail.emailHash': (who) =>
-    prisma.anonymisedEmail.create({ data: { emailHash: emailHash(who.email!) } }),
+    prisma.anonymisedEmail.create({ data: { emailHash: hashEmail(who.email!) } }),
   'ApiToken.volunteer': (who) =>
     prisma.apiToken.create({
       data: { volunteerId: who.id, name: 'n', tokenHash: `h${nextSeq()}` },
@@ -264,6 +277,11 @@ const rowFor: Record<string, (who: Person, other: Person) => Promise<Row>> = {
   'ContactRequest.to': (who, other) =>
     prisma.contactRequest.create({
       data: { fromVolunteerId: other.id, toVolunteerId: who.id, message: 'm' },
+    }),
+  // An earlier account's request: the id has no foreign key, so it outlives the account.
+  'DeletionRequest.volunteerEmail': async (who) =>
+    prisma.deletionRequest.create({
+      data: { volunteerId: (await createVolunteer()).id, volunteerEmail: who.email },
     }),
   'DeletionRequest.volunteerId': (who) =>
     prisma.deletionRequest.create({ data: { volunteerId: who.id } }),
@@ -337,7 +355,7 @@ const rowFor: Record<string, (who: Person, other: Person) => Promise<Row>> = {
     }),
   'RejectedApplication.emailHash': (who) =>
     prisma.rejectedApplication.create({
-      data: { emailHash: emailHash(` ${who.email!.toUpperCase()} `), rejectedAt: new Date() },
+      data: { emailHash: hashEmail(` ${who.email!.toUpperCase()} `), rejectedAt: new Date() },
     }),
   'Session.volunteer': (who) =>
     prisma.session.create({
@@ -359,6 +377,7 @@ const rowFor: Record<string, (who: Person, other: Person) => Promise<Row>> = {
     prisma.teamSuggestion.create({ data: { name: `T${nextSeq()}`, suggestedById: who.id } }),
   'Template.createdBy': (who) =>
     prisma.template.create({ data: { title: 't', structure: '{}', createdById: who.id } }),
+  'Volunteer.mergedInto': (who) => createVolunteer({ mergedIntoId: who.id }),
   'WorkItem.assignee': (who) => createProject({ assigneeId: who.id }),
   'WorkItem.creator': (who) => createProject({ creatorId: who.id }),
   'WorkItem.requestedBy': (who) => createProject({ requestedById: who.id }),
@@ -433,6 +452,34 @@ describe('every exported link', () => {
 
     expect(exported).toContain(`"fromVolunteerId":${me.id},"toVolunteerId":${other.id}`)
     expect(exported).not.toMatch(/Zelda|Otherperson|zelda@elsewhere/i)
+  })
+
+  it("exports a claimed journalist as the claim alone, not the journalist's details", async () => {
+    const me = await createVolunteer()
+    const participant = await participantFor(me)
+    await journalist({ claimedById: participant.id, contactedById: participant.id })
+
+    const { ExperimentalJournalist } = await linkedRecords(me)
+
+    for (const link of ['claimedBy', 'contactedBy']) {
+      const [row] = ExperimentalJournalist[link]
+      expect(Object.keys(row).sort(), link).toEqual(
+        [...EXPORTED_COLUMNS[`ExperimentalJournalist.${link}`]].sort(),
+      )
+    }
+  })
+
+  it('includes the accounts merged into this one, without their secrets', async () => {
+    const me = await createVolunteer()
+    const old = await createVolunteer({ mergedIntoId: me.id, authToken: 'old-token' })
+
+    const { Volunteer } = await linkedRecords(me)
+
+    expect(Volunteer.mergedInto).toEqual([
+      expect.objectContaining({ id: old.id, email: old.email }),
+    ])
+    expect(Volunteer.mergedInto[0]).not.toHaveProperty('passwordHash')
+    expect(Volunteer.mergedInto[0]).not.toHaveProperty('authToken')
   })
 
   it('matches nothing by an address the person has not confirmed', async () => {

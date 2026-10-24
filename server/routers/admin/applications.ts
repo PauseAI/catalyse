@@ -1,4 +1,3 @@
-import { createHash } from 'crypto'
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
@@ -16,6 +15,7 @@ import { staffProcedure } from '../../procedures'
 import { ApprovalStatus } from '@/generated/prisma/enums'
 import { clearNotifications, createNotification } from '@/lib/notify'
 import { logger } from '@/lib/logger'
+import { hashEmail } from '@/lib/auth'
 
 /** An applicant in a chapter the caller runs; anyone else is not found. */
 async function applicantRunBy<T extends { nationalChapterId: number | null }>(
@@ -84,9 +84,7 @@ export const adminApplicationsRouter = {
         orderBy: { createdAt: 'asc' },
       })
 
-      const emailHashes = volunteers
-        .filter((v) => v.email)
-        .map((v) => createHash('sha256').update(v.email!.toLowerCase().trim()).digest('hex'))
+      const emailHashes = volunteers.filter((v) => v.email).map((v) => hashEmail(v.email!))
 
       const rejectionRows =
         emailHashes.length > 0
@@ -110,9 +108,7 @@ export const adminApplicationsRouter = {
       }
 
       return volunteers.map((v) => {
-        const emailHash = v.email
-          ? createHash('sha256').update(v.email.toLowerCase().trim()).digest('hex')
-          : null
+        const emailHash = v.email ? hashEmail(v.email) : null
         const previousRejections = emailHash ? (rejectionsByHash.get(emailHash) ?? []) : []
         return {
           id: v.id,
@@ -176,9 +172,7 @@ export const adminApplicationsRouter = {
 
       const v = await applicantRunBy(context.access, found)
 
-      const emailHash = v.email
-        ? createHash('sha256').update(v.email.toLowerCase().trim()).digest('hex')
-        : null
+      const emailHash = v.email ? hashEmail(v.email) : null
 
       const previousRejections = emailHash
         ? await prisma.rejectedApplication.findMany({
