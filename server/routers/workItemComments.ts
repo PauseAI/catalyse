@@ -3,6 +3,7 @@ import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { canAdminChapter, type ChapterAccess } from '@/lib/chapter-access'
 import { chapterStaffIds, globalAdminWhere } from '@/lib/chapter-access-server'
+import { html } from '@/lib/email'
 import { notifyUser } from '@/lib/notify'
 import {
   canViewWorkItem,
@@ -213,6 +214,14 @@ async function eventLines(item: LoadedWorkItem) {
   }))
 }
 
+const QUOTE_LENGTH = 140
+
+/** The text shown above a reply that quotes an earlier one: plain, and cut to one line's worth. */
+function quoteSnippet(content: string): string {
+  const plain = mentionsToPlain(content)
+  return plain.length > QUOTE_LENGTH ? `${plain.slice(0, QUOTE_LENGTH)}…` : plain
+}
+
 /**
  * Newest first. At the same moment an event goes above a comment, since a comment can cause one
  * (the assignee's first starts the work); then the later row of one type first.
@@ -260,10 +269,12 @@ export const workItemCommentsRouter = {
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       })
       const canPost = await resolveCanPost(loaded.item, loaded.parent, viewer)
+      const rowsById = new Map(rows.map((r) => [r.id, r]))
 
       const shape = (c: (typeof rows)[number]) => {
         const deleted = c.deletedAt !== null
         const isAuthor = c.authorId === viewer.id
+        const quoted = c.repliedToId ? rowsById.get(c.repliedToId) : null
         return {
           id: c.id,
           parentId: c.parentId,
@@ -276,6 +287,14 @@ export const workItemCommentsRouter = {
           deleted,
           canEdit: !deleted && isAuthor && canPost,
           canDelete: !deleted && (isAuthor || viewer.isAdmin),
+          repliedTo: quoted
+            ? {
+                id: quoted.id,
+                authorName: quoted.author?.name ?? null,
+                content: quoted.deletedAt ? '' : quoteSnippet(quoted.content),
+                deleted: quoted.deletedAt !== null,
+              }
+            : null,
         }
       }
       // Top-level comments newest first; each one's replies oldest first beneath it.
@@ -315,8 +334,12 @@ export const workItemCommentsRouter = {
         throw new ORPCError('FORBIDDEN', { message: 'Not authorized to comment here' })
       }
 
-      // A reply to a reply joins the same top-level thread.
+      // A reply to a reply joins the same top-level thread; its author is still the one told.
+      // Its target is quoted too, unless that's the thread's own top-level comment: a reply
+      // already sits under that one, so quoting it back would say nothing new.
       let parent: { id: number; authorId: number | null } | null = null
+      let repliedTo: number | null = null
+      let repliedToId: number | null = null
       if (input.parentId !== undefined) {
         const target = await prisma.workItemComment.findUnique({
           where: { id: input.parentId },
@@ -326,6 +349,8 @@ export const workItemCommentsRouter = {
           throw new ORPCError('NOT_FOUND', { message: 'Comment not found' })
         }
         parent = target.parent ?? target
+        repliedTo = target.authorId
+        repliedToId = target.parent ? target.id : null
       }
 
       const content = input.content.trim()
@@ -335,6 +360,7 @@ export const workItemCommentsRouter = {
           authorId: volunteer.id,
           content,
           parentId: parent?.id ?? null,
+          repliedToId,
         },
       })
 
@@ -355,8 +381,33 @@ export const workItemCommentsRouter = {
       }
 
       const mentioned = await notifyMentions(loaded, volunteer, comment.id, content)
+      const plain = mentionsToPlain(content).slice(0, 200)
 
-      // Notify the other participants (in-app only); a mention already told its recipient.
+      // The person replied to hears it as a reply, by email too unless they muted updates.
+      const told = new Set(mentioned)
+      if (repliedTo && repliedTo !== volunteer.id && !told.has(repliedTo)) {
+        told.add(repliedTo)
+        const link = `${threadLink(loaded.item)}#comment-${comment.id}`
+        await notifyUser(
+          repliedTo,
+          'comment_reply',
+          `${volunteer.name} replied to your comment on "${loaded.item.title}"`,
+          plain,
+          link,
+          {
+            message: html`<strong>${volunteer.name}</strong> replied to your comment on
+              <strong>${loaded.item.title}</strong>:
+              <div style="padding: 12px; background: #f7fafc; border-radius: 8px; margin: 16px 0;">
+                ${plain}
+              </div>`,
+            ctaLabel: 'Read the reply',
+            ctaUrl: link,
+          },
+          comment.id,
+        )
+      }
+
+      // Notify the other participants (in-app only), once each.
       const recipientIds = new Set<number>()
       for (const id of [
         loaded.item.creatorId,
@@ -365,7 +416,7 @@ export const workItemCommentsRouter = {
         parent?.authorId ?? null,
         ...(loaded.item.type === WorkItemType.TASK ? await taskHelperIds(loaded.item.id) : []),
       ]) {
-        if (id && id !== volunteer.id && !mentioned.has(id)) recipientIds.add(id)
+        if (id && id !== volunteer.id && !told.has(id)) recipientIds.add(id)
       }
       const link = commentLink(loaded.item)
       for (const rid of recipientIds) {
@@ -373,7 +424,7 @@ export const workItemCommentsRouter = {
           rid,
           'work_item_comment',
           `New comment on "${loaded.item.title}"`,
-          mentionsToPlain(content).slice(0, 200),
+          plain,
           link,
         )
       }

@@ -4,6 +4,7 @@ import { goToInbox } from '../actions/dashboard'
 import { Page } from '@playwright/test'
 import { fake } from '../fake'
 import { postComment } from '../actions/ui'
+import { createApiClient } from '../client'
 
 async function setupOwnedProject(
   baseUrl: string,
@@ -140,12 +141,12 @@ test.describe('Project Management (Owner)', () => {
     // The admin has commented, so the owner can mention them.
     await page.goto(`${baseUrl}/projects/${projectId}#discussion`)
     await expect(page.getByText(question)).toBeVisible({ timeout: 10_000 })
-    await page.getByRole('button', { name: 'Reply' }).click()
-    const replyBox = page.getByLabel('Write a reply')
+    await page.getByRole('button', { name: /^Reply to / }).click()
+    const replyBox = page.getByLabel(/^Write a reply to /)
     await replyBox.fill('Answered, ')
     await replyBox.pressSequentially('@')
     await page.getByRole('option').first().click()
-    await page.getByRole('button', { name: 'Reply' }).last().click()
+    await page.getByRole('button', { name: 'Post reply' }).click()
     // The box holds the same words until the reply is saved (see postComment).
     await expect(replyBox).toBeHidden({ timeout: 10_000 })
     await expect(page.getByText('Answered,')).toBeVisible()
@@ -164,5 +165,67 @@ test.describe('Project Management (Owner)', () => {
 
     await goToInbox(baseUrl, adminPage)
     await expect(adminPage.getByText(/mentioned you on/).first()).toBeVisible({ timeout: 10_000 })
+  })
+
+  test('Discussion: a reply nests under its comment, tells its author, and a long thread folds', async ({
+    adminPage,
+    volunteer,
+    baseUrl,
+    snap,
+  }) => {
+    const projectId = await setupOwnedProject(baseUrl, adminPage, volunteer)
+    const page = volunteer.page
+    const question = `Who can bring banners? ${fake.note()}`
+    const answer = `I have two. ${fake.note()}`
+
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#discussion`)
+    await postComment(adminPage, question)
+
+    await page.goto(`${baseUrl}/projects/${projectId}#discussion`)
+    const thread = page.getByRole('listitem').filter({ hasText: question })
+    await thread.getByRole('button', { name: /^Reply to / }).click()
+    const replyBox = page.getByLabel(/^Write a reply to /)
+    await expect(replyBox).toBeFocused()
+    await replyBox.fill(answer)
+    await snap(page, 'reply box open')
+    await page.getByRole('button', { name: 'Post reply' }).click()
+    await expect(replyBox).toBeHidden({ timeout: 10_000 })
+    const replies = thread.getByRole('list', { name: /^Replies to / })
+    await expect(replies.getByText(answer)).toBeVisible()
+
+    // The admin hears about it as a reply, and the link opens the discussion at it.
+    const notice = `${volunteer.name} replied to your comment`
+    await goToInbox(baseUrl, adminPage)
+    await adminPage
+      .getByRole('listitem')
+      .filter({ hasText: notice })
+      .getByRole('link', { name: 'Open' })
+      .click()
+    await expect(adminPage.getByText(answer)).toBeVisible({ timeout: 10_000 })
+
+    // Past four replies the middle of the thread folds away until asked for.
+    const ownerApi = createApiClient(
+      baseUrl,
+      await page.evaluate(() => localStorage.getItem('authToken')),
+    )
+    const listed = await ownerApi.workItemComments.list({ body: { workItemId: projectId } })
+    const top = (listed.body as { feed: { id: number; content?: string }[] }).feed.find(
+      (c) => c.content === question,
+    )!
+    for (const n of [2, 3, 4, 5]) {
+      const added = await ownerApi.workItemComments.add({
+        body: { workItemId: projectId, content: `Follow-up ${n}`, parentId: top.id },
+      })
+      expect(added.status).toBe(200)
+    }
+    await page.reload()
+    const more = thread.getByRole('button', { name: 'Show 2 more replies' })
+    await expect(more).toBeVisible({ timeout: 10_000 })
+    await expect(replies.getByText('Follow-up 2')).toBeHidden()
+    await snap(page, 'long thread folded')
+    await more.click()
+    await expect(replies.getByText('Follow-up 2')).toBeVisible()
+    await expect(replies.getByText('Follow-up 3')).toBeVisible()
+    await expect(more).toBeHidden()
   })
 })

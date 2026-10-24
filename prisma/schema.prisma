@@ -646,24 +646,30 @@ model ProjectReviewRequest {
 }
 
 model WorkItemComment {
-  id         Int               @id @default(autoincrement())
-  workItemId Int               @map("work_item_id")
-  authorId   Int?              @map("author_id")
+  id          Int               @id @default(autoincrement())
+  workItemId  Int               @map("work_item_id")
+  authorId    Int?              @map("author_id")
   /// @zod.string.min(1, { message: "Content is required" })
-  content    String
-  createdAt  DateTime?         @default(now()) @map("created_at")
+  content     String
+  createdAt   DateTime?         @default(now()) @map("created_at")
   /// A reply's top-level comment; replies are never nested deeper.
-  parentId   Int?              @map("parent_id")
-  editedAt   DateTime?         @map("edited_at")
+  parentId    Int?              @map("parent_id")
+  /// The specific reply this one answers, when that isn't the thread's top-level comment
+  /// (which needs no quote: it's the one the reply already sits under).
+  repliedToId Int?              @map("replied_to_id")
+  editedAt    DateTime?         @map("edited_at")
   /// Soft delete: the row stays so its replies keep their place; the content is never served.
-  deletedAt  DateTime?         @map("deleted_at")
-  author     Volunteer?        @relation("WorkItemCommentAuthor", fields: [authorId], references: [id], onUpdate: NoAction)
-  workItem   WorkItem          @relation(fields: [workItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  parent     WorkItemComment?  @relation("WorkItemCommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  replies    WorkItemComment[] @relation("WorkItemCommentReplies")
+  deletedAt   DateTime?         @map("deleted_at")
+  author      Volunteer?        @relation("WorkItemCommentAuthor", fields: [authorId], references: [id], onUpdate: NoAction)
+  workItem    WorkItem          @relation(fields: [workItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  parent      WorkItemComment?  @relation("WorkItemCommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  replies     WorkItemComment[] @relation("WorkItemCommentReplies")
+  repliedTo   WorkItemComment?  @relation("WorkItemCommentRepliedTo", fields: [repliedToId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  quotedBy    WorkItemComment[] @relation("WorkItemCommentRepliedTo")
 
   @@index([workItemId, createdAt], map: "idx_work_item_comments_thread")
   @@index([parentId], map: "idx_work_item_comments_parent")
+  @@index([repliedToId], map: "idx_work_item_comments_replied_to")
   @@map("work_item_comments")
 }
 

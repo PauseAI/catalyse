@@ -111,11 +111,13 @@ export function initials(name: string): string {
 }
 
 /** Initials in a circle; the name beside it is what a screen reader reads. */
-export function PersonInitials({ name, size = 'sm' }: { name: string; size?: 'sm' | 'md' }) {
+export function PersonInitials({ name, size = 'sm' }: { name: string; size?: 'xs' | 'sm' | 'md' }) {
+  const dimensions =
+    size === 'md' ? 'size-9 text-sm' : size === 'sm' ? 'size-7 text-xs' : 'size-4 text-[0.6rem]'
   return (
     <span
       aria-hidden="true"
-      className={`${size === 'md' ? 'size-9 text-sm' : 'size-7 text-xs'} rounded-full bg-secondary text-white font-semibold flex items-center justify-center shrink-0`}
+      className={`${dimensions} rounded-full bg-secondary text-white font-semibold flex items-center justify-center shrink-0`}
     >
       {initials(name)}
     </span>
