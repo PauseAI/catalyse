@@ -222,7 +222,7 @@ export default function NewTemplatePage() {
         >
           {createFromScratch.isPending ? 'Creating…' : 'Create template'}
         </Button>
-        <Button variant="ghost" href="/templates">
+        <Button variant="secondary" href="/templates">
           Cancel
         </Button>
       </div>

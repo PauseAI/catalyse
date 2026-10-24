@@ -125,7 +125,7 @@ export default function MessageDialog({
           </Checkbox>
         </div>
         <div className="flex gap-2 justify-end">
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit" disabled={sendMessageMutation.isPending}>

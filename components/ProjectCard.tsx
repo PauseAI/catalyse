@@ -86,7 +86,7 @@ export function ProjectCard({
         <Link
           role="link"
           href={`/projects/${p.id}`}
-          className="text-lg font-bold text-brand-text no-underline hover:text-primary transition-colors"
+          className="font-heading text-lg font-bold text-brand-text no-underline hover:text-primary transition-colors"
         >
           {p.title}
         </Link>
@@ -177,11 +177,9 @@ export function ProjectCard({
           <div />
         )}
         {action ?? (
-          <Link className="text-primary-text underline" href={`/projects/${p.id}`}>
-            <Button variant="secondary" size="sm">
-              View details
-            </Button>
-          </Link>
+          <Button href={`/projects/${p.id}`} variant="secondary" size="sm">
+            View details
+          </Button>
         )}
       </div>
     </div>

@@ -29,7 +29,7 @@ GitHub issue. An entry here is about the work itself: something in the code
 structure, tooling, tests, docs or diagnostics that made a task slower or more
 confusing than it needed to be, and that will do so again.
 
-## 12x
+## 13x
 
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
       and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
@@ -71,6 +71,9 @@ confusing than it needed to be, and that will do so again.
       it; a `getByText` on a list from a second query), which local timing always won.
       The dependency-lag rework's run hit `ProjectEditor.test.tsx` once more: Submit opens its
       dialog only after a fresh fetch, which outlasted `findByText`'s one-second default.
+      The UI-consistency run hit `app/signup/page.test.tsx`: the resend request outlasted
+      `vi.waitFor`'s one-second default under load, and the fake clock it left behind timed out
+      every later test in the file, so one race read as ten failures.
 
 ## 7x
 

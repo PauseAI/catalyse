@@ -285,7 +285,7 @@ export default function ProjectPorting({
           >
             {applyMutation.isPending ? 'Applying…' : 'Apply changes'}
           </Button>
-          <Button variant="ghost" onClick={() => setShowConfirm(false)}>
+          <Button variant="secondary" onClick={() => setShowConfirm(false)}>
             Cancel
           </Button>
         </div>

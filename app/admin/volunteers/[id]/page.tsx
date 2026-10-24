@@ -237,7 +237,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
       <>
         <main className="container py-5 pb-15">
           <P className="text-error">Volunteer not found.</P>
-          <Button href="/volunteers" variant="secondary" className="mt-4">
+          <Button href="/volunteers" variant="outline" className="mt-4">
             Back
           </Button>
         </main>
@@ -391,7 +391,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
                         />
                         <div className="flex gap-2">
                           <Button
-                            variant="secondary"
+                            variant="primary"
                             size="sm"
                             onClick={() => saveEditedNote(n.id)}
                             disabled={submitting}
@@ -399,7 +399,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
                             Save
                           </Button>
                           <Button
-                            variant="ghost"
+                            variant="secondary"
                             size="sm"
                             onClick={() => {
                               setEditingNoteId(null)

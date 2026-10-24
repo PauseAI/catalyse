@@ -210,7 +210,7 @@ export default function FilterDropdown<T extends string>({
 
   const triggerClass =
     triggerClassName ??
-    'w-full flex items-center justify-between p-3 bg-surface text-brand-text border-2 border-brand-border rounded-lg text-base font-body cursor-pointer focus:outline-none focus:border-secondary transition-colors'
+    'w-full flex items-center justify-between p-3 bg-surface text-brand-text border-2 border-field-border rounded-lg text-base font-body cursor-pointer focus:outline-none focus:border-secondary transition-colors'
 
   // min-w-[200px]: deliberate minimum to prevent dropdown from collapsing on short labels
   return (

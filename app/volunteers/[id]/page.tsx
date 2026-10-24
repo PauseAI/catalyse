@@ -66,7 +66,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
       <>
         <main className="container py-5 pb-15">
           <P className="text-error">Volunteer not found.</P>
-          <Button href="/volunteers" variant="secondary" className="mt-4">
+          <Button href="/volunteers" variant="outline" className="mt-4">
             Back to volunteers
           </Button>
         </main>
