@@ -105,9 +105,23 @@ function RepliedToQuote({ target }: { target: NonNullable<CommentItem['repliedTo
     <a
       href={`#comment-${target.id}`}
       onClick={focusTarget}
-      className="mb-1 flex items-center gap-1 pl-2 border-l-2 border-brand-border text-xs text-text-light italic hover:text-text"
+      className="mb-1 flex items-center gap-1 text-xs text-text-light italic hover:text-text"
     >
-      <span aria-hidden="true">↱</span>
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        className="shrink-0"
+      >
+        <path d="M5 20v-6a5 5 0 0 1 5-5h9" />
+        <path d="m15 5 4 4-4 4" />
+      </svg>
       {!target.deleted && <PersonInitials name={target.authorName ?? 'Unknown'} size="xs" />}
       <span className="min-w-0 truncate">
         {target.deleted
@@ -251,6 +265,33 @@ export default function CommentThreadView({
           </span>{' '}
           · {c.createdAt ? formatDateTime(c.createdAt) : ''}
           {c.editedAt && <span>(edited)</span>}
+        </span>
+        {saved ? (
+          <CommentComposer
+            label="Edit comment"
+            submitLabel="Save"
+            busyLabel="Saving…"
+            isSubmitting={saving}
+            initialText={saved.text}
+            initialPicked={saved.picked}
+            mentionable={mentionable}
+            autoFocus
+            onCancel={() => setEditing(null)}
+            onSubmit={async (content) => {
+              setSaving(true)
+              const ok = await (onEdit as (id: number, content: string) => Promise<boolean>)(
+                c.id,
+                content,
+              )
+              setSaving(false)
+              if (ok) setEditing(null)
+              return ok
+            }}
+          />
+        ) : (
+          <CommentBody content={c.content} />
+        )}
+        <div className="flex flex-wrap items-center gap-3 text-xs text-text-light">
           <button
             type="button"
             onClick={() => void copyCommentLink(c.id)}
@@ -295,32 +336,7 @@ export default function CommentThreadView({
               Delete
             </button>
           )}
-        </span>
-        {saved ? (
-          <CommentComposer
-            label="Edit comment"
-            submitLabel="Save"
-            busyLabel="Saving…"
-            isSubmitting={saving}
-            initialText={saved.text}
-            initialPicked={saved.picked}
-            mentionable={mentionable}
-            autoFocus
-            onCancel={() => setEditing(null)}
-            onSubmit={async (content) => {
-              setSaving(true)
-              const ok = await (onEdit as (id: number, content: string) => Promise<boolean>)(
-                c.id,
-                content,
-              )
-              setSaving(false)
-              if (ok) setEditing(null)
-              return ok
-            }}
-          />
-        ) : (
-          <CommentBody content={c.content} />
-        )}
+        </div>
         {renderReplies(c)}
       </li>
     )
