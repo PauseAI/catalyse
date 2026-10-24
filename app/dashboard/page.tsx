@@ -48,7 +48,7 @@ const LEGACY_HASHES: Record<string, string[]> = {
 function Count({ n }: { n: number }) {
   if (n === 0) return null
   return (
-    <span className="bg-accent text-secondary-dark text-xs px-2 py-0.5 rounded-full ml-2 align-middle dark:bg-gray-700 dark:text-gray-300">
+    <span className="bg-chip text-chip-text text-xs px-2 py-0.5 rounded-full ml-2 align-middle">
       {n}
     </span>
   )

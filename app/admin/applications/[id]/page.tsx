@@ -212,7 +212,7 @@ export default function ApplicationReviewPage() {
             {app.skills.map((s) => (
               <span
                 key={s.id}
-                className="inline-flex items-center px-3 py-1 bg-accent text-secondary-dark rounded-full text-sm font-medium dark:bg-gray-700 dark:text-gray-300"
+                className="inline-flex items-center px-3 py-1 bg-chip text-chip-text rounded-full text-sm font-medium"
               >
                 {s.name}
               </span>
@@ -311,7 +311,7 @@ export default function ApplicationReviewPage() {
         </FormLabel>
         <Textarea
           id="admin-notes"
-          className="w-full border border-border rounded-lg p-3 text-sm mb-4 bg-background"
+          className="w-full border border-field-border rounded-lg p-3 text-sm mb-4 bg-background"
           rows={4}
           value={adminNotes}
           onChange={(e) => setAdminNotes(e.target.value)}
@@ -326,7 +326,7 @@ export default function ApplicationReviewPage() {
         </FormLabel>
         <Textarea
           id="applicant-notes"
-          className="w-full border border-border rounded-lg p-3 text-sm mb-6 bg-background"
+          className="w-full border border-field-border rounded-lg p-3 text-sm mb-6 bg-background"
           rows={4}
           value={applicantNotes}
           onChange={(e) => setApplicantNotes(e.target.value)}

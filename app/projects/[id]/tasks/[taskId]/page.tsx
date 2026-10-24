@@ -514,7 +514,7 @@ export default function TaskDetailPage({
         )}
         {/* The key date is set on the project timeline; here it is only stated. */}
         {task.isAnchor && (
-          <P className="mb-4 text-sm" style={{ color: 'var(--gantt-anchor)' }}>
+          <P className="mb-4 text-sm" style={{ color: 'var(--color-gantt-anchor)' }}>
             ★ Key date: the date this project is planned around
           </P>
         )}

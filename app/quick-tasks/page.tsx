@@ -99,7 +99,7 @@ const RATING_LABELS: Record<string, string> = {
 }
 
 const SKILL_CHIP_CLASSES =
-  'inline-flex items-center px-3 py-1 bg-accent text-secondary-dark rounded-full text-sm font-medium dark:bg-gray-700 dark:text-gray-300'
+  'inline-flex items-center px-3 py-1 bg-chip text-chip-text rounded-full text-sm font-medium'
 
 const ASSIGNEE: WorkViewer = { isAssignee: true, canReview: false }
 const ONLOOKER: WorkViewer = { isAssignee: false, canReview: false }

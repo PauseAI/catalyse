@@ -189,9 +189,9 @@ export default function GanttRow({
   const ring = selected
     ? '0 0 0 2px var(--color-brand-text)'
     : isCritical
-      ? 'inset 0 0 0 2px var(--gantt-critical)'
+      ? 'inset 0 0 0 2px var(--color-gantt-critical)'
       : fixedTiming
-        ? 'inset 0 0 0 2px var(--gantt-finish)'
+        ? 'inset 0 0 0 2px var(--color-gantt-finish)'
         : undefined
 
   // A cut end is squared off, so a bar running past the window does not read as finishing there.
@@ -249,7 +249,7 @@ export default function GanttRow({
       className="group/row relative"
       style={{
         height: ROW_HEIGHT,
-        background: isOver ? 'var(--gantt-row-hover)' : undefined,
+        background: isOver ? 'var(--color-gantt-row-hover)' : undefined,
         opacity: dimmed ? 0.35 : 1,
         transition: 'opacity 120ms ease-out',
       }}
@@ -266,7 +266,7 @@ export default function GanttRow({
             width: Math.max(baselineMark.width, MIN_BAR_WIDTH),
             top: midY - BAR_HEIGHT / 2 - RULE_HEIGHT - 2,
             height: RULE_HEIGHT,
-            background: 'var(--gantt-baseline)',
+            background: 'var(--color-gantt-baseline)',
           }}
           title={`Original plan ${formatDate(placement.baseline.start)} – ${formatDate(placement.baseline.end)}`}
         />
@@ -333,7 +333,7 @@ export default function GanttRow({
                 left: '50%',
                 top: -13,
                 transform: 'translateX(-50%)',
-                color: 'var(--gantt-anchor)',
+                color: 'var(--color-gantt-anchor)',
                 fontSize: 12,
               }}
             >
@@ -345,7 +345,7 @@ export default function GanttRow({
               aria-hidden="true"
               className="absolute -right-1 -top-1 block h-2.5 w-2.5 rounded-full"
               style={{
-                background: 'var(--gantt-today)',
+                background: 'var(--color-gantt-today)',
                 boxShadow: '0 0 0 1.5px var(--color-surface)',
               }}
             />
@@ -385,7 +385,7 @@ export default function GanttRow({
                 style={{
                   width: 2,
                   height: BAR_HEIGHT - 8,
-                  background: 'var(--gantt-bar-text)',
+                  background: 'var(--color-gantt-bar-text)',
                   opacity: 0.7,
                 }}
               />
@@ -406,7 +406,7 @@ export default function GanttRow({
               left: barLeft + barWidth + 5,
               top: midY - 6,
               background: 'var(--color-surface)',
-              borderColor: 'var(--gantt-link-active)',
+              borderColor: 'var(--color-gantt-link-active)',
               cursor: 'crosshair',
               touchAction: 'none',
             }}
@@ -432,7 +432,7 @@ export default function GanttRow({
             width: Math.max(actualMark.width, MIN_BAR_WIDTH),
             top: midY + BAR_HEIGHT / 2 + 2,
             height: RULE_HEIGHT,
-            background: 'var(--gantt-actual)',
+            background: 'var(--color-gantt-actual)',
             opacity: placement.actual.end ? 1 : 0.7,
           }}
           title={
@@ -451,7 +451,7 @@ export default function GanttRow({
           style={{
             left: deadlineX - 5,
             top: midY + BAR_HEIGHT / 2 - 4,
-            color: standing?.late ? 'var(--gantt-today)' : 'var(--color-text-light)',
+            color: standing?.late ? 'var(--color-gantt-today)' : 'var(--color-text-light)',
             fontSize: 10,
             lineHeight: 1,
             fontWeight: 600,

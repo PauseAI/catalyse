@@ -48,7 +48,7 @@ export default function ConversationList() {
               {t.last.body}
             </P>
             {t.relatedProject && (
-              <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-accent text-secondary-dark dark:bg-gray-700 dark:text-gray-300">
+              <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-chip text-chip-text">
                 {t.relatedProject.title}
               </span>
             )}

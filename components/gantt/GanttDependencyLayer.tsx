@@ -184,7 +184,7 @@ export default function GanttDependencyLayer({
       >
         <defs>
           <marker id="gantt-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-            <path d="M0,0 L6,3 L0,6 Z" fill="var(--gantt-link)" />
+            <path d="M0,0 L6,3 L0,6 Z" fill="var(--color-gantt-link)" />
           </marker>
           <marker
             id="gantt-arrow-critical"
@@ -194,7 +194,7 @@ export default function GanttDependencyLayer({
             refY="3"
             orient="auto"
           >
-            <path d="M0,0 L6,3 L0,6 Z" fill="var(--gantt-critical)" />
+            <path d="M0,0 L6,3 L0,6 Z" fill="var(--color-gantt-critical)" />
           </marker>
           <marker
             id="gantt-arrow-active"
@@ -204,15 +204,15 @@ export default function GanttDependencyLayer({
             refY="3.5"
             orient="auto"
           >
-            <path d="M0,0 L7,3.5 L0,7 Z" fill="var(--gantt-link-active)" />
+            <path d="M0,0 L7,3.5 L0,7 Z" fill="var(--color-gantt-link-active)" />
           </marker>
         </defs>
         {ordered.map((p) => {
           const stroke = p.active
-            ? 'var(--gantt-link-active)'
+            ? 'var(--color-gantt-link-active)'
             : p.critical
-              ? 'var(--gantt-critical)'
-              : 'var(--gantt-link)'
+              ? 'var(--color-gantt-critical)'
+              : 'var(--color-gantt-link)'
           const marker = p.active
             ? 'gantt-arrow-active'
             : p.critical
@@ -254,8 +254,9 @@ export default function GanttDependencyLayer({
             // Above the row layer, which tiles the whole chart and would otherwise take the click.
             zIndex: 30,
             background: 'var(--color-surface)',
-            borderColor: hoveredKey === p.key ? 'var(--gantt-today)' : 'var(--gantt-link-active)',
-            color: 'var(--gantt-today)',
+            borderColor:
+              hoveredKey === p.key ? 'var(--color-gantt-today)' : 'var(--color-gantt-link-active)',
+            color: 'var(--color-gantt-today)',
             cursor: busy ? 'progress' : 'pointer',
           }}
         >
