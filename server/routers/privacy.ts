@@ -7,7 +7,7 @@ export const privacyRouter = {
   export: authedProcedure.handler(async ({ context }) => {
     const [own, records] = await Promise.all([
       exportProfile(context.volunteer.id),
-      linkedRecords(context.volunteer.id),
+      linkedRecords(context.volunteer),
     ])
     if (!own) throw new ORPCError('NOT_FOUND')
     return { exportedAt: new Date().toISOString(), ...own, records }

@@ -120,7 +120,7 @@ describe('data export classification', () => {
       })
     })
     expect(classificationProblems(dataModel)).toEqual([
-      'Notification.unsubscribeToken looks secret but is not in SECRET_FIELDS',
+      'Notification.unsubscribeToken looks secret but is in neither SECRET_FIELDS nor PLAIN_FIELDS',
     ])
   })
 
@@ -141,7 +141,7 @@ describe('data export classification', () => {
 describe('linkedRecords', () => {
   it('files each row under every exported link, and nothing under an omitted one', async () => {
     const me = await createVolunteer()
-    const records = await linkedRecords(me.id)
+    const records = await linkedRecords(me)
     const filed = Object.entries(records).flatMap(([model, links]) =>
       Object.keys(links).map((field) => `${model}.${field}`),
     )
@@ -156,7 +156,7 @@ describe('linkedRecords', () => {
         data: { volunteerId: v.id, tokenHash: `hash-${v.id}`, expiresAt: new Date() },
       })
     }
-    const { Session } = await linkedRecords(me.id)
+    const { Session } = await linkedRecords(me)
     expect(Session.volunteer).toEqual([expect.objectContaining({ volunteerId: me.id })])
     expect(Session.volunteer[0]).not.toHaveProperty('tokenHash')
   })
@@ -165,6 +165,26 @@ describe('linkedRecords', () => {
 type Person = Awaited<ReturnType<typeof createVolunteer>>
 
 type Row = Record<string, unknown>
+
+/** The outreach account with `who`'s address: one per address, shared by the links through it. */
+const participantFor = (who: Person) =>
+  prisma.experimentalOutreachParticipant.upsert({
+    where: { email: who.email! },
+    update: {},
+    create: { email: who.email! },
+  })
+
+const journalist = (data: { email?: string; claimedById?: number; contactedById?: number }) =>
+  prisma.experimentalJournalist.create({
+    data: {
+      firstName: 'J',
+      lastName: 'K',
+      email: `journalist${nextSeq()}@paper.test`,
+      organisation: 'Paper',
+      leaning: 'DEMOCRAT',
+      ...data,
+    },
+  })
 
 /** One row for each exported link that points at `who`, with `other` wherever a second person goes. */
 const rowFor: Record<string, (who: Person, other: Person) => Promise<Row>> = {
@@ -260,18 +280,28 @@ const rowFor: Record<string, (who: Person, other: Person) => Promise<Row>> = {
     prisma.emailVerificationToken.create({
       data: { volunteerId: who.id, token: `e${nextSeq()}`, expiresAt: new Date() },
     }),
-  'ExperimentalJournalist.email': (who) =>
-    prisma.experimentalJournalist.create({
+  'ExperimentalJournalist.email': (who) => journalist({ email: who.email! }),
+  'ExperimentalOutreachParticipant.email': (who) => participantFor(who),
+  'ExperimentalOutreachSession.participant': async (who) =>
+    prisma.experimentalOutreachSession.create({
       data: {
-        firstName: 'J',
-        lastName: 'K',
-        email: who.email!,
-        organisation: 'Paper',
-        leaning: 'DEMOCRAT',
+        participantId: (await participantFor(who)).id,
+        tokenHash: `o${nextSeq()}`,
+        expiresAt: new Date(),
       },
     }),
-  'ExperimentalOutreachParticipant.email': (who) =>
-    prisma.experimentalOutreachParticipant.create({ data: { email: who.email! } }),
+  'ExperimentalOutreachLoginToken.participant': async (who) =>
+    prisma.experimentalOutreachLoginToken.create({
+      data: {
+        participantId: (await participantFor(who)).id,
+        tokenHash: `l${nextSeq()}`,
+        expiresAt: new Date(),
+      },
+    }),
+  'ExperimentalJournalist.claimedBy': async (who) =>
+    journalist({ claimedById: (await participantFor(who)).id }),
+  'ExperimentalJournalist.contactedBy': async (who) =>
+    journalist({ contactedById: (await participantFor(who)).id }),
   'FinishByReminder.recipient': async (who) =>
     prisma.finishByReminder.create({
       data: {
@@ -378,7 +408,7 @@ describe('every exported link', () => {
       theirs[link] = key(await rowFor[link](other, me))
     }
 
-    const records = await linkedRecords(me.id)
+    const records = await linkedRecords(me)
 
     for (const link of EXPORTED_LINKS) {
       const [model, field] = link.split('.')
@@ -398,10 +428,52 @@ describe('every exported link', () => {
 
     const exported = JSON.stringify({
       ...(await exportProfile(me.id)),
-      records: await linkedRecords(me.id),
+      records: await linkedRecords(me),
     })
 
     expect(exported).toContain(`"fromVolunteerId":${me.id},"toVolunteerId":${other.id}`)
     expect(exported).not.toMatch(/Zelda|Otherperson|zelda@elsewhere/i)
+  })
+
+  it('matches nothing by an address the person has not confirmed', async () => {
+    const owner = await createVolunteer()
+    const emailLinks = userLinks(schemaDataModel())
+      .filter((l) => l.matchBy !== 'id' && EXPORTED_LINKS.includes(l.name))
+      .map((l) => l.name)
+    for (const link of emailLinks) await rowFor[link](owner, owner)
+
+    // Anyone can type an address in; until its link is clicked it proves nothing.
+    const claimant = { id: (await createVolunteer()).id, email: owner.email, emailConfirmed: false }
+    const records = await linkedRecords(claimant)
+
+    for (const link of emailLinks) {
+      const [model, field] = link.split('.')
+      expect.soft(records[model][field], link).toEqual([])
+    }
+  })
+})
+
+describe('schema access', () => {
+  it('fails loudly if the Prisma client stops exposing its data model', () => {
+    const client = prisma as unknown as { _runtimeDataModel: unknown }
+    const saved = client._runtimeDataModel
+    client._runtimeDataModel = undefined
+    try {
+      expect(() => schemaDataModel()).toThrow(/no longer exposes _runtimeDataModel/)
+    } finally {
+      client._runtimeDataModel = saved
+    }
+  })
+
+  it('fails loudly on a model the client has no delegate for', async () => {
+    const me = await createVolunteer()
+    const client = prisma as unknown as Record<string, unknown>
+    const saved = client.message
+    client.message = undefined
+    try {
+      await expect(linkedRecords(me)).rejects.toThrow('no delegate for Message')
+    } finally {
+      client.message = saved
+    }
   })
 })

@@ -596,8 +596,8 @@ describe('privacy.export', () => {
       email: me.email,
       discordHandle: 'me#1',
       hasPassword: true,
-      skills: [expect.objectContaining({ id: skill.id })],
     })
+    expect(out.profile).not.toHaveProperty('skills')
     expect(out.skills).toEqual([expect.objectContaining({ id: skill.id, proficiencyLevel: 'x' })])
     expect(out.records.WorkItem.creator).toEqual([expect.objectContaining({ id: p.id })])
     expect(out.records.WorkItemInterest.volunteer).toEqual([

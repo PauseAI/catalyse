@@ -2,28 +2,30 @@ import { createHash } from 'crypto'
 import type { RuntimeDataModel } from '@prisma/client/runtime/library'
 import { prisma } from '@/lib/prisma'
 import { isSuperAdmin } from '@/lib/auth'
+import type { Volunteer } from '@/generated/prisma/client'
 
 /**
- * The data-subject export (GDPR Articles 15 and 20), built from the Prisma schema: every relation
- * that points a row at a Volunteer, and every column holding an email address or its hash, is a
- * link, and every link must be classified below as exported or omitted. lib/data-export.test.ts fails on a link or a secret-looking column nobody has
- * classified, so a new model holding someone's data cannot be silently included or skipped.
+ * The data-subject export (GDPR Articles 15 and 20), built from the Prisma schema. Every way a row
+ * points at a person is a link, and classificationProblems fails until each is exported or omitted.
  */
 
 export type DataModel = Pick<RuntimeDataModel, 'models'>
 type Row = Record<string, unknown>
 
 const USER_MODEL = 'Volunteer'
+/** The outreach tool's own account: a volunteer holds the one with their confirmed address. */
+const PARTICIPANT_MODEL = 'ExperimentalOutreachParticipant'
 
 /**
  * One way a row of `model` points at a person, named `Model.field` after the relation field or
- * column: by their id, their email address, or the SHA-256 of their normalised address.
+ * column: by their id, their email address, the SHA-256 of their normalised address, or their
+ * outreach participant account.
  */
 export interface UserLink {
   name: string
   model: string
   foreignKey: string
-  matchBy: 'id' | 'email' | 'emailHash'
+  matchBy: 'id' | 'email' | 'emailHash' | 'participant'
 }
 
 /**
@@ -52,8 +54,12 @@ export const EXPORTED_LINKS: readonly string[] = [
   'DistinctAccountPair.volunteerA',
   'DistinctAccountPair.volunteerB',
   'EmailVerificationToken.volunteer',
+  'ExperimentalJournalist.claimedBy',
+  'ExperimentalJournalist.contactedBy',
   'ExperimentalJournalist.email',
+  'ExperimentalOutreachLoginToken.participant',
   'ExperimentalOutreachParticipant.email',
+  'ExperimentalOutreachSession.participant',
   'FinishByReminder.recipient',
   'LocalGroupSuggestion.suggestedBy',
   'Message.from',
@@ -113,11 +119,16 @@ export const SECRET_FIELDS: Readonly<Record<string, readonly string[]>> = {
   AnonymisedEmail: ['emailHash'],
   ApiToken: ['tokenHash'],
   EmailVerificationToken: ['token'],
+  ExperimentalOutreachLoginToken: ['tokenHash'],
+  ExperimentalOutreachSession: ['tokenHash'],
   PasswordResetToken: ['token'],
   RejectedApplication: ['emailHash'],
   Session: ['tokenHash'],
   Volunteer: ['authToken', 'authTokenExpiresAt', 'passwordHash'],
 }
+
+/** Columns whose names look secret but hold nothing that is: exported as they are. */
+export const PLAIN_FIELDS: Readonly<Record<string, readonly string[]>> = {}
 
 const SECRET_LOOKING = /token|hash|password|secret/i
 const PERSON_ID = /^(v|.+V)olunteerId$/
@@ -125,9 +136,9 @@ const EMAIL = /^(e|.+E)mail$/
 const EMAIL_HASH = /^(e|.+E)mailHash$/
 
 /**
- * Every link to a person in the schema: owning relation fields to Volunteer, a bare
- * `volunteerId`-style column with no relation, and an email or email-hash column outside the
- * account itself.
+ * Every link to a person in the schema: owning relation fields to Volunteer or to an outreach
+ * participant, a bare `volunteerId`-style column with no relation, and an email or email-hash
+ * column outside the account itself.
  */
 export function userLinks(dataModel: DataModel): UserLink[] {
   const links: UserLink[] = []
@@ -138,6 +149,12 @@ export function userLinks(dataModel: DataModel): UserLink[] {
     for (const f of fields) {
       if (f.kind === 'object' && f.type === USER_MODEL && f.relationFromFields?.length) {
         link(f.name, f.relationFromFields[0], 'id')
+      } else if (
+        f.kind === 'object' &&
+        f.type === PARTICIPANT_MODEL &&
+        f.relationFromFields?.length
+      ) {
+        link(f.name, f.relationFromFields[0], 'participant')
       } else if (f.kind !== 'scalar' || relationKeys.has(f.name)) {
         continue
       } else if (PERSON_ID.test(f.name)) {
@@ -173,17 +190,21 @@ export function classificationProblems(dataModel: DataModel): string[] {
   const exportedModels = new Set([USER_MODEL, ...EXPORTED_LINKS.map((l) => l.split('.')[0])])
   for (const model of exportedModels) {
     const columns = dataModel.models[model]?.fields.filter((f) => f.kind === 'scalar') ?? []
-    const secrets = SECRET_FIELDS[model] ?? []
+    const declared = [...(SECRET_FIELDS[model] ?? []), ...(PLAIN_FIELDS[model] ?? [])]
     for (const { name: field } of columns) {
-      if (SECRET_LOOKING.test(field) && !secrets.includes(field))
-        problems.push(`${model}.${field} looks secret but is not in SECRET_FIELDS`)
+      if (SECRET_LOOKING.test(field) && !declared.includes(field))
+        problems.push(
+          `${model}.${field} looks secret but is in neither SECRET_FIELDS nor PLAIN_FIELDS`,
+        )
     }
   }
-  for (const [model, secrets] of Object.entries(SECRET_FIELDS)) {
-    const fields = dataModel.models[model]?.fields.map((f) => f.name) ?? []
-    for (const field of secrets) {
-      if (!fields.includes(field))
-        problems.push(`SECRET_FIELDS names ${model}.${field}, which is not in the schema`)
+  for (const [list, byModel] of Object.entries({ SECRET_FIELDS, PLAIN_FIELDS })) {
+    for (const [model, named] of Object.entries(byModel)) {
+      const fields = dataModel.models[model]?.fields.map((f) => f.name) ?? []
+      for (const field of named) {
+        if (!fields.includes(field))
+          problems.push(`${list} names ${model}.${field}, which is not in the schema`)
+      }
     }
   }
   return problems
@@ -191,50 +212,66 @@ export function classificationProblems(dataModel: DataModel): string[] {
 
 /** The schema as the generated client holds it; the `prisma-client` generator exports no `Prisma.dmmf`. */
 export function schemaDataModel(): DataModel {
-  return (prisma as unknown as { _runtimeDataModel: DataModel })._runtimeDataModel
+  const dataModel = (prisma as unknown as { _runtimeDataModel?: DataModel })._runtimeDataModel
+  if (!dataModel?.models) {
+    throw new Error('The Prisma client no longer exposes _runtimeDataModel; see lib/data-export.ts')
+  }
+  return dataModel
 }
 
-/** A row with its secret columns removed, and any secret-looking column a schema change added. */
 function withoutSecrets(model: string, row: Row): Row {
   const secrets = SECRET_FIELDS[model] ?? []
-  return Object.fromEntries(
-    Object.entries(row).filter(([k]) => !secrets.includes(k) && !SECRET_LOOKING.test(k)),
-  )
+  return Object.fromEntries(Object.entries(row).filter(([k]) => !secrets.includes(k)))
 }
 
 type Delegate = { findMany(args: { where: Row }): Promise<Row[]> }
 
 function delegateFor(model: string): Delegate {
   const key = model[0].toLowerCase() + model.slice(1)
-  return (prisma as unknown as Record<string, Delegate>)[key]
+  const delegate = (prisma as unknown as Record<string, Delegate | undefined>)[key]
+  if (!delegate) throw new Error(`The Prisma client has no delegate for ${model}`)
+  return delegate
 }
+
+/** How many of one export's queries run at once, so an export never holds the whole pool. */
+const QUERIES_AT_ONCE = 4
+
+/** The person an export is for. Their address counts only once confirmed: anyone can type one in. */
+export type ExportSubject = Pick<Volunteer, 'id' | 'email' | 'emailConfirmed'>
 
 /**
  * Every exported link's rows for one person, as `{ Model: { link: rows } }`, so a row is filed
  * under how it points at them (`Message.from` is what they sent, `Message.to` what they received).
  */
 export async function linkedRecords(
-  volunteerId: number,
+  subject: ExportSubject,
   dataModel: DataModel = schemaDataModel(),
 ): Promise<Record<string, Record<string, Row[]>>> {
   const links = userLinks(dataModel).filter((l) => EXPORTED_LINKS.includes(l.name))
-  const account = await prisma.volunteer.findUnique({
-    where: { id: volunteerId },
-    select: { email: true },
-  })
-  const email = account?.email ?? null
+  const email = subject.emailConfirmed ? subject.email : null
+  const byAddress = email ? { equals: email.trim(), mode: 'insensitive' as const } : null
+  const participants = byAddress
+    ? await prisma.experimentalOutreachParticipant.findMany({
+        where: { email: byAddress },
+        select: { id: true },
+      })
+    : []
   const matching = (l: UserLink): Row | null => {
-    if (l.matchBy === 'id') return { [l.foreignKey]: volunteerId }
+    if (l.matchBy === 'id') return { [l.foreignKey]: subject.id }
     if (email === null) return null
     if (l.matchBy === 'emailHash') return { [l.foreignKey]: emailHash(email) }
-    return { [l.foreignKey]: { equals: email.trim(), mode: 'insensitive' } }
+    if (l.matchBy === 'participant')
+      return { [l.foreignKey]: { in: participants.map((p) => p.id) } }
+    return { [l.foreignKey]: byAddress }
   }
-  const rows = await Promise.all(
-    links.map((l) => {
+  const rows: Row[][] = []
+  for (let i = 0; i < links.length; i += QUERIES_AT_ONCE) {
+    const batch = links.slice(i, i + QUERIES_AT_ONCE).map((l) => {
       const where = matching(l)
       return where ? delegateFor(l.model).findMany({ where }) : Promise.resolve([])
-    }),
-  )
+    })
+    rows.push(...(await Promise.all(batch)))
+  }
   const records: Record<string, Record<string, Row[]>> = {}
   links.forEach((l, i) => {
     const field = l.name.slice(l.model.length + 1)
@@ -273,7 +310,6 @@ export async function exportProfile(volunteerId: number) {
       nationalChapter: chapter?.name ?? null,
       isSuperAdmin: isSuperAdmin(vol),
       hasPassword: Boolean(vol.passwordHash),
-      skills: skillsData,
     },
     skills: skillsData,
   }
