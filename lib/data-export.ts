@@ -1,11 +1,12 @@
+import { createHash } from 'crypto'
 import type { RuntimeDataModel } from '@prisma/client/runtime/library'
 import { prisma } from '@/lib/prisma'
 import { isSuperAdmin } from '@/lib/auth'
 
 /**
  * The data-subject export (GDPR Articles 15 and 20), built from the Prisma schema: every relation
- * that points a row at a Volunteer is a link, and every link must be classified below as exported
- * or omitted. lib/data-export.test.ts fails on a link or a secret-looking column nobody has
+ * that points a row at a Volunteer, and every column holding an email address or its hash, is a
+ * link, and every link must be classified below as exported or omitted. lib/data-export.test.ts fails on a link or a secret-looking column nobody has
  * classified, so a new model holding someone's data cannot be silently included or skipped.
  */
 
@@ -14,11 +15,15 @@ type Row = Record<string, unknown>
 
 const USER_MODEL = 'Volunteer'
 
-/** One way a row of `model` points at a person, named `Model.field` after the relation field. */
+/**
+ * One way a row of `model` points at a person, named `Model.field` after the relation field or
+ * column: by their id, their email address, or the SHA-256 of their normalised address.
+ */
 export interface UserLink {
   name: string
   model: string
   foreignKey: string
+  matchBy: 'id' | 'email' | 'emailHash'
 }
 
 /**
@@ -31,9 +36,12 @@ export const EXPORTED_LINKS: readonly string[] = [
   'AccountMergeRequest.requester',
   'AccountMergeRequest.other',
   'AdminInvite.acceptedBy',
+  'AdminInvite.email',
   'AdminNote.volunteer',
+  'AnonymisedEmail.emailHash',
   'ApiToken.volunteer',
   'BugReport.reporter',
+  'BugReport.reporterEmail',
   'BugReportComment.author',
   'ChapterAuditEvent.targetVolunteer',
   'ChapterDeputy.volunteer',
@@ -44,6 +52,8 @@ export const EXPORTED_LINKS: readonly string[] = [
   'DistinctAccountPair.volunteerA',
   'DistinctAccountPair.volunteerB',
   'EmailVerificationToken.volunteer',
+  'ExperimentalJournalist.email',
+  'ExperimentalOutreachParticipant.email',
   'FinishByReminder.recipient',
   'LocalGroupSuggestion.suggestedBy',
   'Message.from',
@@ -52,6 +62,7 @@ export const EXPORTED_LINKS: readonly string[] = [
   'Notification.volunteer',
   'PasswordResetToken.volunteer',
   'ProjectDeputy.volunteer',
+  'RejectedApplication.emailHash',
   'Session.volunteer',
   'SkillEndorsement.volunteer',
   'TeamJoinRequest.volunteer',
@@ -79,6 +90,7 @@ export const OMITTED_LINKS: Readonly<Record<string, string>> = {
   'ChapterAuditEvent.actor': STAFF_ACTION,
   'ChapterDeputy.appointedBy': STAFF_ACTION,
   'ChapterTransferRequest.decidedBy': STAFF_ACTION,
+  'DeletionRequest.volunteerEmail': 'the same rows as DeletionRequest.volunteerId',
   'DistinctAccountPair.dismissedBy': STAFF_ACTION,
   'LocalGroupSuggestion.reviewedBy': STAFF_ACTION,
   'ProjectDeputy.appointedBy': STAFF_ACTION,
@@ -94,34 +106,55 @@ export const OMITTED_LINKS: Readonly<Record<string, string>> = {
   'WorkItemInterest.invitedBy': 'invites to other people',
 }
 
-/** Columns never exported: credentials, and the tokens that stand in for them. */
+/** Columns never exported: credentials, the tokens that stand in for them, and hashes. */
 export const SECRET_FIELDS: Readonly<Record<string, readonly string[]>> = {
   AccountMergeRequest: ['token'],
   AdminInvite: ['inviteToken'],
+  AnonymisedEmail: ['emailHash'],
   ApiToken: ['tokenHash'],
   EmailVerificationToken: ['token'],
   PasswordResetToken: ['token'],
+  RejectedApplication: ['emailHash'],
   Session: ['tokenHash'],
   Volunteer: ['authToken', 'authTokenExpiresAt', 'passwordHash'],
 }
 
 const SECRET_LOOKING = /token|hash|password|secret/i
 const PERSON_ID = /^(v|.+V)olunteerId$/
+const EMAIL = /^(e|.+E)mail$/
+const EMAIL_HASH = /^(e|.+E)mailHash$/
 
-/** Every link to a person in the schema: owning relation fields to Volunteer, plus a bare `volunteerId`-style column with no relation. */
+/**
+ * Every link to a person in the schema: owning relation fields to Volunteer, a bare
+ * `volunteerId`-style column with no relation, and an email or email-hash column outside the
+ * account itself.
+ */
 export function userLinks(dataModel: DataModel): UserLink[] {
   const links: UserLink[] = []
   for (const [model, { fields }] of Object.entries(dataModel.models)) {
     const relationKeys = new Set(fields.flatMap((f) => f.relationFromFields ?? []))
+    const link = (field: string, foreignKey: string, matchBy: UserLink['matchBy']) =>
+      links.push({ name: `${model}.${field}`, model, foreignKey, matchBy })
     for (const f of fields) {
       if (f.kind === 'object' && f.type === USER_MODEL && f.relationFromFields?.length) {
-        links.push({ name: `${model}.${f.name}`, model, foreignKey: f.relationFromFields[0] })
-      } else if (f.kind === 'scalar' && PERSON_ID.test(f.name) && !relationKeys.has(f.name)) {
-        links.push({ name: `${model}.${f.name}`, model, foreignKey: f.name })
+        link(f.name, f.relationFromFields[0], 'id')
+      } else if (f.kind !== 'scalar' || relationKeys.has(f.name)) {
+        continue
+      } else if (PERSON_ID.test(f.name)) {
+        link(f.name, f.name, 'id')
+      } else if (model !== USER_MODEL && EMAIL.test(f.name)) {
+        link(f.name, f.name, 'email')
+      } else if (model !== USER_MODEL && EMAIL_HASH.test(f.name)) {
+        link(f.name, f.name, 'emailHash')
       }
     }
   }
   return links
+}
+
+/** How the app stores an address it may no longer hold: rejected applications, anonymised accounts. */
+export function emailHash(email: string): string {
+  return createHash('sha256').update(email.toLowerCase().trim()).digest('hex')
 }
 
 /** What stops the export being trusted: unclassified or stale links, and undeclared secrets. */
@@ -185,8 +218,22 @@ export async function linkedRecords(
   dataModel: DataModel = schemaDataModel(),
 ): Promise<Record<string, Record<string, Row[]>>> {
   const links = userLinks(dataModel).filter((l) => EXPORTED_LINKS.includes(l.name))
+  const account = await prisma.volunteer.findUnique({
+    where: { id: volunteerId },
+    select: { email: true },
+  })
+  const email = account?.email ?? null
+  const matching = (l: UserLink): Row | null => {
+    if (l.matchBy === 'id') return { [l.foreignKey]: volunteerId }
+    if (email === null) return null
+    if (l.matchBy === 'emailHash') return { [l.foreignKey]: emailHash(email) }
+    return { [l.foreignKey]: { equals: email.trim(), mode: 'insensitive' } }
+  }
   const rows = await Promise.all(
-    links.map((l) => delegateFor(l.model).findMany({ where: { [l.foreignKey]: volunteerId } })),
+    links.map((l) => {
+      const where = matching(l)
+      return where ? delegateFor(l.model).findMany({ where }) : Promise.resolve([])
+    }),
   )
   const records: Record<string, Record<string, Row[]>> = {}
   links.forEach((l, i) => {
