@@ -11,6 +11,7 @@ import MaintenanceGate from '@/components/MaintenanceGate'
 import Footer from '@/components/Footer'
 import Analytics from '@/components/Analytics'
 import ServiceWorker from '@/components/ServiceWorker'
+import UpdatePrompt from '@/components/UpdatePrompt'
 import RequiredActions from '@/components/required-actions/RequiredActions'
 import Script from 'next/script'
 import { THEME_COLOR } from '@/lib/theme-color'
@@ -86,6 +87,7 @@ export default function RootLayout({
                     <Footer />
                     <FloatingActions />
                     <Analytics />
+                    <UpdatePrompt />
                   </MaintenanceGate>
                 </RequiredActionsProvider>
               </ToastProvider>
