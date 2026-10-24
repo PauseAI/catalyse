@@ -145,7 +145,7 @@ export const contactsRouter = {
           readAt: now,
         },
       })
-      notifyUser(
+      await notifyUser(
         request.fromVolunteerId,
         'contact_request_accepted',
         `Accepted: ${me.name} connected with you`,

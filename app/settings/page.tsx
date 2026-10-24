@@ -849,8 +849,8 @@ function SettingsPageContent() {
           <div className={`${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`}>
             <H2 className="mt-0">Your data</H2>
             <P className="text-text-light mb-4">
-              Download all your data in JSON format. This includes your profile, skills, project
-              interests, and messages.
+              Download all your data in JSON format. This includes your profile, skills, projects
+              and tasks, messages, comments, and notes admins have written about you.
             </P>
             <Button
               variant="secondary"

@@ -13,6 +13,8 @@ import {
   createLocalGroup,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
+import { createSession } from '@/lib/auth'
+import { createApiToken } from '@/lib/api-tokens'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -590,19 +592,63 @@ describe('privacy.export', () => {
       ],
     })
     const out = await clientAs(me).privacy.export()
-    expect(out.profile).toMatchObject({ email: me.email, discordHandle: 'me#1' })
+    expect(out.profile).toMatchObject({
+      email: me.email,
+      discordHandle: 'me#1',
+      hasPassword: true,
+    })
+    expect(out.profile).not.toHaveProperty('skills')
     expect(out.skills).toEqual([expect.objectContaining({ id: skill.id, proficiencyLevel: 'x' })])
-    expect(out.projects).toEqual([expect.objectContaining({ id: p.id, proposedById: me.id })])
-    expect(out.interests).toEqual([
-      expect.objectContaining({ projectId: p.id, interestType: 'want_to_own' }),
+    expect(out.records.WorkItem.creator).toEqual([expect.objectContaining({ id: p.id })])
+    expect(out.records.WorkItemInterest.volunteer).toEqual([
+      expect.objectContaining({ workItemId: p.id, interestType: 'want_to_own' }),
     ])
-    expect(out.messagesSent).toEqual([
-      expect.objectContaining({ subject: 'out', relatedProjectId: p.id }),
+    expect(out.records.Message.from).toEqual([
+      expect.objectContaining({ subject: 'out', relatedWorkItemId: p.id }),
     ])
-    expect(out.messagesReceived).toEqual([
+    expect(out.records.Message.to).toEqual([
       expect.objectContaining({ subject: 'in', fromVolunteerId: other.id }),
     ])
     expect(typeof out.exportedAt).toBe('string')
+  })
+
+  it('includes what admins hold about the volunteer, and leaves out their secrets', async () => {
+    const group = await createLocalGroup()
+    const me = await createVolunteer({
+      applicationAdminNotes: 'seemed keen',
+      localGroupId: group.id,
+      authToken: 'legacy-token',
+    })
+    const admin = await createAdmin()
+    const someoneElse = await createVolunteer()
+    await prisma.adminNote.createMany({
+      data: [
+        { volunteerId: me.id, authorId: admin.id, content: 'about me' },
+        { volunteerId: someoneElse.id, authorId: me.id, content: 'by me, about someone else' },
+      ],
+    })
+    await createSession(me.id)
+    await createApiToken(me.id, { name: 'script', scopes: ['bug_reports:read'], expiresAt: null })
+    await prisma.deletionRequest.create({ data: { volunteerId: me.id } })
+
+    const out = await clientAs(me).privacy.export()
+
+    expect(out.profile).toMatchObject({
+      applicationAdminNotes: 'seemed keen',
+      localGroup: group.name,
+    })
+    for (const secret of ['passwordHash', 'authToken', 'authTokenExpiresAt'])
+      expect(out.profile).not.toHaveProperty(secret)
+    expect(out.records.AdminNote.volunteer).toEqual([
+      expect.objectContaining({ content: 'about me', authorId: admin.id }),
+    ])
+    expect(out.records.AdminNote).not.toHaveProperty('author')
+    expect(out.records.Session.volunteer).toHaveLength(1)
+    expect(out.records.ApiToken.volunteer).toEqual([expect.objectContaining({ name: 'script' })])
+    expect(JSON.stringify(out)).not.toMatch(/tokenHash|passwordHash|legacy-token/)
+    expect(out.records.DeletionRequest.volunteerId).toEqual([
+      expect.objectContaining({ volunteerId: me.id }),
+    ])
   })
 
   it('is NOT_FOUND if the volunteer row has vanished', async () => {

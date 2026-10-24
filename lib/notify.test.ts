@@ -93,6 +93,18 @@ describe('notifyUser email preferences', () => {
     await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.any(Error), '[NOTIFY ERROR]'))
     await vi.waitFor(() => expect(emails.lastTo(vol.email!)).toMatchObject({ subject: 'Again' }))
   })
+
+  it('resolves even when looking up who to email fails, and sends nothing', async () => {
+    const vol = await createVolunteer()
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger as never)
+    vi.spyOn(prisma.volunteer, 'findFirst').mockRejectedValueOnce(new Error('db') as never)
+    await notifyUser(vol.id, 'project_approved', 'Lookup fails', null, null, payload)
+    expect(error).toHaveBeenCalledWith(expect.any(Error), '[EMAIL ERROR]')
+    expect(await prisma.notification.findFirst({ where: { volunteerId: vol.id } })).toMatchObject({
+      title: 'Lookup fails',
+    })
+    expect(emails.to(vol.email!)).toEqual([])
+  })
 })
 
 describe('notifyUser', () => {

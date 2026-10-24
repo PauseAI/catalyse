@@ -2279,7 +2279,7 @@ export const projectsRouter = {
       const tell = interest.invitedById ?? interest.workItem.assigneeId
       if (tell !== null) {
         const title = interest.workItem.title
-        notifyUser(
+        await notifyUser(
           tell,
           input.accept ? 'invite_accepted' : 'invite_declined',
           input.accept
@@ -3201,7 +3201,7 @@ export const projectsRouter = {
       if (accepted) {
         await tellHelpers(task, volunteer.id, 'task_done', `Done: '${task.title}'`, null)
         if (reviewerId !== null && reviewerId !== volunteer.id) {
-          notifyUser(
+          await notifyUser(
             reviewerId,
             'task_done',
             `Done: '${task.title}'`,
@@ -3262,7 +3262,7 @@ export const projectsRouter = {
       await askOwnerToComplete(input.projectId)
       await tellHelpers(task, volunteer.id, 'task_done', `Done: '${task.title}'`, null)
       if (task.assigneeId !== null) {
-        notifyUser(
+        await notifyUser(
           task.assigneeId,
           'task_accepted',
           `Accepted: '${task.title}'`,
@@ -3298,7 +3298,7 @@ export const projectsRouter = {
       )
       await clearNotifications('task_submitted', task.id)
       if (task.assigneeId !== null) {
-        notifyUser(
+        await notifyUser(
           task.assigneeId,
           'task_changes_requested',
           isDeputy

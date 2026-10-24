@@ -1,5 +1,5 @@
 import { ORPCError } from '@orpc/server'
-import { randomBytes, createHash } from 'crypto'
+import { randomBytes } from 'crypto'
 import { z } from 'zod'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
@@ -16,6 +16,7 @@ import {
   isEntitledToAdmin,
   revokeCredentials,
   redactVolunteer,
+  hashEmail,
 } from '@/lib/auth'
 import {
   html,
@@ -282,7 +283,7 @@ export const authRouter = {
       })
     }
 
-    const emailHash = createHash('sha256').update(email).digest('hex')
+    const emailHash = hashEmail(email)
     const anonymisedEmail = await prisma.anonymisedEmail.findUnique({
       where: { emailHash },
       select: { reapplyAllowedAt: true },

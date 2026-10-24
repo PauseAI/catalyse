@@ -150,10 +150,11 @@ test.describe('GDPR & Privacy', () => {
     const data = JSON.parse(readFileSync(filePath!, 'utf8'))
     expect(data).toHaveProperty('profile')
     expect(data.skills.length).toBeGreaterThan(0)
-    expect(data.projects.length).toBeGreaterThan(0)
-    expect(data.interests.length).toBeGreaterThan(0)
-    expect(data.messagesSent.length).toBeGreaterThan(0)
-    expect(data.messagesReceived.length).toBeGreaterThan(0)
+    expect(data.records.WorkItem.assignee.length).toBeGreaterThan(0)
+    expect(data.records.WorkItemInterest.volunteer.length).toBeGreaterThan(0)
+    expect(data.records.Message.from.length).toBeGreaterThan(0)
+    expect(data.records.Message.to.length).toBeGreaterThan(0)
+    expect(data.profile).not.toHaveProperty('passwordHash')
   })
 
   test('Contact handles stay hidden from a stranger until they accept a contact request', async ({

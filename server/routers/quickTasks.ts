@@ -343,7 +343,7 @@ export const quickTasksRouter = {
         { actorId: admin.id },
       )
 
-      notifyUser(
+      await notifyUser(
         input.volunteerId,
         'quick_task_assigned',
         `Assigned: Quick Task '${task.title}'`,
@@ -467,7 +467,7 @@ export const quickTasksRouter = {
       )
       await clearNotifications('quick_task_submitted', input.id)
       if (task.assigneeId) {
-        notifyUser(
+        await notifyUser(
           task.assigneeId,
           'task_changes_requested',
           `Changes requested: '${task.title}'`,
@@ -550,7 +550,7 @@ export const quickTasksRouter = {
           })
         }
 
-        notifyUser(
+        await notifyUser(
           task.assigneeId,
           'quick_task_reviewed',
           `Reviewed: your Quick Task '${task.title}'`,
