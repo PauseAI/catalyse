@@ -118,7 +118,7 @@ export const bugReportsRouter = {
                 ctaUrl: '/admin/bugs',
               },
               report.id,
-            ).catch((e) => logger.error(e, '[NOTIFY ERROR]'))
+            )
           : createNotification(
               admin.id,
               'new_bug_report',

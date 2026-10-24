@@ -70,7 +70,8 @@ export async function notifyUser(
   entityId?: number | null,
 ): Promise<void> {
   // The row is awaited so a caller can rely on it being there when this
-  // resolves; only the email is left to run on its own.
+  // resolves; only the email is left to run on its own. Nothing here throws:
+  // the caller's change has already been saved.
   const notification = await createNotification(
     volunteerId,
     type,
@@ -84,10 +85,15 @@ export async function notifyUser(
   })
   if (!email) return
 
-  const vol = await prisma.volunteer.findFirst({
-    where: { id: volunteerId, deletedAt: null },
-    select: { name: true, email: true, emailMutedCategories: true },
-  })
+  const vol = await prisma.volunteer
+    .findFirst({
+      where: { id: volunteerId, deletedAt: null },
+      select: { name: true, email: true, emailMutedCategories: true },
+    })
+    .catch((e) => {
+      logger.error(e, '[EMAIL ERROR]')
+      return null
+    })
   if (!vol?.email) return
   if (vol.emailMutedCategories.includes(categoryOf(type))) return
 
