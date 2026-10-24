@@ -182,8 +182,10 @@ export const adminLocalGroupsRouter = {
         finalName = name
         const chapter = await chapterForCountry(context.access, country)
         await assertNameFree(chapter.id, name)
+        // Accepting a group approves its country, so a disabled one is enabled.
         const [createdGroup] = await prisma.$transaction([
           prisma.localGroup.create({ data: { name, country, nationalChapterId: chapter.id } }),
+          prisma.country.update({ where: { code: country }, data: { enabled: true } }),
           prisma.localGroupSuggestion.update({
             where: { id: input.id },
             data: {

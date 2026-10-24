@@ -82,6 +82,13 @@ describe('settings — profile tab', () => {
     await screen.findByText('Unauthorized')
   })
 
+  it('still names a country that has since been disabled', async () => {
+    await prisma.country.create({ data: { code: 'XK', name: 'Kosovo', enabled: false } })
+    const vol = await createVolunteer({ country: 'XK' })
+    await renderApp(<SettingsPage />, { as: vol, url: '/settings' })
+    expect(await screen.findByText('Kosovo · Holding pool')).toBeInTheDocument()
+  })
+
   it('lets a needs-info applicant update and resubmit their application', async () => {
     const vol = await createVolunteer({
       approvalStatus: 'needs_info',

@@ -2,6 +2,7 @@ import type { Volunteer } from '@/generated/prisma/client'
 import { ApprovalStatus } from '@/generated/prisma/enums'
 import type { MergeConflict } from './account-merge-fields'
 import { countryName } from './countries'
+import { listCountries } from './countries-server'
 import { maskEmail } from './mask-email'
 import { prisma } from './prisma'
 
@@ -135,8 +136,9 @@ const chooseChapter: Kind = {
     volunteer.nationalChapterId === null && volunteer.approvalStatus === ApprovalStatus.approved
       ? [{ kind: 'choose_chapter', id: 'choose_chapter' }]
       : [],
-  outstanding: async () =>
-    (
+  outstanding: async () => {
+    const countries = await listCountries()
+    return (
       await prisma.volunteer.findMany({
         where: {
           deletedAt: null,
@@ -148,8 +150,9 @@ const chooseChapter: Kind = {
       })
     ).map(({ country, ...volunteer }) => ({
       volunteer,
-      detail: country ? countryName(country) : 'No country given',
-    })),
+      detail: country ? countryName(countries, country) : 'No country given',
+    }))
+  },
 }
 
 /** Every kind, the most pressing first. */

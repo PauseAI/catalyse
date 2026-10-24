@@ -39,6 +39,7 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
   },
   contact_messages: { subject: 'redact', message: 'redact' },
   contact_requests: { message: 'redact' },
+  countries: { code: 'keep', name: 'keep' },
   cron_job_runs: { job_name: 'keep', triggered_by: 'keep', status: 'keep', summary: 'null' },
   deletion_requests: { volunteer_email: 'null', status: 'keep' },
   finish_by_reminders: { stage: 'keep' },

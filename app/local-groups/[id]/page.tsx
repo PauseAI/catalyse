@@ -8,7 +8,7 @@ import { useRequireApproved } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import Button from '@/components/Button'
-import { countryLabel } from '@/lib/filter-options'
+import { useCountries } from '@/lib/hooks/countries'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import PageLoading from '@/components/PageLoading'
 import { H1 } from '@/components/Heading'
@@ -18,6 +18,7 @@ export default function LocalGroupAdoptPage({ params }: { params: Promise<{ id: 
   const { id: idStr } = use(params)
   const id = parseInt(idStr, 10)
   const { user, loading } = useRequireApproved()
+  const { label: countryLabel, loaded: countriesLoaded } = useCountries()
   const router = useRouter()
   const showToast = useToast()
 
@@ -39,7 +40,7 @@ export default function LocalGroupAdoptPage({ params }: { params: Promise<{ id: 
 
   if (loading || !user) return <PageLoading />
 
-  if (isLoading) {
+  if (isLoading || !countriesLoaded) {
     return (
       <main className="container py-5">
         <div className="text-center py-10 text-text-light">Loading…</div>

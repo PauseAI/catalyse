@@ -10,6 +10,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import FilterDropdown from '@/components/FilterDropdown'
 import { volunteerLocation, type LocalGroupOption } from '@/lib/filter-options'
+import { useCountries } from '@/lib/hooks/countries'
 import ChapterFilter, { chapterSelection } from '@/components/ChapterFilter'
 import { InferRouterOutputs } from '@orpc/server'
 import { orpc } from '@/lib/orpc'
@@ -38,6 +39,7 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
   const [locationFilter, setLocationFilter] = useUrlParam('group')
   const [chapterParam, setChapterParam] = useUrlParam('chapter')
   const isGlobal = user.access.globalAdmin
+  const { label: countryLabel, loaded: countriesLoaded } = useCountries()
   const [pageParam, setPageParam] = useUrlParam('page')
   const page = Math.max(1, parseInt(pageParam, 10) || 1)
   const router = useRouter()
@@ -170,7 +172,7 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
 
         <div id="volunteersList">
           {/* [test hook] loading class polled by tests to detect when fetch completes */}
-          {loadingVolunteers ? (
+          {loadingVolunteers || !countriesLoaded ? (
             <Skeleton label="Loading volunteers…" className="loading" />
           ) : volunteers.length === 0 ? (
             <EmptyState
@@ -224,10 +226,10 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
                       </Link>
                     </P>
                   )}
-                  {(volunteerLocation(v) || v.availabilityHoursPerWeek) && (
+                  {(volunteerLocation(v, countryLabel) || v.availabilityHoursPerWeek) && (
                     <div className="flex items-center gap-3 flex-wrap text-xs text-text-light mb-2">
-                      {volunteerLocation(v) && (
-                        <span title="Location">📍 {volunteerLocation(v)}</span>
+                      {volunteerLocation(v, countryLabel) && (
+                        <span title="Location">📍 {volunteerLocation(v, countryLabel)}</span>
                       )}
                       {v.availabilityHoursPerWeek && (
                         <span>🕐 {v.availabilityHoursPerWeek}h/week</span>

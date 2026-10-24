@@ -18,13 +18,12 @@ import { useAuth } from '@/lib/auth-context'
 import { orpc } from '@/lib/orpc'
 import { BLEED, SECTION_CARD } from '@/lib/ui-classes'
 import {
-  COUNTRY_OPTIONS,
-  countryLabel,
   NO_LOCAL_GROUP,
   buildLocalGroupOptionsForCountry,
   type LocalGroupOption,
 } from '@/lib/filter-options'
 import { OTHER_COUNTRY } from '@/lib/countries'
+import { useCountries } from '@/lib/hooks/countries'
 
 interface SelectedSkill {
   skillId: number
@@ -154,6 +153,7 @@ export default function SignupPage() {
 
   const { data: localGroupsData } = useQuery(orpc.localGroups.list.queryOptions({ input: {} }))
   const { data: chapters } = useQuery(orpc.chapters.list.queryOptions())
+  const { label: countryLabel, options: countryOptions } = useCountries()
   const allLocalGroups: LocalGroupOption[] = localGroupsData?.groups ?? []
 
   // Restore a pending Google identity and the answers so far (both survive a refresh). The
@@ -649,7 +649,7 @@ export default function SignupPage() {
             label="Country"
             ariaLabel="Select country"
             value={countryValue}
-            options={COUNTRY_OPTIONS}
+            options={countryOptions()}
             onChange={handleCountryChange}
             searchable
             required

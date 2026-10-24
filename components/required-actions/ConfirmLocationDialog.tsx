@@ -9,12 +9,12 @@ import FormLabel from '@/components/FormLabel'
 import { P } from '@/components/Text'
 import Input from '@/components/ui/Input'
 import {
-  COUNTRY_OPTIONS,
   NO_LOCAL_GROUP,
   buildLocalGroupOptionsForCountry,
   type LocalGroupOption,
 } from '@/lib/filter-options'
 import { useAuth } from '@/lib/auth-context'
+import { useCountries } from '@/lib/hooks/countries'
 import { useRequiredActions } from '@/lib/required-actions-context'
 import { orpc } from '@/lib/orpc'
 import type { RequiredActionDialogProps } from './registry'
@@ -24,6 +24,7 @@ export default function ConfirmLocationDialog({
 }: RequiredActionDialogProps<'confirm_location'>) {
   const { user, refreshUser } = useAuth()
   const { refresh } = useRequiredActions()
+  const { label: countryLabel, options: countryOptions } = useCountries()
   const [location, setLocation] = useState(user?.location ?? '')
   const [countryValue, setCountryValue] = useState(user?.country ?? '')
   const [localGroupValue, setLocalGroupValue] = useState(user?.localGroup ?? '')
@@ -75,7 +76,7 @@ export default function ConfirmLocationDialog({
             label="Country"
             ariaLabel="Select country"
             value={countryValue}
-            options={COUNTRY_OPTIONS}
+            options={countryOptions()}
             onChange={handleCountryChange}
             searchable
           />
@@ -85,7 +86,9 @@ export default function ConfirmLocationDialog({
         <div className="mb-4">
           <FilterDropdown
             id="confirm-location-group"
-            label={hasValidCountry ? `Local group (${effectiveCountry})` : 'Local group'}
+            label={
+              hasValidCountry ? `Local group (${countryLabel(effectiveCountry)})` : 'Local group'
+            }
             ariaLabel="Select local group"
             value={localGroupValue}
             options={localGroupOptions}

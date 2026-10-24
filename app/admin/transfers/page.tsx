@@ -10,7 +10,7 @@ import { useUrlParam } from '@/lib/hooks/url-filters'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
-import { countryLabel } from '@/lib/filter-options'
+import { useCountries } from '@/lib/hooks/countries'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import { H1 } from '@/components/Heading'
 import { P } from '@/components/Text'
@@ -18,6 +18,7 @@ import { P } from '@/components/Text'
 /** Members asking to move into the viewer's chapter, or for a global admin, any chapter. */
 function AdminTransfersPageContent() {
   const { user, loading } = useRequireStaff()
+  const { label: countryLabel, loaded: countriesLoaded } = useCountries()
   const showToast = useToast()
   const queryClient = useQueryClient()
   const [chapterParam, setChapterParam] = useUrlParam('chapter')
@@ -53,7 +54,7 @@ function AdminTransfersPageContent() {
           <ChapterFilter value={chapterParam} onChange={setChapterParam} />
         </div>
       )}
-      {isLoading ? (
+      {isLoading || !countriesLoaded ? (
         <P className="text-text-light">Loading…</P>
       ) : requests.length === 0 ? (
         <P className="text-text-light">Nobody is waiting to move.</P>
