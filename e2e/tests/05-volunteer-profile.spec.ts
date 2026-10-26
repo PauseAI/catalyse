@@ -295,6 +295,7 @@ test.describe('Volunteer Profile', () => {
     snap,
   }) => {
     const adminApi = createApiClient(baseUrl, readAdminToken(baseUrl))
+    await volunteer.page.goto(`${baseUrl}/dashboard`)
     const volunteerId = await getVolunteerId(volunteer.page, baseUrl)
     const token = await volunteer.page.evaluate(() => localStorage.getItem('authToken'))
 
