@@ -5,30 +5,9 @@ import {
   dismissCookieConsentScript,
   readAdminToken,
 } from '../fixtures'
-import { adminCreateProjectViaApi, askToJoinViaApi } from '../actions/projects'
+import { acceptIntoProject, adminCreateProjectViaApi, askToJoinViaApi } from '../actions/projects'
 import { createApiClient } from '../client'
 import { fake } from '../fake'
-
-type Interest = { id: number; volunteerName: string; status: string }
-
-async function acceptIntoProject(
-  adminApi: ReturnType<typeof createApiClient>,
-  projectId: number,
-  volunteerName: string,
-): Promise<void> {
-  const project = await adminApi.projects.getById({ body: { id: projectId } })
-  const interest = (project.body as { interests: Interest[] }).interests.find(
-    (i) => i.volunteerName === volunteerName && i.status === 'pending',
-  )
-  if (!interest) throw new Error(`No pending interest from ${volunteerName}`)
-  expect(
-    (
-      await adminApi.projects.respondToInterest({
-        body: { projectId, interestId: interest.id, status: 'accepted' },
-      })
-    ).status,
-  ).toBe(200)
-}
 
 test.describe('Task helpers', () => {
   test('a member joins as a helper, a full slot blocks another, and removing one frees it for someone else', async ({

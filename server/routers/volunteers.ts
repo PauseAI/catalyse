@@ -6,6 +6,7 @@ import { groupIn, placement } from '@/lib/chapter-placement'
 import { redactVolunteer } from '@/lib/auth'
 import { UpdateVolunteerSchema } from '@/lib/schemas'
 import { projectScopeWhere } from '@/lib/work-item'
+import { historySelect, historyWhere, projectHistory } from '@/lib/volunteer-history'
 import { contactRelations } from '@/lib/contact'
 import { canAdminChapter } from '@/lib/chapter-access'
 import { peopleInfo, viewableVolunteers } from '@/lib/people'
@@ -224,8 +225,7 @@ export const volunteersRouter = {
       const [projects, completedTasks] = await Promise.all([
         prisma.workItem.findMany({
           where: {
-            type: WorkItemType.PROJECT,
-            OR: [{ assigneeId: input.id }, { creatorId: input.id }],
+            ...historyWhere(input.id),
             AND: [projectScopeWhere(currentVolunteer)],
             status: {
               notIn: [
@@ -235,17 +235,7 @@ export const volunteersRouter = {
               ],
             },
           },
-          orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            status: true,
-            assigneeId: true,
-            creatorId: true,
-            createdAt: true,
-            updatedAt: true,
-          },
+          select: historySelect(input.id),
         }),
         prisma.workItem.findMany({
           where: {
@@ -283,17 +273,7 @@ export const volunteersRouter = {
           Boolean(vol.consentMakeProfileVisibleInDirectory),
         activeRecently: isActiveRecently(vol.lastActiveAt),
         chapter: vol.chapter,
-        projects: projects.map((p) => ({
-          id: p.id,
-          title: p.title,
-          description: p.description,
-          status: p.status,
-          ownerId: p.assigneeId,
-          proposedById: p.creatorId,
-          createdAt: p.createdAt,
-          updatedAt: p.updatedAt,
-          role: p.assigneeId === input.id ? 'owner' : 'proposer',
-        })),
+        projects: projectHistory(projects, input.id),
         completedTasks: completedTasks.map((t) => ({
           title: t.title,
           reviewRating: t.reviewRating,

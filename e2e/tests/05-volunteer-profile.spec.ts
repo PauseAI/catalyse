@@ -1,9 +1,10 @@
-import { test, expect, getAlert, dismissCookieConsentScript } from '../fixtures'
+import { test, expect, getAlert, dismissCookieConsentScript, readAdminToken } from '../fixtures'
 import { Page } from '@playwright/test'
 import { fake } from '../fake'
 import { selectFilterDropdown } from '../actions/ui'
 import { adminAddGroup, navigateToAdminLocalGroups } from '../actions/local-groups'
 import { createApiClient } from '../client'
+import { acceptIntoProject, adminCreateProjectViaApi, askToJoinViaApi } from '../actions/projects'
 
 async function getVolunteerId(page: Page, baseUrl: string): Promise<number> {
   const token = await page.evaluate(() => localStorage.getItem('authToken'))
@@ -285,5 +286,42 @@ test.describe('Volunteer Profile', () => {
     await expect(
       volunteer.page.getByRole('button', { name: 'Moving to another country?' }),
     ).toBeVisible()
+  })
+
+  test("A lead sees a volunteer's projects and tasks, with their role on each", async ({
+    volunteer,
+    adminPage,
+    baseUrl,
+    snap,
+  }) => {
+    const adminApi = createApiClient(baseUrl, readAdminToken(baseUrl))
+    const volunteerId = await getVolunteerId(volunteer.page, baseUrl)
+    const token = await volunteer.page.evaluate(() => localStorage.getItem('authToken'))
+
+    const ledTitle = fake.projectTitle()
+    const ledId = await adminCreateProjectViaApi(baseUrl, ledTitle, 'Profile history: led')
+    await adminApi.projects.assign({
+      body: { projectId: ledId, volunteerId, interestType: 'want_to_own' },
+    })
+    const joinedTitle = fake.projectTitle()
+    const joinedId = await adminCreateProjectViaApi(baseUrl, joinedTitle, 'Profile history: joined')
+    const taskId = await askToJoinViaApi(baseUrl, token, joinedId)
+    await acceptIntoProject(adminApi, joinedId, volunteer.name)
+
+    await adminPage.goto(`${baseUrl}/volunteers/${volunteerId}`)
+    const current = adminPage.getByRole('list', { name: 'Current projects' })
+    await expect(current.getByRole('link', { name: ledTitle })).toBeVisible({ timeout: 10_000 })
+    await expect(current.getByText(/^Owner from /)).toBeVisible()
+    await expect(current.getByText(/^Member from /)).toBeVisible()
+    const tasks = current.getByRole('list', { name: `Tasks on ${joinedTitle}` })
+    await expect(tasks.getByRole('link')).toHaveAttribute(
+      'href',
+      `/projects/${joinedId}/tasks/${taskId}`,
+    )
+    await expect(tasks.getByText(/^Assignee from /)).toBeVisible()
+    await snap(adminPage, 'project history')
+
+    await tasks.getByRole('link').click()
+    await adminPage.waitForURL(`${baseUrl}/projects/${joinedId}/tasks/${taskId}`)
   })
 })
