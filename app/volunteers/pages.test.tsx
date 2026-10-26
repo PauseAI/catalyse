@@ -281,7 +281,7 @@ describe('volunteer profile', () => {
     })
     await screen.findByRole('heading', { name: 'Old Account' })
     expect(screen.getByText(/Duplicate account of/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Kept Account' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Kept Account' })).toHaveAttribute(
       'href',
       `/volunteers/${kept.id}`,
     )

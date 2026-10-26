@@ -12,7 +12,7 @@ import {
 } from '@/test/factories'
 import { emails } from '@/test/fakes/email'
 import { navigation } from '@/test/next-navigation'
-import { renderApp } from '@/test/render'
+import { fullText, renderApp } from '@/test/render'
 import AdminChaptersPage from './page'
 import AdminChapterPage from './[id]/page'
 
@@ -36,7 +36,10 @@ describe('national chapters list', () => {
       'href',
       `/admin/chapters/${existing.id}`,
     )
-    expect(screen.getByText(/Led by Lea Lead · 0 deputies · 1 member$/)).toBeInTheDocument()
+    // The lead's badge joins the line once their role is looked up.
+    expect(
+      await screen.findByText(fullText(/^Led by Lea LeadLead · 0 deputies · 1 member$/)),
+    ).toBeInTheDocument()
     expect(await screen.findByText('Other', { exact: false })).toBeInTheDocument()
 
     await pick('Country', 'Kenya')

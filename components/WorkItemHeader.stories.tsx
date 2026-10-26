@@ -35,7 +35,7 @@ export const TaskDetailHeader: Story = {
             </Button>
           }
         >
-          <PersonChip name="Sam Okafor" href="/volunteers/1" />
+          <PersonChip name="Sam Okafor" id={1} />
         </WorkItemPerson>
       }
       status={
@@ -88,7 +88,7 @@ export const ProjectDetailHeader: Story = {
             </Button>
           }
         >
-          <PersonChip name="Priya Natarajan" href="/volunteers/2" />
+          <PersonChip name="Priya Natarajan" id={2} />
         </WorkItemPerson>
       }
       status={

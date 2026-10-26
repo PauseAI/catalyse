@@ -36,6 +36,7 @@ import {
   type LocalGroupOption,
 } from '@/lib/filter-options'
 import { useCountries } from '@/lib/hooks/countries'
+import PersonName from '@/components/PersonName'
 
 type TabKey = 'profile' | 'account' | 'notifications' | 'privacy' | 'bug-reports'
 
@@ -889,7 +890,11 @@ function SettingsPageContent() {
                       {r.category && <span>{r.category}</span>}
                       {r.severity && <span>· {r.severity}</span>}
                       <span>· {r.createdAt ? formatDate(r.createdAt) : ''}</span>
-                      {r.assigneeName && <span>· Assigned to: {r.assigneeName}</span>}
+                      {r.assigneeName && (
+                        <span>
+                          · Assigned to: <PersonName id={r.assigneeId} name={r.assigneeName} />
+                        </span>
+                      )}
                     </div>
                   </div>
                   <Badge variant={BUG_STATUS_VARIANT[r.status] ?? 'neutral'}>

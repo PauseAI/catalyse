@@ -53,7 +53,7 @@ export const AvatarVsChip: Story = {
         WorkRow&apos;s PersonAvatar
       </div>
       <div className="flex flex-col items-center gap-2 text-xs text-text-light">
-        <PersonChip name="Sam Okafor" href="/volunteers/1" />
+        <PersonChip name="Sam Okafor" id={1} />
         PersonChip
       </div>
     </div>

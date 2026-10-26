@@ -17,6 +17,7 @@ import { AppRouter } from '@/server/router'
 import { ApprovalStatus } from '@/generated/prisma/enums'
 import { H1, H2, H3, H4 } from '@/components/Heading'
 import { P } from '@/components/Text'
+import PersonName from '@/components/PersonName'
 
 type Filter = 'mine' | 'others' | 'approved' | 'needs_info' | 'rejected'
 
@@ -258,13 +259,20 @@ function ApplicationCard({
   const meta = [
     locationParts.length ? locationParts.join(' · ') : null,
     `Applied ${formatDate(app.createdAt!)}`,
-    app.reviewer ? `Reviewer: ${app.reviewer.name}` : null,
   ].filter(Boolean)
 
   return (
     <div role="article" className={SECTION_CARD}>
       <H3 className="m-0 mb-1">{app.name}</H3>
-      <P className="text-sm text-text-light mb-4">{meta.join(' · ')}</P>
+      <P className="text-sm text-text-light mb-4">
+        {meta.join(' · ')}
+        {app.reviewer && (
+          <>
+            {' · Reviewer: '}
+            <PersonName id={app.reviewer.id} name={app.reviewer.name} />
+          </>
+        )}
+      </P>
 
       {app.approvalStatus === ApprovalStatus.rejected && anonymiseDate && (
         <P

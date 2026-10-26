@@ -9,10 +9,12 @@ import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import { H2 } from '@/components/Heading'
 import { P } from '@/components/Text'
+import PersonName from '@/components/PersonName'
 
 export interface ReviewRequest {
   id: number
   message: string
+  requestedById: number | null
   requestedByName: string | null
   createdAt: Date
   resolvedAt: Date | null
@@ -60,7 +62,13 @@ export default function ChangesRequestedBanner({
       className={`${SECTION_CARD} mb-4 border-l-4 border-warning`}
     >
       <H2 id={headingId} className="text-lg m-0 mb-2">
-        Changes requested{open.requestedByName ? ` by ${open.requestedByName}` : ''}
+        Changes requested
+        {open.requestedByName && (
+          <>
+            {' by '}
+            <PersonName id={open.requestedById} name={open.requestedByName} />
+          </>
+        )}
       </H2>
       <P className="m-0 mb-1 whitespace-pre-wrap">{open.message}</P>
       <P className="text-xs text-text-light m-0 mb-4">{formatDateTime(open.createdAt)}</P>
@@ -94,7 +102,12 @@ export default function ChangesRequestedBanner({
               <li key={r.id} className="py-2 border-b border-brand-border last:border-0 text-sm">
                 <P className="m-0 whitespace-pre-wrap">{r.message}</P>
                 <span className="text-xs text-text-light">
-                  {r.requestedByName ?? 'A team lead'} · {formatDateTime(r.createdAt)}
+                  {r.requestedByName ? (
+                    <PersonName id={r.requestedById} name={r.requestedByName} />
+                  ) : (
+                    'A team lead'
+                  )}{' '}
+                  · {formatDateTime(r.createdAt)}
                 </span>
               </li>
             ))}

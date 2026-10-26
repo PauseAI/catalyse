@@ -23,6 +23,7 @@ import { H1, H2 } from '@/components/Heading'
 import { P } from '@/components/Text'
 import FormLabel from '@/components/FormLabel'
 import Textarea from '@/components/ui/Textarea'
+import PersonName from '@/components/PersonName'
 
 export default function BugReportDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: idStr } = use(params)
@@ -97,8 +98,16 @@ export default function BugReportDetailPage({ params }: { params: Promise<{ id: 
         <div className="text-text-light flex gap-2 flex-wrap text-sm mb-4">
           {report.category && <span>{report.category}</span>}
           {report.severity && <span>· {report.severity}</span>}
-          {report.reporterName && <span>· {report.reporterName}</span>}
-          {user.isAdmin && report.assigneeName && <span>· Assigned to: {report.assigneeName}</span>}
+          {report.reporterName && (
+            <span>
+              · <PersonName id={report.reporterId} name={report.reporterName} />
+            </span>
+          )}
+          {user.isAdmin && report.assigneeName && (
+            <span>
+              · Assigned to: <PersonName id={report.assigneeId} name={report.assigneeName} />
+            </span>
+          )}
           <span>· {report.createdAt ? formatDate(report.createdAt) : ''}</span>
           {report.pageUrl &&
             (() => {

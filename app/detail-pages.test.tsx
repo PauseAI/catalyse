@@ -9,7 +9,7 @@ import {
   createQuickTask,
   createSkill,
 } from '@/test/factories'
-import { renderApp } from '@/test/render'
+import { fullText, renderApp } from '@/test/render'
 import { clientAs } from '@/test/rpc'
 import QuickTaskDetailPage from './quick-tasks/[id]/page'
 import BugReportDetailPage from './bugs/[id]/page'
@@ -194,7 +194,7 @@ describe('bug report detail', () => {
     await renderApp(<BugReportDetailPage params={Promise.resolve({ id: String(id) })} />, {
       as: admin,
     })
-    await screen.findByText('· Assigned to: Fixer')
+    await screen.findByText(fullText('· Assigned to: Fixer'))
     expect(screen.getByRole('link', { name: '← Back to bug reports' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Status' }))
     await userEvent.click(screen.getByRole('option', { name: 'Resolved' }))

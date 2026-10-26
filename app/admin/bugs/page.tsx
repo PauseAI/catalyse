@@ -23,6 +23,7 @@ import type { InferRouterOutputs } from '@orpc/server'
 import type { AppRouter } from '@/server/router'
 import { H1, H2, H3 } from '@/components/Heading'
 import { P } from '@/components/Text'
+import PersonName from '@/components/PersonName'
 
 type BugReports = InferRouterOutputs<AppRouter>['admin']['bugReports']['list']
 
@@ -277,10 +278,18 @@ function BugReportCard({
           <div className="text-text-light flex gap-2 flex-wrap text-[0.8rem]">
             {r.category && <span>{r.category}</span>}
             {r.severity && <span>· {r.severity}</span>}
-            {r.reporterName && <span>· {r.reporterName}</span>}
+            {r.reporterName && (
+              <span>
+                · <PersonName id={r.reporterId} name={r.reporterName} />
+              </span>
+            )}
             <span>· {r.createdAt ? formatDate(r.createdAt) : ''}</span>
             {r.pageUrl && <span>· {bugReportPagePath(r.pageUrl) ?? r.pageUrl}</span>}
-            {r.assigneeName && <span>· Assigned to: {r.assigneeName}</span>}
+            {r.assigneeName && (
+              <span>
+                · Assigned to: <PersonName id={r.assigneeId} name={r.assigneeName} />
+              </span>
+            )}
           </div>
         </div>
         <Badge variant={BUG_STATUS_VARIANT[r.status] ?? 'neutral'}>

@@ -17,6 +17,8 @@ import { SECTION_CARD } from '@/lib/ui-classes'
 import { H1, H2, H3, H4 } from '@/components/Heading'
 import { P } from '@/components/Text'
 import TextLink from '@/components/TextLink'
+import PersonName, { RoleBadge } from '@/components/PersonName'
+import { usePerson } from '@/lib/hooks/usePerson'
 
 export default function VolunteerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -48,6 +50,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
     ...orpc.volunteers.getById.queryOptions({ input: { id: parseInt(id, 10) } }),
     enabled: !!user,
   })
+  const person = usePerson(volunteer?.id)
 
   if (loading || !user) return null
 
@@ -125,6 +128,9 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
               <H1 id="volunteerName" className="m-0">
                 {volunteer.name}
               </H1>
+              <span className="ml-2">
+                <RoleBadge person={person} />
+              </span>
               {volunteer.activeRecently && <ActiveDot />}
             </div>
 
@@ -133,12 +139,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
                 {volunteer.duplicateOf && (
                   <>
                     Duplicate account of{' '}
-                    <Link
-                      className="text-primary-text underline"
-                      href={`/volunteers/${volunteer.duplicateOf.id}`}
-                    >
-                      {volunteer.duplicateOf.name}
-                    </Link>
+                    <PersonName id={volunteer.duplicateOf.id} name={volunteer.duplicateOf.name} />
                     {' · '}
                   </>
                 )}

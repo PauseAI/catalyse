@@ -100,6 +100,7 @@ export default function TaskHelpers({
             <li key={h.interestId} className="min-w-0 max-w-full">
               {h.volunteerId === viewerId ? (
                 <PersonChip
+                  id={h.volunteerId}
                   name={h.name}
                   isViewer
                   onRemove={state.canLeaveAsHelper ? () => setWithdrawing(true) : undefined}
@@ -107,6 +108,7 @@ export default function TaskHelpers({
                 />
               ) : (
                 <PersonChip
+                  id={h.volunteerId}
                   name={h.name}
                   onRemove={state.canRemoveHelpers ? () => setRemoving(h) : undefined}
                   removeLabel={`${REMOVE_HELPER} ${h.name}`}

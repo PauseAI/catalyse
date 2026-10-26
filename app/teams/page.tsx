@@ -1,5 +1,6 @@
 'use client'
 
+import { Fragment } from 'react'
 import Link from 'next/link'
 import { useRequireAuth } from '@/lib/hooks/auth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -12,6 +13,7 @@ import { teamApplicationSentMessage } from '@/lib/action-messages'
 import Skeleton from '@/components/Skeleton'
 import EmptyState from '@/components/EmptyState'
 import ViewSwitch, { PEOPLE_VIEWS } from '@/components/ViewSwitch'
+import PersonName from '@/components/PersonName'
 
 export default function TeamsPage() {
   const { user, loading } = useRequireAuth()
@@ -92,8 +94,13 @@ export default function TeamsPage() {
                   )}
                   <P className="text-xs text-text-light m-0 mt-1">
                     {team.memberCount} member{team.memberCount === 1 ? '' : 's'}
-                    {team.leaders.length > 0 &&
-                      ` · Led by ${team.leaders.map((l) => l.name).join(', ')}`}
+                    {team.leaders.length > 0 && ' · Led by '}
+                    {team.leaders.map((l, i) => (
+                      <Fragment key={l.id}>
+                        {i > 0 && ', '}
+                        <PersonName id={l.id} name={l.name} />
+                      </Fragment>
+                    ))}
                   </P>
                   <div className="flex gap-3 mt-2 text-sm">
                     {team.lumaUrl && (

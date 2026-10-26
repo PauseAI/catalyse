@@ -965,6 +965,7 @@ describe('projects.submitTask / acceptTask / requestTaskChanges', () => {
     // The assignee sees the request; someone else on the project does not.
     expect((await c.projects.getTask(ids)).changesRequested).toEqual({
       message: 'Add the sources',
+      byId: owner.id,
       byName: owner.name,
     })
     expect((await clientAs(other).projects.getTask(ids)).changesRequested).toBeNull()

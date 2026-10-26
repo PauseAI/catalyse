@@ -28,7 +28,7 @@ describe('conversation page', () => {
     })
     await mount(threadId, bob)
     await screen.findByRole('heading', { name: 'Banners' })
-    expect(screen.getByRole('link', { name: 'Ann' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Ann' })).toHaveAttribute(
       'href',
       `/volunteers/${ann.id}`,
     )

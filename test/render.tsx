@@ -25,6 +25,19 @@ export function AppProviders({ children }: { children: ReactNode }) {
 }
 
 /**
+ * Matches the innermost element whose whole text is `expected`, however it is split across
+ * elements: a sentence naming a person holds the name in a PersonName of its own.
+ */
+export function fullText(expected: string | RegExp) {
+  const matches = (text: string | null | undefined) =>
+    typeof expected === 'string' ? text === expected : expected.test(text ?? '')
+  return (_: string, el: Element | null) =>
+    Boolean(el) &&
+    matches(el?.textContent) &&
+    ![...(el?.children ?? [])].some((child) => matches(child.textContent))
+}
+
+/**
  * Renders under the app's providers. `as` logs the volunteer in the way the browser would — a
  * real session row, its token in localStorage — so `AuthProvider` fetches `auth.me` for real
  * through the in-process RPC bridge. The returned `rerender` keeps the providers.

@@ -15,6 +15,7 @@ import NotFoundCard from '@/components/NotFoundCard'
 import PageLoading from '@/components/PageLoading'
 import { P } from '@/components/Text'
 import Textarea from '@/components/ui/Textarea'
+import PersonName from '@/components/PersonName'
 
 export default function ConversationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: idStr } = use(params)
@@ -76,10 +77,7 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
       </Link>
       <H1 className="mt-2 mb-1">{thread.subject}</H1>
       <P className="text-text-light mt-0 mb-4">
-        With{' '}
-        <Link className="text-primary-text underline" href={`/volunteers/${thread.with.id}`}>
-          {thread.with.name}
-        </Link>
+        With <PersonName id={thread.with.id} name={thread.with.name} />
         {thread.relatedProject && (
           <>
             {' · '}

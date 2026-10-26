@@ -1342,6 +1342,7 @@ export const projectsRouter = {
             responseMessage: string | null
             createdAt: Date | null
             respondedAt: Date | null
+            invitedById: number | null
             invitedByName: string | null
             volunteerName: string
             volunteerBio: string | null
@@ -1381,6 +1382,7 @@ export const projectsRouter = {
           responseMessage: i.responseMessage,
           createdAt: i.createdAt,
           respondedAt: i.respondedAt,
+          invitedById: i.invitedById,
           invitedByName: i.invitedBy?.name ?? null,
           volunteerName: i.volunteer.name,
           volunteerBio: i.volunteer.bio,
@@ -1413,6 +1415,7 @@ export const projectsRouter = {
             responseMessage: rawMyInterest.responseMessage,
             createdAt: rawMyInterest.createdAt,
             respondedAt: rawMyInterest.respondedAt,
+            invitedById: rawMyInterest.invitedById,
             invitedByName: rawMyInterest.invitedBy?.name ?? null,
           }
         : null
@@ -1464,6 +1467,7 @@ export const projectsRouter = {
           ).map((r) => ({
             id: r.id,
             message: r.message,
+            requestedById: r.requestedById,
             requestedByName: r.requestedBy?.name ?? null,
             createdAt: r.createdAt,
             resolvedAt: r.resolvedAt,
@@ -2622,6 +2626,7 @@ export const projectsRouter = {
         task.changesRequestedNote !== null && (manages || task.assigneeId === volunteer.id)
           ? {
               message: task.changesRequestedNote,
+              byId: task.reviewedById,
               byName: task.reviewedBy
                 ? actorLabel(
                     task.reviewedBy,

@@ -19,6 +19,7 @@ import { P } from '@/components/Text'
 import FormLabel from '@/components/FormLabel'
 import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
+import PersonName from '@/components/PersonName'
 
 interface TeamMember {
   id: number
@@ -300,7 +301,9 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
             {joinRequests.map((r) => (
               <div key={r.id} className="flex items-center justify-between gap-3">
                 <div>
-                  <P className="m-0 font-medium">{r.volunteer.name}</P>
+                  <P className="m-0 font-medium">
+                    <PersonName id={r.volunteer.id} name={r.volunteer.name} />
+                  </P>
                   {r.message && <P className="m-0 text-xs text-text-light italic">{r.message}</P>}
                 </div>
                 <div className="flex items-center gap-2">
@@ -352,7 +355,9 @@ export default function AdminTeamDetailPage({ params }: { params: Promise<{ id: 
             {team.members.map((m) => (
               <div key={m.id} className="flex items-center justify-between gap-3">
                 <div>
-                  <P className="m-0 font-medium">{m.name}</P>
+                  <P className="m-0 font-medium">
+                    <PersonName id={m.id} name={m.name} />
+                  </P>
                   <P className="m-0 text-xs text-text-light">{m.email}</P>
                 </div>
                 <div className="flex items-center gap-2">

@@ -67,6 +67,7 @@ interface AdminQuickTask {
   createdAt: string
   submission: Submission | null
   changesRequested: string | null
+  reviewedById: number | null
   reviewedByName: string | null
   submissionPrompt: string | null
   submissionAsksLink: boolean
@@ -805,7 +806,11 @@ function AdminQuickTasksView() {
                   submission={task.submission}
                   changesRequested={
                     task.changesRequested
-                      ? { message: task.changesRequested, byName: task.reviewedByName }
+                      ? {
+                          message: task.changesRequested,
+                          byId: task.reviewedById,
+                          byName: task.reviewedByName,
+                        }
                       : null
                   }
                 />

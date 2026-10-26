@@ -14,6 +14,7 @@ import { H1, H2 } from '@/components/Heading'
 import { P } from '@/components/Text'
 import FormLabel from '@/components/FormLabel'
 import Input from '@/components/ui/Input'
+import PersonName from '@/components/PersonName'
 
 const POOL = 'pool'
 const NO_COUNTRY = '__none__'
@@ -107,9 +108,15 @@ export default function AdminChaptersPage() {
                       {c.name}
                     </Link>
                     <P className="text-text-light text-sm m-0">
-                      {c.lead ? `Led by ${c.lead.name}` : 'No lead'} · {c.deputyCount}{' '}
-                      {c.deputyCount === 1 ? 'deputy' : 'deputies'} · {c.memberCount}{' '}
-                      {c.memberCount === 1 ? 'member' : 'members'}
+                      {c.lead ? (
+                        <>
+                          Led by <PersonName id={c.lead.id} name={c.lead.name} />
+                        </>
+                      ) : (
+                        'No lead'
+                      )}{' '}
+                      · {c.deputyCount} {c.deputyCount === 1 ? 'deputy' : 'deputies'} ·{' '}
+                      {c.memberCount} {c.memberCount === 1 ? 'member' : 'members'}
                     </P>
                   </div>
                 </div>
@@ -190,9 +197,7 @@ export default function AdminChaptersPage() {
                     className="flex justify-between items-center gap-4 flex-wrap border-b border-brand-border py-2"
                   >
                     <div>
-                      <Link className="text-primary-text underline" href={`/volunteers/${p.id}`}>
-                        {p.name}
-                      </Link>
+                      <PersonName id={p.id} name={p.name} />
                       <span className="text-text-light text-sm">
                         {' '}
                         · {countryLabel(p.country) || 'No country given'}

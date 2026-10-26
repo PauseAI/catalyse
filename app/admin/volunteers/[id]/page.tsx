@@ -16,6 +16,7 @@ import { H1, H3 } from '@/components/Heading'
 import { P } from '@/components/Text'
 import FormLabel from '@/components/FormLabel'
 import Textarea from '@/components/ui/Textarea'
+import PersonName from '@/components/PersonName'
 
 interface Skill {
   id: number
@@ -27,6 +28,7 @@ interface Endorsement {
   skillId: number
   skillName: string
   skillCategory: string
+  endorsedById: number
   endorsedByName: string
   rating: string
   notes: string | null
@@ -36,6 +38,7 @@ interface AdminNote {
   id: number
   content: string
   category: string
+  authorId: number | null
   authorName: string
   createdAt: string
   updatedAt: string
@@ -306,7 +309,8 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
             {vol.endorsements.length > 0 ? (
               vol.endorsements.map((e) => (
                 <div key={e.id} className="py-1.5 border-b border-brand-border text-sm">
-                  <strong>{e.skillName}</strong>: {e.rating} · by {e.endorsedByName}
+                  <strong>{e.skillName}</strong>: {e.rating} · by{' '}
+                  <PersonName id={e.endorsedById} name={e.endorsedByName} />
                 </div>
               ))
             ) : (
@@ -418,7 +422,7 @@ export default function AdminVolunteerDetailPage({ params }: { params: Promise<{
                               {n.category.replace(/_/g, ' ')}
                             </span>
                             <span className="text-text-light text-[0.8rem] ml-2">
-                              by {n.authorName}
+                              by <PersonName id={n.authorId} name={n.authorName} />
                             </span>
                           </div>
                           <div className="flex gap-2">
