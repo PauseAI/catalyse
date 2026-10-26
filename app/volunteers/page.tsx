@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { useRequireAuth } from '@/lib/hooks/auth'
 import { useUrlParam, useUrlSearchInput } from '@/lib/hooks/url-filters'
 import { DIRECTORY_PAGE_SIZE as PAGE_SIZE } from '@/lib/pagination'
-import Link from 'next/link'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import FilterDropdown from '@/components/FilterDropdown'
@@ -26,6 +25,7 @@ import { H1, H3 } from '@/components/Heading'
 import { P } from '@/components/Text'
 import FormLabel from '@/components/FormLabel'
 import Input from '@/components/ui/Input'
+import PersonName from '@/components/PersonName'
 
 type SkillCategory = InferRouterOutputs<AppRouter>['skills']['list'][number]
 type FlatSkill = SkillCategory['skills'][number] & { categoryName: string }
@@ -199,12 +199,11 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
                   className="card bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden wrap-break-word flex flex-col"
                 >
                   <H3 className="m-0 mb-2">
-                    <Link
-                      href={`/volunteers/${v.id}`}
+                    <PersonName
+                      id={v.id}
+                      name={v.name}
                       className="text-primary-dark no-underline hover:underline"
-                    >
-                      {v.name}
-                    </Link>
+                    />
                     {v.activeRecently && <ActiveDot />}
                     {v.hiddenFromDirectory && (
                       <Tooltip content="This volunteer has opted out of the directory. Only admins can see their profile here.">
@@ -218,12 +217,7 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
                   {v.duplicateOf && (
                     <P className="text-xs text-text-light m-0 mb-2">
                       Duplicate account of{' '}
-                      <Link
-                        className="text-primary-text underline"
-                        href={`/volunteers/${v.duplicateOf.id}`}
-                      >
-                        {v.duplicateOf.name}
-                      </Link>
+                      <PersonName id={v.duplicateOf.id} name={v.duplicateOf.name} />
                     </P>
                   )}
                   {(volunteerLocation(v, countryLabel) || v.availabilityHoursPerWeek) && (

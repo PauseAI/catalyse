@@ -12,6 +12,7 @@ import {
   createQuickTask,
   createSkill,
   createLocalGroup,
+  chapterFor,
 } from '@/test/factories'
 import { renderApp } from '@/test/render'
 import { navigation } from '@/test/next-navigation'
@@ -118,6 +119,7 @@ describe('volunteer profile', () => {
       name: 'Profiled',
       email: 'profiled@example.org',
       location: 'Leeds',
+      nationalChapterId: (await chapterFor('UK')).id,
       localGroupId: (await createLocalGroup({ name: 'North' })).id,
       otherSkills: 'juggling',
       availabilityHoursPerWeek: 3,
@@ -149,7 +151,10 @@ describe('volunteer profile', () => {
       as: me,
     })
     await screen.findByRole('heading', { name: 'Profiled' })
-    expect(screen.getByText('📍 Leeds · North')).toBeInTheDocument()
+    const place = document.getElementById('volunteerPlace') as HTMLElement
+    expect(within(place).getByText('🇬🇧 United Kingdom chapter')).toBeInTheDocument()
+    expect(within(place).getByText('👥 North')).toBeInTheDocument()
+    expect(within(place).getByText('📍 Leeds')).toBeInTheDocument()
     expect(screen.getByText(`${skill.name} ✓`)).toBeInTheDocument()
     expect(screen.getByText('juggling')).toBeInTheDocument()
     expect(screen.getByText('3 hours/week')).toBeInTheDocument()
@@ -281,7 +286,7 @@ describe('volunteer profile', () => {
     })
     await screen.findByRole('heading', { name: 'Old Account' })
     expect(screen.getByText(/Duplicate account of/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Kept Account' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Kept Account' })).toHaveAttribute(
       'href',
       `/volunteers/${kept.id}`,
     )
@@ -292,12 +297,16 @@ describe('volunteer profile', () => {
     const bare = await createVolunteer({
       name: 'Bare',
       location: null,
+      country: 'Atlantis',
       availabilityHoursPerWeek: null,
     })
     await renderApp(<VolunteerDetailPage params={Promise.resolve({ id: String(bare.id) })} />, {
       as: me,
     })
     await screen.findByRole('heading', { name: 'Bare' })
+    expect(document.getElementById('volunteerPlace')).toHaveTextContent(
+      /^No national chapter yet \(Atlantis\)$/,
+    )
     expect(screen.queryByRole('button', { name: 'Message' })).toBeNull()
     await userEvent.click(await screen.findByRole('button', { name: 'Request contact' }))
     const ask = await screen.findByRole('dialog', { name: 'Connect with Bare' })

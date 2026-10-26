@@ -281,3 +281,11 @@ confusing than it needed to be, and that will do so again.
       roadmap's order of same-dated projects. The date rewrite before capture could cover clock
       times and epoch numbers, `e2e/fake.ts` could seed the suffixes, and the token page could
       mask its token.
+
+- [ ] **A component test stalled on something that never resolves waits out the 60 s dom
+      test timeout, so one broken shared component turned a 3-minute unit run into over ten.**
+      A new hook batched requests with `setTimeout`, which a test's fake timers froze, and
+      components rendered with a bare `render` threw for want of a `QueryClient`: dozens of
+      tests sat for 60 s each before failing, and the run timed out before printing which.
+      A dom `testTimeout` near the 20 s the node project uses, or a failing test reported as
+      it fails rather than at the end, would have shown the cause in the first minute.

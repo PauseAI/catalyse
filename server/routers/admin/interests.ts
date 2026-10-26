@@ -27,6 +27,7 @@ export const adminInterestsRouter = {
             select: {
               title: true,
               status: true,
+              assigneeId: true,
               assignee: { select: { name: true } },
             },
           },
@@ -57,6 +58,7 @@ export const adminInterestsRouter = {
         projectStatus: i.workItem.status,
         volunteerName: i.volunteer.name,
         volunteerEmail: i.volunteer.email,
+        ownerId: i.workItem.assigneeId,
         ownerName: i.workItem.assignee?.name ?? null,
         volunteerSkills: i.volunteer.skills.map((vs) => ({
           id: vs.skill.id,

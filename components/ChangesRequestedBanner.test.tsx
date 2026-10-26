@@ -10,6 +10,7 @@ const at = new Date('2026-09-20T10:00:00Z')
 const open: ReviewRequest = {
   id: 2,
   message: 'Add a deadline',
+  requestedById: null,
   requestedByName: 'Ada',
   createdAt: at,
   resolvedAt: null,
@@ -17,6 +18,7 @@ const open: ReviewRequest = {
 const earlier: ReviewRequest = {
   id: 1,
   message: 'Add tasks',
+  requestedById: null,
   requestedByName: null,
   createdAt: at,
   resolvedAt: at,

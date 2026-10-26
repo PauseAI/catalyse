@@ -1,10 +1,10 @@
-import type { ComponentProps } from 'react'
+import type { ComponentProps, ReactElement } from 'react'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { render as plainRender, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import { createVolunteer, createProject, createTask } from '@/test/factories'
-import { renderApp } from '@/test/render'
+import { AppProviders, renderApp } from '@/test/render'
 import { clientAs } from '@/test/rpc'
 import CommentThread from './CommentThread'
 import BugReportCommentThread from './BugReportCommentThread'
@@ -14,6 +14,9 @@ import Footer from './Footer'
 import AiEditingHelp from './AiEditingHelp'
 import { ToastProvider } from '@/lib/toast'
 import { useMutation } from '@tanstack/react-query'
+
+/** Names in a thread look their author up, so even a bare view needs the app's providers. */
+const render = (ui: ReactElement) => plainRender(ui, { wrapper: AppProviders })
 
 describe('CommentThreadView', () => {
   const comments = [
@@ -380,14 +383,25 @@ describe('CommentThreadView discussion actions', () => {
     expect(onSubmit).toHaveBeenLastCalledWith('Still here', 14)
   })
 
-  it("links a comment's author to their profile, unless their account is gone", () => {
-    renderThread({
-      comments: [
-        { id: 1, content: 'First', authorName: 'Ann', authorId: 7, createdAt: null },
-        { id: 2, content: 'Second', authorName: null, authorId: null, createdAt: null },
-      ],
-    })
-    expect(screen.getByRole('link', { name: 'Ann' })).toHaveAttribute('href', '/volunteers/7')
+  it("links a comment's author to their profile, unless their account is gone", async () => {
+    const [viewer, ann] = [await createVolunteer(), await createVolunteer()]
+    await renderApp(
+      <CommentThreadView
+        comments={[
+          { id: 1, content: 'First', authorName: 'Ann', authorId: ann.id, createdAt: null },
+          { id: 2, content: 'Second', authorName: null, authorId: null, createdAt: null },
+        ]}
+        canPost={false}
+        isPending={false}
+        isSubmitting={false}
+        onSubmit={async () => true}
+      />,
+      { as: viewer },
+    )
+    expect(await screen.findByRole('link', { name: 'Ann' })).toHaveAttribute(
+      'href',
+      `/volunteers/${ann.id}`,
+    )
     expect(screen.getByText('Unknown')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Unknown' })).toBeNull()
   })

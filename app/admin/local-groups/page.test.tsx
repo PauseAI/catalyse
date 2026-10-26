@@ -3,7 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import { createAdmin, createVolunteer, createLocalGroup, createProject } from '@/test/factories'
-import { renderApp } from '@/test/render'
+import { fullText, renderApp } from '@/test/render'
 import AdminLocalGroupsPage from './page'
 
 const article = (name: string) =>
@@ -122,7 +122,7 @@ describe('admin local groups', () => {
     await userEvent.click(
       within(article('United Kingdom, Zz Bath')).getByRole('button', { name: 'Review' }),
     )
-    expect(screen.getByText('Suggested by Sam Suggester')).toBeInTheDocument()
+    expect(screen.getByText(fullText('Suggested by Sam Suggester'))).toBeInTheDocument()
     await userEvent.click(
       screen.getByRole('heading', { name: 'Review suggestion' }).closest('.fixed')!,
     )

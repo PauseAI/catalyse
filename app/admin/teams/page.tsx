@@ -18,6 +18,7 @@ import { P } from '@/components/Text'
 import FormLabel from '@/components/FormLabel'
 import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
+import PersonName from '@/components/PersonName'
 
 type StatusFilter = 'all' | 'active' | 'pending' | 'on_hold' | 'declined'
 type ReviewAction = 'accept' | 'merge' | 'on_hold' | 'decline'
@@ -497,7 +498,11 @@ export default function AdminTeamsPage() {
 
             <div className="p-6">
               <P className="text-text-light mb-1 text-sm">
-                Suggested by {reviewSuggestion.suggestedBy.name}
+                Suggested by{' '}
+                <PersonName
+                  id={reviewSuggestion.suggestedBy.id}
+                  name={reviewSuggestion.suggestedBy.name}
+                />
               </P>
               <P className="font-semibold mb-5">{reviewSuggestion.name}</P>
 

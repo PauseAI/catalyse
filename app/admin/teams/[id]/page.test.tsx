@@ -79,12 +79,12 @@ describe('admin team detail', () => {
     await userEvent.click(await screen.findByRole('option', { name: 'Nina Newbie' }))
     await userEvent.click(screen.getByRole('button', { name: 'Add' }))
     await screen.findByText('Volunteer added to team')
-    await screen.findByText('Nina Newbie', { selector: 'p' })
+    await screen.findByText('Nina Newbie', { selector: 'p span, p a' })
     expect(
       await prisma.teamMembership.count({ where: { teamId: team.id, volunteerId: newbie.id } }),
     ).toBe(1)
     const row = (name: string) =>
-      screen.getByText(name, { selector: 'p' }).closest<HTMLElement>('.flex')!
+      screen.getByText(name, { selector: 'p span, p a' }).closest<HTMLElement>('.flex')!
     await userEvent.click(row('Molly Member').querySelector('button')!)
     await screen.findByText('Promoted to leader')
     await waitFor(() => expect(row('Molly Member')).toHaveTextContent('Leader'))
@@ -95,7 +95,9 @@ describe('admin team detail', () => {
     )
     await userEvent.click(row('Lars Leader').querySelectorAll('button')[1])
     await screen.findByText('Member removed')
-    await waitFor(() => expect(screen.queryByText('Lars Leader', { selector: 'p' })).toBeNull())
+    await waitFor(() =>
+      expect(screen.queryByText('Lars Leader', { selector: 'p span, p a' })).toBeNull(),
+    )
 
     // Delete needs confirmation.
     await userEvent.click(screen.getByRole('button', { name: 'Delete team' }))

@@ -25,23 +25,35 @@ async function load() {
 }
 
 let failures = 0
+let failingPath: string | undefined
+const requested: string[] = []
 
-/** The next request fails as a dropped connection does, before reaching the router. */
-export function failNextFetch(): void {
+/**
+ * The next request fails as a dropped connection does, before reaching the router; given a
+ * procedure's path (`volunteers/lookup`), the next request to that procedure.
+ */
+export function failNextFetch(path?: string): void {
   failures = 1
+  failingPath = path
 }
+
+/** The requests made to a procedure since the test began. */
+export const requestsTo = (path: string) => requested.filter((p) => p === `/api/rpc/${path}`)
 
 export function resetRpcFetch(): void {
   failures = 0
+  failingPath = undefined
+  requested.length = 0
 }
 
 export async function rpcFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  if (failures > 0) {
+  const request = new Request(input, init)
+  const { pathname } = new URL(request.url)
+  requested.push(pathname)
+  if (failures > 0 && (!failingPath || pathname === `/api/rpc/${failingPath}`)) {
     failures--
     throw new TypeError('Failed to fetch')
   }
-  const request = new Request(input, init)
-  const { pathname } = new URL(request.url)
   if (!pathname.startsWith('/api/rpc')) {
     throw new Error(`Unexpected fetch in a component test: ${request.method} ${request.url}`)
   }

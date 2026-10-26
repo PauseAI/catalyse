@@ -124,4 +124,49 @@ test.describe('Directory-hidden volunteer access', () => {
     const denied = await bystanderApi.volunteers.getById({ params: { id: taskHolder.id } })
     expect(denied.status).toBe(404)
   })
+
+  test('A team leader opens a hidden applicant’s profile from the join requests', async ({
+    volunteer,
+    baseUrl,
+    snap,
+  }) => {
+    const adminApi = createApiClient(baseUrl, readAdminToken(baseUrl))
+    await volunteer.page.goto(baseUrl)
+    const token = await volunteer.page.evaluate(() => localStorage.getItem('authToken'))
+    const leaderId = (
+      (await createApiClient(baseUrl, token as string).auth.me()).body as {
+        id: number
+      }
+    ).id
+    const teamName = fake.teamName()
+    await adminApi.admin.teams.create({
+      body: { name: teamName, description: null, lumaUrl: null, docUrl: null },
+    })
+    const teams = (await adminApi.admin.teams.list()).body as {
+      teams: { id: number; name: string }[]
+    }
+    const team = teams.teams.find((t) => t.name === teamName) as { id: number }
+    const assigned = await adminApi.teams.assignMember({
+      body: { teamId: team.id, volunteerId: leaderId, role: 'leader' },
+    })
+    expect(assigned.status).toBe(200)
+
+    const applicant = await createApprovedVolunteerNamed(baseUrl, fake.personName(), {
+      hidden: true,
+    })
+    const applied = await createApiClient(baseUrl, applicant.token).teams.apply({
+      body: { id: team.id },
+    })
+    expect(applied.status).toBe(200)
+
+    await volunteer.page.goto(`${baseUrl}/admin/teams/${team.id}`)
+    const link = volunteer.page.getByRole('link', { name: applicant.name })
+    await expect(link).toBeVisible({ timeout: 10_000 })
+    await snap(volunteer.page, 'join request names the applicant')
+    await link.click()
+    await expect(volunteer.page).toHaveURL(new RegExp(`/volunteers/${applicant.id}(\\?|$)`), {
+      timeout: 10_000,
+    })
+    await expect(volunteer.page.locator('#volunteerName')).toHaveText(applicant.name)
+  })
 })

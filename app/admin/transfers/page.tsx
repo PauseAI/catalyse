@@ -1,7 +1,6 @@
 'use client'
 
 import { Suspense } from 'react'
-import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import ChapterFilter, { chapterSelection } from '@/components/ChapterFilter'
@@ -14,6 +13,7 @@ import { useCountries } from '@/lib/hooks/countries'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import { H1 } from '@/components/Heading'
 import { P } from '@/components/Text'
+import PersonName from '@/components/PersonName'
 
 /** Members asking to move into the viewer's chapter, or for a global admin, any chapter. */
 function AdminTransfersPageContent() {
@@ -63,14 +63,8 @@ function AdminTransfersPageContent() {
           {requests.map((r) => (
             <li key={r.id} className={`card ${SECTION_CARD} overflow-hidden wrap-break-word`}>
               <P className="m-0">
-                <Link
-                  className="text-primary-text underline"
-                  href={`/volunteers/${r.volunteer.id}`}
-                >
-                  {r.volunteer.name}
-                </Link>{' '}
-                is moving from {r.fromChapterName ?? 'the holding pool'} to{' '}
-                {countryLabel(r.toCountry)}
+                <PersonName id={r.volunteer.id} name={r.volunteer.name} /> is moving from{' '}
+                {r.fromChapterName ?? 'the holding pool'} to {countryLabel(r.toCountry)}
                 {r.toChapterName ? '' : ' (no chapter yet)'}
               </P>
               <P className="text-text-light text-sm m-0">Asked {formatDate(r.createdAt)}</P>

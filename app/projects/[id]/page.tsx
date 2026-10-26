@@ -118,6 +118,7 @@ import { helperSummary } from '@/lib/helper-summary'
 import { BLEED, SECTION_CARD } from '@/lib/ui-classes'
 import { TASK_FILTERS, type TaskFilter } from '@/lib/task-list-order'
 import TaskStatusBar, { taskFilterHash } from '@/components/TaskStatusBar'
+import PersonName from '@/components/PersonName'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -1261,12 +1262,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     >
       <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
         <PersonChip
+          id={interest.volunteerId}
           name={interest.volunteerName}
-          href={
-            isAdmin || interestedVolunteerIds.has(interest.volunteerId)
-              ? `/volunteers/${interest.volunteerId}`
-              : undefined
-          }
           isViewer={interest.volunteerId === user.id}
           onRemove={
             !locked && interest.status === InterestStatus.accepted
@@ -1276,19 +1273,33 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           removeLabel={`Remove ${interest.volunteerName}`}
         />
         <span className="text-text-light text-xs">
-          {interest.status === InterestStatus.accepted
-            ? interest.interestType === 'want_to_own'
-              ? 'Owner'
-              : deputyIds.has(interest.volunteerId)
-                ? 'Deputy'
-                : 'Helper'
-            : interest.status === InterestStatus.pending
-              ? interest.interestType === 'want_to_own'
-                ? 'wants to lead'
-                : 'wants to help'
-              : interest.status === InterestStatus.invited
-                ? `Invited${interest.invitedByName ? ` by ${interest.invitedByName}` : ''}`
-                : interestHistoryLabel(interest.origin, interest.status)}
+          {interest.status === InterestStatus.accepted ? (
+            interest.interestType === 'want_to_own' ? (
+              'Owner'
+            ) : deputyIds.has(interest.volunteerId) ? (
+              'Deputy'
+            ) : (
+              'Helper'
+            )
+          ) : interest.status === InterestStatus.pending ? (
+            interest.interestType === 'want_to_own' ? (
+              'wants to lead'
+            ) : (
+              'wants to help'
+            )
+          ) : interest.status === InterestStatus.invited ? (
+            <>
+              Invited
+              {interest.invitedByName && (
+                <>
+                  {' by '}
+                  <PersonName id={interest.invitedById} name={interest.invitedByName} />
+                </>
+              )}
+            </>
+          ) : (
+            interestHistoryLabel(interest.origin, interest.status)
+          )}
         </span>
       </div>
       {locked ? null : interest.status === InterestStatus.pending ? (
@@ -1542,8 +1553,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <span className="text-text-light">Proposed by</span>
           {proposer.volunteerId ? (
             <PersonChip
+              id={proposer.volunteerId}
               name={proposer.name}
-              href={`/volunteers/${proposer.volunteerId}`}
               isViewer={proposer.volunteerId === user.id}
             />
           ) : (
@@ -1555,8 +1566,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         <span className="text-text-light">Owner</span>
         {project.owner ? (
           <PersonChip
+            id={project.owner.id}
             name={project.owner.name}
-            href={`/volunteers/${project.owner.id}`}
             isViewer={project.owner.id === user.id}
           />
         ) : (
@@ -1577,6 +1588,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 >
                   <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
                     <PersonChip
+                      id={helper.volunteerId}
                       name={helper.volunteerName}
                       isViewer={helper.volunteerId === user.id}
                     />
@@ -2064,8 +2076,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       <span className="relative inline-flex min-w-0 max-w-full items-center gap-2">
         {project.owner ? (
           <PersonChip
+            id={project.owner.id}
             name={project.owner.name}
-            href={`/volunteers/${project.owner.id}`}
             isViewer={project.owner.id === user.id}
           />
         ) : (
@@ -2253,7 +2265,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               bar so a long note doesn't make the bar taller than the tabs. */}
           {pendingInvite && !isOwnerOrAdmin && (
             <P className="text-sm text-text-light mt-0 mb-2 whitespace-pre-wrap lg:text-right">
-              {project.myInterest?.invitedByName ?? 'The owner'} invited you to help
+              {project.myInterest?.invitedByName ? (
+                <PersonName
+                  id={project.myInterest.invitedById}
+                  name={project.myInterest.invitedByName}
+                />
+              ) : (
+                'The owner'
+              )}{' '}
+              invited you to help
               {project.myInterest?.message ? (
                 <>
                   : &ldquo;
@@ -2648,9 +2668,17 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                             )}
                             {task.requestedById !== null && (
                               <span className="text-text-light text-xs whitespace-nowrap">
-                                {task.requestedById === user.id
-                                  ? 'Held for you: waiting for the owner'
-                                  : `Requested by ${task.requestedByName}`}
+                                {task.requestedById === user.id ? (
+                                  'Held for you: waiting for the owner'
+                                ) : (
+                                  <>
+                                    Requested by{' '}
+                                    <PersonName
+                                      id={task.requestedById}
+                                      name={task.requestedByName ?? ''}
+                                    />
+                                  </>
+                                )}
                               </span>
                             )}
                             {task.featuredAsQuickTask && (

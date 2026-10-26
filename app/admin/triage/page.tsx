@@ -24,6 +24,7 @@ import { formatDate } from '@/lib/format-date'
 import { InterestStatus, ProjectStatus } from '@/generated/prisma/enums'
 import { H1 } from '@/components/Heading'
 import { P } from '@/components/Text'
+import PersonName from '@/components/PersonName'
 
 function TriagePageContent() {
   const { user, loading } = useRequireStaff()
@@ -249,7 +250,8 @@ function TriagePageContent() {
                         </P>
                         <P className="text-xs text-text-light m-0 mt-1">
                           {i.createdAt ? formatDate(i.createdAt) : ''}
-                          {' · '}Owner: {i.ownerName ?? 'None'}
+                          {' · '}Owner:{' '}
+                          {i.ownerName ? <PersonName id={i.ownerId} name={i.ownerName} /> : 'None'}
                           {' · '}Project:{' '}
                           <ProjectStatusBadge status={i.projectStatus} viewerIsAdmin />
                         </P>

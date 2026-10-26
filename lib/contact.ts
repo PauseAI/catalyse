@@ -15,7 +15,7 @@ import { ContactRequestStatus, InterestStatus, WorkItemType } from '@/generated/
 type Viewer = { id: number }
 
 /** The projects a volunteer owns or is on. */
-async function projectIdsOf(volunteerIds: number[]): Promise<Map<number, Set<number>>> {
+export async function projectIdsOf(volunteerIds: number[]): Promise<Map<number, Set<number>>> {
   const [owned, interests, tasks] = await Promise.all([
     prisma.workItem.findMany({
       where: { type: WorkItemType.PROJECT, assigneeId: { in: volunteerIds } },

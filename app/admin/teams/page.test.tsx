@@ -3,7 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import { createAdmin, createVolunteer, createTeam } from '@/test/factories'
-import { renderApp } from '@/test/render'
+import { fullText, renderApp } from '@/test/render'
 import AdminTeamsPage from './page'
 
 const article = (name: string) =>
@@ -93,7 +93,7 @@ describe('admin teams', () => {
 
     // Review: accept with a different leader found by search.
     await userEvent.click(within(article('Beta Idea')).getByRole('button', { name: 'Review' }))
-    expect(screen.getByText('Suggested by Sue Suggester')).toBeInTheDocument()
+    expect(screen.getByText(fullText('Suggested by Sue Suggester'))).toBeInTheDocument()
     await userEvent.click(
       screen.getByRole('heading', { name: 'Review suggestion' }).closest('.fixed')!,
     )

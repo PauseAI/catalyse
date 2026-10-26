@@ -1,22 +1,25 @@
 import Link from 'next/link'
 import { PersonInitials } from '@/components/WorkItemHeader'
+import { RoleBadge } from '@/components/PersonName'
+import { usePerson } from '@/lib/hooks/usePerson'
 
 const PILL = 'inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full p-0.5 text-sm'
 
 /**
- * A person as an initials circle and name in a pill, optionally a link and optionally with a `×`
- * that removes them. Any role label ("Owner", "Helper") is the caller's, rendered before the chip.
+ * A person as an initials circle and name in a pill, optionally with a `×` that removes them. As
+ * with PersonName, the name links to their profile when the viewer can open it, and carries their
+ * staff badge. Any project role label ("Owner", "Helper") is the caller's.
  */
 export function PersonChip({
+  id,
   name,
-  href,
   isViewer,
   onRemove,
   removeLabel,
   removeDisabled,
 }: {
+  id: number | null | undefined
   name: string
-  href?: string
   /** Marks the chip as the viewer's own with a muted "(you)" after the name. */
   isViewer?: boolean
   onRemove?: () => void
@@ -24,16 +27,18 @@ export function PersonChip({
   removeLabel?: string
   removeDisabled?: boolean
 }) {
+  const person = usePerson(id)
   return (
     <span className={`${PILL} bg-chip text-chip-text ${onRemove ? 'pr-1' : 'pr-3'}`}>
       <PersonInitials name={name} />
-      {href ? (
-        <Link href={href} className="min-w-0 truncate hover:underline">
+      {person?.canView ? (
+        <Link href={`/volunteers/${person.id}`} className="min-w-0 truncate hover:underline">
           {name}
         </Link>
       ) : (
         <span className="min-w-0 truncate">{name}</span>
       )}
+      <RoleBadge person={person} />
       {isViewer && <span className="shrink-0 text-text-light">(you)</span>}
       {onRemove && (
         <button

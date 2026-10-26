@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import { queryClient } from '@/lib/query-client'
 import { createVolunteer, createAdmin, createProject, createTask } from '@/test/factories'
-import { renderApp } from '@/test/render'
+import { fullText, renderApp } from '@/test/render'
 import { addDays, startOfUtcDay } from '@/lib/schedule'
 import { formatDateShort, toDateInputValue } from '@/lib/format-date'
 import { initials } from '@/components/WorkItemHeader'
@@ -329,7 +329,7 @@ describe('task detail page', () => {
     expect(screen.queryByRole('button', { name: 'Ask to take this' })).toBeNull()
     cleanup()
     await mount(project.id, other.id, owner)
-    await screen.findByText('Requested by Nia Newcomer, waiting for the owner.')
+    await screen.findByText(fullText('Requested by Nia Newcomer, waiting for the owner.'))
     cleanup()
 
     await prisma.workItemInterest.create({
@@ -838,7 +838,7 @@ describe('task detail page — a completed project', () => {
     await screen.findByRole('heading', { name: 'Flyering' })
     // A task worked by several people names its lead.
     expect(screen.getByText('Lead').parentElement).toHaveTextContent('Lee Lead')
-    expect(screen.getByRole('link', { name: 'Lee Lead' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Lee Lead' })).toHaveAttribute(
       'href',
       `/volunteers/${lead.id}`,
     )

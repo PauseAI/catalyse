@@ -15,6 +15,7 @@ import { H1, H2 } from '@/components/Heading'
 import { P } from '@/components/Text'
 import FormLabel from '@/components/FormLabel'
 import Input from '@/components/ui/Input'
+import PersonName from '@/components/PersonName'
 
 const ACTION_LABELS: Record<ChapterAuditAction, string> = {
   CHAPTER_CREATED: 'opened the chapter',
@@ -149,7 +150,7 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
         {lead ? (
           <div className="flex justify-between items-center gap-4 flex-wrap">
             <span>
-              {lead.name}
+              <PersonName id={lead.id} name={lead.name} />
               <Muted parts={[lead.email]} />
             </span>
             {isGlobal && (
@@ -190,7 +191,7 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
             {deputies.map((d) => (
               <li key={d.id} className="flex justify-between items-center gap-4 flex-wrap">
                 <span>
-                  {d.name}
+                  <PersonName id={d.id} name={d.name} />
                   <Muted parts={[d.email]} />
                 </span>
                 {chapter.canAppointDeputies && (
@@ -296,16 +297,8 @@ export default function AdminChapterPage({ params }: { params: Promise<{ id: str
               className="flex justify-between items-center gap-4 flex-wrap border-b border-brand-border py-2"
             >
               <span>
-                <Link className="text-primary-text underline" href={`/volunteers/${m.id}`}>
-                  {m.name}
-                </Link>
-                <Muted
-                  parts={[
-                    m.email,
-                    m.role && (m.role === 'LEAD' ? 'Lead' : 'Deputy'),
-                    m.duplicateOf && `duplicate of ${m.duplicateOf.name}`,
-                  ]}
-                />
+                <PersonName id={m.id} name={m.name} />
+                <Muted parts={[m.email, m.duplicateOf && `duplicate of ${m.duplicateOf.name}`]} />
               </span>
               {isGlobal && (
                 <FilterDropdown

@@ -371,6 +371,7 @@ describe('reviewing submitted work', () => {
     })
     expect(view.changesRequested).toEqual({
       message: 'Add the link',
+      byId: helper.id,
       byName: `${helper.name} (deputy)`,
     })
 

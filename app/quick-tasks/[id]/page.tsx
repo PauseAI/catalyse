@@ -155,7 +155,11 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
           submission={task.submission}
           changesRequested={
             task.changesRequested
-              ? { message: task.changesRequested, byName: task.reviewedByName }
+              ? {
+                  message: task.changesRequested,
+                  byId: task.reviewedById,
+                  byName: task.reviewedByName,
+                }
               : null
           }
         />

@@ -57,6 +57,7 @@ import HelpersWantedField, {
 } from '@/components/HelpersWantedField'
 import { TERMINAL_STATUSES } from '@/lib/project-status'
 import { SECTION_CARD } from '@/lib/ui-classes'
+import PersonName from '@/components/PersonName'
 
 /** "Waiting on 1 of 2.", or that everything it waits on is done; nothing once it is handed in. */
 function waitsOnSummary(waitsOn: WorkItemSummary[], status: string): string | null {
@@ -375,8 +376,8 @@ export default function TaskDetailPage({
             >
               {task.assignedToId !== null && task.assignedToName !== null ? (
                 <PersonChip
+                  id={task.assignedToId}
                   name={task.assignedToName}
-                  href={`/volunteers/${task.assignedToId}`}
                   isViewer={task.assignedToId === user.id}
                 />
               ) : (
@@ -446,8 +447,9 @@ export default function TaskDetailPage({
             className="border-warning-text mb-4 rounded-lg border p-4 text-sm"
           >
             <P className="mt-0 mb-3">
-              <strong>{plural(task.pastPlanDays, 'day')} past plan.</strong> {task.assignedToName}{' '}
-              has it. Replan it, give it to someone else, or open it up again.
+              <strong>{plural(task.pastPlanDays, 'day')} past plan.</strong>{' '}
+              <PersonName id={task.assignedToId} name={task.assignedToName ?? ''} /> has it. Replan
+              it, give it to someone else, or open it up again.
             </P>
             <div className="flex flex-wrap items-end gap-3">
               <Button size="sm" onClick={() => setReplanning(true)}>
@@ -522,9 +524,15 @@ export default function TaskDetailPage({
 
         {task.requestedById !== null && (
           <P className="text-sm text-text-light mt-4 mb-0">
-            {task.requestedById === user.id
-              ? 'Held for you until the owner accepts you onto the project.'
-              : `Requested by ${task.requestedByName}, waiting for the owner.`}
+            {task.requestedById === user.id ? (
+              'Held for you until the owner accepts you onto the project.'
+            ) : (
+              <>
+                Requested by{' '}
+                <PersonName id={task.requestedById} name={task.requestedByName ?? ''} />, waiting
+                for the owner.
+              </>
+            )}
           </P>
         )}
 

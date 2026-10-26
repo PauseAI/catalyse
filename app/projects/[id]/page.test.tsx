@@ -13,7 +13,7 @@ import {
   createSkill,
   createTeam,
 } from '@/test/factories'
-import { renderApp } from '@/test/render'
+import { fullText, renderApp } from '@/test/render'
 import { clientAs } from '@/test/rpc'
 import { navigation } from '@/test/next-navigation'
 import ProjectDetailPage from './page'
@@ -358,7 +358,7 @@ describe('project page — joining and held tasks', () => {
     await screen.findByRole('heading', { name: 'Busy project' })
     expect(screen.getByRole('tab', { name: 'People (7)' })).toBeInTheDocument()
     // Beside the owner, a one-line count that matches the People tab's.
-    expect(screen.getByRole('link', { name: 'Omar Owner' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Omar Owner' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '6 helpers' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Edit project' })).toBeNull()
     await userEvent.click(await screen.findByRole('button', { name: 'Ask to take this' }))
@@ -377,7 +377,7 @@ describe('project page — joining and held tasks', () => {
 
     cleanup()
     await mount(project.id, owner, '#tasks')
-    await screen.findByText('Requested by Mo Newcomer')
+    await screen.findByText(fullText('Requested by Mo Newcomer'))
     // The viewer who answers requests counts them in the tab's number and its bubble.
     await screen.findByRole('tab', { name: 'People (8), 1 waiting for an answer' })
     await userEvent.click(screen.getByRole('button', { name: '6 helpers' }))
@@ -578,7 +578,7 @@ describe('project page — owner', () => {
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add now' })).toBeNull()
     const invited = await screen.findByRole('region', { name: 'Invited' })
-    expect(within(invited).getByText('Invited by Owen Owner')).toBeInTheDocument()
+    expect(within(invited).getByText(fullText('Invited by Owen Owner'))).toBeInTheDocument()
     expect(within(invited).getByText('Leaflets?')).toBeInTheDocument()
     // The inviter waits on the invitee, so the badge is outlined.
     expect(within(invited).getByText('Invited', { selector: '.status-badge' })).toHaveAttribute(
@@ -1228,7 +1228,7 @@ describe('project page — people tab', () => {
     await mount(project.id, viewer, '#people')
     const tab = await people()
     expect(within(tab).getByText('Proposed by')).toBeInTheDocument()
-    expect(within(tab).getByRole('link', { name: 'Pia Proposer' })).toHaveAttribute(
+    expect(await within(tab).findByRole('link', { name: 'Pia Proposer' })).toHaveAttribute(
       'href',
       `/volunteers/${proposer.id}`,
     )
@@ -1271,7 +1271,7 @@ describe('project page — people tab', () => {
     })
     await mount(project.id, await createVolunteer(), '#people')
     const tab = await people()
-    expect(within(tab).getByRole('link', { name: 'Oona Owner' })).toBeInTheDocument()
+    expect(await within(tab).findByRole('link', { name: 'Oona Owner' })).toBeInTheDocument()
     expect(within(tab).queryByText('Proposed by')).toBeNull()
   })
 })
@@ -1335,7 +1335,7 @@ describe('project page — invites', () => {
     await clientAs(owner).projects.invite({ projectId: project.id, volunteerId: me.id })
     cleanup()
     await mount(project.id, me)
-    await screen.findByText('Ola Owner invited you to help on this project')
+    await screen.findByText(fullText('Ola Owner invited you to help on this project'))
     await userEvent.click(screen.getByRole('button', { name: 'Accept' }))
     await screen.findByText("You're on the project. Welcome!")
     await waitFor(async () =>

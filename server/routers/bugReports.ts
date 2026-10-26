@@ -25,6 +25,7 @@ export const bugReportsRouter = {
       severity: r.severity,
       status: r.status,
       resolutionNotes: r.resolutionNotes,
+      assigneeId: r.assigneeId,
       assigneeName: r.assignee?.name ?? null,
       createdAt: r.createdAt,
     }))

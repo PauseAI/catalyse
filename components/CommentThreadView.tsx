@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useSyncExternalStore, type MouseEvent } from 'react'
 import { flushSync } from 'react-dom'
-import Link from 'next/link'
 import CommentComposer from './CommentComposer'
 import ConfirmDialog from './ui/ConfirmDialog'
 import { formatDateTime } from '@/lib/format-date'
@@ -10,6 +9,7 @@ import { decodeMentions, splitMentions, type MentionMember } from '@/lib/mention
 import { useToast } from '@/lib/toast'
 import { P } from '@/components/Text'
 import { PersonInitials } from '@/components/WorkItemHeader'
+import PersonName from '@/components/PersonName'
 
 export interface CommentItem {
   id: number
@@ -72,9 +72,12 @@ function CommentBody({ content }: { content: string }) {
         typeof part === 'string' ? (
           part
         ) : (
-          <span key={i} className="font-semibold text-primary">
-            @{part.name}
-          </span>
+          <PersonName
+            key={i}
+            id={part.id}
+            name={`@${part.name}`}
+            className="font-semibold text-primary no-underline hover:underline"
+          />
         ),
       )}
     </P>
@@ -255,13 +258,11 @@ export default function CommentThreadView({
         <span className="mb-1 text-xs text-text-light inline-flex flex-wrap items-center gap-1.5">
           <span className="inline-flex items-center gap-1">
             <PersonInitials name={author} size="xs" />
-            {c.authorId ? (
-              <Link href={`/volunteers/${c.authorId}`} className="hover:text-text hover:underline">
-                {author}
-              </Link>
-            ) : (
-              author
-            )}
+            <PersonName
+              id={c.authorId}
+              name={author}
+              className="text-text-light no-underline hover:text-text hover:underline"
+            />
           </span>{' '}
           · {c.createdAt ? formatDateTime(c.createdAt) : ''}
           {c.editedAt && <span>(edited)</span>}

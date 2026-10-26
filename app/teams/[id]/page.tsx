@@ -14,6 +14,7 @@ import { useCooldown } from '@/lib/hooks/useCooldown'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import NotFoundCard from '@/components/NotFoundCard'
 import ContactButton from '@/components/ContactButton'
+import PersonName from '@/components/PersonName'
 
 export default function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: idParam } = use(params)
@@ -138,9 +139,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
             .filter((l) => l.id !== user.id)
             .map((l) => (
               <li key={l.id} className="flex items-center gap-3 flex-wrap">
-                <Link className="text-primary-text underline" href={`/volunteers/${l.id}`}>
-                  {l.name}
-                </Link>
+                <PersonName id={l.id} name={l.name} />
                 <ContactButton
                   volunteerId={l.id}
                   name={l.name}
@@ -161,9 +160,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
           <ul className="list-none p-0 m-0 flex flex-wrap gap-x-4 gap-y-1 text-sm">
             {team.members.map((m) => (
               <li key={m.id}>
-                <Link className="text-primary-text underline" href={`/volunteers/${m.id}`}>
-                  {m.name}
-                </Link>
+                <PersonName id={m.id} name={m.name} />
                 {m.role === 'leader' && <span className="text-text-light"> (leader)</span>}
               </li>
             ))}

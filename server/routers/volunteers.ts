@@ -6,15 +6,15 @@ import { groupIn, placement } from '@/lib/chapter-placement'
 import { redactVolunteer } from '@/lib/auth'
 import { UpdateVolunteerSchema } from '@/lib/schemas'
 import { projectScopeWhere } from '@/lib/work-item'
-import { canReach, contactRelations, worksWith } from '@/lib/contact'
-import { canAdminChapter, inChapter } from '@/lib/chapter-access'
+import { contactRelations } from '@/lib/contact'
+import { canAdminChapter } from '@/lib/chapter-access'
+import { peopleInfo, viewableVolunteers } from '@/lib/people'
 import { chapterFilter } from '@/lib/chapter-access-server'
 import { isActiveRecently } from '@/lib/activity'
 import { approvedProcedure, authedProcedure } from '../procedures'
 import {
   ApprovalStatus,
   ContactRequestStatus,
-  InterestStatus,
   ProjectStatus,
   QuickTaskStatus,
   WorkItemType,
@@ -143,6 +143,21 @@ export const volunteersRouter = {
       }
     }),
 
+  /**
+   * For names shown on a page: whether each links to a profile the viewer can open, and the
+   * role it is badged with. Someone still awaiting approval can open only their own.
+   */
+  lookup: authedProcedure
+    .input(z.object({ ids: z.array(z.number().int()).max(200) }))
+    .handler(async ({ input, context }) => {
+      const people = await peopleInfo(context.volunteer, context.access, input.ids)
+      const approved =
+        context.volunteer.approvalStatus === ApprovalStatus.approved || context.volunteer.isAdmin
+      return approved
+        ? people
+        : people.map((p) => ({ ...p, canView: p.id === context.volunteer.id }))
+    }),
+
   getById: approvedProcedure
     .input(z.object({ id: z.number().int() }))
     .handler(async ({ input, context }) => {
@@ -152,6 +167,7 @@ export const volunteersRouter = {
         where: { id: input.id, deletedAt: null },
         include: {
           group: { select: { name: true } },
+          chapter: { select: { name: true, country: true } },
           skills: {
             include: { skill: { include: { category: true } } },
             orderBy: [
@@ -166,55 +182,13 @@ export const volunteersRouter = {
         },
       })
 
-      // Someone in another chapter is out of sight, unless the two already work together on a
-      // project from before chapters.
-      const isOwn = vol?.id === currentVolunteer.id
       if (
         !vol ||
-        (!isOwn &&
-          !inChapter(context.access, vol.nationalChapterId) &&
-          !(await worksWith(currentVolunteer.id, vol.id)))
+        !(await viewableVolunteers(currentVolunteer, context.access, [vol.id])).has(vol.id)
       ) {
         throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
       }
       const isAdmin = canAdminChapter(context.access, vol.nationalChapterId)
-
-      // A profile hidden from the public directory is still visible to:
-      //  - the volunteer themselves
-      //  - a global admin, or the staff of the volunteer's chapter
-      //  - an owner of a project this volunteer is involved in, so they can assess
-      //    the volunteer's skills — including before accepting them. "Involved in" =
-      //    holds a task under that project, or has a live (non-declined,
-      //    non-withdrawn) interest in it.
-      if (!vol.consentMakeProfileVisibleInDirectory && !isAdmin && !isOwn) {
-        const ownedProjectLink = await prisma.workItem.count({
-          where: {
-            type: WorkItemType.PROJECT,
-            assigneeId: currentVolunteer.id,
-            OR: [
-              { children: { some: { type: WorkItemType.TASK, assigneeId: vol.id } } },
-              {
-                interests: {
-                  some: {
-                    volunteerId: vol.id,
-                    status: {
-                      notIn: [
-                        InterestStatus.declined,
-                        InterestStatus.withdrawn,
-                        InterestStatus.removed,
-                        InterestStatus.cancelled,
-                      ],
-                    },
-                  },
-                },
-              },
-            ],
-          },
-        })
-        if (ownedProjectLink === 0 && !(await canReach(currentVolunteer, context.access, vol.id))) {
-          throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
-        }
-      }
 
       // Contact details go only to people who work with the volunteer, or whom they have
       // accepted a contact request from (lib/contact.ts); their chapter's staff see them too.
@@ -308,6 +282,7 @@ export const volunteersRouter = {
           vol.id !== currentVolunteer.id &&
           Boolean(vol.consentMakeProfileVisibleInDirectory),
         activeRecently: isActiveRecently(vol.lastActiveAt),
+        chapter: vol.chapter,
         projects: projects.map((p) => ({
           id: p.id,
           title: p.title,
