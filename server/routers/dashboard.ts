@@ -592,10 +592,9 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
   ]
 }
 
-async function findFor(
-  viewer: Viewer,
-  skillIds: number[],
-): Promise<{ quickTasks: FindRow; matches: FindRow; nearYou: FindRow }> {
+// What a volunteer could pick up: live, unfinished projects they may see and are not already
+// part of, those using their skills, those in their chapter, and their chapter's open quick tasks.
+async function findWheres(viewer: Viewer, skillIds: number[]) {
   // Any interest, including a declined or withdrawn one, means it is not new to them.
   const involved = await prisma.workItemInterest.findMany({
     where: { volunteerId: viewer.id },
@@ -603,7 +602,6 @@ async function findFor(
   })
   const excluded = [...involved.map((i) => i.workItemId), -1]
 
-  // Live, unfinished projects this volunteer may see and is not already part of.
   const open: Prisma.WorkItemWhereInput = {
     type: WorkItemType.PROJECT,
     status: { in: ADVERTISABLE_STATUSES },
@@ -619,8 +617,7 @@ async function findFor(
     ...open,
     skills: { some: { skillId: { in: skillIds } } },
   }
-  // Near you: the viewer's chapter's projects, their own local group's first. The holding pool
-  // is nowhere in particular.
+  // Near you: the viewer's chapter's projects. The holding pool is nowhere in particular.
   const nearWhere: Prisma.WorkItemWhereInput = {
     ...open,
     nationalChapterId: viewer.nationalChapterId,
@@ -631,6 +628,34 @@ async function findFor(
     assigneeId: null,
     nationalChapterId: viewer.nationalChapterId,
   }
+  return { matchWhere, nearWhere, quickWhere }
+}
+
+/**
+ * How much is waiting for an applicant once they are approved: counts only, since what the
+ * work is stays behind the approval gate.
+ */
+async function waitingFor(viewer: Viewer, skillIds: number[]) {
+  const { matchWhere, nearWhere, quickWhere } = await findWheres(viewer, skillIds)
+  const hasChapter = viewer.nationalChapterId !== null
+  // The matches are a share of the chapter's projects, so they are counted within it too.
+  const [projects, matching, quickTasks] = await Promise.all([
+    hasChapter ? prisma.workItem.count({ where: nearWhere }) : 0,
+    hasChapter && skillIds.length > 0
+      ? prisma.workItem.count({
+          where: { ...matchWhere, nationalChapterId: viewer.nationalChapterId },
+        })
+      : 0,
+    prisma.workItem.count({ where: quickWhere }),
+  ])
+  return { projects, matching, quickTasks }
+}
+
+async function findFor(
+  viewer: Viewer,
+  skillIds: number[],
+): Promise<{ quickTasks: FindRow; matches: FindRow; nearYou: FindRow }> {
+  const { matchWhere, nearWhere, quickWhere } = await findWheres(viewer, skillIds)
   const hasChapter = viewer.nationalChapterId !== null
   const nearSelect = {
     id: true,
@@ -734,16 +759,14 @@ export const dashboardRouter = {
       select: { id: true },
     })
     const isMember = volunteer.approvalStatus === ApprovalStatus.approved || viewer.isAdmin
+    const isApplicant = !isMember && volunteer.approvalStatus !== ApprovalStatus.rejected
+    const skillIds = (me?.skills ?? []).map((s) => s.skillId)
 
-    const [attention, work, find, hasTakenWork] = await Promise.all([
+    const [attention, work, find, waiting, hasTakenWork] = await Promise.all([
       isMember ? attentionFor(viewer) : [],
       isMember ? workFor(viewer) : [],
-      isMember
-        ? findFor(
-            viewer,
-            (me?.skills ?? []).map((s) => s.skillId),
-          )
-        : null,
+      isMember ? findFor(viewer, skillIds) : null,
+      isApplicant ? waitingFor(viewer, skillIds) : null,
       prisma.workItem.count({
         where: {
           assigneeId: volunteer.id,
@@ -763,6 +786,7 @@ export const dashboardRouter = {
       attention,
       work,
       find,
+      waiting,
       gettingStarted,
       hasSkills: (me?.skills.length ?? 0) > 0,
       // Shown once as a welcome dialog; reading the notification dismisses it for good.
