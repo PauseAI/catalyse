@@ -9,6 +9,7 @@ import { useToast } from '@/lib/toast'
 import Button from '@/components/Button'
 import { Badge } from '@/components/Badge'
 import FilterDropdown from '@/components/FilterDropdown'
+import BugReportAssignee from '@/components/BugReportAssignee'
 import BugReportCommentThread from '@/components/BugReportCommentThread'
 import { formatDate } from '@/lib/format-date'
 import { SECTION_CARD } from '@/lib/ui-classes'
@@ -140,6 +141,10 @@ export default function BugReportDetailPage({ params }: { params: Promise<{ id: 
 
         {user.isAdmin && (
           <div className="mt-5 pt-5 border-t border-brand-border">
+            <div className="mb-5">
+              <BugReportAssignee report={report} viewerId={user.id} />
+            </div>
+
             <div className="mb-5">
               <FilterDropdown
                 id="edit-status"

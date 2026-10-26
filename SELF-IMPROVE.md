@@ -289,3 +289,10 @@ confusing than it needed to be, and that will do so again.
       tests sat for 60 s each before failing, and the run timed out before printing which.
       A dom `testTimeout` near the 20 s the node project uses, or a failing test reported as
       it fails rather than at the end, would have shown the cause in the first minute.
+
+- [ ] **A host session handed a task in a pod-backed worktree can edit the code but not run
+      any test that needs Postgres.** Bug report #60's inline triage controls went to a PR with
+      typecheck, lint and format checked but no unit or e2e run, because the sandbox refuses
+      `localhost:5432` and `agent-pod run` is not available from the host. Starting such tasks
+      inside the worktree's pod, or letting the host run `npm run check-all` through the pod,
+      would let the session verify its own change.

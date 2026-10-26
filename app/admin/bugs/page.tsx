@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useRequireAdmin } from '@/lib/hooks/auth'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import FilterDropdown, { useFilterOptions } from '@/components/FilterDropdown'
-import FullVolunteerSelect from '@/components/FullVolunteerSelect'
+import BugReportAssignee from '@/components/BugReportAssignee'
+import BugReportCommentThread from '@/components/BugReportCommentThread'
 import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { formatDate } from '@/lib/format-date'
@@ -103,32 +104,13 @@ export default function AdminBugsPage() {
     enabled: !!user?.isAdmin,
   })
 
-  const [assignSelections, setAssignSelections] = useState<Record<number, string>>({})
-
-  const updateMutation = useMutation({
+  const statusMutation = useMutation({
     ...orpc.admin.bugReports.update.mutationOptions(),
     onSuccess: () => {
-      showToast('Marked in progress', 'success')
       void queryClient.invalidateQueries({ queryKey: listQuery.queryKey })
     },
     onError: (err: unknown) => {
       showToast(err instanceof Error ? err.message : 'Failed to update', 'error')
-    },
-  })
-
-  const assignMutation = useMutation({
-    ...orpc.admin.bugReports.assign.mutationOptions(),
-    onSuccess: (_, variables) => {
-      showToast('Bug report assigned', 'success')
-      setAssignSelections((s) => {
-        const next = { ...s }
-        delete next[variables.id]
-        return next
-      })
-      void queryClient.invalidateQueries({ queryKey: listQuery.queryKey })
-    },
-    onError: (err: unknown) => {
-      showToast(err instanceof Error ? err.message : 'Failed to assign', 'error')
     },
   })
 
@@ -213,21 +195,17 @@ export default function AdminBugsPage() {
                     <BugReportCard
                       key={r.id}
                       report={r}
+                      viewerId={user.id}
                       onNavigate={() => router.push(`/bugs/${r.id}`)}
-                      onMarkInProgress={() =>
-                        updateMutation.mutate({ id: r.id, status: 'in_progress' })
+                      onStatusChange={(status) =>
+                        statusMutation.mutate(
+                          { id: r.id, status },
+                          {
+                            onSuccess: () =>
+                              showToast(`Moved to ${bugStatusLabel(status)}`, 'success'),
+                          },
+                        )
                       }
-                      markInProgressPending={updateMutation.isPending}
-                      assignValue={assignSelections[r.id] ?? ''}
-                      onAssignChange={(v) => setAssignSelections((s) => ({ ...s, [r.id]: v }))}
-                      onAssign={() =>
-                        assignMutation.mutate({
-                          id: r.id,
-                          volunteerId: parseInt(assignSelections[r.id]!, 10),
-                        })
-                      }
-                      assignPending={assignMutation.isPending}
-                      isAdmin={!!user?.isAdmin}
                     />
                   ))}
                 </div>
@@ -242,25 +220,16 @@ export default function AdminBugsPage() {
 
 function BugReportCard({
   report: r,
+  viewerId,
   onNavigate,
-  onMarkInProgress,
-  markInProgressPending,
-  assignValue,
-  onAssignChange,
-  onAssign,
-  assignPending,
-  isAdmin,
+  onStatusChange,
 }: {
   report: BugReports[number]
+  viewerId: number
   onNavigate: () => void
-  onMarkInProgress: () => void
-  markInProgressPending: boolean
-  assignValue: string
-  onAssignChange: (value: string) => void
-  onAssign: () => void
-  assignPending: boolean
-  isAdmin: boolean
+  onStatusChange: (status: string) => void
 }) {
+  const [discussionOpen, setDiscussionOpen] = useState(false)
   return (
     // [test hook] card class used as test selector
     <div
@@ -303,41 +272,40 @@ function BugReportCard({
         <P className="mt-0 mx-0 mb-3 text-sm italic">Resolution: {r.resolutionNotes}</P>
       )}
 
+      {/* Clicks and keys in here act on the report in place rather than opening it. */}
       <div
-        className="flex gap-2 items-end flex-wrap pt-3 border-t border-brand-border"
+        className="cursor-auto pt-3 border-t border-brand-border"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
-        {r.status === 'open' && (
+        <div className="flex gap-2 items-end flex-wrap">
+          <div className="w-40">
+            <FilterDropdown
+              id={`status-bug-${r.id}`}
+              label="Status"
+              ariaLabel={`Status of ${r.title}`}
+              value={r.status}
+              options={BUG_STATUS_OPTIONS}
+              onChange={(status) => status !== r.status && onStatusChange(status)}
+            />
+          </div>
+          <div className="flex-1">
+            <BugReportAssignee report={r} viewerId={viewerId} />
+          </div>
           <Button
-            variant="secondary"
+            variant="ghost"
             size="sm"
-            disabled={markInProgressPending}
-            onClick={onMarkInProgress}
+            aria-expanded={discussionOpen}
+            onClick={() => setDiscussionOpen((o) => !o)}
           >
-            Mark in progress
+            {r.commentCount === 0 ? 'Reply' : `Discussion (${r.commentCount})`}
           </Button>
-        )}
-
-        <div className="flex-1 min-w-50 max-w-75">
-          <FullVolunteerSelect
-            id={`assign-bug-${r.id}`}
-            label="Assign to"
-            ariaLabel={`Assign volunteer to ${r.title}`}
-            value={assignValue}
-            onChange={onAssignChange}
-            placeholder="Select volunteer…"
-            enabled={isAdmin}
-          />
         </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={!assignValue || assignPending}
-          onClick={onAssign}
-        >
-          Assign
-        </Button>
+        {discussionOpen && (
+          <div className="mt-4 animate-fade-slide-in">
+            <BugReportCommentThread bugReportId={r.id} />
+          </div>
+        )}
       </div>
     </div>
   )

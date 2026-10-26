@@ -9,8 +9,8 @@ import AdminBugsPage from './bugs/page'
 import TriagePage from './triage/page'
 
 describe('admin bugs', () => {
-  it('filters, opens, marks in progress and assigns reports', async () => {
-    const admin = await createAdmin()
+  it('filters and opens reports, and assigns, moves and discusses them in place', async () => {
+    const admin = await createAdmin({ name: 'Ada Admin' })
     const reporter = await createVolunteer({ name: 'Rita Reporter' })
     const fixer = await createVolunteer({ name: 'Fiona Fixer' })
     const open = await prisma.bugReport.create({
@@ -52,7 +52,7 @@ describe('admin bugs', () => {
     expect(resolved).toHaveTextContent('Resolution: Shipped')
     expect(resolved).toHaveTextContent('· javascript:alert(1)')
     expect(resolved).toHaveTextContent('Assigned to: Fiona Fixer')
-    expect(within(resolved).queryByRole('button', { name: 'Mark in progress' })).toBeNull()
+    expect(within(resolved).getByRole('button', { name: 'Unassign' })).toBeInTheDocument()
     resolvedToggle.focus()
     await userEvent.keyboard('{Enter}')
     expect(screen.queryByText('Nice to have')).toBeNull()
@@ -97,22 +97,45 @@ describe('admin bugs', () => {
     await userEvent.click(screen.getByRole('option', { name: 'All' }))
     await screen.findByRole('heading', { name: 'Broken button' })
 
-    await userEvent.click(screen.getByRole('button', { name: 'Assign volunteer to Broken button' }))
-    await userEvent.click(await screen.findByRole('option', { name: 'Fiona Fixer' }))
     const openCard = () =>
       screen.getByRole('heading', { name: 'Broken button' }).closest<HTMLElement>('[role="link"]')!
-    await userEvent.click(within(openCard()).getByRole('button', { name: 'Assign' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Assign volunteer to Broken button' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Fiona Fixer' }))
     await screen.findByText('Bug report assigned')
     await waitFor(() => expect(openCard()).toHaveTextContent('Assigned to: Fiona Fixer'))
-    await userEvent.click(within(openCard()).getByRole('button', { name: 'Mark in progress' }))
-    await screen.findByText('Marked in progress')
+    await userEvent.click(within(openCard()).getByRole('button', { name: 'Assign to me' }))
+    await waitFor(() => expect(openCard()).toHaveTextContent('Assigned to: Ada Admin'))
+    expect(within(openCard()).queryByRole('button', { name: 'Assign to me' })).toBeNull()
+    await userEvent.click(within(openCard()).getByRole('button', { name: 'Unassign' }))
+    await screen.findByText('Bug report unassigned')
+    await waitFor(() => expect(openCard()).not.toHaveTextContent('Assigned to'))
+    expect(await prisma.bugReport.findUniqueOrThrow({ where: { id: open.id } })).toMatchObject({
+      assigneeId: null,
+    })
+
+    // Picking the status a report already has changes nothing.
+    await userEvent.click(screen.getByRole('button', { name: 'Status of Broken button' }))
+    await userEvent.click(screen.getByRole('option', { name: 'Open' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Status of Broken button' }))
+    await userEvent.click(screen.getByRole('option', { name: 'In progress' }))
+    await screen.findByText('Moved to In progress')
     await waitFor(async () =>
       expect((await prisma.bugReport.findUniqueOrThrow({ where: { id: open.id } })).status).toBe(
         'in_progress',
       ),
     )
-    // The card re-mounts under its new section once the list refetches; click the settled one.
+    // The card re-mounts under its new section once the list refetches; act on the settled one.
     await screen.findByRole('heading', { name: 'In progress: 1' })
+
+    await userEvent.click(within(openCard()).getByRole('button', { name: 'Reply' }))
+    await userEvent.type(within(openCard()).getByLabelText('Add a comment'), 'Looking at it now')
+    await userEvent.click(within(openCard()).getByRole('button', { name: 'Post comment' }))
+    await screen.findByText('Comment added')
+    await within(openCard()).findByRole('button', { name: 'Discussion (1)', expanded: true })
+    expect(openCard()).toHaveTextContent('Looking at it now')
+    expect(navigation.push).not.toHaveBeenCalled()
+    await userEvent.click(within(openCard()).getByRole('button', { name: 'Discussion (1)' }))
+    expect(openCard()).not.toHaveTextContent('Looking at it now')
 
     await userEvent.click(openCard())
     expect(navigation.push).toHaveBeenCalledWith(`/bugs/${open.id}`)
@@ -136,18 +159,19 @@ describe('admin bugs', () => {
       '[role="link"]',
     )!
     await userEvent.click(screen.getByRole('button', { name: 'Assign volunteer to Fragile' }))
-    await userEvent.click(await screen.findByRole('option', { name: 'Ada Assignee' }))
     localStorage.setItem('authToken', 'stale')
-    await userEvent.click(within(fragile).getByRole('button', { name: 'Assign' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Ada Assignee' }))
     await screen.findByText('Unauthorized')
+    expect(fragile).not.toHaveTextContent('Assigned to')
     cleanup()
     localStorage.clear()
     await renderApp(<AdminBugsPage />, { as: admin })
     const again = (await screen.findByRole('heading', { name: 'Fragile' })).closest<HTMLElement>(
       '[role="link"]',
     )!
+    await userEvent.click(within(again).getByRole('button', { name: 'Status of Fragile' }))
     localStorage.setItem('authToken', 'stale')
-    await userEvent.click(within(again).getByRole('button', { name: 'Mark in progress' }))
+    await userEvent.click(screen.getByRole('option', { name: "Won't fix" }))
     await screen.findByText('Unauthorized')
   })
 })
