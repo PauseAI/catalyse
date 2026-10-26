@@ -103,9 +103,9 @@ describe('home', () => {
     expect(
       screen.getByRole('region', { name: 'What PauseAI volunteers have done' }),
     ).toBeInTheDocument()
-    cleanup()
+  })
 
-    // With nothing open yet, and no skills, the welcome asks for skills instead of counting.
+  it('asks an applicant with nothing open yet to add skills', async () => {
     const bare = await createMember(await createChapter(), { approvalStatus: 'pending' })
     await renderApp(<HomePage />, { as: bare, url: '/dashboard' })
     await screen.findByRole('heading', { name: /Thanks for applying/ })
@@ -114,10 +114,10 @@ describe('home', () => {
       'href',
       '/settings',
     )
-    cleanup()
+  })
 
-    // A member sees their own work, not the welcome.
-    await renderApp(<HomePage />, { as: await createMember(chapter), url: '/dashboard' })
+  it('spares a member the applicant welcome', async () => {
+    await renderApp(<HomePage />, { as: await createVolunteer(), url: '/dashboard' })
     await screen.findByRole('link', { name: 'Propose a project' })
     expect(screen.queryByRole('heading', { name: /Thanks for applying/ })).toBeNull()
   })
