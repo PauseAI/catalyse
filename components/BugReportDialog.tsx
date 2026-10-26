@@ -202,7 +202,7 @@ export default function BugReportDialog({ isOpen, onClose }: BugReportDialogProp
               </div>
 
               <div className="flex gap-3 justify-end">
-                <Button type="button" variant="ghost" onClick={handleClose}>
+                <Button type="button" variant="secondary" onClick={handleClose}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={submitting}>

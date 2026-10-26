@@ -4,6 +4,17 @@ import type { ComponentPropsWithoutRef } from 'react'
 const base =
   'inline-flex items-center justify-center gap-2 rounded-lg font-bold cursor-pointer transition-all disabled:opacity-40 disabled:saturate-50 disabled:cursor-not-allowed'
 
+// Which variant to use:
+// - primary: the one main action of a view, form or dialog (Save, Submit, Confirm). One per
+//   form; a page of several forms has one per form.
+// - secondary: every other action beside it, including Cancel, Back and Not now in a dialog.
+// - outline: a way to move on when the page has nothing else to do: "Back to …", "Go to
+//   login", pagination, Clear filters, or the second of two calls to action.
+// - ghost: low emphasis: close ×, icon buttons, a third action after a secondary, or an
+//   action inline in a row or menu.
+// - danger: deletes or rejects something for good. A Delete button that only opens a
+//   confirm dialog is danger too, and so is the dialog's confirm.
+// - warning: gives up the person's own place or access: leave, withdraw, revoke.
 const variants = {
   primary: 'bg-primary text-[#111827] hover:bg-primary-dark',
   secondary: 'bg-secondary text-white hover:bg-secondary-dark',

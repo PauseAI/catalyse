@@ -9,7 +9,10 @@ import Button from '@/components/Button'
 import ResendConfirmation from '@/components/ResendConfirmation'
 import { H1 } from '@/components/Heading'
 import { P } from '@/components/Text'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import Input from '@/components/ui/Input'
+
+const CARD = `${SECTION_CARD} text-center`
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams()
@@ -51,7 +54,7 @@ function VerifyEmailContent() {
 
   if (token && verifyMutation.isPending && !verifyMutation.isSuccess) {
     return (
-      <div className="bg-surface rounded-xl shadow p-8 text-center">
+      <div className={CARD}>
         <P className="text-text-light">Confirming your email address…</P>
       </div>
     )
@@ -59,7 +62,7 @@ function VerifyEmailContent() {
 
   if (verifyMutation.isSuccess && verifyMutation.data.requiresPasswordReset) {
     return (
-      <div className="bg-surface rounded-xl shadow p-8 text-center">
+      <div className={CARD}>
         <H1>Email confirmed!</H1>
         <P className="text-text-light mt-4 mb-6">
           This address has admin access, so to keep it safe we&#39;ve signed the account out
@@ -72,7 +75,7 @@ function VerifyEmailContent() {
 
   if (verifyMutation.isSuccess) {
     return (
-      <div className="bg-surface rounded-xl shadow p-8 text-center">
+      <div className={CARD}>
         <H1>Email confirmed!</H1>
         <P className="text-text-light mt-4 mb-6">
           Your email address has been confirmed. Your application is now under review, we&#39;ll
@@ -97,13 +100,13 @@ function VerifyEmailContent() {
   const alreadyUsed = errorMessage.includes('already been used')
 
   return (
-    <div className="bg-surface rounded-xl shadow p-8 text-center">
+    <div className={CARD}>
       <H1 className={token ? 'text-error' : undefined}>
         {token ? 'Confirmation failed' : 'Confirm your email'}
       </H1>
       <P className="text-text-light mt-4 mb-6">{errorMessage}</P>
       {!alreadyUsed && user && awaitingConfirmation && (
-        <div className="mt-2 pt-6 border-t border-border">
+        <div className="mt-2 pt-6 border-t border-brand-border">
           <P className="text-text-light text-sm mb-3">
             We&#39;ll send a new link to <strong>{user.email}</strong>.
           </P>
@@ -111,7 +114,7 @@ function VerifyEmailContent() {
         </div>
       )}
       {!alreadyUsed && !awaitingConfirmation && (
-        <div className="mt-2 pt-6 border-t border-border text-left">
+        <div className="mt-2 pt-6 border-t border-brand-border text-left">
           {resendSent ? (
             <P className="text-text-light text-sm text-center">
               {resendCooldown > 0
@@ -128,9 +131,9 @@ function VerifyEmailContent() {
                   placeholder="Your email address"
                   value={resendEmail}
                   onChange={(e) => setResendEmail(e.target.value)}
-                  className="flex-1 border border-field-border rounded px-3 py-2 text-sm bg-background"
+                  className="flex-1 px-3 py-2 text-sm"
                 />
-                <Button type="submit" disabled={resendCooldown > 0} variant="outline">
+                <Button type="submit" disabled={resendCooldown > 0}>
                   Send
                 </Button>
               </form>
@@ -159,7 +162,7 @@ export default function VerifyEmailPage() {
       <div className="max-w-lg mx-auto">
         <Suspense
           fallback={
-            <div className="bg-surface rounded-xl shadow p-8 text-center">
+            <div className={CARD}>
               <P className="text-text-light">Loading…</P>
             </div>
           }

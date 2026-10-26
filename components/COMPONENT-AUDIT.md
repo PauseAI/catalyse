@@ -65,9 +65,17 @@ through separate trees:
 
 The remaining stories (`Atoms/*`) are single-purpose primitives — `Badge`, `StatusBadges`,
 `Button`, `Checkbox`/`Radio`/`Toggle`, `Modal`/`ConfirmDialog`, `Tabs`, `Tooltip`, `Skeleton`,
-`EmptyState` — included as a representative sample of the rest of the component library, not
-because they show any duplication. They're a reasonable starting point for whoever adds more
-stories later.
+`EmptyState`, `SectionCard` — included as a representative sample of the rest of the component
+library, not because they show any duplication. They're a reasonable starting point for whoever
+adds more stories later.
+
+## Cards and buttons
+
+- A page made of titled cards, such as a settings tab, builds each from `SectionCard`
+  (`components/SectionCard.tsx`) in one `flex flex-col gap-6` column, so every card shares its
+  width, padding, heading size and spacing. A card with no title of its own uses `SECTION_CARD`
+  (`lib/ui-classes.ts`).
+- Which `Button` variant to use is written at the top of `components/Button.tsx`.
 
 ## What this pass deliberately didn't do
 

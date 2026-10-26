@@ -19,6 +19,7 @@ import Toggle from '@/components/Toggle'
 import { Badge, type BadgeVariant } from '@/components/Badge'
 import { H1, H2, H3 } from '@/components/Heading'
 import { P } from '@/components/Text'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import FormLabel from '@/components/FormLabel'
 import Textarea from '@/components/ui/Textarea'
 import TextLink from '@/components/TextLink'
@@ -26,7 +27,7 @@ import TextLink from '@/components/TextLink'
 type Preview = Awaited<ReturnType<typeof client.admin.journalistOutreach.previewImport>>
 type Row = Awaited<ReturnType<typeof client.admin.journalistOutreach.list>>['journalists'][number]
 
-const card = 'bg-surface rounded-xl shadow p-4 sm:p-6 mb-6 overflow-hidden wrap-break-word'
+const card = `${SECTION_CARD} mb-6 overflow-hidden wrap-break-word`
 const STATUS_VARIANT: Record<JournalistStatus, BadgeVariant> = {
   available: 'neutral',
   claimed: 'info',
@@ -307,7 +308,7 @@ export default function AdminJournalistOutreachPage() {
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.id} className="border-t border-border align-top">
+                  <tr key={r.id} className="border-t border-brand-border align-top">
                     <td className="py-2">
                       <strong>{fullName(r)}</strong>
                       <div className="text-text-light">
@@ -354,7 +355,7 @@ export default function AdminJournalistOutreachPage() {
                           Reset
                         </Button>
                       )}
-                      <Button size="sm" variant="ghost" onClick={() => setDeleting(r)}>
+                      <Button size="sm" variant="danger" onClick={() => setDeleting(r)}>
                         Delete
                       </Button>
                     </td>
@@ -377,7 +378,7 @@ export default function AdminJournalistOutreachPage() {
           with them.
         </P>
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={cancelDelete}>
+          <Button variant="secondary" onClick={cancelDelete}>
             Cancel
           </Button>
           <Button

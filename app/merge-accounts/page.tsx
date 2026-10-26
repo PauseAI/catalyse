@@ -8,9 +8,10 @@ import { useAuth } from '@/lib/auth-context'
 import Button from '@/components/Button'
 import { H1 } from '@/components/Heading'
 import { P } from '@/components/Text'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import FormLabel from '@/components/FormLabel'
 
-const CARD = 'bg-surface rounded-xl shadow p-8 text-center'
+const CARD = `${SECTION_CARD} text-center`
 
 /**
  * Where the link in a merge email lands. It asks before merging, so a mail scanner that follows

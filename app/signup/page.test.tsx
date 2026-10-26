@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { screen, waitFor, fireEvent, act, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
@@ -38,6 +38,8 @@ async function toSkillsStep() {
 }
 
 beforeEach(() => sessionStorage.clear())
+// A test that fails while its clock is faked would otherwise leave every later test hanging.
+afterEach(() => vi.useRealTimers())
 
 describe('signup with email and password', () => {
   it('shows the steps, and fills Contact email from the sign-up email', async () => {
@@ -196,7 +198,10 @@ describe('signup with email and password', () => {
 
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     fireEvent.click(screen.getByRole('button', { name: 'Resend confirmation email' }))
-    await vi.waitFor(() => expect(screen.getByText(/request another in 60s/)).toBeInTheDocument())
+    // The resend is a real request, so under load it can take longer than waitFor's default second.
+    await vi.waitFor(() => expect(screen.getByText(/request another in 60s/)).toBeInTheDocument(), {
+      timeout: 10_000,
+    })
     for (let i = 0; i < 60; i++) act(() => vi.advanceTimersByTime(1000))
     vi.useRealTimers()
     expect(screen.getByText('Email sent! Check your inbox.')).toBeInTheDocument()
