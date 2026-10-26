@@ -49,7 +49,7 @@ function Wordmark({ href }: { href: string }) {
     <Link
       href={href}
       aria-label="Catalyse"
-      className="font-display text-2xl font-black text-primary no-underline flex items-center"
+      className="text-2xl font-black text-primary no-underline flex items-center"
     >
       <span
         aria-hidden="true"

@@ -25,9 +25,7 @@ export function PersonChip({
   removeDisabled?: boolean
 }) {
   return (
-    <span
-      className={`${PILL} bg-accent text-secondary-dark dark:bg-gray-700 dark:text-gray-300 ${onRemove ? 'pr-1' : 'pr-3'}`}
-    >
+    <span className={`${PILL} bg-chip text-chip-text ${onRemove ? 'pr-1' : 'pr-3'}`}>
       <PersonInitials name={name} />
       {href ? (
         <Link href={href} className="min-w-0 truncate hover:underline">

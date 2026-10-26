@@ -167,7 +167,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
                 skills.map((s) => (
                   <span
                     key={s.id}
-                    className={`inline-flex items-center px-3 py-1 bg-accent text-secondary-dark rounded-full text-sm font-medium dark:bg-gray-700 dark:text-gray-300${endorsedSkillIds.has(s.id) ? ' matched' : ''}`}
+                    className={`inline-flex items-center px-3 py-1 bg-chip text-chip-text rounded-full text-sm font-medium${endorsedSkillIds.has(s.id) ? ' matched' : ''}`}
                   >
                     {s.name}
                     {endorsedSkillIds.has(s.id) ? ' ✓' : ''}
@@ -246,7 +246,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
                 {endorsements.map((e) => (
                   <span
                     key={e.skillId}
-                    className={`inline-flex items-center px-3 py-1 bg-accent text-secondary-dark rounded-full text-sm font-medium dark:bg-gray-700 dark:text-gray-300 border-l-[3px] ${e.rating === 'strong' ? 'border-l-success' : 'border-l-secondary'}`}
+                    className={`inline-flex items-center px-3 py-1 bg-chip text-chip-text rounded-full text-sm font-medium border-l-[3px] ${e.rating === 'strong' ? 'border-l-success' : 'border-l-secondary'}`}
                   >
                     {e.skillName}{' '}
                     <small className={e.rating === 'strong' ? 'text-success' : 'text-text-light'}>
@@ -272,7 +272,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
                     </span>
                   </div>
                   {t.skillName && (
-                    <span className="inline-flex items-center px-3 py-1 bg-accent text-secondary-dark rounded-full text-sm font-medium dark:bg-gray-700 dark:text-gray-300 mt-1">
+                    <span className="inline-flex items-center px-3 py-1 bg-chip text-chip-text rounded-full text-sm font-medium mt-1">
                       {t.skillName}
                     </span>
                   )}

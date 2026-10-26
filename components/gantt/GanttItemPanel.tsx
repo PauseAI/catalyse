@@ -193,7 +193,10 @@ export default function GanttItemPanel({
           <Tooltip content={ANCHOR_HINT}>
             <span
               className="rounded-full px-2 py-0.5 text-xs"
-              style={{ background: 'var(--gantt-anchor)', color: 'var(--gantt-bar-text)' }}
+              style={{
+                background: 'var(--color-gantt-anchor)',
+                color: 'var(--color-gantt-bar-text)',
+              }}
             >
               ★ Key date
             </span>
@@ -248,7 +251,10 @@ export default function GanttItemPanel({
                 <Tooltip content={CRITICAL_HINT}>
                   <span
                     className="self-start rounded-full px-2 py-0.5 text-xs"
-                    style={{ background: 'var(--gantt-critical)', color: 'var(--gantt-bar-text)' }}
+                    style={{
+                      background: 'var(--color-gantt-critical)',
+                      color: 'var(--color-gantt-bar-text)',
+                    }}
                   >
                     Critical path
                   </span>

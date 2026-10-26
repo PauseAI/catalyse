@@ -36,7 +36,7 @@ export function barTone(status: string): BarTone {
 }
 
 export function toneFill(tone: BarTone): string {
-  return `var(--gantt-bar-${tone})`
+  return `var(--color-gantt-bar-${tone})`
 }
 
 export function barFill(status: string): string {

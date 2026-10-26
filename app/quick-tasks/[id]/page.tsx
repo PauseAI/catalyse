@@ -102,7 +102,7 @@ export default function QuickTaskDetailPage({ params }: { params: Promise<{ id: 
 
         <div className="flex gap-3 mb-4 flex-wrap">
           {task.skillName && (
-            <span className="inline-flex items-center px-3 py-1 bg-accent text-secondary-dark rounded-full text-sm font-medium dark:bg-gray-700 dark:text-gray-300">
+            <span className="inline-flex items-center px-3 py-1 bg-chip text-chip-text rounded-full text-sm font-medium">
               {task.skillName}
             </span>
           )}

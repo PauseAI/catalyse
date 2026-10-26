@@ -1,119 +1,125 @@
+/*
+ * Styling conventions
+ *
+ * Tokens: every design token is declared once, in the `@theme static` block below, under the
+ * name Tailwind's namespace expects (`--color-*`, `--font-*`, `--radius-*`). That one
+ * declaration makes the utility (`bg-surface`, `font-heading`, `rounded-lg`) and the custom
+ * property (`var(--color-surface)`) that plain CSS and inline styles such as the gantt read.
+ * `static` emits every token whether or not a utility uses it. A token in a Tailwind namespace
+ * also restyles that namespace's utility: `--radius-lg` here is what `rounded-lg` draws.
+ * Add a new token to the block, and its dark value, if it differs, to the dark block.
+ *
+ * Dark mode: `<html data-theme>` is always `light` or `dark`, set before paint by the inline
+ * script in app/layout.tsx from the saved choice or the OS preference, and kept in step by
+ * components/ThemeProvider.tsx. Two things read it, both on the one selector:
+ * - the `[data-theme='dark']` block, which redefines tokens, so a token-coloured utility
+ *   changes with the theme on its own; never pair one with a `dark:` utility.
+ * - the `dark:` variant, for Tailwind palette colours (`text-red-700 dark:text-red-400`) on a
+ *   one-off element. When the same light/dark pair recurs, make it a token instead.
+ * Tokens that reference another token resolve on <html>, so `data-theme` belongs there alone.
+ *
+ * public/offline.html is served with no stylesheet and carries its own copy of the few colours
+ * it uses.
+ */
 @import 'tailwindcss';
 
-@variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
-:root {
-  /* PauseAI Brand Colors */
-  --primary: #ff9416;
-  --primary-dark: #e07d00;
-  --primary-text: #a85400;
-  --secondary: #2d3748;
-  --secondary-dark: #1a202c;
-  --accent: #ffe4c4;
-  --background: #fafafa;
-  --surface: #ffffff;
-  --text: #1a202c;
-  --heading: #1a202c;
-  --text-light: #4a5568;
-  --border: #e2e8f0;
-  --success: #276749;
-  --warning: #ecc94b;
-  /* --warning is a fill behind dark text; this is the same colour for text on a light page. */
-  --warning-text: #975a16;
-  --error: #c53030;
+@theme static {
+  /* PauseAI brand colours */
+  --color-primary: #ff9416;
+  --color-primary-dark: #e07d00;
+  --color-primary-text: #a85400;
+  --color-secondary: #2d3748;
+  --color-secondary-dark: #1a202c;
+  --color-accent: #ffe4c4;
+  --color-brand-bg: #fafafa;
+  --color-surface: #ffffff;
+  --color-brand-text: #1a202c;
+  --color-heading: #1a202c;
+  --color-text-light: #4a5568;
+  --color-brand-border: #e2e8f0;
+  --color-success: #276749;
+  --color-warning: #ecc94b;
+  /* --color-warning is a fill behind dark text; this is the same colour for text on a light page. */
+  --color-warning-text: #975a16;
+  --color-error: #c53030;
 
-  /* PauseAI Brand Fonts */
+  /* A form control's outline, which needs more contrast than a divider on the dark page. */
+  --color-field-border: var(--color-brand-border);
+  /* Skill tags, person chips and other pills, and the reader's own message bubble. */
+  --color-chip: var(--color-accent);
+  --color-chip-text: var(--color-secondary-dark);
+
+  /* Gantt timeline. Kept separate from the brand palette so bar hues stay distinguishable
+     from each other rather than all landing on brand orange. */
+  --color-gantt-grid: #edf2f7;
+  --color-gantt-grid-strong: #cbd5e0;
+  --color-gantt-weekend: rgba(45, 55, 72, 0.05);
+  --color-gantt-row-alt: rgba(45, 55, 72, 0.02);
+  --color-gantt-row-hover: rgba(255, 148, 22, 0.08);
+  --color-gantt-bar-todo: #64748b;
+  --color-gantt-bar-progress: #3b82f6;
+  --color-gantt-bar-done: #38a169;
+  --color-gantt-bar-hold: #a0aec0;
+  --color-gantt-bar-text: #ffffff;
+  --color-gantt-baseline: #a0aec0;
+  --color-gantt-actual: #3182ce;
+  --color-gantt-link: #a0aec0;
+  --color-gantt-link-active: #2d3748;
+  --color-gantt-critical: #7c3aed;
+  --color-gantt-anchor: #b7791f;
+  --color-gantt-today: #e53e3e;
+  --color-gantt-finish: #1a202c;
+
+  /* PauseAI brand fonts, loaded by next/font in app/layout.tsx */
   --font-heading: var(--font-saira), 'Saira Condensed', sans-serif;
   --font-display: var(--font-montserrat), 'Montserrat', sans-serif;
   --font-body: var(--font-roboto-slab), 'Roboto Slab', serif;
 
-  --radius: 8px;
   --radius-lg: 12px;
-  --shadow: 0 2px 8px rgba(26, 32, 44, 0.1);
-  --shadow-lg: 0 4px 16px rgba(26, 32, 44, 0.15);
-
-  /* Gantt timeline. Kept separate from the brand palette so bar hues stay distinguishable
-     from each other rather than all landing on brand orange. */
-  --gantt-grid: #edf2f7;
-  --gantt-grid-strong: #cbd5e0;
-  --gantt-weekend: rgba(45, 55, 72, 0.05);
-  --gantt-row-alt: rgba(45, 55, 72, 0.02);
-  --gantt-row-hover: rgba(255, 148, 22, 0.08);
-  --gantt-bar-todo: #64748b;
-  --gantt-bar-progress: #3b82f6;
-  --gantt-bar-done: #38a169;
-  --gantt-bar-hold: #a0aec0;
-  --gantt-bar-text: #ffffff;
-  --gantt-baseline: #a0aec0;
-  --gantt-actual: #3182ce;
-  --gantt-link: #a0aec0;
-  --gantt-link-active: #2d3748;
-  --gantt-critical: #7c3aed;
-  --gantt-anchor: #b7791f;
-  --gantt-today: #e53e3e;
-  --gantt-finish: #1a202c;
-}
-
-@theme inline {
-  --color-primary: var(--primary);
-  --color-primary-dark: var(--primary-dark);
-  --color-primary-text: var(--primary-text);
-  --color-secondary: var(--secondary);
-  --color-secondary-dark: var(--secondary-dark);
-  --color-accent: var(--accent);
-  --color-surface: var(--surface);
-  --color-brand-bg: var(--background);
-  --color-brand-text: var(--text);
-  --color-heading: var(--heading);
-  --color-text-light: var(--text-light);
-  --color-brand-border: var(--border);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-warning-text: var(--warning-text);
-  --color-error: var(--error);
-  --font-family-heading: var(--font-heading);
-  --font-family-display: var(--font-display);
-  --font-family-body: var(--font-body);
 }
 
 [data-theme='dark'] {
-  --primary: #ffa633;
-  --primary-dark: #ff9416;
-  --primary-text: #ffa633;
-  --secondary: #4b5563;
-  --secondary-dark: #6b7280;
-  --accent: #3d2e1a;
-  --background: #111827;
-  --surface: #1f2937;
-  --text: #f3f4f6;
-  --heading: #f3f4f6;
-  --text-light: #9ca3af;
-  --border: #374151;
-  --success: #4ade80;
-  --warning: #facc15;
-  --warning-text: #facc15;
-  --error: #f87171;
-  --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --color-primary: #ffa633;
+  --color-primary-dark: #ff9416;
+  --color-primary-text: #ffa633;
+  --color-secondary: #4b5563;
+  --color-secondary-dark: #6b7280;
+  --color-accent: #3d2e1a;
+  --color-brand-bg: #111827;
+  --color-surface: #1f2937;
+  --color-brand-text: #f3f4f6;
+  --color-heading: #f3f4f6;
+  --color-text-light: #9ca3af;
+  --color-brand-border: #374151;
+  --color-success: #4ade80;
+  --color-warning: #facc15;
+  --color-warning-text: #facc15;
+  --color-error: #f87171;
 
-  --gantt-grid: #253046;
-  --gantt-grid-strong: #46536b;
-  --gantt-weekend: rgba(255, 255, 255, 0.04);
-  --gantt-row-alt: rgba(255, 255, 255, 0.02);
-  --gantt-row-hover: rgba(255, 166, 51, 0.1);
-  --gantt-bar-todo: #7b8aa3;
-  --gantt-bar-progress: #60a5fa;
-  --gantt-bar-done: #4ade80;
-  --gantt-bar-hold: #4b5563;
-  --gantt-bar-text: #111827;
-  --gantt-baseline: #6b7280;
-  --gantt-actual: #60a5fa;
-  --gantt-link: #55637c;
-  --gantt-link-active: #cbd5e1;
-  --gantt-critical: #a78bfa;
-  --gantt-anchor: #fbbf24;
-  --gantt-today: #f87171;
-  --gantt-finish: #e2e8f0;
+  --color-field-border: var(--color-secondary);
+  --color-chip: var(--color-gray-700);
+  --color-chip-text: var(--color-gray-300);
+
+  --color-gantt-grid: #253046;
+  --color-gantt-grid-strong: #46536b;
+  --color-gantt-weekend: rgba(255, 255, 255, 0.04);
+  --color-gantt-row-alt: rgba(255, 255, 255, 0.02);
+  --color-gantt-row-hover: rgba(255, 166, 51, 0.1);
+  --color-gantt-bar-todo: #7b8aa3;
+  --color-gantt-bar-progress: #60a5fa;
+  --color-gantt-bar-done: #4ade80;
+  --color-gantt-bar-hold: #4b5563;
+  --color-gantt-bar-text: #111827;
+  --color-gantt-baseline: #6b7280;
+  --color-gantt-actual: #60a5fa;
+  --color-gantt-link: #55637c;
+  --color-gantt-link-active: #cbd5e1;
+  --color-gantt-critical: #a78bfa;
+  --color-gantt-anchor: #fbbf24;
+  --color-gantt-today: #f87171;
+  --color-gantt-finish: #e2e8f0;
 }
 
 @utility container {
@@ -143,14 +149,14 @@
 body {
   font-family: var(--font-body);
   font-weight: 300;
-  background: var(--background);
-  color: var(--text);
+  background: var(--color-brand-bg);
+  color: var(--color-brand-text);
   line-height: 1.6;
   min-height: 100vh;
 }
 
 :where(a, button, input, textarea, select, [tabindex]):focus-visible {
-  outline: 2px solid var(--primary-dark);
+  outline: 2px solid var(--color-primary-dark);
   outline-offset: 2px;
 }
 
@@ -158,8 +164,8 @@ body {
 .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid var(--border);
-  border-top-color: var(--primary);
+  border: 3px solid var(--color-brand-border);
+  border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin: 0 auto 16px;
