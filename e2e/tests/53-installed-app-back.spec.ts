@@ -29,7 +29,7 @@ test.describe('Back in the installed app', () => {
     baseUrl,
   }) => {
     const { title, projectId, taskTitle } = await projectWithTask(baseUrl)
-    await adminPage.goto(`${baseUrl}/projects/${projectId}`)
+    await adminPage.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(adminPage.getByRole('heading', { name: title })).toBeVisible({ timeout: 10_000 })
     await adminPage.getByRole('link', { name: taskTitle }).first().click()
     await expect(adminPage.getByRole('heading', { name: taskTitle })).toBeVisible()
@@ -47,7 +47,7 @@ test.describe('Back in the installed app', () => {
     await openAsInstalledApp(adminPage.context())
     const page = await adminPage.context().newPage()
 
-    await page.goto(`${baseUrl}/projects/${projectId}`)
+    await page.goto(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(page.getByRole('heading', { name: title })).toBeVisible({ timeout: 10_000 })
     // The first page of the session has nothing behind it, so Back goes up to all projects.
     await expect(page.getByRole('link', { name: 'Back', exact: true })).toHaveAttribute(
@@ -59,7 +59,7 @@ test.describe('Back in the installed app', () => {
     await expect(page.getByRole('heading', { name: taskTitle })).toBeVisible()
     await snap(page, 'back button in the header')
     await page.getByRole('button', { name: 'Back', exact: true }).click()
-    await expect(page).toHaveURL(`${baseUrl}/projects/${projectId}`)
+    await expect(page).toHaveURL(`${baseUrl}/projects/${projectId}#tasks`)
     await expect(page.getByRole('link', { name: 'Back', exact: true })).toHaveAttribute(
       'href',
       '/projects',
