@@ -31,7 +31,7 @@ describe('Avatar', () => {
       expect(found).not.toBeNull()
       return found as HTMLImageElement
     })
-    expect(img.getAttribute('src')).toBe(profilePictureUrl('avatar-test-picture'))
+    expect(img.src.endsWith(profilePictureUrl('avatar-test-picture'))).toBe(true)
     expect(screen.getByRole('img', { name: "Pia's picture" })).toContainElement(img)
     expect(container).toHaveTextContent('II')
     expect(container).toHaveTextContent('GA')

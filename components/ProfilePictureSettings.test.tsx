@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import sharp from 'sharp'
@@ -40,7 +40,11 @@ describe('ProfilePictureSettings', () => {
     const me = await createVolunteer()
     await renderApp(<ProfilePictureSettings id={me.id} name={me.name} />, { as: me })
     await screen.findByRole('button', { name: 'Upload picture' })
-    // Closing the file picker without choosing anything does nothing.
+    // The button opens the file picker; closing it without choosing anything does nothing.
+    const opened = vi.fn()
+    fileInput().addEventListener('click', opened)
+    await userEvent.click(screen.getByRole('button', { name: 'Upload picture' }))
+    expect(opened).toHaveBeenCalled()
     fireEvent.change(fileInput())
 
     const huge = new File([new Uint8Array(MAX_UPLOAD_BYTES + 1)], 'huge.png', { type: 'image/png' })
