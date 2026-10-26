@@ -37,8 +37,9 @@ describe('national chapters list', () => {
       `/admin/chapters/${existing.id}`,
     )
     // The lead's badge joins the line once their role is looked up.
+    const badge = await screen.findByTitle(`${existing.name} chapter lead`)
     expect(
-      await screen.findByText(fullText(/^Led by Lea LeadLead · 0 deputies · 1 member$/)),
+      screen.getByText(fullText(`Led by Lea Lead${badge.textContent} · 0 deputies · 1 member`)),
     ).toBeInTheDocument()
     expect(await screen.findByText('Other', { exact: false })).toBeInTheDocument()
 
