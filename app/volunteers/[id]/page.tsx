@@ -10,7 +10,7 @@ import ContactButton from '@/components/ContactButton'
 import ActiveDot from '@/components/ActiveDot'
 import Linkify from '@/components/Linkify'
 import { useToast } from '@/lib/toast'
-import { volunteerLocation } from '@/lib/filter-options'
+import { countryFlag } from '@/lib/flags'
 import { useCountries } from '@/lib/hooks/countries'
 import { orpc } from '@/lib/orpc'
 import { SECTION_CARD } from '@/lib/ui-classes'
@@ -128,9 +128,7 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
               <H1 id="volunteerName" className="m-0">
                 {volunteer.name}
               </H1>
-              <span className="ml-2">
-                <RoleBadge person={person} />
-              </span>
+              <RoleBadge person={person} className="ml-2" />
               {volunteer.activeRecently && <ActiveDot />}
             </div>
 
@@ -152,11 +150,24 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
               </P>
             )}
 
-            {volunteerLocation(volunteer, countryLabel) && (
-              <P className="text-text-light mb-4 text-sm">
-                📍 {volunteerLocation(volunteer, countryLabel)}
-              </P>
-            )}
+            <P id="volunteerPlace" className="mb-4 text-sm flex flex-wrap gap-x-4 gap-y-1">
+              <span>
+                {volunteer.chapter ? (
+                  <>
+                    {countryFlag(volunteer.chapter.country)} {volunteer.chapter.name} chapter
+                  </>
+                ) : (
+                  <>
+                    No national chapter yet
+                    {volunteer.country && ` (${countryLabel(volunteer.country)})`}
+                  </>
+                )}
+              </span>
+              {volunteer.localGroup && <span>👥 {volunteer.localGroup}</span>}
+              {volunteer.location && volunteer.location !== volunteer.localGroup && (
+                <span className="text-text-light">📍 {volunteer.location}</span>
+              )}
+            </P>
 
             <div id="volunteerBio" className="whitespace-pre-wrap mb-5">
               {volunteer.bio || <em className="text-text-light">No bio provided</em>}

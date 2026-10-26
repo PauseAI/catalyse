@@ -136,8 +136,8 @@ describe('volunteers.lookup', () => {
     })
     expect(people.map((p) => [p.role, p.chapter])).toEqual([
       ['admin', null],
-      ['lead', chapter.name],
-      ['deputy', chapter.name],
+      ['lead', { name: chapter.name, country: chapter.country }],
+      ['deputy', { name: chapter.name, country: chapter.country }],
       [null, null],
       [null, null],
     ])

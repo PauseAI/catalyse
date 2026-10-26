@@ -3,23 +3,32 @@
 import Link from 'next/link'
 import { twMerge } from 'tailwind-merge'
 import { usePerson } from '@/lib/hooks/usePerson'
+import { countryFlag } from '@/lib/flags'
 import type { PersonInfo, StaffRole } from '@/lib/people'
 
 const ROLE_LABEL: Record<StaffRole, string> = { admin: 'Admin', lead: 'Lead', deputy: 'Deputy' }
 
-/** The role badge after a name, with the chapter a lead or deputy runs in its tooltip. */
-export function RoleBadge({ person }: { person: PersonInfo | undefined }) {
+/**
+ * The role badge after a name. A chapter role carries the chapter's flag, so it never reads as a
+ * role in the team or project it is shown beside; the tooltip names the chapter.
+ */
+export function RoleBadge({
+  person,
+  className = '',
+}: {
+  person: PersonInfo | undefined
+  className?: string
+}) {
   if (!person?.role) return null
-  const title =
-    person.role === 'admin'
-      ? 'Global admin'
-      : `${person.chapter} chapter ${person.role === 'lead' ? 'lead' : 'deputy'}`
+  const { chapter } = person
+  const title = chapter ? `${chapter.name} chapter ${person.role}` : 'Global admin'
+  const flag = chapter && (countryFlag(chapter.country) ?? chapter.name)
   return (
     <span
       title={title}
-      className="inline-block shrink-0 rounded border border-primary-text px-1 align-middle text-[0.65rem] font-semibold leading-4 text-primary-text"
+      className={`inline-block shrink-0 rounded border border-primary-text px-1 text-[0.65rem] font-semibold leading-4 text-primary-text ${className}`}
     >
-      {ROLE_LABEL[person.role]}
+      {flag ? `${flag} ${ROLE_LABEL[person.role]}` : ROLE_LABEL[person.role]}
     </span>
   )
 }
@@ -40,7 +49,7 @@ export default function PersonName({
 }) {
   const person = usePerson(id)
   return (
-    <span className="inline-flex min-w-0 max-w-full items-baseline gap-1.5">
+    <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
       {person?.canView ? (
         <Link
           href={`/volunteers/${person.id}`}

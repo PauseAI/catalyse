@@ -23,7 +23,7 @@ describe('PersonName', () => {
       'href',
       `/volunteers/${lead.id}`,
     )
-    expect(screen.getByText('Lead')).toHaveAttribute('title', `${chapter.name} chapter lead`)
+    expect(screen.getByTitle(`${chapter.name} chapter lead`)).toHaveTextContent(/Lead$/)
   })
 
   it('leaves a hidden profile’s name as text, still badged', async () => {

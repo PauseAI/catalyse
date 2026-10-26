@@ -167,6 +167,7 @@ export const volunteersRouter = {
         where: { id: input.id, deletedAt: null },
         include: {
           group: { select: { name: true } },
+          chapter: { select: { name: true, country: true } },
           skills: {
             include: { skill: { include: { category: true } } },
             orderBy: [
@@ -281,6 +282,7 @@ export const volunteersRouter = {
           vol.id !== currentVolunteer.id &&
           Boolean(vol.consentMakeProfileVisibleInDirectory),
         activeRecently: isActiveRecently(vol.lastActiveAt),
+        chapter: vol.chapter,
         projects: projects.map((p) => ({
           id: p.id,
           title: p.title,

@@ -104,8 +104,8 @@ export type PersonInfo = {
   id: number
   canView: boolean
   role: StaffRole | null
-  /** The chapter a lead or deputy runs. */
-  chapter: string | null
+  /** The chapter a lead or deputy runs, and its country as the Country table stores it. */
+  chapter: { name: string; country: string } | null
 }
 
 /** What a name shown to the viewer links to and is badged with, for each of `targetIds`. */
@@ -125,8 +125,10 @@ export async function peopleInfo(
         emailConfirmed: true,
         isAdmin: true,
         nationalChapterId: true,
-        ledChapter: { select: { id: true, name: true } },
-        chapterDeputyRole: { select: { chapter: { select: { id: true, name: true } } } },
+        ledChapter: { select: { id: true, name: true, country: true } },
+        chapterDeputyRole: {
+          select: { chapter: { select: { id: true, name: true, country: true } } },
+        },
       },
     }),
   ])
@@ -140,10 +142,10 @@ export async function peopleInfo(
     if (v.isAdmin && isSuperAdmin(v)) info.role = 'admin'
     else if (v.ledChapter && v.ledChapter.id === v.nationalChapterId) {
       info.role = 'lead'
-      info.chapter = v.ledChapter.name
+      info.chapter = { name: v.ledChapter.name, country: v.ledChapter.country }
     } else if (deputyOf && deputyOf.id === v.nationalChapterId) {
       info.role = 'deputy'
-      info.chapter = deputyOf.name
+      info.chapter = { name: deputyOf.name, country: deputyOf.country }
     }
     return info
   })
