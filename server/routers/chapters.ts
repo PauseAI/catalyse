@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { moveToChapter } from '@/lib/chapter-roles'
-import { countryName } from '@/lib/countries'
+import { countryName } from '@/lib/countries-server'
 import { notifyChapterStaff } from '@/lib/notify'
 import { ApprovalStatus, ChapterAuditAction } from '@/generated/prisma/enums'
 import { authedProcedure, publicProcedure } from '../procedures'
@@ -48,7 +48,7 @@ export const chaptersRouter = {
         'chapter_joined',
         `${volunteer.name} joined ${chapter.name} from the holding pool`,
         volunteer.country
-          ? `They gave their country as ${countryName(volunteer.country)}.`
+          ? `They gave their country as ${await countryName(volunteer.country)}.`
           : 'They gave no country.',
         `/admin/volunteers/${volunteer.id}`,
       )

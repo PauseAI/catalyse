@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
-import { screen, waitFor, fireEvent, cleanup } from '@testing-library/react'
+import { screen, waitFor, fireEvent, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
-import { createAdmin, createSuperAdmin, createProject } from '@/test/factories'
+import { chapterFor, createAdmin, createSuperAdmin, createProject } from '@/test/factories'
 import { renderApp } from '@/test/render'
 import PlatformSettingsPage from './platform-settings/page'
 import AdminCronRunsPage from './cron-runs/page'
@@ -41,6 +41,36 @@ describe('platform settings', () => {
     await userEvent.click(toggle)
     await waitFor(() => expect(toggle).not.toBeChecked())
     expect((await prisma.platformSettings.findFirstOrThrow()).maintenanceMode).toBe(false)
+  })
+
+  it('enables and disables countries, marking the ones with a chapter', async () => {
+    await chapterFor('UK')
+    const sa = await createSuperAdmin()
+    await renderApp(<PlatformSettingsPage />, { as: sa })
+    const countries = await screen.findByRole('region', { name: 'Countries' })
+    expect(within(countries).getByText('United Kingdom').parentElement).toHaveTextContent(
+      'has a chapter',
+    )
+    expect(within(countries).getByText('Austria').parentElement).not.toHaveTextContent('chapter')
+
+    const austria = within(countries).getByRole('checkbox', { name: 'Austria' })
+    expect(austria).not.toBeChecked()
+    await userEvent.click(austria)
+    await screen.findByText('Austria enabled')
+    await waitFor(() => expect(austria).toBeChecked())
+    expect((await prisma.country.findUniqueOrThrow({ where: { code: 'Austria' } })).enabled).toBe(
+      true,
+    )
+    await userEvent.click(austria)
+    await screen.findByText('Austria disabled')
+    await waitFor(() => expect(austria).not.toBeChecked())
+
+    localStorage.setItem('authToken', 'stale')
+    await userEvent.click(austria)
+    await screen.findByText('Failed to save settings')
+    expect((await prisma.country.findUniqueOrThrow({ where: { code: 'Austria' } })).enabled).toBe(
+      false,
+    )
   })
 })
 

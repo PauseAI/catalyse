@@ -5,7 +5,7 @@ import { canAdminChapter } from '@/lib/chapter-access'
 import { chapterFilter } from '@/lib/chapter-access-server'
 import { assertKnownCountry } from '@/lib/chapter-placement'
 import { audit, moveToChapter } from '@/lib/chapter-roles'
-import { countryName } from '@/lib/countries'
+import { countryName } from '@/lib/countries-server'
 import { clearNotifications, notifyChapterStaff, notifyUser } from '@/lib/notify'
 import { ChapterAuditAction, ChapterTransferStatus } from '@/generated/prisma/enums'
 import { authedProcedure, staffProcedure } from '../procedures'
@@ -33,7 +33,7 @@ export const chapterTransfersRouter = {
     )
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
-      assertKnownCountry(input.country)
+      await assertKnownCountry(input.country)
       if (input.country === volunteer.country) {
         throw new ORPCError('BAD_REQUEST', { message: 'That is already your country' })
       }
@@ -58,7 +58,7 @@ export const chapterTransfersRouter = {
       await notifyChapterStaff(
         request.toChapterId,
         'chapter_transfer_request',
-        `${volunteer.name} asks to move to ${countryName(input.country)}`,
+        `${volunteer.name} asks to move to ${await countryName(input.country)}`,
         input.reason || null,
         '/admin/transfers',
         undefined,
@@ -158,7 +158,7 @@ export const chapterTransfersRouter = {
         }
       })
       await clearNotifications('chapter_transfer_request', request.id)
-      const where = countryName(request.toCountry)
+      const where = await countryName(request.toCountry)
       await notifyUser(
         request.volunteerId,
         'chapter_transfer_decided',

@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import FilterDropdown from '@/components/FilterDropdown'
 import { orpc } from '@/lib/orpc'
-import { COUNTRY_OPTIONS, countryLabel } from '@/lib/filter-options'
+import { useCountries } from '@/lib/hooks/countries'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
 import { Badge } from '@/components/Badge'
@@ -21,26 +21,23 @@ import { P } from '@/components/Text'
 import FormLabel from '@/components/FormLabel'
 import Input from '@/components/ui/Input'
 
-const SUGGESTION_COUNTRIES = COUNTRY_OPTIONS.filter(
-  (o) => o.value && o.value !== 'Remote' && o.value !== 'Other',
-)
-
 export default function SuggestLocalGroupPage() {
   const { user, loading } = useRequireAuth()
   const showToast = useToast()
   const queryClient = useQueryClient()
+  const { countries: allCountries, label: countryLabel, loaded: countriesLoaded } = useCountries()
 
   const [country, setCountry] = useState('')
   const [name, setName] = useState('')
   const [countryPrefilled, setCountryPrefilled] = useState(false)
 
+  const prefill = allCountries.find((c) => c.code === user?.country)?.code
   useEffect(() => {
-    if (countryPrefilled || !user?.country) return
-    if (!SUGGESTION_COUNTRIES.some((o) => o.value === user.country)) return
+    if (countryPrefilled || !prefill) return
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCountry(user.country)
+    setCountry(prefill)
     setCountryPrefilled(true)
-  }, [user?.country, countryPrefilled])
+  }, [prefill, countryPrefilled])
 
   const { data, isLoading: loadingSuggestions } = useQuery({
     ...orpc.localGroupSuggestions.list.queryOptions(),
@@ -71,10 +68,11 @@ export default function SuggestLocalGroupPage() {
 
   if (loading || !user) return null
 
-  // A member suggests a group for their own chapter; someone in the holding pool picks a country.
-  const countries = user.chapter
-    ? SUGGESTION_COUNTRIES.filter((o) => o.value === user.chapter?.country)
-    : SUGGESTION_COUNTRIES
+  // A member suggests a group for their own chapter; someone in the holding pool picks any
+  // listed country, enabled or not, since a group there is how a new country gets asked for.
+  const countries = allCountries
+    .filter((c) => !user.chapter || c.code === user.chapter.country)
+    .map((c) => ({ value: c.code, label: c.name }))
 
   return (
     <>
@@ -117,7 +115,7 @@ export default function SuggestLocalGroupPage() {
             </Button>
           </form>
 
-          {!loadingSuggestions && suggestions.length > 0 && (
+          {!loadingSuggestions && countriesLoaded && suggestions.length > 0 && (
             <div>
               <H2 className="text-lg font-semibold mb-4">Your previous suggestions</H2>
               <div className="space-y-3">

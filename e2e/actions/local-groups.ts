@@ -1,7 +1,6 @@
 import { type Page } from '@playwright/test'
 import { selectFilterDropdown } from './ui'
 import { createApiClient } from '../client'
-import { COUNTRIES } from '../../lib/countries'
 
 export async function submitLocalGroupSuggestion(
   baseUrl: string,
@@ -30,13 +29,13 @@ export async function submitLocalGroupSuggestionViaApi(
   country: string,
   name: string,
 ): Promise<void> {
-  const countryValue = COUNTRIES.find((o) => o.label === country)?.value ?? country
-
   // localStorage is only readable once the page has loaded a real origin — a fresh
   // volunteer.page fixture starts at about:blank, where evaluate throws a SecurityError.
   if (volunteerPage.url() === 'about:blank') await volunteerPage.goto(baseUrl)
   const token = await volunteerPage.evaluate(() => localStorage.getItem('authToken'))
   const api = createApiClient(baseUrl, token)
+  const { body: countries } = await api.countries.list()
+  const countryValue = countries.find((c) => c.name === country)?.code ?? country
   const result = await api.localGroupSuggestions.create({
     body: { country: countryValue, name },
   })

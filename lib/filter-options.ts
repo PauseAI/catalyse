@@ -1,7 +1,7 @@
 import { InferRouterOutputs } from '@orpc/server'
 import { FilterOption } from '@/components/FilterDropdown'
 import { AppRouter } from '@/server/router'
-import { COUNTRIES, OTHER_COUNTRY, countryName } from './countries'
+import { OTHER_COUNTRY, enabledCountryOptions, type CountryEntry } from './countries'
 
 export type LocalGroupOption =
   InferRouterOutputs<AppRouter>['localGroups']['list']['groups'][number]
@@ -20,29 +20,26 @@ export function buildLocalGroupOptionsForCountry(
   ]
 }
 
-/** The countries a person can say they live in. */
-export const COUNTRY_OPTIONS: FilterOption[] = [
-  { value: '', label: 'Select…' },
-  ...COUNTRIES,
-  { value: OTHER_COUNTRY, label: 'Other' },
-]
-
-// Stored country values are short codes/names (e.g. "UK"); this resolves the display label
-// (e.g. "United Kingdom") so raw values are never shown in the UI. Falls back to the raw value
-// for anything not listed.
-export function countryLabel(value: string | null | undefined): string {
-  return value ? countryName(value) : ''
+/** The countries a person can say they live in, keeping `current` should it be disabled. */
+export function countryOptions(
+  countries: readonly CountryEntry[],
+  current?: string | null,
+): FilterOption[] {
+  return [
+    { value: '', label: 'Select…' },
+    ...enabledCountryOptions(countries, current),
+    { value: OTHER_COUNTRY, label: 'Other' },
+  ]
 }
 
 /**
  * A volunteer's location as one line, the same on their directory card and their profile:
  * town, local group and country, each once, e.g. "Manchester · United Kingdom".
  */
-export function volunteerLocation(v: {
-  location: string | null
-  localGroup: string | null
-  country: string | null
-}): string {
+export function volunteerLocation(
+  v: { location: string | null; localGroup: string | null; country: string | null },
+  countryLabel: (code: string | null) => string,
+): string {
   const parts = [v.location, v.localGroup, countryLabel(v.country)].filter((p): p is string =>
     Boolean(p),
   )

@@ -1,6 +1,5 @@
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
-import { countryName, isCountry } from '@/lib/countries'
 import { LocalGroupSuggestionBodySchema } from '@/lib/schemas'
 import { notifyChapterStaff } from '@/lib/notify'
 import { authedProcedure, approvedProcedure } from '../procedures'
@@ -28,14 +27,18 @@ export const localGroupSuggestionsRouter = {
   create: approvedProcedure
     .input(LocalGroupSuggestionBodySchema)
     .handler(async ({ input, context }) => {
-      // A member suggests a group for their own chapter; someone in the pool names a country.
+      // A member suggests a group for their own chapter; someone in the pool names any listed
+      // country, enabled or not, since a group there is how a new country gets asked for.
       const chapter = context.access.chapterId
         ? await prisma.nationalChapter.findUniqueOrThrow({
             where: { id: context.access.chapterId },
           })
         : null
-      const country = chapter?.country ?? input.country
-      if (!isCountry(country)) throw new ORPCError('BAD_REQUEST', { message: 'Invalid country' })
+      const listed = await prisma.country.findUnique({
+        where: { code: chapter?.country ?? input.country },
+      })
+      if (!listed) throw new ORPCError('BAD_REQUEST', { message: 'Invalid country' })
+      const country = listed.code
 
       const suggestion = await prisma.localGroupSuggestion.create({
         data: {
@@ -49,7 +52,7 @@ export const localGroupSuggestionsRouter = {
       await notifyChapterStaff(
         suggestion.nationalChapterId,
         'local_group_suggestion',
-        `New local group suggestion: ${countryName(country)}, ${input.name}`,
+        `New local group suggestion: ${listed.name}, ${input.name}`,
         null,
         '/admin/local-groups',
         undefined,

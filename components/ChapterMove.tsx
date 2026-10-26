@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/Button'
 import FilterDropdown from '@/components/FilterDropdown'
-import { COUNTRY_OPTIONS, countryLabel } from '@/lib/filter-options'
+import { useCountries } from '@/lib/hooks/countries'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { P } from '@/components/Text'
@@ -17,6 +17,7 @@ import Textarea from '@/components/ui/Textarea'
  */
 export default function ChapterMove({ country }: { country: string }) {
   const showToast = useToast()
+  const { label: countryLabel, options: countryOptions, loaded: countriesLoaded } = useCountries()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [to, setTo] = useState('')
@@ -45,7 +46,7 @@ export default function ChapterMove({ country }: { country: string }) {
     onError,
   })
 
-  if (isPending) return null
+  if (isPending || !countriesLoaded) return null
   if (pending) {
     return (
       <P className="text-sm m-0 mt-2" role="status">
@@ -76,7 +77,7 @@ export default function ChapterMove({ country }: { country: string }) {
         label="Country you are moving to"
         ariaLabel="Country you are moving to"
         value={to}
-        options={COUNTRY_OPTIONS.filter((o) => o.value !== country)}
+        options={countryOptions().filter((o) => o.value !== country)}
         onChange={setTo}
         searchable
       />

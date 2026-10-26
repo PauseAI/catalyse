@@ -8,7 +8,7 @@ import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
-import { countryLabel } from '@/lib/filter-options'
+import { useCountries } from '@/lib/hooks/countries'
 import { containsLink } from '@/lib/links'
 import { ApprovalStatus } from '@/generated/prisma/enums'
 import { H1, H2 } from '@/components/Heading'
@@ -20,6 +20,7 @@ export default function ApplicationReviewPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const { user, loading } = useRequireStaff()
+  const { label: countryLabel, loaded: countriesLoaded } = useCountries()
   const showToast = useToast()
   const queryClient = useQueryClient()
 
@@ -85,7 +86,7 @@ export default function ApplicationReviewPage() {
 
   if (loading || !user) return null
 
-  if (loadingData) {
+  if (loadingData || !countriesLoaded) {
     return (
       <main className="container py-5">
         <P className="text-text-light">Loading…</P>
