@@ -128,7 +128,11 @@ describe('admin bugs', () => {
     await screen.findByRole('heading', { name: 'In progress: 1' })
 
     await userEvent.click(within(openCard()).getByRole('button', { name: 'Reply' }))
-    await userEvent.type(within(openCard()).getByLabelText('Add a comment'), 'Looking at it now')
+    // The comment box appears once the thread has loaded.
+    await userEvent.type(
+      await within(openCard()).findByLabelText('Add a comment'),
+      'Looking at it now',
+    )
     await userEvent.click(within(openCard()).getByRole('button', { name: 'Post comment' }))
     await screen.findByText('Comment added')
     await within(openCard()).findByRole('button', { name: 'Discussion (1)', expanded: true })

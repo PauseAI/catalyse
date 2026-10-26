@@ -194,13 +194,13 @@ describe('bug report detail', () => {
     await renderApp(<BugReportDetailPage params={Promise.resolve({ id: String(id) })} />, {
       as: admin,
     })
-    await screen.findByText(fullText('· Assigned to: Fixer'))
+    await screen.findByText(fullText(/^· Assigned to: Fixer/))
     expect(screen.getByRole('link', { name: '← Back to bug reports' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Assign to me' })).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Unassign' }))
     await waitFor(() => expect(screen.queryByText(/Assigned to/)).toBeNull())
     await userEvent.click(screen.getByRole('button', { name: 'Assign to me' }))
-    await screen.findByText(fullText('· Assigned to: Fixer'))
+    await screen.findByText(fullText(/^· Assigned to: Fixer/))
     await userEvent.click(screen.getByRole('button', { name: 'Status' }))
     await userEvent.click(screen.getByRole('option', { name: 'Resolved' }))
     await userEvent.clear(screen.getByLabelText('Resolution notes'))
