@@ -21,8 +21,11 @@ async function photo(width = 600, height = 400, format: 'png' | 'jpeg' = 'png') 
   })
     [format]()
     .toBuffer()
-  return new File([new Uint8Array(data)], `me.${format}`, { type: `image/${format}` })
+  return dataUrl(data, `image/${format}`)
 }
+
+const dataUrl = (bytes: Buffer | string, type = 'image/png') =>
+  `data:${type};base64,${Buffer.from(bytes).toString('base64')}`
 
 /** What the picture route serves at `url`. */
 async function served(url: string) {
@@ -35,7 +38,7 @@ describe('profile pictures', () => {
     const me = await createVolunteer()
     const c = clientAs(me)
 
-    const { picture: first } = await c.profilePictures.upload({ file: await photo() })
+    const { picture: first } = await c.profilePictures.upload({ picture: await photo() })
     const response = await served(first)
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toBe('image/webp')
@@ -47,7 +50,7 @@ describe('profile pictures', () => {
     expect(person.picture).toBe(first)
 
     const { picture: second } = await c.profilePictures.upload({
-      file: await photo(300, 900, 'jpeg'),
+      picture: await photo(300, 900, 'jpeg'),
     })
     expect(second).not.toBe(first)
     expect((await served(first)).status).toBe(404)
@@ -65,16 +68,25 @@ describe('profile pictures', () => {
     const c = clientAs(me)
     await expect(
       c.profilePictures.upload({
-        file: new File(['<svg xmlns="http://www.w3.org/2000/svg" width="9" height="9"/>'], 'x.svg'),
+        picture: dataUrl(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="9" height="9"/>',
+          'image/svg+xml',
+        ),
       }),
     ).rejects.toMatchObject({ message: 'Upload a JPEG, PNG, WebP, GIF or AVIF image' })
     await expect(
       c.profilePictures.upload({
-        file: new File(['not an image'], 'x.png', { type: 'image/png' }),
+        picture: dataUrl('not an image'),
       }),
     ).rejects.toMatchObject({ message: 'Upload a JPEG, PNG, WebP, GIF or AVIF image' })
-    const huge = new File([new Uint8Array(MAX_UPLOAD_BYTES + 1)], 'big.png', { type: 'image/png' })
-    await expect(c.profilePictures.upload({ file: huge })).rejects.toMatchObject({
+    await expect(
+      c.profilePictures.upload({ picture: 'https://example.com/me.png' }),
+    ).rejects.toMatchObject({ message: 'Upload a JPEG, PNG, WebP, GIF or AVIF image' })
+    await expect(
+      c.profilePictures.upload({ picture: 'data:image/png;base64,' }),
+    ).rejects.toMatchObject({ message: 'Upload a JPEG, PNG, WebP, GIF or AVIF image' })
+    const huge = dataUrl(Buffer.alloc(MAX_UPLOAD_BYTES + 1))
+    await expect(c.profilePictures.upload({ picture: huge })).rejects.toMatchObject({
       message: 'Pictures must be 5 MB or smaller',
     })
     // A JPEG cut off halfway passes the format check and fails to decode.
@@ -89,8 +101,8 @@ describe('profile pictures', () => {
     })
       .jpeg()
       .toBuffer()
-    const cut = new File([new Uint8Array(noise.subarray(0, noise.length / 2))], 'cut.jpeg')
-    await expect(c.profilePictures.upload({ file: cut })).rejects.toMatchObject({
+    const cut = dataUrl(noise.subarray(0, noise.length / 2), 'image/jpeg')
+    await expect(c.profilePictures.upload({ picture: cut })).rejects.toMatchObject({
       message: 'That image could not be read',
     })
     expect(await prisma.profilePicture.count({ where: { volunteerId: me.id } })).toBe(0)
@@ -101,7 +113,7 @@ describe('profile pictures', () => {
     const member = await createMember(chapter)
     const lead = await createChapterLead(chapter)
     const deputy = await createChapterDeputy(chapter)
-    await clientAs(member).profilePictures.upload({ file: await photo() })
+    await clientAs(member).profilePictures.upload({ picture: await photo() })
 
     // Staff of another chapter and other volunteers cannot.
     const elsewhere = await createChapterLead(await createChapter())
@@ -141,7 +153,7 @@ describe('profile pictures', () => {
 
   it('lets a global admin take down anyone’s picture, the holding pool’s included', async () => {
     const pooled = await createVolunteer({ nationalChapterId: null })
-    await clientAs(pooled).profilePictures.upload({ file: await photo() })
+    await clientAs(pooled).profilePictures.upload({ picture: await photo() })
     await expect(
       clientAs(await createChapterLead(await createChapter())).profilePictures.removeFor({
         volunteerId: pooled.id,
@@ -154,7 +166,7 @@ describe('profile pictures', () => {
   it('is exported with the account, and deleted with it', async () => {
     const me = await createVolunteer()
     const c = clientAs(me)
-    await c.profilePictures.upload({ file: await photo() })
+    await c.profilePictures.upload({ picture: await photo() })
 
     const exported = await exportProfile(me.id)
     expect(exported?.profilePicture?.image).toMatch(/^data:image\/webp;base64,/)

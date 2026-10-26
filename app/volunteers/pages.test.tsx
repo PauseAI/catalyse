@@ -307,6 +307,9 @@ describe('volunteer profile', () => {
     })
     await screen.findByRole('heading', { name: 'Pic Member' })
     const open = await screen.findByRole('button', { name: 'Remove picture' })
+    await userEvent.click(open)
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 
     // Someone else took it down first.
     await prisma.profilePicture.delete({ where: { volunteerId: member.id } })

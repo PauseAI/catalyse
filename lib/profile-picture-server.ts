@@ -15,14 +15,18 @@ function refuse(message: string): never {
 }
 
 /**
- * An uploaded image as the square WebP thumbnail that is stored, cropped to its centre and turned
- * upright from its EXIF orientation. Re-encoding drops the original's metadata, location included,
- * and means what is served is always an image whatever the upload claimed to be.
+ * An uploaded image, sent as a base64 `data:` URL, as the square WebP thumbnail that is stored:
+ * cropped to its centre and turned upright from its EXIF orientation. Re-encoding drops the
+ * original's metadata, location included, and means what is served is always an image whatever
+ * the upload claimed to be.
  */
-export async function toProfilePicture(file: Blob): Promise<Uint8Array<ArrayBuffer>> {
-  if (file.size > MAX_UPLOAD_BYTES)
+export async function toProfilePicture(dataUrl: string): Promise<Uint8Array<ArrayBuffer>> {
+  const base64 = /^data:[^,]*;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl)?.[1]
+  if (base64 === undefined) refuse('Upload a JPEG, PNG, WebP, GIF or AVIF image')
+  const input = Buffer.from(base64, 'base64')
+  if (input.length > MAX_UPLOAD_BYTES) {
     refuse(`Pictures must be ${MAX_UPLOAD_BYTES / 1024 / 1024} MB or smaller`)
-  const input = Buffer.from(await file.arrayBuffer())
+  }
   const image = sharp(input, { limitInputPixels: MAX_INPUT_PIXELS })
   const metadata = await image.metadata().catch(() => null)
   if (!metadata?.format || !ACCEPTED_FORMATS.has(metadata.format)) {

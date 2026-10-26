@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { prisma } from '@/lib/prisma'
 import { profilePictureUrl } from '@/lib/profile-picture'
 import { createVolunteer } from '@/test/factories'
@@ -26,13 +26,18 @@ describe('Avatar', () => {
       </>,
       { as: viewer },
     )
-    const picture = await screen.findByRole('img', { name: "Pia's picture" })
-    const img = picture.querySelector('img') as HTMLImageElement
+    const img = await waitFor(() => {
+      const found = container.querySelector('img')
+      expect(found).not.toBeNull()
+      return found as HTMLImageElement
+    })
     expect(img.getAttribute('src')).toBe(profilePictureUrl('avatar-test-picture'))
+    expect(screen.getByRole('img', { name: "Pia's picture" })).toContainElement(img)
     expect(container).toHaveTextContent('II')
     expect(container).toHaveTextContent('GA')
 
     fireEvent.error(img)
-    expect(await screen.findByRole('img', { name: "Pia's picture" })).toHaveTextContent('PP')
+    await waitFor(() => expect(container.querySelector('img')).toBeNull())
+    expect(screen.getByRole('img', { name: "Pia's picture" })).toHaveTextContent('PP')
   })
 })

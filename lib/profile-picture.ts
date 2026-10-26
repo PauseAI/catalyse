@@ -5,6 +5,9 @@ export const ACCEPTED_TYPES = 'image/jpeg,image/png,image/webp,image/gif,image/a
 
 export const PICTURE_CONTENT_TYPE = 'image/webp'
 
+/** Longest `data:` URL an upload of MAX_UPLOAD_BYTES encodes to, its prefix included. */
+export const MAX_DATA_URL_LENGTH = Math.ceil(MAX_UPLOAD_BYTES / 3) * 4 + 100
+
 export function profilePictureUrl(publicId: string): string {
   return `/api/profile-pictures/${publicId}`
 }

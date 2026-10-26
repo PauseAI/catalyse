@@ -13,6 +13,14 @@ import { ACCEPTED_TYPES, MAX_UPLOAD_BYTES } from '@/lib/profile-picture'
 
 const MAX_MB = MAX_UPLOAD_BYTES / 1024 / 1024
 
+function asDataUrl(file: Blob): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.readAsDataURL(file)
+  })
+}
+
 /** The settings card where a volunteer uploads, replaces or removes their own picture. */
 export default function ProfilePictureSettings({ id, name }: { id: number; name: string }) {
   const person = usePerson(id)
@@ -42,7 +50,7 @@ export default function ProfilePictureSettings({ id, name }: { id: number; name:
   })
   const busy = upload.isPending || remove.isPending
 
-  const onChosen = (e: ChangeEvent<HTMLInputElement>) => {
+  const onChosen = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
@@ -50,7 +58,7 @@ export default function ProfilePictureSettings({ id, name }: { id: number; name:
       showToast(`Pictures must be ${MAX_MB} MB or smaller`, 'error')
       return
     }
-    upload.mutate({ file })
+    upload.mutate({ picture: await asDataUrl(file) })
   }
 
   return (
