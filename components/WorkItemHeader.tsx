@@ -110,20 +110,6 @@ export function initials(name: string): string {
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase()
 }
 
-/** Initials in a circle; the name beside it is what a screen reader reads. */
-export function PersonInitials({ name, size = 'sm' }: { name: string; size?: 'xs' | 'sm' | 'md' }) {
-  const dimensions =
-    size === 'md' ? 'size-9 text-sm' : size === 'sm' ? 'size-7 text-xs' : 'size-4 text-[0.6rem]'
-  return (
-    <span
-      aria-hidden="true"
-      className={`${dimensions} rounded-full bg-secondary text-white font-semibold flex items-center justify-center shrink-0`}
-    >
-      {initials(name)}
-    </span>
-  )
-}
-
 /**
  * The person block under the title: a small role label ("Owner", "Assigned to"), then whatever
  * names them, then an optional one-line summary of who else is on it and the viewer's actions on

@@ -808,6 +808,7 @@ describe('GanttItemPanel', () => {
           title: 'Book venue',
           type: 'TASK' as const,
           displayStatus: 'completed',
+          assigneeId: null,
           assigneeName: 'Ann',
           helperCount: 0,
           helpersWanted: null,

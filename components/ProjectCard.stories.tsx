@@ -30,6 +30,7 @@ const TASK_ROW: WorkItemSummary = {
   title: 'Draft the newsletter',
   type: WorkItemType.TASK,
   displayStatus: 'in_progress',
+  assigneeId: null,
   assigneeName: 'Sam Okafor',
   helperCount: 1,
   helpersWanted: 2,

@@ -421,14 +421,26 @@ describe('CommentThreadView discussion actions', () => {
               content: 'Second reply',
               authorName: 'Otto',
               createdAt: null,
-              repliedTo: { id: 31, authorName: 'Olive', content: 'First reply', deleted: false },
+              repliedTo: {
+                id: 31,
+                authorId: null,
+                authorName: 'Olive',
+                content: 'First reply',
+                deleted: false,
+              },
             },
             {
               id: 33,
               content: 'Third reply',
               authorName: 'Gail',
               createdAt: null,
-              repliedTo: { id: 999, authorName: 'Gone', content: '', deleted: true },
+              repliedTo: {
+                id: 999,
+                authorId: null,
+                authorName: 'Gone',
+                content: '',
+                deleted: true,
+              },
             },
           ],
         },
@@ -457,7 +469,13 @@ describe('CommentThreadView discussion actions', () => {
         content: 'Quoting the second reply',
         authorName: 'Gail',
         createdAt: null,
-        repliedTo: { id: 102, authorName: 'Olive', content: 'Reply 2', deleted: false },
+        repliedTo: {
+          id: 102,
+          authorId: null,
+          authorName: 'Olive',
+          content: 'Reply 2',
+          deleted: false,
+        },
       },
     ]
     renderThread({

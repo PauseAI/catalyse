@@ -25,6 +25,7 @@ import { myRouter } from './routers/my'
 import { accountMergesRouter } from './routers/accountMerges'
 import { requiredActionsRouter } from './routers/requiredActions'
 import { privacyRouter } from './routers/privacy'
+import { profilePicturesRouter } from './routers/profilePictures'
 import { contactRouter } from './routers/contact'
 import { adminApplicationsRouter } from './routers/admin/applications'
 import { adminVolunteersRouter } from './routers/admin/volunteers'
@@ -81,6 +82,7 @@ export const appRouter = {
   requiredActions: requiredActionsRouter,
   accountMerges: accountMergesRouter,
   privacy: privacyRouter,
+  profilePictures: profilePicturesRouter,
   contact: contactRouter,
   version: versionRouter,
   maintenance: maintenanceRouter,

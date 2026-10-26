@@ -16,6 +16,7 @@ export type WorkItemSummary = {
   type: typeof WorkItemType.TASK | typeof WorkItemType.QUICK_TASK
   /** A task's shown status (`taskDisplayStatus`); a Quick Task's stored one. */
   displayStatus: string
+  assigneeId: number | null
   assigneeName: string | null
   /** A task's helpers beside its assignee, and how many it seeks (null for none). */
   helperCount: number
@@ -58,6 +59,7 @@ export function toWorkItemSummary(
     title: item.title,
     type: isTask ? WorkItemType.TASK : WorkItemType.QUICK_TASK,
     displayStatus,
+    assigneeId: item.assigneeId,
     assigneeName: item.assignee?.name ?? null,
     helperCount: item._count.interests,
     helpersWanted: item.helpersWanted,

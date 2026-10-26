@@ -289,3 +289,9 @@ confusing than it needed to be, and that will do so again.
       tests sat for 60 s each before failing, and the run timed out before printing which.
       A dom `testTimeout` near the 20 s the node project uses, or a failing test reported as
       it fails rather than at the end, would have shown the cause in the first minute.
+- [ ] **A host session in a worktree whose pod is running cannot reach that pod's Postgres, so
+      `npm run migrate`, the unit suite and `check-all` cannot run from it.** Profile pictures
+      wrote its migration with `prisma migrate diff` between two schema files and verified every
+      database-backed test through CI, a push-and-wait loop per fix. A sandbox-allowed way to run
+      a command in the worktree's pod (`agent-pod exec <dir> npm run check-all`), or the pod's
+      database port in the host allowlist, would have let the task verify itself locally.

@@ -1,12 +1,12 @@
 import Link from 'next/link'
-import { PersonInitials } from '@/components/WorkItemHeader'
+import Avatar from '@/components/Avatar'
 import { RoleBadge } from '@/components/PersonName'
 import { usePerson } from '@/lib/hooks/usePerson'
 
 const PILL = 'inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full p-0.5 text-sm'
 
 /**
- * A person as an initials circle and name in a pill, optionally with a `×` that removes them. As
+ * A person as their avatar and name in a pill, optionally with a `×` that removes them. As
  * with PersonName, the name links to their profile when the viewer can open it, and carries their
  * staff badge. Any project role label ("Owner", "Helper") is the caller's.
  */
@@ -30,7 +30,7 @@ export function PersonChip({
   const person = usePerson(id)
   return (
     <span className={`${PILL} bg-chip text-chip-text ${onRemove ? 'pr-1' : 'pr-3'}`}>
-      <PersonInitials name={name} />
+      <Avatar id={id} name={name} />
       {person?.canView ? (
         <Link href={`/volunteers/${person.id}`} className="min-w-0 truncate hover:underline">
           {name}

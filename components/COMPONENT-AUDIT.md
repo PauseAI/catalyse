@@ -51,7 +51,7 @@ through separate trees:
 - **The volunteer directory card** (`app/volunteers/page.tsx`) and **`ProjectCard`**
   (`components/ProjectCard.tsx`) are structurally near-identical: same grid classes, the same
   skill-pill markup and "and N more" overflow pattern, the same 📍-location-line pattern — but
-  neither uses `PersonChip`/`PersonInitials` at all; both are hand-rolled `<div>` markup. **True
+  neither uses `PersonChip`/`Avatar` at all; both are hand-rolled `<div>` markup. **True
   duplicate candidate**, and the strongest one in this audit: this looks like one card pattern
   that was written twice rather than two things that happen to look alike. Not reproduced as a
   story here (there's no component to import — that's the finding), but worth reading side by

@@ -8,7 +8,7 @@ import { formatDateTime } from '@/lib/format-date'
 import { decodeMentions, splitMentions, type MentionMember } from '@/lib/mentions'
 import { useToast } from '@/lib/toast'
 import { P } from '@/components/Text'
-import { PersonInitials } from '@/components/WorkItemHeader'
+import Avatar from '@/components/Avatar'
 import PersonName from '@/components/PersonName'
 
 export interface CommentItem {
@@ -24,7 +24,13 @@ export interface CommentItem {
   canDelete?: boolean
   replies?: CommentItem[]
   /** Set only when this reply answers another reply, not the thread's own top-level comment. */
-  repliedTo?: { id: number; authorName: string | null; content: string; deleted: boolean } | null
+  repliedTo?: {
+    id: number
+    authorId: number | null
+    authorName: string | null
+    content: string
+    deleted: boolean
+  } | null
 }
 
 /** A recorded change, shown among the comments: no author line, no reply, edit or delete. */
@@ -125,7 +131,9 @@ function RepliedToQuote({ target }: { target: NonNullable<CommentItem['repliedTo
         <path d="M5 20v-6a5 5 0 0 1 5-5h9" />
         <path d="m15 5 4 4-4 4" />
       </svg>
-      {!target.deleted && <PersonInitials name={target.authorName ?? 'Unknown'} size="xs" />}
+      {!target.deleted && (
+        <Avatar id={target.authorId} name={target.authorName ?? 'Unknown'} size="xs" />
+      )}
       <span className="min-w-0 truncate">
         {target.deleted
           ? 'a removed comment'
@@ -257,7 +265,7 @@ export default function CommentThreadView({
         {c.repliedTo && <RepliedToQuote target={c.repliedTo} />}
         <span className="mb-1 text-xs text-text-light inline-flex flex-wrap items-center gap-1.5">
           <span className="inline-flex items-center gap-1">
-            <PersonInitials name={author} size="xs" />
+            <Avatar id={c.authorId} name={author} size="xs" />
             <PersonName
               id={c.authorId}
               name={author}

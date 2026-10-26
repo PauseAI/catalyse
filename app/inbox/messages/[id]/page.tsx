@@ -16,6 +16,7 @@ import PageLoading from '@/components/PageLoading'
 import { P } from '@/components/Text'
 import Textarea from '@/components/ui/Textarea'
 import PersonName from '@/components/PersonName'
+import Avatar from '@/components/Avatar'
 
 export default function ConversationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: idStr } = use(params)
@@ -99,8 +100,11 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
               m.fromMe ? 'self-end bg-chip' : 'self-start bg-surface shadow'
             }`}
           >
-            <div className="flex items-baseline justify-between gap-3 mb-1">
-              <strong className="text-sm">{m.fromMe ? 'You' : m.fromName}</strong>
+            <div className="flex items-center justify-between gap-3 mb-1">
+              <span className="inline-flex items-center gap-2">
+                <Avatar id={m.fromMe ? user.id : thread.with.id} name={m.fromName} />
+                <strong className="text-sm">{m.fromMe ? 'You' : m.fromName}</strong>
+              </span>
               <span className="text-xs text-text-light whitespace-nowrap">
                 {m.createdAt ? friendlyDate(m.createdAt) : ''}
               </span>

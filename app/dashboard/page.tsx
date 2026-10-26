@@ -307,7 +307,7 @@ export default function HomePage() {
               {w.attention && <div className="text-sm font-semibold mt-1">{w.attention}</div>}
             </>
           }
-          person={<PersonAvatar name={item.assigneeName} />}
+          person={<PersonAvatar id={item.assigneeId} name={item.assigneeName} />}
         />
       )
     }
@@ -338,7 +338,12 @@ export default function HomePage() {
         }
         person={
           w.kind === 'project' && (
-            <PersonAvatar name={w.ownerName ?? null} label="Owner" emptyLabel="No owner yet" />
+            <PersonAvatar
+              id={w.ownerId}
+              name={w.ownerName ?? null}
+              label="Owner"
+              emptyLabel="No owner yet"
+            />
           )
         }
       />

@@ -12,7 +12,7 @@ import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { ThemeToggle } from './ThemeToggle'
 import BugReportDialog from './BugReportDialog'
-import { PersonInitials } from './WorkItemHeader'
+import Avatar from './Avatar'
 
 function MobileNavLink({
   href,
@@ -218,7 +218,7 @@ export default function Header() {
                     className="rounded-full cursor-pointer border-0 bg-transparent p-0 hover:opacity-80"
                     onClick={() => setUserMenuOpen((o) => !o)}
                   >
-                    <PersonInitials name={user.name} size="md" />
+                    <Avatar id={user.id} name={user.name} size="md" />
                   </button>
                   {userMenuOpen && (
                     <div
@@ -380,7 +380,7 @@ export default function Header() {
                 <>
                   <MobileNavSection>Account</MobileNavSection>
                   <div className="flex items-center gap-3 px-5 py-4 border-b border-brand-border font-semibold text-brand-text">
-                    <PersonInitials name={user.name} size="md" />
+                    <Avatar id={user.id} name={user.name} size="md" />
                     {user.name}
                   </div>
                   {requiredActions.map((action) => (

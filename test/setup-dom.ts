@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import type { EventEmitter } from 'node:events'
+import { File as NodeFile } from 'node:buffer'
 import { afterEach, vi } from 'vitest'
 
 // Everything a component test fakes from the framework is listed here. vi.mock is hoisted
@@ -11,6 +12,19 @@ vi.mock('next/font/google', async () => (await import('./next-stubs')).fontGoogl
 
 // Only `.test.tsx` files get jsdom (see vitest.config.mts); everything below needs a window.
 if (typeof window !== 'undefined') {
+  // jsdom's File and FormData do not cross into Node's fetch: a file sent in a jsdom FormData
+  // reaches the router empty. Node's own take their place, and FormData still reads a form.
+  const JsdomFormData = globalThis.FormData
+  const NodeFormData = (await new Response(new URLSearchParams()).formData())
+    .constructor as typeof FormData
+  class TestFormData extends NodeFormData {
+    constructor(form?: HTMLFormElement) {
+      super()
+      if (form) for (const [key, value] of new JsdomFormData(form)) this.append(key, value)
+    }
+  }
+  Object.assign(globalThis, { File: NodeFile, FormData: TestFormData })
+
   const { installRpcFetch, resetRpcFetch } = await import('./rpc-fetch')
   // Before anything loads lib/client.ts, whose link keeps the `fetch` it finds.
   installRpcFetch()
