@@ -66,6 +66,62 @@ describe('home', () => {
     expect(await screen.findByRole('link', { name: 'Update application' })).toBeInTheDocument()
   })
 
+  it('gives an applicant things to do while they wait', async () => {
+    const chapter = await createChapter()
+    const skill = await createSkill()
+    await createProject({
+      nationalChapterId: chapter.id,
+      isSeekingHelp: true,
+      skills: { create: [{ skillId: skill.id }] },
+    })
+    await createQuickTask({ nationalChapterId: chapter.id })
+    const applicant = await createMember(chapter, {
+      name: 'Ann Applicant',
+      approvalStatus: 'pending',
+      skills: { create: [{ skillId: skill.id }] },
+    })
+    await renderApp(<HomePage />, { as: applicant, url: '/dashboard' })
+    await screen.findByRole('heading', { name: 'Thanks for applying, Ann!' })
+    expect(
+      screen.getByText(`1 project looking for volunteers (1 using your skills) and 1 quick task.`, {
+        exact: false,
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(`Waiting for you in ${chapter.name}:`)).toBeInTheDocument()
+    const actions = screen.getByRole('list', { name: 'Things you can do today' })
+    expect(
+      within(actions).getByRole('link', {
+        name: 'Sign the PauseAI statement (opens in a new tab)',
+      }),
+    ).toHaveAttribute('href', 'https://pauseai.info/statement')
+    expect(within(actions).getAllByRole('link')).toHaveLength(4)
+    expect(screen.getByRole('link', { name: 'skills and availability' })).toHaveAttribute(
+      'href',
+      '/settings',
+    )
+    expect(screen.getByRole('region', { name: "What you'll find here" })).toBeInTheDocument()
+    expect(
+      screen.getByRole('region', { name: 'What PauseAI volunteers have done' }),
+    ).toBeInTheDocument()
+  })
+
+  it('asks an applicant with nothing open yet to add skills', async () => {
+    const bare = await createMember(await createChapter(), { approvalStatus: 'pending' })
+    await renderApp(<HomePage />, { as: bare, url: '/dashboard' })
+    await screen.findByRole('heading', { name: /Thanks for applying/ })
+    expect(screen.queryByText(/Waiting for you/)).toBeNull()
+    expect(screen.getByRole('link', { name: 'Add your skills' })).toHaveAttribute(
+      'href',
+      '/settings',
+    )
+  })
+
+  it('spares a member the applicant welcome', async () => {
+    await renderApp(<HomePage />, { as: await createVolunteer(), url: '/dashboard' })
+    await screen.findByRole('link', { name: 'Propose a project' })
+    expect(screen.queryByRole('heading', { name: /Thanks for applying/ })).toBeNull()
+  })
+
   it('opens discovery for someone with nothing of their own yet', async () => {
     const fresh = await createVolunteer({ country: null })
     await createQuickTask({ title: 'Open starter' })
