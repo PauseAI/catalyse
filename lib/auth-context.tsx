@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { client } from '@/lib/client'
+import { queryClient } from '@/lib/query-client'
 import type { ChapterAccess } from '@/lib/chapter-access'
 
 interface User {
@@ -113,6 +114,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('authToken')
     setTokenState(null)
     setUser(null)
+    // Pages carry what the viewer may do, so whoever signs in next starts from nothing.
+    queryClient.clear()
     router.push('/login')
   }, [router])
 

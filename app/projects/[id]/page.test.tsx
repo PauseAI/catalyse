@@ -2118,8 +2118,8 @@ describe('project page — remaining edges', () => {
     const { clientAs } = await import('@/test/rpc')
     const file = await clientAs(owner).projects.exportPlan({ projectId: project.id })
     await mount(project.id, owner)
-    await screen.findByRole('heading', { name: 'Contact edge' })
-    await userEvent.click(screen.getByRole('button', { name: 'Export / Import' }))
+    // The first paint is the cached project as the last viewer saw it, with their permissions.
+    await userEvent.click(await screen.findByRole('button', { name: 'Export / Import' }))
     const edited = { ...file, project: { ...file.project, title: 'Imported title' } }
     fireEvent.change(screen.getByLabelText('Paste export JSON'), {
       target: { value: JSON.stringify(edited) },

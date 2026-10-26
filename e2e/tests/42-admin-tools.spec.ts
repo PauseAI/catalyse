@@ -59,7 +59,7 @@ test.describe('Roles and permissions', () => {
 
   test('A plain volunteer is sent away from it', async ({ volunteer, baseUrl }) => {
     await volunteer.page.goto(`${baseUrl}/admin/roles`)
-    await expect(volunteer.page).toHaveURL(/notice=no-access/, { timeout: 10_000 })
+    await expect(volunteer.page).toHaveURL(/\/projects$/, { timeout: 10_000 })
   })
 })
 

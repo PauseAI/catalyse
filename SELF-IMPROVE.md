@@ -289,3 +289,14 @@ confusing than it needed to be, and that will do so again.
       tests sat for 60 s each before failing, and the run timed out before printing which.
       A dom `testTimeout` near the 20 s the node project uses, or a failing test reported as
       it fails rather than at the end, would have shown the cause in the first minute.
+
+- [ ] **A session whose sandbox cannot reach Postgres cannot run a single unit test, pure ones
+      included, so its only test signal is a CI run.** The role-based access work wrote its
+      access-matrix tests blind, pushed them to a draft PR to prove them against the old code,
+      and read the results from `gh api repos/PauseAI/catalyse/check-runs/<job id>/annotations`
+      because `gh run view --log` downloads from a blob host the sandbox refuses. Even
+      `lib/permissions.test.ts`, which touches no database, needed a hand-made vitest config,
+      since every node test file runs `test/global-setup.ts`. A vitest project for tests that
+      need no database, and a script that prints a CI run's failing tests from its annotations,
+      would give such a session a loop of seconds for pure code and one readable command for the
+      rest.
