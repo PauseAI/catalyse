@@ -99,9 +99,9 @@ describe('the tasks of a running project', () => {
         as.dependencies.add({ predecessorId: w.tasks.open.id, successorId: w.tasks.mine.id }),
     }))
 
-  it('are rescheduled by a global admin, its owner and deputies', () =>
+  it('are rescheduled by its admins, owner and deputies', () =>
     expectAccess(people, {
-      allowed: ['globalAdmin', 'owner', 'projectDeputy'],
+      allowed: RUNNERS,
       attempt: (as, w) =>
         as.schedule.rescheduleItems({
           items: [{ id: w.tasks.open.id, startDate: new Date('2030-01-01T00:00:00Z') }],

@@ -2,7 +2,9 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { env } from '@/lib/env'
-import { applyScheduleWrite, canManageProject } from '@/lib/work-item'
+import { applyScheduleWrite } from '@/lib/work-item'
+import type { ChapterAccess } from '@/lib/chapter-access'
+import { assertCan, projectResource } from '@/lib/permissions-server'
 import { assertProjectEditable } from '@/lib/work-item-lock'
 import { findDependencyCycle } from '@/lib/schedule'
 import { loadTaskEdges } from '@/lib/project-schedule'
@@ -16,7 +18,7 @@ import {
   type CurrentState,
   type LocalRef,
 } from '@/lib/project-porting'
-import { approvedProcedure, asProjectAdmin } from '../procedures'
+import { approvedProcedure } from '../procedures'
 import { ApprovalStatus, TaskStatus, WorkItemType } from '@/generated/prisma/enums'
 
 /** A re-uploaded file is a small text blob; cap it so a bad upload can't stall the handler. */
@@ -27,6 +29,8 @@ type ProjectRow = {
   creatorId: number | null
   assigneeId: number | null
   status: string
+  teamId: number | null
+  nationalChapterId: number | null
 }
 
 async function loadState(
@@ -80,28 +84,33 @@ async function loadState(
       creatorId: project.creatorId,
       assigneeId: project.assigneeId,
       status: project.status,
+      teamId: project.teamId,
+      nationalChapterId: project.nationalChapterId,
     },
     state,
   }
 }
 
-function assertCanManage(project: ProjectRow, volunteer: { id: number; isAdmin: boolean | null }) {
-  if (!canManageProject(project, volunteer)) {
-    throw new ORPCError('FORBIDDEN', {
-      message: 'Only the project owner or an admin can export or import this project',
-    })
-  }
+async function assertCanManage(
+  project: ProjectRow,
+  context: { volunteer: { id: number }; access: ChapterAccess },
+) {
+  assertCan(
+    { id: context.volunteer.id, access: context.access },
+    'project.manage',
+    await projectResource(project, context.volunteer.id),
+    'Only the project owner or an admin can export or import this project',
+  )
 }
 
 export const projectPortingRouter = {
   /** Serialise a project + its tasks + intra-project dependencies to a JSON payload. */
   exportPlan: approvedProcedure
     .input(z.object({ projectId: z.number().int() }))
-    .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const loaded = await loadState(input.projectId)
       if (!loaded) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
-      assertCanManage(loaded.project, context.volunteer)
+      await assertCanManage(loaded.project, context)
       return serializeProjectExport(loaded.state, env.APP_URL)
     }),
 
@@ -113,11 +122,10 @@ export const projectPortingRouter = {
         file: z.string().max(MAX_FILE_BYTES),
       }),
     )
-    .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const loaded = await loadState(input.projectId)
       if (!loaded) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
-      assertCanManage(loaded.project, context.volunteer)
+      await assertCanManage(loaded.project, context)
 
       const parsed = parseImportFile(input.file)
       if (!parsed.ok) {
@@ -139,12 +147,11 @@ export const projectPortingRouter = {
         confirmedDeleteIds: z.array(z.number().int()).optional().default([]),
       }),
     )
-    .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const loaded = await loadState(input.projectId)
       if (!loaded) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
-      assertCanManage(loaded.project, volunteer)
+      await assertCanManage(loaded.project, context)
       assertProjectEditable(loaded.project)
 
       if (hashState(loaded.state) !== input.expectedHash) {

@@ -11,9 +11,6 @@ import {
 import {
   canViewWorkItem,
   canPostComment,
-  canManageProject,
-  canManageProjectTasks,
-  canDeleteProjectTask,
   isProjectDeputy,
   resolveTeamPrivy,
   resolveProjectPrivy,
@@ -138,33 +135,6 @@ describe('canPostComment', () => {
     expect(canPostComment(qt, other)).toBe(true)
     expect(canPostComment(qt, creator)).toBe(false)
     expect(canPostComment({ ...qt, type: 'OTHER' }, other)).toBe(false)
-  })
-})
-
-describe('canManageProject', () => {
-  it('admin, owner, or draft creator', () => {
-    const p = { creatorId: 3, assigneeId: 2, status: 'ready' }
-    expect(canManageProject(p, { id: 9, isAdmin: true })).toBe(true)
-    expect(canManageProject(p, { id: 2, isAdmin: false })).toBe(true)
-    expect(canManageProject(p, { id: 3, isAdmin: false })).toBe(false)
-    expect(canManageProject({ ...p, status: 'draft' }, { id: 3, isAdmin: null })).toBe(true)
-  })
-})
-
-describe('canManageProjectTasks', () => {
-  const p = { creatorId: 3, assigneeId: 2, status: 'ready' }
-  it('is everyone who manages the project, plus a deputy', () => {
-    expect(canManageProjectTasks(p, { id: 9, isAdmin: true }, false)).toBe(true)
-    expect(canManageProjectTasks(p, { id: 2, isAdmin: false }, false)).toBe(true)
-    expect(canManageProjectTasks(p, { id: 5, isAdmin: false }, true)).toBe(true)
-    expect(canManageProjectTasks(p, { id: 5, isAdmin: false }, false)).toBe(false)
-  })
-
-  it('lets a deputy or the task creator delete a task, and nobody else', () => {
-    const task = { creatorId: 7 }
-    expect(canDeleteProjectTask(p, task, { id: 5, isAdmin: false }, true)).toBe(true)
-    expect(canDeleteProjectTask(p, task, { id: 7, isAdmin: false }, false)).toBe(true)
-    expect(canDeleteProjectTask(p, task, { id: 5, isAdmin: false }, false)).toBe(false)
   })
 })
 

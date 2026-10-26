@@ -1,12 +1,9 @@
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
-import {
-  applyScheduleWrite,
-  canManageProject,
-  canManageProjectTasks,
-  isProjectDeputy,
-} from '@/lib/work-item'
+import { applyScheduleWrite } from '@/lib/work-item'
+import { can } from '@/lib/permissions'
+import { projectResource, viewerOf } from '@/lib/permissions-server'
 import { assertProjectEditable, assertTaskEditable } from '@/lib/work-item-lock'
 import { recordChange, recordEvent } from '@/lib/work-item-events'
 import {
@@ -131,13 +128,11 @@ export const scheduleRouter = {
         const project = projectById.get(projectId)
         const allowed =
           project &&
-          (projectItemIds.has(projectId)
-            ? canManageProject(project, volunteer)
-            : canManageProjectTasks(
-                project,
-                volunteer,
-                await isProjectDeputy(projectId, volunteer.id),
-              ))
+          can(
+            viewerOf(context),
+            projectItemIds.has(projectId) ? 'project.manage' : 'task.manage',
+            await projectResource(project, volunteer.id),
+          )
         if (!allowed) {
           throw new ORPCError('FORBIDDEN', {
             message: 'You cannot reschedule work on this project',

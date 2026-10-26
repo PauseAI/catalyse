@@ -352,34 +352,6 @@ export function canPostComment(
   }
 }
 
-/**
- * May `viewer` manage this project — its backlog, its schedule, its dependency links?
- * The project owner, an admin, or the creator of a project still in `draft` (which has no
- * owner yet, so its creator runs it until publish).
- */
-export function canManageProject(
-  project: { creatorId: number | null; assigneeId: number | null; status: string },
-  viewer: { id: number; isAdmin: boolean | null },
-): boolean {
-  if (viewer.isAdmin) return true
-  if (project.assigneeId === viewer.id) return true
-  return project.creatorId === viewer.id && project.status === ProjectStatus.draft
-}
-
-/**
- * May `viewer` manage this project's tasks: create, edit, assign, reorder, link, replan and
- * review them? Whoever manages the project, plus a deputy. Project-level checks (editing the
- * project, its people, status, key date, deadline and original plan) stay on
- * `canManageProject`.
- */
-export function canManageProjectTasks(
-  project: { creatorId: number | null; assigneeId: number | null; status: string },
-  viewer: { id: number; isAdmin: boolean | null },
-  isDeputy: boolean,
-): boolean {
-  return canManageProject(project, viewer) || isDeputy
-}
-
 /** Has the owner made `volunteerId` a deputy on this project, and are they still a helper? */
 export async function isProjectDeputy(projectId: number, volunteerId: number): Promise<boolean> {
   const deputy = await prisma.projectDeputy.findFirst({
@@ -393,35 +365,6 @@ export async function isProjectDeputy(projectId: number, volunteerId: number): P
     select: { id: true },
   })
   return deputy !== null
-}
-
-/**
- * May `viewer` add a task to this project? Anyone who can manage the project, plus any
- * member — team membership or an accepted `WorkItemInterest` (the same signal as
- * `resolveTeamPrivy`). Members were previously blocked from adding tasks at all; this was
- * loosened per a bug report that they need to. If member-created tasks turn out to cause
- * problems, this may need reverting to owner/admin-only (i.e. back to `canManageProject`).
- */
-export function canCreateProjectTask(
-  project: { creatorId: number | null; assigneeId: number | null; status: string },
-  viewer: { id: number; isAdmin: boolean | null },
-  isMember: boolean,
-): boolean {
-  return canManageProject(project, viewer) || isMember
-}
-
-/**
- * May `viewer` delete this task? Anyone who can manage the project, plus the volunteer who
- * created the task themselves — a member can clean up their own addition, but not anyone
- * else's. Like `canCreateProjectTask`, this may need reverting to owner/admin-only.
- */
-export function canDeleteProjectTask(
-  project: { creatorId: number | null; assigneeId: number | null; status: string },
-  task: { creatorId: number | null },
-  viewer: { id: number; isAdmin: boolean | null },
-  isDeputy: boolean,
-): boolean {
-  return canManageProjectTasks(project, viewer, isDeputy) || task.creatorId === viewer.id
 }
 
 export type WorkItemSkillWithRelations = {

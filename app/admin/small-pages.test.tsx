@@ -2,12 +2,19 @@ import { describe, it, expect, vi } from 'vitest'
 import { screen, waitFor, fireEvent, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
-import { chapterFor, createAdmin, createSuperAdmin, createProject } from '@/test/factories'
+import {
+  chapterFor,
+  createAdmin,
+  createChapterLead,
+  createSuperAdmin,
+  createProject,
+} from '@/test/factories'
 import { renderApp } from '@/test/render'
 import PlatformSettingsPage from './platform-settings/page'
 import AdminCronRunsPage from './cron-runs/page'
 import EmailPreviewPage from './email-preview/page'
 import AdminProjectsPage from './projects/page'
+import AdminRolesPage from './roles/page'
 
 import { cronJobs } from '@/test/fakes/cron-jobs'
 
@@ -185,5 +192,20 @@ describe('admin projects', () => {
     expect(
       screen.getAllByRole('link', { name: 'Manage' }).map((l) => l.getAttribute('href')),
     ).toContain(`/projects/${draft.id}/edit`)
+  })
+})
+
+describe('roles and permissions', () => {
+  it('shows a chapter lead what each role may do, and who may do each thing', async () => {
+    const lead = await createChapterLead(await chapterFor('UK'))
+    await renderApp(<AdminRolesPage />, { as: lead })
+    const deputy = await screen.findByRole('region', { name: 'Project deputy' })
+    expect(within(deputy).getByText('Add a task')).toBeInTheDocument()
+    expect(within(deputy).queryByText('Delete it outright')).toBeNull()
+
+    const publish = screen.getByRole('rowheader', { name: /project\.publishDraft/ })
+    const cells = within(publish.closest('tr')!).getAllByRole('cell')
+    const allowed = cells.map((c) => c.textContent?.includes('Yes'))
+    expect(allowed.filter(Boolean)).toHaveLength(1)
   })
 })

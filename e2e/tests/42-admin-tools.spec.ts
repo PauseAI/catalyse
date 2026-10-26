@@ -44,6 +44,25 @@ test.describe('Cron job runs', () => {
   })
 })
 
+test.describe('Roles and permissions', () => {
+  test('Admin reads what each role may do', async ({ adminPage, baseUrl, snap }) => {
+    await adminPage.goto(`${baseUrl}/admin`)
+    await adminPage.getByRole('link', { name: 'Roles and permissions' }).click()
+    await expect(adminPage.getByRole('heading', { name: 'Roles and permissions' })).toBeVisible({
+      timeout: 10_000,
+    })
+    const deputy = adminPage.getByRole('region', { name: 'Project deputy' })
+    await expect(deputy.getByText('Add a task')).toBeVisible()
+    await expect(adminPage.getByRole('rowheader', { name: /project\.publishDraft/ })).toBeVisible()
+    await snap(adminPage, 'roles')
+  })
+
+  test('A plain volunteer is sent away from it', async ({ volunteer, baseUrl }) => {
+    await volunteer.page.goto(`${baseUrl}/admin/roles`)
+    await expect(volunteer.page).toHaveURL(/notice=no-access/, { timeout: 10_000 })
+  })
+})
+
 test.describe('Email previews', () => {
   test('Admin sees every transactional email rendered with sample data', async ({
     adminPage,

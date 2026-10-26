@@ -77,8 +77,9 @@ export const staffProcedure = base.use(({ context, next }) => {
 
 /**
  * Makes `context.volunteer.isAdmin` mean "an admin over this project": a global admin, or a
- * staff member of the project's chapter (`actingOn`, lib/chapter-access.ts). The project
- * procedures' admin checks then hold for a chapter's staff on its own projects, and nowhere else.
+ * staff member of the project's chapter (`actingOn`, lib/chapter-access.ts). What a person may
+ * do to a project is decided by `can` (lib/permissions.ts); this serves what may be seen, whose
+ * checks (`canViewWorkItem` and the project scope rule) still read `isAdmin`.
  */
 export const asProjectAdmin = os
   .$context<{ volunteer: NonNullable<Context['volunteer']>; access: ChapterAccess }>()

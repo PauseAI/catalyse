@@ -82,9 +82,9 @@ describe('a running project', () => {
       attempt: (as, w) => as.projects.exportPlan({ projectId: w.project.id }),
     }))
 
-  it('is rescheduled by a global admin or its owner', () =>
+  it('is rescheduled by its admins or owner', () =>
     expectAccess(people, {
-      allowed: ['globalAdmin', 'owner'],
+      allowed: [...ADMINS, 'owner'],
       attempt: (as, w) =>
         as.schedule.rescheduleItems({
           items: [{ id: w.project.id, startDate: new Date('2030-01-01T00:00:00Z') }],

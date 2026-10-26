@@ -136,6 +136,9 @@ describe('Header', () => {
       const vol = await createVolunteer({ locationConfirmedAt: new Date() })
       await mount(vol, '/projects')
       const inbox = await screen.findByRole('link', { name: 'Inbox' })
+      // A tick that lands while the first count is still loading joins that request, which
+      // was made before the notification below, so let the first count settle.
+      await waitFor(() => expect(queryClient.isFetching()).toBe(0))
       await prisma.notification.create({
         data: { volunteerId: vol.id, type: 'task_done', title: "Done: 'Leaflets'" },
       })

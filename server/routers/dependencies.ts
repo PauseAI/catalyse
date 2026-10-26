@@ -2,19 +2,15 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { DependencyBodySchema } from '@/lib/schemas'
-import {
-  canManageProject,
-  canManageProjectTasks,
-  canViewWorkItem,
-  isProjectDeputy,
-  resolveProjectPrivy,
-} from '@/lib/work-item'
+import { canViewWorkItem, resolveProjectPrivy } from '@/lib/work-item'
+import { can } from '@/lib/permissions'
+import { projectResource } from '@/lib/permissions-server'
 import { assertProjectEditable, assertTaskEditable } from '@/lib/work-item-lock'
 import { loadProjectEdges, loadTaskEdges } from '@/lib/project-schedule'
 import { findDependencyCycle, type ScheduleEdge } from '@/lib/schedule'
 import { recordEvent, type EventValues } from '@/lib/work-item-events'
 import { approvedProcedure } from '../procedures'
-import { actingOn, canAdminChapter, type ChapterAccess } from '@/lib/chapter-access'
+import { canAdminChapter, type ChapterAccess } from '@/lib/chapter-access'
 import { ApprovalStatus, WorkItemType } from '@/generated/prisma/enums'
 
 const ENDPOINT_SELECT = {
@@ -97,7 +93,8 @@ async function resolveLink(
     })
   }
 
-  // Each end is managed, or seen, with the admin rights its own chapter gives (actingOn).
+  // Each end is managed, or seen, with the admin rights its own chapter gives.
+  const actor = { id: volunteer.id, access }
   const viewer: Viewer = {
     id: volunteer.id,
     isAdmin: canAdminChapter(access, predecessor.nationalChapterId),
@@ -114,8 +111,7 @@ async function resolveLink(
         })
       : null
     if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
-    const actor = actingOn(volunteer, access, project.nationalChapterId)
-    if (!canManageProjectTasks(project, actor, await isProjectDeputy(project.id, volunteer.id))) {
+    if (!can(actor, 'task.manage', await projectResource(project, volunteer.id))) {
       throw new ORPCError('FORBIDDEN', {
         message: 'Only the project owner, a deputy or an admin can link its tasks',
       })
@@ -123,7 +119,7 @@ async function resolveLink(
     assertProjectEditable(project)
     assertTaskEditable(successor)
   } else {
-    if (!canManageProject(successor, actingOn(volunteer, access, successor.nationalChapterId))) {
+    if (!can(actor, 'project.manage', await projectResource(successor, volunteer.id))) {
       throw new ORPCError('FORBIDDEN', {
         message: 'Only the owner or an admin of the dependent project can add this link',
       })
