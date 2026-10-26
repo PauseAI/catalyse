@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import Skeleton from './Skeleton'
+import Avatar from './Avatar'
 import { friendlyDate } from '@/lib/format-date'
 import { orpc } from '@/lib/orpc'
 import { BLEED } from '@/lib/ui-classes'
@@ -29,7 +30,10 @@ export default function ConversationList() {
             className={`block p-4 no-underline text-brand-text hover:bg-brand-bg ${t.unread > 0 ? 'border-l-4 border-primary pl-3' : ''}`}
           >
             <div className="flex items-start justify-between gap-3">
-              <span className={t.unread > 0 ? 'font-bold' : 'font-medium'}>
+              <span
+                className={`inline-flex items-center gap-2 ${t.unread > 0 ? 'font-bold' : 'font-medium'}`}
+              >
+                <Avatar id={t.with.id} name={t.with.name} />
                 {t.with.name}
                 {t.unread > 0 && (
                   <span className="bg-primary text-[#111827] text-xs px-2 py-0.5 rounded-full ml-2">

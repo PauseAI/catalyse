@@ -212,7 +212,7 @@ describe('workItemComments replies', () => {
     // carries one, so it's clear which reply it answers.
     expect(comments[1].replies.map((r) => r.repliedTo)).toEqual([
       null,
-      { id: reply.id, authorName: owner.name, content: 'I do', deleted: false },
+      { id: reply.id, authorId: owner.id, authorName: owner.name, content: 'I do', deleted: false },
     ])
     // Each person replied to hears it as a reply; the thread starter hears of the second reply
     // as a comment, and the owner of the helper's post.

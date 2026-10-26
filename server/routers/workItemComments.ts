@@ -290,6 +290,7 @@ export const workItemCommentsRouter = {
           repliedTo: quoted
             ? {
                 id: quoted.id,
+                authorId: quoted.authorId,
                 authorName: quoted.author?.name ?? null,
                 content: quoted.deletedAt ? '' : quoteSnippet(quoted.content),
                 deleted: quoted.deletedAt !== null,

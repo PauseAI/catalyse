@@ -1,6 +1,6 @@
 'use client'
 
-import { use } from 'react'
+import { use, useState } from 'react'
 import { useRequireAuth } from '@/lib/hooks/auth'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
@@ -19,6 +19,44 @@ import { P } from '@/components/Text'
 import TextLink from '@/components/TextLink'
 import PersonName, { RoleBadge } from '@/components/PersonName'
 import { usePerson } from '@/lib/hooks/usePerson'
+import Avatar from '@/components/Avatar'
+import ConfirmDialog from '@/components/ui/ConfirmDialog'
+
+/** Staff take down a picture that should not be shown; the volunteer is left with initials. */
+function RemovePicture({ volunteerId, name }: { volunteerId: number; name: string }) {
+  const [open, setOpen] = useState(false)
+  const showToast = useToast()
+  const queryClient = useQueryClient()
+  const remove = useMutation({
+    ...orpc.profilePictures.removeFor.mutationOptions(),
+    onSuccess: () => {
+      setOpen(false)
+      showToast('Picture removed', 'success')
+      void queryClient.invalidateQueries({ queryKey: ['person'] })
+    },
+    onError: (err: unknown) =>
+      showToast(err instanceof Error ? err.message : 'Failed to remove the picture', 'error'),
+  })
+  return (
+    <>
+      <Button variant="danger" size="sm" className="mt-2" onClick={() => setOpen(true)}>
+        Remove picture
+      </Button>
+      <ConfirmDialog
+        id="remove-picture-dialog"
+        isOpen={open}
+        title="Remove profile picture?"
+        body={`${name} will be shown with their initials, and told their picture was taken down. They can upload another.`}
+        confirmLabel="Remove picture"
+        danger
+        busy={remove.isPending}
+        busyLabel="Removing…"
+        onConfirm={() => remove.mutate({ volunteerId })}
+        onClose={() => setOpen(false)}
+      />
+    </>
+  )
+}
 
 export default function VolunteerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -124,12 +162,20 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
             </section>
           )}
           <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
-            <div className="flex items-center mb-2">
-              <H1 id="volunteerName" className="m-0">
-                {volunteer.name}
-              </H1>
-              <RoleBadge person={person} className="ml-2" />
-              {volunteer.activeRecently && <ActiveDot />}
+            <div className="flex items-center gap-4 mb-3">
+              <Avatar id={volunteer.id} name={volunteer.name} size="lg" />
+              <div className="min-w-0">
+                <div className="flex items-center">
+                  <H1 id="volunteerName" className="m-0">
+                    {volunteer.name}
+                  </H1>
+                  <RoleBadge person={person} className="ml-2" />
+                  {volunteer.activeRecently && <ActiveDot />}
+                </div>
+                {volunteer.canRemovePicture && person?.picture && (
+                  <RemovePicture volunteerId={volunteer.id} name={volunteer.name} />
+                )}
+              </div>
             </div>
 
             {user.access.globalAdmin && (

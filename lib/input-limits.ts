@@ -1,3 +1,5 @@
+import { MAX_DATA_URL_LENGTH } from './profile-picture'
+
 /**
  * A ceiling on every string and array any procedure accepts, applied to the raw input before
  * its own schema runs. A schema may set a tighter limit with its own message; this is the
@@ -15,6 +17,8 @@ const LONGER_FIELDS: Record<string, number> = {
   // Whole import files, parsed and bounded again by their own schemas.
   file: 2_000_000,
   csv: 2_000_000,
+  // A profile picture as a data URL, bounded by its own schema.
+  picture: MAX_DATA_URL_LENGTH,
 }
 
 /** The first limit the input breaks, as a message for the caller, or null if it breaks none. */

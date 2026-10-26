@@ -30,6 +30,7 @@ const ACTION_LABELS: Record<ChapterAuditAction, string> = {
   PROJECT_CHAPTER_CHANGED: 'moved a project',
   TEAM_CHAPTER_CHANGED: 'moved a team',
   ROLE_INVITE_SENT: 'sent a staff invite',
+  PROFILE_PICTURE_REMOVED: 'removed a profile picture:',
   ROLE_INVITE_ACCEPTED: 'accepted a staff invite:',
   JOINED_FROM_POOL: 'joined from the holding pool',
 }

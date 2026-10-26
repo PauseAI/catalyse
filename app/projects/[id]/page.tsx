@@ -395,6 +395,7 @@ function TaskTimeline({
     title: t.title,
     type: WorkItemType.TASK,
     displayStatus: t.displayStatus,
+    assigneeId: t.assignedToId,
     assigneeName: t.assignedToName,
     helperCount: t.helperCount,
     helpersWanted: t.helpersWanted,
@@ -2656,6 +2657,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         ),
                         person: (
                           <PersonAvatar
+                            id={task.assignedToId}
                             name={task.status !== TaskStatus.completed ? task.assignedToName : null}
                           />
                         ),

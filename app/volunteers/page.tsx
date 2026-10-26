@@ -26,6 +26,7 @@ import { P } from '@/components/Text'
 import FormLabel from '@/components/FormLabel'
 import Input from '@/components/ui/Input'
 import PersonName from '@/components/PersonName'
+import Avatar from '@/components/Avatar'
 
 type SkillCategory = InferRouterOutputs<AppRouter>['skills']['list'][number]
 type FlatSkill = SkillCategory['skills'][number] & { categoryName: string }
@@ -198,7 +199,8 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
                   key={v.id}
                   className="card bg-surface rounded-xl shadow p-4 sm:p-6 overflow-hidden wrap-break-word flex flex-col"
                 >
-                  <H3 className="m-0 mb-2">
+                  <H3 className="m-0 mb-2 flex items-center gap-2">
+                    <Avatar id={v.id} name={v.name} />
                     <PersonName
                       id={v.id}
                       name={v.name}

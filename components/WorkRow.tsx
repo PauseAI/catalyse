@@ -1,13 +1,15 @@
 import type React from 'react'
 import Tooltip from '@/components/Tooltip'
-import { initials } from '@/components/WorkItemHeader'
+import Avatar from '@/components/Avatar'
 
-/** Whoever holds a row's work, as initials, or a dashed circle while nobody does. */
+/** Whoever holds a row's work, as their avatar, or a dashed circle while nobody does. */
 export function PersonAvatar({
+  id,
   name,
   label = 'Assigned to',
   emptyLabel = 'Unassigned',
 }: {
+  id?: number | null
   name: string | null
   /** Read before the name: "Assigned to Sam". */
   label?: string
@@ -25,12 +27,7 @@ export function PersonAvatar({
 
   return (
     <Tooltip content={name}>
-      <span
-        aria-label={`${label} ${name}`}
-        className="w-6 h-6 rounded-full bg-secondary text-white text-xs font-semibold flex items-center justify-center shrink-0"
-      >
-        {initials(name)}
-      </span>
+      <Avatar id={id} name={name} size="row" label={`${label} ${name}`} />
     </Tooltip>
   )
 }

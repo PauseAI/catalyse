@@ -64,6 +64,8 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
   national_chapters: { country: 'keep', name: 'keep' },
   notifications: { type: 'keep', title: 'redact', body: 'null', link: 'keep' },
   password_reset_tokens: { token: 'token' },
+  // Real people's faces.
+  profile_pictures: { public_id: 'rows-deleted' },
   project_review_requests: { message: 'redact' },
   rejected_applications: { email_hash: 'token', admin_notes: 'redact', applicant_notes: 'redact' },
   schema_migrations: { filename: 'keep' },

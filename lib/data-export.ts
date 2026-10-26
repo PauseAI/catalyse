@@ -2,6 +2,7 @@ import type { RuntimeDataModel } from '@prisma/client/runtime/library'
 import { prisma } from '@/lib/prisma'
 import { hashEmail, isSuperAdmin } from '@/lib/auth'
 import type { Volunteer } from '@/generated/prisma/client'
+import { PICTURE_CONTENT_TYPE } from '@/lib/profile-picture'
 
 /**
  * The data-subject export (GDPR Articles 15 and 20), built from the Prisma schema. Every way a row
@@ -116,6 +117,7 @@ export const OMITTED_LINKS: Readonly<Record<string, string>> = {
   'Volunteer.duplicateOf':
     "an admin's guess at the same person, until both accounts confirm a merge",
   'Volunteer.reviewer': 'applications reviewed for other people',
+  'ProfilePicture.volunteer': 'exported as `profilePicture`, the image as a data URL',
   'VolunteerSkill.volunteer': 'exported as `skills`',
   'WorkItem.reviewedBy': STAFF_ACTION,
   'WorkItemInterest.invitedBy': 'invites to other people',
@@ -306,10 +308,11 @@ export async function exportProfile(volunteerId: number) {
       group: { select: { name: true } },
       chapter: { select: { name: true } },
       skills: { include: { skill: { include: { category: true } } } },
+      profilePicture: { select: { data: true, createdAt: true } },
     },
   })
   if (!vol) return null
-  const { group, chapter, skills, ...columns } = vol
+  const { group, chapter, skills, profilePicture, ...columns } = vol
   const skillsData = skills.map((vs) => ({
     id: vs.skill.id,
     categoryId: vs.skill.categoryId,
@@ -329,5 +332,9 @@ export async function exportProfile(volunteerId: number) {
       hasPassword: Boolean(vol.passwordHash),
     },
     skills: skillsData,
+    profilePicture: profilePicture && {
+      image: `data:${PICTURE_CONTENT_TYPE};base64,${Buffer.from(profilePicture.data).toString('base64')}`,
+      uploadedAt: profilePicture.createdAt,
+    },
   }
 }

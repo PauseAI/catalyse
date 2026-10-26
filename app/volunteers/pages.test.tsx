@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import {
   createChapter,
   createMember,
+  createChapterLead,
   connect,
   createVolunteer,
   createAdmin,
@@ -290,6 +291,38 @@ describe('volunteer profile', () => {
       'href',
       `/volunteers/${kept.id}`,
     )
+  })
+
+  it("lets the volunteer's chapter staff take down their picture", async () => {
+    const chapter = await createChapter()
+    const member = await createMember(chapter, { name: 'Pic Member' })
+    const picture = {
+      volunteerId: member.id,
+      publicId: 'profile-page-picture',
+      data: new Uint8Array([1]),
+    }
+    await prisma.profilePicture.create({ data: picture })
+    await renderApp(<VolunteerDetailPage params={Promise.resolve({ id: String(member.id) })} />, {
+      as: await createChapterLead(chapter),
+    })
+    await screen.findByRole('heading', { name: 'Pic Member' })
+    const open = await screen.findByRole('button', { name: 'Remove picture' })
+    await userEvent.click(open)
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    // Someone else took it down first.
+    await prisma.profilePicture.delete({ where: { volunteerId: member.id } })
+    await userEvent.click(open)
+    const dialog = await screen.findByRole('dialog', { name: 'Remove profile picture?' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove picture' }))
+    expect(await screen.findByText('They have no picture')).toBeInTheDocument()
+
+    await prisma.profilePicture.create({ data: picture })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove picture' }))
+    expect(await screen.findByText('Picture removed')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Remove picture' })).toBeNull())
+    expect(await prisma.profilePicture.count({ where: { volunteerId: member.id } })).toBe(0)
   })
 
   it('shows a minimal profile, and a not-found state', async () => {

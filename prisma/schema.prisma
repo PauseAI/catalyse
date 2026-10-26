@@ -80,6 +80,7 @@ enum ChapterAuditAction {
   ROLE_INVITE_SENT
   ROLE_INVITE_ACCEPTED
   JOINED_FROM_POOL
+  PROFILE_PICTURE_REMOVED
 }
 
 /// One country's members and the people who run it. A volunteer with no chapter is in the
@@ -1211,6 +1212,7 @@ model Volunteer {
   templatesCreated                        Template[]               @relation("TemplateCreatedBy")
   sessions                                Session[]
   apiTokens                               ApiToken[]
+  profilePicture                          ProfilePicture?
 
   @@index([country], map: "idx_volunteers_country")
   @@index([nationalChapterId], map: "idx_volunteers_chapter")
@@ -1219,6 +1221,20 @@ model Volunteer {
   @@index([authToken], map: "idx_volunteers_auth_token")
   @@index([email], map: "idx_volunteers_email")
   @@map("volunteers")
+}
+
+/// A volunteer's picture, re-encoded as a square WebP thumbnail (lib/profile-picture.ts). Kept
+/// apart from Volunteer so the many queries that read a whole volunteer row never load it.
+model ProfilePicture {
+  volunteerId Int       @id @map("volunteer_id")
+  /// Random, and new on every upload: the picture is served at a URL only someone shown it knows,
+  /// cached forever.
+  publicId    String    @unique @map("public_id")
+  data        Bytes
+  createdAt   DateTime  @default(now()) @map("created_at")
+  volunteer   Volunteer @relation(fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("profile_pictures")
 }
 
 model Session {

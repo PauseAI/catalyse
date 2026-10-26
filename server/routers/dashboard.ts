@@ -73,6 +73,7 @@ export type WorkRow = {
   /** A project's stored status, for its badge's colour. */
   statusKey?: string
   /** Who holds a project: its owner. */
+  ownerId?: number | null
   ownerName?: string | null
   /** The project a task belongs to. */
   context: string | null
@@ -407,6 +408,7 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
     updatedAt: true,
     startDate: true,
     deadline: true,
+    assigneeId: true,
     assignee: { select: { name: true } },
   } as const
   const [owned, interests, proposed, tasks, memberships, deputyRows] = await Promise.all([
@@ -486,6 +488,7 @@ async function workFor(viewer: Viewer): Promise<WorkRow[]> {
       role,
       status: projectStatusLabel(p.status),
       statusKey: p.status,
+      ownerId: p.assigneeId,
       ownerName: p.assignee?.name ?? null,
       context: null,
       done: TERMINAL_STATUSES.includes(p.status),

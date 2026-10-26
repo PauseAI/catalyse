@@ -35,6 +35,7 @@ describe('toWorkItemSummary', () => {
       title: 'Book the venue',
       type: 'TASK',
       displayStatus: 'ready',
+      assigneeId: 5,
       assigneeName: 'Sam',
       helperCount: 1,
       helpersWanted: 3,

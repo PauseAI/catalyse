@@ -785,6 +785,7 @@ export const authRouter = {
         },
       })
       await prisma.volunteerSkill.deleteMany({ where: { volunteerId: context.volunteer.id } })
+      await prisma.profilePicture.deleteMany({ where: { volunteerId: context.volunteer.id } })
       return { message: "Your account has been deleted. We're sorry to see you go." }
     }),
 

@@ -12,6 +12,7 @@ const task = (overrides: Partial<WorkItemSummary> = {}): WorkItemSummary => ({
   title: 'Book the venue',
   type: 'TASK',
   displayStatus: 'ready',
+  assigneeId: null,
   assigneeName: null,
   helperCount: 0,
   helpersWanted: null,
