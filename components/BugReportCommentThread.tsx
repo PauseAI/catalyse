@@ -26,6 +26,8 @@ export default function BugReportCommentThread({
   const handlers = (done: string, failed: string) => ({
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: orpc.bugReportComments.list.key() })
+      // The admin list counts each report's comments.
+      void queryClient.invalidateQueries({ queryKey: orpc.admin.bugReports.list.key() })
       showToast(done, 'success')
     },
     onError: (err: unknown) => showToast(err instanceof Error ? err.message : failed, 'error'),

@@ -1,7 +1,7 @@
 import { test, expect, getAlert } from '../fixtures'
 import type { Page } from '@playwright/test'
 import { submitBugReportViaApi } from '../actions/bugs'
-import { selectFilterDropdown } from '../actions/ui'
+import { postComment, selectFilterDropdown } from '../actions/ui'
 import { fake } from '../fake'
 
 const BUG_STATUS_LABELS: Record<string, string> = {
@@ -146,6 +146,47 @@ test.describe('Bug Report Management', () => {
       timeout: 10_000,
     })
     await expect(adminPage.getByLabel('Resolution notes')).toHaveValue(notes)
+  })
+
+  test('Admin assigns, moves and replies to a report from the list', async ({
+    adminPage,
+    volunteer,
+    baseUrl,
+    snap,
+  }) => {
+    const title = fake.bugTitle()
+    const reply = fake.resolutionNotes()
+
+    await submitBugReportViaApi(
+      baseUrl,
+      volunteer.page,
+      title,
+      'A bug report triaged without leaving the list',
+    )
+
+    await navigateToBugsPage(baseUrl, adminPage)
+    const card = adminPage.locator('.card').filter({ hasText: title })
+    await card.getByRole('button', { name: 'Assign to me' }).click()
+    await expect(getAlert(adminPage)).toContainText('Bug report assigned', { timeout: 10_000 })
+    await expect(card).toContainText('Assigned to:')
+    await expect(card.getByRole('button', { name: 'Assign to me' })).not.toBeVisible()
+
+    await selectFilterDropdown(adminPage, `Status of ${title}`, 'In progress')
+    await expect(getAlert(adminPage)).toContainText('Moved to In progress', { timeout: 10_000 })
+    const inProgress = adminPage
+      .getByTestId('bugs-section-in_progress')
+      .locator('.card')
+      .filter({ hasText: title })
+    await expect(inProgress).toBeVisible({ timeout: 10_000 })
+
+    await inProgress.getByRole('button', { name: 'Reply' }).click()
+    await postComment(inProgress, reply)
+    await expect(inProgress.getByRole('button', { name: 'Discussion (1)' })).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(inProgress).toContainText(reply)
+    await expect(adminPage).toHaveURL(/\/admin\/bugs$/)
+    await snap(adminPage, 'report triaged in place')
   })
 
   test('Admin exports bug reports as markdown', async ({ adminPage, volunteer, baseUrl }) => {

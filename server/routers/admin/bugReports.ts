@@ -47,6 +47,7 @@ export const adminBugReportsRouter = {
         include: {
           reporter: { select: { name: true } },
           assignee: { select: { name: true } },
+          _count: { select: { comments: true } },
         },
         orderBy: { createdAt: 'desc' },
       })
@@ -68,14 +69,21 @@ export const adminBugReportsRouter = {
         assigneeName: r.assignee?.name ?? null,
         createdAt: r.createdAt,
         reporterName: r.reporter?.name ?? null,
+        commentCount: r._count.comments,
       }))
     }),
 
+  /** Assigns a report to an approved volunteer, or with `volunteerId: null` unassigns it. */
   assign: adminProcedure
-    .input(z.object({ id: z.number().int(), volunteerId: z.number().int() }))
+    .input(z.object({ id: z.number().int(), volunteerId: z.number().int().nullable() }))
     .handler(async ({ input }) => {
       const report = await prisma.bugReport.findUnique({ where: { id: input.id } })
       if (!report) throw new ORPCError('NOT_FOUND', { message: 'Bug report not found' })
+
+      if (input.volunteerId === null) {
+        await prisma.bugReport.update({ where: { id: input.id }, data: { assigneeId: null } })
+        return { message: 'Bug report unassigned' }
+      }
 
       const assignee = await prisma.volunteer.findFirst({
         where: { id: input.volunteerId, deletedAt: null },
