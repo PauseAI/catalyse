@@ -38,7 +38,9 @@ function ProjectRow({
         <Link href={`/projects/${entry.id}`} className="font-semibold text-primary-dark">
           {entry.title}
         </Link>
-        <ProjectStatusBadge status={entry.status} viewerIsAdmin={viewerIsAdmin} />
+        <span className="shrink-0">
+          <ProjectStatusBadge status={entry.status} viewerIsAdmin={viewerIsAdmin} />
+        </span>
       </div>
       {details.length > 0 && (
         <P className="text-sm text-text-light mt-1 mb-0">{details.join(' · ')}</P>
@@ -59,7 +61,7 @@ function ProjectRow({
                   {t.completedAt && ` · finished ${formatDateShort(t.completedAt)}`}
                 </div>
               </div>
-              <WorkStatusBadge status={t.status} viewer={ONLOOKER} />
+              <WorkStatusBadge status={t.status} viewer={ONLOOKER} className="shrink-0" />
             </li>
           ))}
         </ul>
