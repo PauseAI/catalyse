@@ -93,10 +93,11 @@ describe('can', () => {
     expect(can(volunteer(5), 'task.create', on())).toBe(false)
   })
 
-  it('lets a draft’s proposer publish it, and not even an admin', () => {
+  it('lets a draft’s proposer or its admins publish it, and not its owner', () => {
     const draft = on({ status: 'draft' })
     expect(can(volunteer(3), 'project.publishDraft', draft)).toBe(true)
-    expect(can(volunteer(9, { globalAdmin: true }), 'project.publishDraft', draft)).toBe(false)
+    expect(can(volunteer(9, { role: 'DEPUTY' }), 'project.publishDraft', draft)).toBe(true)
+    expect(can(volunteer(2), 'project.publishDraft', draft)).toBe(false)
   })
 
   it('lets staff keep any number of drafts in their own chapter', () => {

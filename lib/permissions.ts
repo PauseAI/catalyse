@@ -41,7 +41,10 @@ export const PERMISSIONS = {
     summary: 'Give it any status, Archived included, and move a proposal before it is triaged',
   },
   'project.delete': { scope: 'project', summary: 'Delete it outright' },
-  'project.publishDraft': { scope: 'project', summary: 'Publish or delete the draft' },
+  'project.publishDraft': {
+    scope: 'project',
+    summary: 'Submit or publish a draft, or delete it',
+  },
   'project.resubmit': {
     scope: 'project',
     summary: 'Send it back for review once the changes asked for are made',
@@ -95,6 +98,7 @@ const PROJECT_ADMIN: readonly Permission[] = [
   'project.changeStatus',
   'project.changeAnyStatus',
   'project.delete',
+  'project.publishDraft',
   'project.seeChangeRequests',
   'project.recruit',
   'project.addMember',

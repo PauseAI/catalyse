@@ -692,6 +692,13 @@ const DEFAULT_PROJECT_ORDER_SQL = `ORDER BY
   ${URGENCY_RANK_SQL},
   created_at DESC, id DESC`
 
+/** Refuses to treat anything but a draft as one: a live project is published and deleted otherwise. */
+function assertDraft(project: { status: string }) {
+  if (project.status !== ProjectStatus.draft) {
+    throw new ORPCError('BAD_REQUEST', { message: 'This project is not a draft' })
+  }
+}
+
 export const projectsRouter = {
   list: confirmedProcedure
     .input(
@@ -1114,6 +1121,7 @@ export const projectsRouter = {
       const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
         where: { id: input.id, type: WorkItemType.PROJECT },
+        include: { creator: { select: { name: true } } },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Draft not found' })
       await assertCanOnProject(
@@ -1122,6 +1130,7 @@ export const projectsRouter = {
         project,
         'Not authorized to publish this draft',
       )
+      assertDraft(project)
 
       const isOrgOrTemplate = project.isOrgProposed || project.templateOriginId !== null
       if (isOrgOrTemplate) {
@@ -1166,14 +1175,16 @@ export const projectsRouter = {
         { actorId: volunteer.id, kind: 'status' },
       )
 
+      // Staff may submit a draft its proposer left behind; the proposal is still the proposer's.
+      const proposer = project.creator?.name ?? volunteer.name
       await notifyChapterStaff(
         project.nationalChapterId,
         'new_project_proposal',
         `New project proposal: ${project.title}`,
-        `Proposed by ${volunteer.name}`,
+        `Proposed by ${proposer}`,
         '/admin/triage',
         {
-          message: html`<strong>${volunteer.name}</strong> has submitted a new project proposal:
+          message: html`<strong>${proposer}</strong> has submitted a new project proposal:
             <strong>${project.title}</strong>. Please review it in the triage queue.`,
           projectTitle: project.title,
           projectId: project.id,
@@ -1198,6 +1209,7 @@ export const projectsRouter = {
         project,
         'Not authorized to delete this draft',
       )
+      assertDraft(project)
       await prisma.workItem.delete({ where: { id: input.id } })
       return { message: 'Draft deleted' }
     }),

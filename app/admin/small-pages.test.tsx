@@ -203,9 +203,13 @@ describe('roles and permissions', () => {
     expect(within(deputy).getByText('Add a task')).toBeInTheDocument()
     expect(within(deputy).queryByText('Delete it outright')).toBeNull()
 
-    const publish = screen.getByRole('rowheader', { name: /project\.publishDraft/ })
-    const cells = within(publish.closest('tr')!).getAllByRole('cell')
+    const work = screen.getByRole('rowheader', { name: /task\.work/ })
+    const cells = within(work.closest('tr')!).getAllByRole('cell')
     const allowed = cells.map((c) => c.textContent?.includes('Yes'))
     expect(allowed.filter(Boolean)).toHaveLength(1)
+    // Each column says where its role holds.
+    expect(
+      screen.getByRole('columnheader', { name: /^Chapter lead\s*Their chapter$/ }),
+    ).toBeInTheDocument()
   })
 })

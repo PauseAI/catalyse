@@ -175,15 +175,43 @@ describe('a draft', () => {
       attempt: (as, w, p) => as.projects.update({ id: w.project.id, assigneeId: p.proposer.id }),
     }))
 
-  it('is published or deleted only by its proposer', async () => {
+  it('is seen by its admins and proposer, and by nobody else', () =>
+    expectAccess(people, {
+      world: draft,
+      allowed: [...ADMINS, 'proposer'],
+      denied: 'NOT_FOUND',
+      attempt: (as, w) => as.projects.getById({ id: w.project.id }),
+    }))
+
+  it('is published or deleted by its proposer, or by its admins when the proposer is gone', async () => {
     await expectAccess(people, {
       world: draft,
-      allowed: ['proposer'],
+      allowed: [...ADMINS, 'proposer'],
       attempt: (as, w) => as.projects.publishDraft({ id: w.project.id }),
     })
     await expectAccess(people, {
       world: draft,
-      allowed: ['proposer'],
+      allowed: [...ADMINS, 'proposer'],
+      attempt: (as, w) => as.projects.deleteDraft({ id: w.project.id }),
+    })
+  })
+
+  it('stops being one once published, so its admins cannot publish or delete it as a draft', async () => {
+    const notADraft = {
+      globalAdmin: 'BAD_REQUEST',
+      chapterLead: 'BAD_REQUEST',
+      chapterDeputy: 'BAD_REQUEST',
+    } as const
+    await expectAccess(people, {
+      world: { status: 'in_progress' },
+      allowed: [],
+      others: notADraft,
+      attempt: (as, w) => as.projects.publishDraft({ id: w.project.id }),
+    })
+    await expectAccess(people, {
+      world: { status: 'in_progress' },
+      allowed: [],
+      others: notADraft,
       attempt: (as, w) => as.projects.deleteDraft({ id: w.project.id }),
     })
   })

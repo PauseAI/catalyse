@@ -3,15 +3,44 @@
 import { useRequireStaff } from '@/lib/hooks/auth'
 import { PERMISSIONS, ROLES, type Permission, type Role, type Scope } from '@/lib/permissions'
 import { SECTION_CARD } from '@/lib/ui-classes'
-import { Badge } from '@/components/Badge'
 import { H1, H2, H3 } from '@/components/Heading'
 import { P } from '@/components/Text'
 
-const SCOPE_LABEL: Record<Scope, string> = {
-  global: 'Everywhere',
-  chapter: 'Their chapter',
-  project: 'One project',
-  task: 'One task',
+const SCOPES: Record<Scope, { letter: string; label: string; colors: string }> = {
+  global: {
+    letter: 'G',
+    label: 'Everywhere',
+    colors: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
+  },
+  chapter: {
+    letter: 'C',
+    label: 'Their chapter',
+    colors: 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
+  },
+  project: {
+    letter: 'P',
+    label: 'One project',
+    colors: 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300',
+  },
+  task: {
+    letter: 'T',
+    label: 'One task',
+    colors: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  },
+}
+
+/** Where a role holds: its letter, and its name too unless `short`. */
+function ScopeMark({ scope, short = false }: { scope: Scope; short?: boolean }) {
+  const { letter, label, colors } = SCOPES[scope]
+  return (
+    <span
+      title={label}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${colors}`}
+    >
+      <span aria-hidden="true">{letter}</span>
+      {short ? <span className="sr-only">{label}</span> : <span>{label}</span>}
+    </span>
+  )
 }
 
 const roles = Object.keys(ROLES) as Role[]
@@ -46,7 +75,7 @@ export default function AdminRolesPage() {
               <section key={role} aria-label={info.name} className={SECTION_CARD}>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <H3 className="m-0">{info.name}</H3>
-                  <Badge variant="neutral">{SCOPE_LABEL[info.scope]}</Badge>
+                  <ScopeMark scope={info.scope} />
                 </div>
                 <P className="text-sm text-text-light">{info.heldBy}</P>
                 <ul className="list-disc pl-5 text-sm space-y-1">
@@ -62,6 +91,12 @@ export default function AdminRolesPage() {
 
       <section aria-labelledby="by-permission" className="mt-8">
         <H2 id="by-permission">By permission</H2>
+        <P className="text-sm text-text-light flex flex-wrap items-center gap-2">
+          Each role holds where its letter says:
+          {(Object.keys(SCOPES) as Scope[]).map((scope) => (
+            <ScopeMark key={scope} scope={scope} />
+          ))}
+        </P>
         <div className={`${SECTION_CARD} overflow-x-auto`}>
           <table className="text-sm border-collapse">
             <thead>
@@ -71,7 +106,10 @@ export default function AdminRolesPage() {
                 </th>
                 {roles.map((role) => (
                   <th key={role} scope="col" className="p-2 align-bottom font-semibold">
-                    {ROLES[role].name}
+                    <div className="flex flex-col items-center gap-1">
+                      <span>{ROLES[role].name}</span>
+                      <ScopeMark scope={ROLES[role].scope} short />
+                    </div>
                   </th>
                 ))}
               </tr>

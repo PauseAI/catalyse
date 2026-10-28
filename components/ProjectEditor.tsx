@@ -165,7 +165,7 @@ export default function ProjectEditor(props: ProjectEditorProps) {
   // Owner-only fields (deadline, show timeline): the server holds the same line.
   const canEditOwnerFields =
     canEdit && (projectId === undefined || projectData?.permissions.includes('project.manage'))
-  // Only a draft's proposer submits or deletes it; an admin sends one on from triage.
+  // A draft's proposer submits or deletes it, and so may its admins when the proposer is gone.
   const canPublishDraft = projectData?.permissions.includes('project.publishDraft') ?? false
   const taskCount = projectData?.tasks.length ?? 0
   // Org-proposed AND template-originated drafts both skip review and publish straight live —
