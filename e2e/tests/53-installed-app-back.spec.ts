@@ -73,6 +73,7 @@ test.describe('Back in the installed app', () => {
   test('a task opened from a notification goes back to its project', async ({
     adminPage,
     baseUrl,
+    snap,
   }) => {
     const { title, projectId, taskTitle, taskId } = await projectWithTask(baseUrl)
     await openAsInstalledApp(adminPage.context())
@@ -80,6 +81,7 @@ test.describe('Back in the installed app', () => {
 
     await page.goto(`${baseUrl}/projects/${projectId}/tasks/${taskId}`)
     await expect(page.getByRole('heading', { name: taskTitle })).toBeVisible({ timeout: 10_000 })
+    await snap(page, 'back link up to the project')
     await page.getByRole('link', { name: 'Back', exact: true }).click()
     await expect(page.getByRole('heading', { name: title })).toBeVisible()
     await expect(page).toHaveURL(`${baseUrl}/projects/${projectId}`)
