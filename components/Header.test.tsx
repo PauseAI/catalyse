@@ -134,22 +134,25 @@ describe('Header', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const vol = await createVolunteer({ locationConfirmedAt: new Date() })
-      await mount(vol, '/projects')
-      const inbox = await screen.findByRole('link', { name: 'Inbox' })
-      // A tick that lands while the first count is still loading joins that request, which
-      // was made before the notification below, so let the first count settle.
-      await waitFor(() => expect(queryClient.isFetching()).toBe(0))
       await prisma.notification.create({
         data: { volunteerId: vol.id, type: 'task_done', title: "Done: 'Leaflets'" },
       })
-      await act(() => vi.advanceTimersByTimeAsync(60_000))
+      await mount(vol, '/projects')
+      const inbox = await screen.findByRole('link', { name: /^Inbox/ })
+      // A tick that lands while the first count is still loading joins that request, which
+      // was made before the notification below, so let the first count show.
       expect(await within(inbox).findByRole('img', { name: 'New updates' })).toBeInTheDocument()
-
       await prisma.notification.create({
         data: { volunteerId: vol.id, type: 'mention', title: 'Sam mentioned you' },
       })
-      act(() => window.dispatchEvent(new Event('visibilitychange')))
+      await act(() => vi.advanceTimersByTimeAsync(60_000))
       await waitFor(() => expect(inbox).toHaveTextContent('Inbox, waiting for you: 1'))
+
+      await prisma.notification.create({
+        data: { volunteerId: vol.id, type: 'mention', title: 'Kim mentioned you' },
+      })
+      act(() => window.dispatchEvent(new Event('visibilitychange')))
+      await waitFor(() => expect(inbox).toHaveTextContent('Inbox, waiting for you: 2'))
     } finally {
       vi.useRealTimers()
     }

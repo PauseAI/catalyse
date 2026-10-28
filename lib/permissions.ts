@@ -1,5 +1,5 @@
 import { ProjectStatus } from '@/generated/prisma/enums'
-import type { ChapterAccess } from './chapter-access'
+import { staffRoleIn, type ChapterAccess } from './chapter-access'
 
 /**
  * Who may do what, as data. A permission names one thing a person may do; a role is a standing
@@ -210,6 +210,12 @@ export type Standing = { deputy: boolean; member: boolean }
 /** For a question that no role resting on standing could answer yes to. */
 export const NO_STANDING: Standing = { deputy: false, member: false }
 
+/** Whether a role held by standing grants `permission`; when none does, standing need not be read. */
+export const restsOnStanding = (permission: Permission) =>
+  (['projectDeputy', 'projectMember'] as const).some((role) =>
+    (ROLES[role].grants as readonly Permission[]).includes(permission),
+  )
+
 export type Resource =
   | { type: 'global' }
   | { type: 'chapter'; chapterId: number | null }
@@ -223,10 +229,9 @@ export type Resource =
 
 function chapterRoles(access: ChapterAccess, chapterId: number | null): Role[] {
   const roles: Role[] = access.globalAdmin ? ['globalAdmin'] : []
-  if (chapterId !== null && access.chapterId === chapterId) {
-    if (access.role === 'LEAD') roles.push('chapterLead')
-    if (access.role === 'DEPUTY') roles.push('chapterDeputy')
-  }
+  const staff = staffRoleIn(access, chapterId)
+  if (staff === 'LEAD') roles.push('chapterLead')
+  if (staff === 'DEPUTY') roles.push('chapterDeputy')
   return roles
 }
 

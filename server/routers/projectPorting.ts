@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { env } from '@/lib/env'
 import { applyScheduleWrite } from '@/lib/work-item'
 import type { ChapterAccess } from '@/lib/chapter-access'
-import { assertCan, projectResource } from '@/lib/permissions-server'
+import { assertCanOnProject } from '@/lib/permissions-server'
 import { assertProjectEditable } from '@/lib/work-item-lock'
 import { findDependencyCycle } from '@/lib/schedule'
 import { loadTaskEdges } from '@/lib/project-schedule'
@@ -95,10 +95,10 @@ async function assertCanManage(
   project: ProjectRow,
   context: { volunteer: { id: number }; access: ChapterAccess },
 ) {
-  assertCan(
+  await assertCanOnProject(
     { id: context.volunteer.id, access: context.access },
     'project.manage',
-    await projectResource(project, context.volunteer.id),
+    project,
     'Only the project owner or an admin can export or import this project',
   )
 }

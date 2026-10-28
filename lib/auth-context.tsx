@@ -82,15 +82,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetchMe().finally(() => setLoading(false))
   }, [fetchMe])
 
-  useEffect(() => {
-    const handler = () => {
-      localStorage.removeItem('authToken')
-      setTokenState(null)
-      setUser(null)
-    }
-    window.addEventListener('auth:expired', handler)
-    return () => window.removeEventListener('auth:expired', handler)
+  const forgetSession = useCallback(() => {
+    localStorage.removeItem('authToken')
+    setTokenState(null)
+    setUser(null)
+    // Pages carry what the viewer may do, so whoever signs in next starts from nothing.
+    queryClient.clear()
   }, [])
+
+  useEffect(() => {
+    window.addEventListener('auth:expired', forgetSession)
+    return () => window.removeEventListener('auth:expired', forgetSession)
+  }, [forgetSession])
 
   const setToken = useCallback(
     async (t: string) => {
@@ -111,13 +114,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await client.auth.logout().catch(() => {})
-    localStorage.removeItem('authToken')
-    setTokenState(null)
-    setUser(null)
-    // Pages carry what the viewer may do, so whoever signs in next starts from nothing.
-    queryClient.clear()
+    forgetSession()
     router.push('/login')
-  }, [router])
+  }, [forgetSession, router])
 
   const refreshUser = useCallback(async () => {
     const t = localStorage.getItem('authToken')

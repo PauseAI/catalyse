@@ -2,8 +2,7 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { applyScheduleWrite } from '@/lib/work-item'
-import { can } from '@/lib/permissions'
-import { projectResource, viewerOf } from '@/lib/permissions-server'
+import { canOnProject, viewerOf } from '@/lib/permissions-server'
 import { assertProjectEditable, assertTaskEditable } from '@/lib/work-item-lock'
 import { recordChange, recordEvent } from '@/lib/work-item-events'
 import {
@@ -124,22 +123,23 @@ export const scheduleRouter = {
       const projectItemIds = new Set(
         items.filter((w) => w.type === WorkItemType.PROJECT).map((w) => w.id),
       )
-      for (const projectId of new Set(projectIdFor.values())) {
+      const projectIds = [...new Set(projectIdFor.values())]
+      const allowed = await Promise.all(
+        projectIds.map((projectId) => {
+          const project = projectById.get(projectId)
+          const permission = projectItemIds.has(projectId) ? 'project.manage' : 'task.manage'
+          return project && canOnProject(viewerOf(context), permission, project)
+        }),
+      )
+      projectIds.forEach((projectId, i) => {
         const project = projectById.get(projectId)
-        const allowed =
-          project &&
-          can(
-            viewerOf(context),
-            projectItemIds.has(projectId) ? 'project.manage' : 'task.manage',
-            await projectResource(project, volunteer.id),
-          )
-        if (!allowed) {
+        if (!project || !allowed[i]) {
           throw new ORPCError('FORBIDDEN', {
             message: 'You cannot reschedule work on this project',
           })
         }
         assertProjectEditable(project)
-      }
+      })
       for (const w of items) if (w.type === WorkItemType.TASK) assertTaskEditable(w)
 
       const lagChanges = new Map<number, Awaited<ReturnType<typeof planFollow>>>()

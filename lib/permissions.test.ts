@@ -6,6 +6,7 @@ import {
   ROLES,
   can,
   permissionsOn,
+  restsOnStanding,
   rolesOn,
   type Permission,
   type ProjectFacts,
@@ -113,6 +114,15 @@ describe('permissionsOn', () => {
       'project.seeChangeRequests',
     ])
     expect(permissionsOn(volunteer(5), on())).toEqual([])
+  })
+})
+
+describe('restsOnStanding', () => {
+  it('says which permissions a member or deputy could hold', () => {
+    expect(restsOnStanding('task.create')).toBe(true)
+    expect(restsOnStanding('task.manage')).toBe(true)
+    expect(restsOnStanding('project.manage')).toBe(false)
+    expect(restsOnStanding('project.publishDraft')).toBe(false)
   })
 })
 

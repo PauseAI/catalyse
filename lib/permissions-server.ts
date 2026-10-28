@@ -1,14 +1,15 @@
 import { ORPCError } from '@orpc/server'
-import { InterestStatus } from '@/generated/prisma/enums'
 import type { ChapterAccess } from './chapter-access'
 import {
   can,
+  NO_STANDING,
+  restsOnStanding,
   type Permission,
   type ProjectFacts,
   type Resource,
   type Standing,
 } from './permissions'
-import { prisma } from './prisma'
+import { isProjectDeputy, resolveProjectMembership } from './work-item'
 
 /**
  * The database half of `can` (lib/permissions.ts): reading where a viewer stands on a project,
@@ -21,31 +22,16 @@ export const viewerOf = (context: { volunteer: { id: number }; access: ChapterAc
   access: context.access,
 })
 
-/**
- * Is `volunteerId` a member of the project (accepted onto it, or in its team), and a deputy
- * (made one by the owner, and still on it)?
- */
+/** Where `volunteerId` stands on the project: a member, and a deputy the owner appointed. */
 export async function loadStanding(
   project: { id: number; teamId: number | null },
   volunteerId: number,
 ): Promise<Standing> {
-  const [accepted, inTeam, deputy] = await Promise.all([
-    prisma.workItemInterest.findFirst({
-      where: { workItemId: project.id, volunteerId, status: InterestStatus.accepted },
-      select: { id: true },
-    }),
-    project.teamId === null
-      ? null
-      : prisma.teamMembership.findUnique({
-          where: { teamId_volunteerId: { teamId: project.teamId, volunteerId } },
-          select: { id: true },
-        }),
-    prisma.projectDeputy.findFirst({
-      where: { projectId: project.id, volunteerId },
-      select: { id: true },
-    }),
+  const [member, deputy] = await Promise.all([
+    resolveProjectMembership(project.teamId, project.id, volunteerId),
+    isProjectDeputy(project.id, volunteerId),
   ])
-  return { member: Boolean(accepted || inTeam), deputy: Boolean(deputy && accepted) }
+  return { member, deputy }
 }
 
 type ProjectRow = ProjectFacts & { id: number; teamId: number | null }
@@ -65,12 +51,39 @@ export async function taskResource(
   return { type: 'task', project, task, standing: await loadStanding(project, volunteerId) }
 }
 
+type Viewer = Parameters<typeof can>[0]
+
 /** Throws FORBIDDEN with `message` unless `viewer` may. */
 export function assertCan(
-  viewer: Parameters<typeof can>[0],
+  viewer: Viewer,
   permission: Permission,
   resource: Resource,
   message: string,
 ): void {
   if (!can(viewer, permission, resource)) throw new ORPCError('FORBIDDEN', { message })
+}
+
+/** `can` for one permission on a project, reading standing only when it could matter. */
+export async function canOnProject(
+  viewer: Viewer,
+  permission: Permission,
+  project: ProjectRow,
+): Promise<boolean> {
+  const standing = restsOnStanding(permission)
+    ? await loadStanding(project, viewer.id)
+    : NO_STANDING
+  return can(viewer, permission, { type: 'project', project, standing })
+}
+
+/** `assertCan` for one permission on a project, refusing a missing project the same way. */
+export async function assertCanOnProject<P extends ProjectRow>(
+  viewer: Viewer,
+  permission: Permission,
+  project: P | null,
+  message: string,
+): Promise<P> {
+  if (!project || !(await canOnProject(viewer, permission, project))) {
+    throw new ORPCError('FORBIDDEN', { message })
+  }
+  return project
 }

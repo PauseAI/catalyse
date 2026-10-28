@@ -19,15 +19,18 @@ export const NO_ACCESS: ChapterAccess = { globalAdmin: false, chapterId: null, r
 
 export const isStaff = (access: ChapterAccess) => access.role !== null
 
+/** The staff role `access` holds in `chapterId`, if any; nobody is staff of the holding pool. */
+export function staffRoleIn(access: ChapterAccess, chapterId: number | null): ChapterRole | null {
+  return chapterId !== null && access.chapterId === chapterId ? access.role : null
+}
+
 /** Whether `access` holds admin powers over things in `chapterId` (null: the holding pool). */
 export function canAdminChapter(access: ChapterAccess, chapterId: number | null): boolean {
-  if (access.globalAdmin) return true
-  return access.role !== null && chapterId !== null && access.chapterId === chapterId
+  return access.globalAdmin || staffRoleIn(access, chapterId) !== null
 }
 
 export function canAppointDeputies(access: ChapterAccess, chapterId: number | null): boolean {
-  if (access.globalAdmin) return true
-  return access.role === 'LEAD' && chapterId !== null && access.chapterId === chapterId
+  return access.globalAdmin || staffRoleIn(access, chapterId) === 'LEAD'
 }
 
 /** Whether something in `chapterId` is visible to `access`; pool members see the pool. */

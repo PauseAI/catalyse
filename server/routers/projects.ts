@@ -71,7 +71,13 @@ import { chapterNarrowing, chapterNarrowingSql } from '@/lib/chapter-access-serv
 import { audit } from '@/lib/chapter-roles'
 import { isStaff, type ChapterAccess } from '@/lib/chapter-access'
 import { can, NO_STANDING, permissionsOn } from '@/lib/permissions'
-import { assertCan, projectResource, taskResource, viewerOf } from '@/lib/permissions-server'
+import {
+  assertCan,
+  assertCanOnProject,
+  projectResource,
+  taskResource,
+  viewerOf,
+} from '@/lib/permissions-server'
 import {
   CreateProjectSchema,
   UpdateProjectSchema,
@@ -476,10 +482,10 @@ async function addTaskHelper(
   access: ChapterAccess,
 ): Promise<{ message: string }> {
   const { project, task } = await findProjectTask(projectId, taskId)
-  assertCan(
+  await assertCanOnProject(
     { id: actor.id, access },
     'task.manage',
-    await projectResource(project, actor.id),
+    project,
     'Only the project owner or a deputy can add a helper',
   )
   assertTaskTakesHelpers(task)
@@ -1110,10 +1116,10 @@ export const projectsRouter = {
         where: { id: input.id, type: WorkItemType.PROJECT },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Draft not found' })
-      assertCan(
+      await assertCanOnProject(
         viewerOf(context),
         'project.publishDraft',
-        await projectResource(project, volunteer.id),
+        project,
         'Not authorized to publish this draft',
       )
 
@@ -1182,15 +1188,14 @@ export const projectsRouter = {
     .input(z.object({ id: z.number().int() }))
     .use(asProjectAdmin, (input) => input.id)
     .handler(async ({ input, context }) => {
-      const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
         where: { id: input.id, type: WorkItemType.PROJECT },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Draft not found' })
-      assertCan(
+      await assertCanOnProject(
         viewerOf(context),
         'project.publishDraft',
-        await projectResource(project, volunteer.id),
+        project,
         'Not authorized to delete this draft',
       )
       await prisma.workItem.delete({ where: { id: input.id } })
@@ -1498,10 +1503,10 @@ export const projectsRouter = {
         where: { id: input.id, type: WorkItemType.PROJECT },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
-      assertCan(
+      await assertCanOnProject(
         viewerOf(context),
         'project.resubmit',
-        await projectResource(project, volunteer.id),
+        project,
         'Not authorized to resubmit this project',
       )
       if (project.status !== ProjectStatus.needs_discussion) {
@@ -1823,10 +1828,10 @@ export const projectsRouter = {
         where: { id: input.id, type: WorkItemType.PROJECT },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
-      assertCan(
+      await assertCanOnProject(
         viewerOf(context),
         'project.delete',
-        await projectResource(project, context.volunteer.id),
+        project,
         'Only an admin can delete a project',
       )
       await prisma.workItem.delete({ where: { id: input.id } })
@@ -2012,15 +2017,14 @@ export const projectsRouter = {
           input.responseMessage ?? null,
         )
       }
-      const project = await prisma.workItem.findFirst({
-        where: { id: input.projectId, type: WorkItemType.PROJECT },
-      })
-      if (
-        !project ||
-        !can(viewerOf(context), 'project.recruit', await projectResource(project, volunteer.id))
-      ) {
-        throw new ORPCError('FORBIDDEN', { message: 'Not authorized' })
-      }
+      const project = await assertCanOnProject(
+        viewerOf(context),
+        'project.recruit',
+        await prisma.workItem.findFirst({
+          where: { id: input.projectId, type: WorkItemType.PROJECT },
+        }),
+        'Not authorized',
+      )
 
       const interest = await prisma.workItemInterest.findFirst({
         where: { id: input.interestId, workItemId: input.projectId },
@@ -2163,10 +2167,10 @@ export const projectsRouter = {
         where: { id: input.projectId, type: WorkItemType.PROJECT },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
-      assertCan(
+      await assertCanOnProject(
         viewerOf(context),
         'project.recruit',
-        await projectResource(project, inviter.id),
+        project,
         'Only the project owner or an admin can invite volunteers',
       )
       if (input.volunteerId === project.assigneeId) {
@@ -2301,16 +2305,14 @@ export const projectsRouter = {
     .use(projectEditable, (input) => input.projectId)
     .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
-      const volunteer = context.volunteer
-      const project = await prisma.workItem.findFirst({
-        where: { id: input.projectId, type: WorkItemType.PROJECT },
-      })
-      if (
-        !project ||
-        !can(viewerOf(context), 'project.recruit', await projectResource(project, volunteer.id))
-      ) {
-        throw new ORPCError('FORBIDDEN', { message: 'Not authorized' })
-      }
+      await assertCanOnProject(
+        viewerOf(context),
+        'project.recruit',
+        await prisma.workItem.findFirst({
+          where: { id: input.projectId, type: WorkItemType.PROJECT },
+        }),
+        'Not authorized',
+      )
       const cancelled = await prisma.workItemInterest.updateMany({
         where: {
           id: input.interestId,
@@ -2344,10 +2346,10 @@ export const projectsRouter = {
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
 
       // Owners invite (see `invite`); only an admin puts someone on a project without asking.
-      assertCan(
+      await assertCanOnProject(
         viewerOf(context),
         'project.addMember',
-        await projectResource(project, volunteer.id),
+        project,
         'Only an admin can add a volunteer directly; invite them instead',
       )
 
@@ -2719,10 +2721,10 @@ export const projectsRouter = {
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
 
-      assertCan(
+      await assertCanOnProject(
         viewerOf(context),
         'task.create',
-        await projectResource(project, volunteer.id),
+        project,
         'Only project owner, admin, or a project member can create tasks',
       )
 
@@ -2774,16 +2776,15 @@ export const projectsRouter = {
     .use(projectEditable, (input) => input.projectId)
     .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
-      const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
         where: { id: input.projectId, type: WorkItemType.PROJECT },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
 
-      assertCan(
+      await assertCanOnProject(
         viewerOf(context),
         'task.manage',
-        await projectResource(project, volunteer.id),
+        project,
         'Only the project owner, a deputy or an admin can reorder tasks',
       )
 
@@ -2816,10 +2817,10 @@ export const projectsRouter = {
         where: { id: input.projectId, type: WorkItemType.PROJECT },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
-      assertCan(
+      await assertCanOnProject(
         viewerOf(context),
         'project.manage',
-        await projectResource(project, volunteer.id),
+        project,
         'Only project owner or admin can re-baseline',
       )
 
@@ -2994,7 +2995,7 @@ export const projectsRouter = {
             data: { status: InterestStatus.accepted, respondedAt: new Date() },
           })
           await clearNotifications('project_invite', interest.id)
-        } else if (!(await resolveProjectMembership(project.teamId, project.id, volunteer.id))) {
+        } else if (!resource.standing.member) {
           // Not on the project yet: ask the owner, and hold the task until they answer.
           await prisma.$transaction(async (tx) => {
             const data = { requestedById: volunteer.id, updatedAt: new Date() }
@@ -3622,19 +3623,14 @@ export const projectsRouter = {
     .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
-      const project = await prisma.workItem.findFirst({
-        where: { id: input.projectId, type: WorkItemType.PROJECT },
-      })
-      if (
-        !project ||
-        !can(
-          viewerOf(context),
-          'project.appointDeputies',
-          await projectResource(project, volunteer.id),
-        )
-      ) {
-        throw new ORPCError('FORBIDDEN', { message: 'Only the project owner can appoint a deputy' })
-      }
+      const project = await assertCanOnProject(
+        viewerOf(context),
+        'project.appointDeputies',
+        await prisma.workItem.findFirst({
+          where: { id: input.projectId, type: WorkItemType.PROJECT },
+        }),
+        'Only the project owner can appoint a deputy',
+      )
       const helper = await prisma.workItemInterest.findFirst({
         where: {
           workItemId: input.projectId,
@@ -3673,19 +3669,14 @@ export const projectsRouter = {
     .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
-      const project = await prisma.workItem.findFirst({
-        where: { id: input.projectId, type: WorkItemType.PROJECT },
-      })
-      if (
-        !project ||
-        !can(
-          viewerOf(context),
-          'project.appointDeputies',
-          await projectResource(project, volunteer.id),
-        )
-      ) {
-        throw new ORPCError('FORBIDDEN', { message: 'Only the project owner can remove a deputy' })
-      }
+      const project = await assertCanOnProject(
+        viewerOf(context),
+        'project.appointDeputies',
+        await prisma.workItem.findFirst({
+          where: { id: input.projectId, type: WorkItemType.PROJECT },
+        }),
+        'Only the project owner can remove a deputy',
+      )
       const removed = await prisma.projectDeputy.deleteMany({
         where: { projectId: input.projectId, volunteerId: input.volunteerId },
       })
