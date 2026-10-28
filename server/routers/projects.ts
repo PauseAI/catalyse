@@ -15,12 +15,8 @@ import {
   serializeTask,
   applyScheduleWrite,
   baselineLength,
-  canManageProject,
-  canManageProjectTasks,
-  isProjectDeputy,
   submissionData,
-  canCreateProjectTask,
-  canDeleteProjectTask,
+  isProjectDeputy,
   resolveProjectMembership,
   resolveClaimViewer,
   RELEASED_TASK,
@@ -74,6 +70,14 @@ import { assertTeamInChapter, projectLocation } from '@/lib/project-location'
 import { chapterNarrowing, chapterNarrowingSql } from '@/lib/chapter-access-server'
 import { audit } from '@/lib/chapter-roles'
 import { isStaff, type ChapterAccess } from '@/lib/chapter-access'
+import { can, NO_STANDING, permissionsOn } from '@/lib/permissions'
+import {
+  assertCan,
+  assertCanOnProject,
+  projectResource,
+  taskResource,
+  viewerOf,
+} from '@/lib/permissions-server'
 import {
   CreateProjectSchema,
   UpdateProjectSchema,
@@ -132,20 +136,6 @@ function assertInProjectChapter(
 ): void {
   if (!access.globalAdmin && person.nationalChapterId !== project.nationalChapterId) {
     throw new ORPCError('BAD_REQUEST', { message: 'They are in another national chapter' })
-  }
-}
-
-/**
- * Throws FORBIDDEN unless `volunteer` may manage this project (owner, admin, or the creator
- * of a still-draft project). See canManageProject in lib/work-item.ts for the rule.
- */
-function assertCanManageProject(
-  project: { creatorId: number | null; assigneeId: number | null; status: string },
-  volunteer: { id: number; isAdmin: boolean | null },
-  message: string,
-): void {
-  if (!canManageProject(project, volunteer)) {
-    throw new ORPCError('FORBIDDEN', { message })
   }
 }
 
@@ -441,20 +431,17 @@ async function removeTaskHelper(
   projectId: number,
   taskId: number,
   interestId: number,
-  volunteer: { id: number; name: string; isAdmin: boolean | null },
+  volunteer: { id: number; name: string },
+  access: ChapterAccess,
   responseMessage: string | null,
 ): Promise<{ message: string }> {
   const { project, task } = await findProjectTask(projectId, taskId)
-  const manages = canManageProjectTasks(
-    project,
-    volunteer,
-    await isProjectDeputy(project.id, volunteer.id),
+  assertCan(
+    { id: volunteer.id, access },
+    'task.removeHelper',
+    await taskResource(project, task, volunteer.id),
+    'Only the task lead or the project owner can remove a helper',
   )
-  if (task.assigneeId !== volunteer.id && !manages) {
-    throw new ORPCError('FORBIDDEN', {
-      message: 'Only the task lead or the project owner can remove a helper',
-    })
-  }
   assertTaskTakesHelpers(task)
   const helper = await prisma.workItemInterest.findFirst({
     where: { id: interestId, workItemId: taskId, status: InterestStatus.accepted },
@@ -491,15 +478,16 @@ async function addTaskHelper(
   projectId: number,
   taskId: number,
   volunteerId: number,
-  actor: { id: number; name: string; isAdmin: boolean | null },
+  actor: { id: number; name: string },
+  access: ChapterAccess,
 ): Promise<{ message: string }> {
   const { project, task } = await findProjectTask(projectId, taskId)
-  const manages = canManageProjectTasks(project, actor, await isProjectDeputy(project.id, actor.id))
-  if (!manages) {
-    throw new ORPCError('FORBIDDEN', {
-      message: 'Only the project owner or a deputy can add a helper',
-    })
-  }
+  await assertCanOnProject(
+    { id: actor.id, access },
+    'task.manage',
+    project,
+    'Only the project owner or a deputy can add a helper',
+  )
   assertTaskTakesHelpers(task)
   if (task.helpersWanted === null) {
     throw new ORPCError('BAD_REQUEST', { message: 'This task is not looking for helpers' })
@@ -570,15 +558,18 @@ async function addTaskHelper(
 async function findTaskToReview(
   projectId: number,
   taskId: number,
-  volunteer: { id: number; isAdmin: boolean | null },
+  volunteer: { id: number },
+  access: ChapterAccess,
 ) {
   const found = await findProjectTask(projectId, taskId)
-  const isDeputy = await isProjectDeputy(projectId, volunteer.id)
-  if (!canManageProjectTasks(found.project, volunteer, isDeputy)) {
-    throw new ORPCError('FORBIDDEN', {
-      message: 'Only the project owner or a deputy can review this task',
-    })
-  }
+  const resource = await projectResource(found.project, volunteer.id)
+  assertCan(
+    { id: volunteer.id, access },
+    'task.manage',
+    resource,
+    'Only the project owner or a deputy can review this task',
+  )
+  const isDeputy = resource.standing.deputy
   if (found.task.status !== TaskStatus.under_review) {
     throw new ORPCError('BAD_REQUEST', { message: 'This task is not waiting for review' })
   }
@@ -700,6 +691,13 @@ const DEFAULT_PROJECT_ORDER_SQL = `ORDER BY
   CASE WHEN is_seeking_help OR ${SEEKING_OWNER_SQL} THEN 0 ELSE 1 END,
   ${URGENCY_RANK_SQL},
   created_at DESC, id DESC`
+
+/** Refuses to treat anything but a draft as one: a live project is published and deleted otherwise. */
+function assertDraft(project: { status: string }) {
+  if (project.status !== ProjectStatus.draft) {
+    throw new ORPCError('BAD_REQUEST', { message: 'This project is not a draft' })
+  }
+}
 
 export const projectsRouter = {
   list: confirmedProcedure
@@ -834,7 +832,11 @@ export const projectsRouter = {
         .map((p) => ({
           ...withProjectExtras(p as EnrichedProject, volunteerSkillIds, viewerTeamIds),
           daysLate: late.get(p.id) ?? null,
-          viewerLeads: canManageProject(p, volunteer),
+          viewerLeads: can(viewerOf(context), 'project.manage', {
+            type: 'project',
+            project: p,
+            standing: NO_STANDING,
+          }),
         }))
 
       // Match sorting can't be done in SQL, so this branch fetched every matching id and
@@ -983,7 +985,11 @@ export const projectsRouter = {
             .map((p) => ({
               ...withProjectExtras(p as EnrichedProject, volunteerSkillIds, viewerTeamIds),
               daysLate: late.get(p.id) ?? null,
-              viewerLeads: canManageProject(p, volunteer),
+              viewerLeads: can(viewerOf(context), 'project.manage', {
+                type: 'project',
+                project: p,
+                standing: NO_STANDING,
+              }),
             })),
         })),
       }
@@ -995,7 +1001,8 @@ export const projectsRouter = {
 
     // Admins and chapter staff are trusted, not volunteers proposing speculative projects — the
     // cap exists to bound unreviewed volunteer proposals, not to limit their work.
-    if (saveAsDraft && !volunteer.isAdmin && !isStaff(context.access)) {
+    const ownChapter = { type: 'chapter', chapterId: context.access.chapterId } as const
+    if (saveAsDraft && !can(viewerOf(context), 'project.unlimitedDrafts', ownChapter)) {
       const draftCount = await prisma.workItem.count({
         where: {
           type: WorkItemType.PROJECT,
@@ -1114,11 +1121,16 @@ export const projectsRouter = {
       const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
         where: { id: input.id, type: WorkItemType.PROJECT },
+        include: { creator: { select: { name: true } } },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Draft not found' })
-      if (project.creatorId !== volunteer.id || project.status !== ProjectStatus.draft) {
-        throw new ORPCError('FORBIDDEN', { message: 'Not authorized to publish this draft' })
-      }
+      await assertCanOnProject(
+        viewerOf(context),
+        'project.publishDraft',
+        project,
+        'Not authorized to publish this draft',
+      )
+      assertDraft(project)
 
       const isOrgOrTemplate = project.isOrgProposed || project.templateOriginId !== null
       if (isOrgOrTemplate) {
@@ -1163,14 +1175,16 @@ export const projectsRouter = {
         { actorId: volunteer.id, kind: 'status' },
       )
 
+      // Staff may submit a draft its proposer left behind; the proposal is still the proposer's.
+      const proposer = project.creator?.name ?? volunteer.name
       await notifyChapterStaff(
         project.nationalChapterId,
         'new_project_proposal',
         `New project proposal: ${project.title}`,
-        `Proposed by ${volunteer.name}`,
+        `Proposed by ${proposer}`,
         '/admin/triage',
         {
-          message: html`<strong>${volunteer.name}</strong> has submitted a new project proposal:
+          message: html`<strong>${proposer}</strong> has submitted a new project proposal:
             <strong>${project.title}</strong>. Please review it in the triage queue.`,
           projectTitle: project.title,
           projectId: project.id,
@@ -1185,14 +1199,17 @@ export const projectsRouter = {
     .input(z.object({ id: z.number().int() }))
     .use(asProjectAdmin, (input) => input.id)
     .handler(async ({ input, context }) => {
-      const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
         where: { id: input.id, type: WorkItemType.PROJECT },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Draft not found' })
-      if (project.creatorId !== volunteer.id || project.status !== ProjectStatus.draft) {
-        throw new ORPCError('FORBIDDEN', { message: 'Not authorized to delete this draft' })
-      }
+      await assertCanOnProject(
+        viewerOf(context),
+        'project.publishDraft',
+        project,
+        'Not authorized to delete this draft',
+      )
+      assertDraft(project)
       await prisma.workItem.delete({ where: { id: input.id } })
       return { message: 'Draft deleted' }
     }),
@@ -1238,6 +1255,8 @@ export const projectsRouter = {
       const viewerTeamIds = new Set(teamMemberships.map((m) => m.teamId))
 
       const base = withProjectExtras(project as EnrichedProject, volunteerSkillIds, viewerTeamIds)
+      const viewer = viewerOf(context)
+      const resource = await projectResource(project, volunteer.id)
 
       const tasks = await prisma.workItem.findMany({
         where: { parentId: input.id, type: WorkItemType.TASK },
@@ -1268,14 +1287,7 @@ export const projectsRouter = {
       const sides = keyDateSides(sortedTasks, edges)
       const views = taskStatusViews(sortedTasks, edges)
       // The list names a Blocked task's first open predecessor, in the manual order, as a card.
-      const reviewer = {
-        id: volunteer.id,
-        canReview: canManageProjectTasks(
-          project,
-          volunteer,
-          await isProjectDeputy(input.id, volunteer.id),
-        ),
-      }
+      const reviewer = { id: volunteer.id, canReview: can(viewer, 'task.manage', resource) }
       const firstBlocker = (i: number) => {
         const open = new Set(views[i].blockedBy.map((b) => b.id))
         const n = sortedTasks.findIndex((t) => open.has(t.id))
@@ -1313,11 +1325,10 @@ export const projectsRouter = {
           )
           .sort((a, b) => a.getTime() - b.getTime())[0] ?? null
 
-      const isAssignee = project.assigneeId === volunteer.id
       // The owner or an admin is asked to complete a running project once every task is done.
       // `lastDoneAt` changes whenever a task is done again, which brings back a dismissed ask.
       const allTasksDone =
-        (isAssignee || volunteer.isAdmin) &&
+        can(viewer, 'project.changeStatus', resource) &&
         project.status === ProjectStatus.in_progress &&
         sortedTasks.length > 0 &&
         sortedTasks.every((t) => t.status === TaskStatus.completed)
@@ -1355,7 +1366,7 @@ export const projectsRouter = {
           }>
         | undefined
 
-      if (isAssignee || volunteer.isAdmin) {
+      if (can(viewer, 'project.recruit', resource)) {
         const rawInterests = await prisma.workItemInterest.findMany({
           where: { workItemId: input.id },
           include: {
@@ -1424,14 +1435,11 @@ export const projectsRouter = {
       const locked = isProjectLocked(project)
       const canClaimTasks =
         !locked &&
-        (isAssignee ||
-          Boolean(volunteer.isAdmin) ||
+        (can(viewer, 'task.assign', resource) ||
           !(await isBlockedFromClaiming(input.id, volunteer.id)))
 
-      const isMember =
-        (project.teamId !== null && viewerTeamIds.has(project.teamId)) ||
-        myInterest?.status === InterestStatus.accepted
-      const canCreateTasks = !locked && canCreateProjectTask(project, volunteer, isMember)
+      const isMember = resource.standing.member
+      const canCreateTasks = !locked && can(viewer, 'task.create', resource)
 
       // A lightweight, non-sensitive roster (name + role only, no application message/bio)
       // any member can see — unlike `interests`, which carries pending applicants' private
@@ -1451,13 +1459,10 @@ export const projectsRouter = {
           interestType: h.interestType,
           isDeputy: deputyIds.has(h.volunteerId),
         }))
-      const isDeputy = deputyIds.has(volunteer.id)
-      const canManageTasks = !locked && canManageProjectTasks(project, volunteer, isDeputy)
+      const isDeputy = resource.standing.deputy
+      const canManageTasks = !locked && can(viewer, 'task.manage', resource)
 
-      // Change requests are between the admins and whoever proposed or runs the project.
-      const canSeeReview =
-        isAssignee || project.creatorId === volunteer.id || Boolean(volunteer.isAdmin)
-      const reviewRequests = canSeeReview
+      const reviewRequests = can(viewer, 'project.seeChangeRequests', resource)
         ? (
             await prisma.projectReviewRequest.findMany({
               where: { projectId: input.id },
@@ -1478,6 +1483,7 @@ export const projectsRouter = {
         ...base,
         // A global admin, or this project's chapter's staff (see asProjectAdmin).
         viewerCanAdmin: Boolean(volunteer.isAdmin),
+        permissions: permissionsOn(viewer, resource),
         tasks: mappedTasks,
         taskCounts: taskCounts(mappedTasks),
         daysLate: (await lateProjects([project])).get(project.id) ?? null,
@@ -1509,9 +1515,12 @@ export const projectsRouter = {
         where: { id: input.id, type: WorkItemType.PROJECT },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
-      if (project.creatorId !== volunteer.id && project.assigneeId !== volunteer.id) {
-        throw new ORPCError('FORBIDDEN', { message: 'Not authorized to resubmit this project' })
-      }
+      await assertCanOnProject(
+        viewerOf(context),
+        'project.resubmit',
+        project,
+        'Not authorized to resubmit this project',
+      )
       if (project.status !== ProjectStatus.needs_discussion) {
         throw new ORPCError('BAD_REQUEST', { message: 'No changes have been requested' })
       }
@@ -1558,21 +1567,22 @@ export const projectsRouter = {
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
 
-      const isAssignee = project.assigneeId === volunteer.id
-      const isCreator = project.creatorId === volunteer.id
-      if (!isAssignee && !isCreator && !volunteer.isAdmin) {
-        throw new ORPCError('FORBIDDEN', { message: 'Not authorized to edit this project' })
-      }
+      const viewer = viewerOf(context)
+      const resource = await projectResource(project, volunteer.id)
+      assertCan(viewer, 'project.edit', resource, 'Not authorized to edit this project')
+      const anyStatus = can(viewer, 'project.changeAnyStatus', resource)
+      /** Whether `status` is one this person may move the project to. */
+      const maySet = (status: string) =>
+        anyStatus ||
+        (can(viewer, 'project.changeStatus', resource) &&
+          OWNER_ALLOWED_STATUSES.includes(status as ProjectStatus))
 
       // A locked project takes one change, a new status from its owner or an admin, and nothing
       // else that was sent with it. A status out of completed or archived reopens it.
       const locked = isProjectLocked(project)
       if (locked) {
         const canMove =
-          input.status !== undefined &&
-          input.status !== project.status &&
-          (Boolean(volunteer.isAdmin) ||
-            (isAssignee && OWNER_ALLOWED_STATUSES.includes(input.status as ProjectStatus)))
+          input.status !== undefined && input.status !== project.status && maySet(input.status)
         if (!canMove) assertProjectEditable(project)
       }
       const body: typeof input = locked ? { id: input.id, status: input.status } : input
@@ -1584,7 +1594,7 @@ export const projectsRouter = {
       if (
         newStatus !== undefined &&
         newStatus !== project.status &&
-        !volunteer.isAdmin &&
+        !anyStatus &&
         UNAPPROVED_STATUSES.includes(project.status)
       ) {
         throw new ORPCError('FORBIDDEN', {
@@ -1629,10 +1639,7 @@ export const projectsRouter = {
       // current value is always fine: the edit form posts every field back unchanged.
       // A draft has no owner yet, so its creator can set themselves as owner while it's
       // still a draft — the "I want to lead this project" choice from the create form.
-      const canReassign =
-        isAssignee ||
-        Boolean(volunteer.isAdmin) ||
-        (isCreator && project.status === ProjectStatus.draft)
+      const canReassign = can(viewer, 'project.manage', resource)
 
       if (body.teamId !== undefined && body.teamId !== project.teamId) {
         if (!canReassign) {
@@ -1699,13 +1706,7 @@ export const projectsRouter = {
         data.assigneeId = body.assigneeId
       }
 
-      if (newStatus !== undefined) {
-        if (volunteer.isAdmin) {
-          data.status = newStatus
-        } else if (isAssignee && OWNER_ALLOWED_STATUSES.includes(newStatus as ProjectStatus)) {
-          data.status = newStatus
-        }
-      }
+      if (newStatus !== undefined && maySet(newStatus)) data.status = newStatus
 
       if (body.isSeekingHelp !== undefined) data.isSeekingHelp = body.isSeekingHelp
       // Whether helpers' work needs the owner's review is the owner's call, not the proposer's.
@@ -1835,11 +1836,16 @@ export const projectsRouter = {
     .input(z.object({ id: z.number().int() }))
     .use(asProjectAdmin, (input) => input.id)
     .handler(async ({ input, context }) => {
-      if (!context.volunteer.isAdmin) throw new ORPCError('FORBIDDEN')
       const project = await prisma.workItem.findFirst({
         where: { id: input.id, type: WorkItemType.PROJECT },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
+      await assertCanOnProject(
+        viewerOf(context),
+        'project.delete',
+        project,
+        'Only an admin can delete a project',
+      )
       await prisma.workItem.delete({ where: { id: input.id } })
       return { message: `Project '${project.title}' deleted` }
     }),
@@ -2019,16 +2025,18 @@ export const projectsRouter = {
           input.taskId,
           input.interestId,
           volunteer,
+          context.access,
           input.responseMessage ?? null,
         )
       }
-      const project = await prisma.workItem.findFirst({
-        where: { id: input.projectId, type: WorkItemType.PROJECT },
-      })
-      const isAssignee = project && project.assigneeId === volunteer.id
-      if (!project || (!isAssignee && !volunteer.isAdmin)) {
-        throw new ORPCError('FORBIDDEN', { message: 'Not authorized' })
-      }
+      const project = await assertCanOnProject(
+        viewerOf(context),
+        'project.recruit',
+        await prisma.workItem.findFirst({
+          where: { id: input.projectId, type: WorkItemType.PROJECT },
+        }),
+        'Not authorized',
+      )
 
       const interest = await prisma.workItemInterest.findFirst({
         where: { id: input.interestId, workItemId: input.projectId },
@@ -2142,7 +2150,13 @@ export const projectsRouter = {
     .use(projectEditable, (input) => input.projectId)
     .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) =>
-      addTaskHelper(input.projectId, input.taskId, input.volunteerId, context.volunteer),
+      addTaskHelper(
+        input.projectId,
+        input.taskId,
+        input.volunteerId,
+        context.volunteer,
+        context.access,
+      ),
     ),
 
   /**
@@ -2165,11 +2179,12 @@ export const projectsRouter = {
         where: { id: input.projectId, type: WorkItemType.PROJECT },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
-      if (project.assigneeId !== inviter.id && !inviter.isAdmin) {
-        throw new ORPCError('FORBIDDEN', {
-          message: 'Only the project owner or an admin can invite volunteers',
-        })
-      }
+      await assertCanOnProject(
+        viewerOf(context),
+        'project.recruit',
+        project,
+        'Only the project owner or an admin can invite volunteers',
+      )
       if (input.volunteerId === project.assigneeId) {
         throw new ORPCError('BAD_REQUEST', { message: 'They already own this project' })
       }
@@ -2302,13 +2317,14 @@ export const projectsRouter = {
     .use(projectEditable, (input) => input.projectId)
     .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
-      const volunteer = context.volunteer
-      const project = await prisma.workItem.findFirst({
-        where: { id: input.projectId, type: WorkItemType.PROJECT },
-      })
-      if (!project || (project.assigneeId !== volunteer.id && !volunteer.isAdmin)) {
-        throw new ORPCError('FORBIDDEN', { message: 'Not authorized' })
-      }
+      await assertCanOnProject(
+        viewerOf(context),
+        'project.recruit',
+        await prisma.workItem.findFirst({
+          where: { id: input.projectId, type: WorkItemType.PROJECT },
+        }),
+        'Not authorized',
+      )
       const cancelled = await prisma.workItemInterest.updateMany({
         where: {
           id: input.interestId,
@@ -2342,11 +2358,12 @@ export const projectsRouter = {
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
 
       // Owners invite (see `invite`); only an admin puts someone on a project without asking.
-      if (!volunteer.isAdmin) {
-        throw new ORPCError('FORBIDDEN', {
-          message: 'Only an admin can add a volunteer directly; invite them instead',
-        })
-      }
+      await assertCanOnProject(
+        viewerOf(context),
+        'project.addMember',
+        project,
+        'Only an admin can add a volunteer directly; invite them instead',
+      )
 
       const targetVolunteer = await prisma.volunteer.findFirst({
         where: { id: input.volunteerId, deletedAt: null },
@@ -2464,11 +2481,9 @@ export const projectsRouter = {
         throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
       }
       // A hidden timeline stays open to whoever plans the tasks, for replanning from a task page.
-      const managesTasks = canManageProjectTasks(
-        project,
-        volunteer,
-        await isProjectDeputy(project.id, volunteer.id),
-      )
+      const viewer = viewerOf(context)
+      const resource = await projectResource(project, volunteer.id)
+      const managesTasks = can(viewer, 'task.manage', resource)
       if (!project.showTimeline && !managesTasks) {
         throw new ORPCError('FORBIDDEN', { message: "This project's timeline is hidden" })
       }
@@ -2527,15 +2542,9 @@ export const projectsRouter = {
         // Sent so the client can recompute this exact schedule while a drag is in flight.
         scopeOrigin: origin,
         projectDeadline: project.deadline,
-        canSetKeyDate: !locked && canManageProject(project, volunteer),
+        canSetKeyDate: !locked && can(viewer, 'project.manage', resource),
         canManageTasks: !locked && managesTasks,
-        canCreateTasks:
-          !locked &&
-          canCreateProjectTask(
-            project,
-            volunteer,
-            await resolveProjectMembership(project.teamId, project.id, volunteer.id),
-          ),
+        canCreateTasks: !locked && can(viewer, 'task.create', resource),
       }
     }),
 
@@ -2577,11 +2586,12 @@ export const projectsRouter = {
         throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
       }
 
+      const viewer = viewerOf(context)
+      const resource = await taskResource(project, task, volunteer.id)
       const locked = isProjectLocked(project)
       const canClaim =
         !locked &&
-        (project.assigneeId === volunteer.id ||
-          Boolean(volunteer.isAdmin) ||
+        (can(viewer, 'task.assign', resource) ||
           !(await isBlockedFromClaiming(input.projectId, volunteer.id)))
 
       const predecessorRows = await prisma.workItemDependency.findMany({
@@ -2602,11 +2612,7 @@ export const projectsRouter = {
           ).schedule.byId.get(task.id) ?? null)
         : null
 
-      const manages = canManageProjectTasks(
-        project,
-        volunteer,
-        await isProjectDeputy(project.id, volunteer.id),
-      )
+      const manages = can(viewer, 'task.manage', resource)
       const successorIds = (
         await prisma.workItemDependency.findMany({
           where: { predecessorId: input.taskId },
@@ -2684,7 +2690,7 @@ export const projectsRouter = {
         isHelper,
         canJoinAsHelper,
         canLeaveAsHelper: takesHelpers && isHelper,
-        canRemoveHelpers: takesHelpers && (task.assigneeId === volunteer.id || manages),
+        canRemoveHelpers: takesHelpers && can(viewer, 'task.removeHelper', resource),
         canAddHelpers,
         eligibleHelpers,
         changesRequested,
@@ -2712,7 +2718,7 @@ export const projectsRouter = {
             })
           : null,
         // The key date is the owner's, not a deputy's (the update enforces the same).
-        canSetKeyDate: !locked && canManageProject(project, volunteer),
+        canSetKeyDate: !locked && can(viewer, 'project.manage', resource),
       }
     }),
 
@@ -2727,12 +2733,12 @@ export const projectsRouter = {
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
 
-      const isMember = await resolveProjectMembership(project.teamId, project.id, volunteer.id)
-      if (!canCreateProjectTask(project, volunteer, isMember)) {
-        throw new ORPCError('FORBIDDEN', {
-          message: 'Only project owner, admin, or a project member can create tasks',
-        })
-      }
+      await assertCanOnProject(
+        viewerOf(context),
+        'task.create',
+        project,
+        'Only project owner, admin, or a project member can create tasks',
+      )
 
       // Dates given at creation are a sketch; the baseline is set deliberately, later.
       const scheduleOnCreate: Record<string, unknown> = {}
@@ -2782,19 +2788,17 @@ export const projectsRouter = {
     .use(projectEditable, (input) => input.projectId)
     .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
-      const volunteer = context.volunteer
       const project = await prisma.workItem.findFirst({
         where: { id: input.projectId, type: WorkItemType.PROJECT },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
 
-      if (
-        !canManageProjectTasks(project, volunteer, await isProjectDeputy(project.id, volunteer.id))
-      ) {
-        throw new ORPCError('FORBIDDEN', {
-          message: 'Only the project owner, a deputy or an admin can reorder tasks',
-        })
-      }
+      await assertCanOnProject(
+        viewerOf(context),
+        'task.manage',
+        project,
+        'Only the project owner, a deputy or an admin can reorder tasks',
+      )
 
       await prisma.$transaction(
         input.items.map(({ id, sortOrder }) =>
@@ -2825,7 +2829,12 @@ export const projectsRouter = {
         where: { id: input.projectId, type: WorkItemType.PROJECT },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
-      assertCanManageProject(project, volunteer, 'Only project owner or admin can re-baseline')
+      await assertCanOnProject(
+        viewerOf(context),
+        'project.manage',
+        project,
+        'Only project owner or admin can re-baseline',
+      )
 
       const targets = [
         project,
@@ -2939,8 +2948,8 @@ export const projectsRouter = {
       if (!project || !task)
         throw new ORPCError('NOT_FOUND', { message: 'Project or task not found' })
 
-      const isAssignee =
-        project.assigneeId === volunteer.id || (await isProjectDeputy(project.id, volunteer.id))
+      const viewer = viewerOf(context)
+      const resource = await taskResource(project, task, volunteer.id)
 
       const newStatus = input.data.status
       const newAssigneeId = input.data.assigneeId
@@ -2968,18 +2977,17 @@ export const projectsRouter = {
         task.status === TaskStatus.not_started &&
         task.assigneeId === null
 
-      const isDraftCreator =
-        project.creatorId === volunteer.id && project.status === ProjectStatus.draft
-      if (!isAssignee && !volunteer.isAdmin && !isSelfClaim && !isDraftCreator) {
-        throw new ORPCError('FORBIDDEN', { message: 'Not authorized to update this task' })
+      if (!isSelfClaim) {
+        assertCan(viewer, 'task.manage', resource, 'Not authorized to update this task')
       }
       assertTaskEditable(task)
 
-      if (input.data.isAnchor !== undefined && !canManageProject(project, volunteer)) {
-        throw new ORPCError('FORBIDDEN', { message: 'Only the project owner can set the key date' })
+      if (input.data.isAnchor !== undefined) {
+        assertCan(viewer, 'project.manage', resource, 'Only the project owner can set the key date')
       }
 
-      if (isSelfClaim && !isAssignee && !volunteer.isAdmin) {
+      // Anyone who may hand out tasks takes one directly; anyone else claims it.
+      if (isSelfClaim && !can(viewer, 'task.assign', resource)) {
         if (await isBlockedFromClaiming(input.projectId, volunteer.id)) {
           throw new ORPCError('FORBIDDEN', {
             message:
@@ -2999,7 +3007,7 @@ export const projectsRouter = {
             data: { status: InterestStatus.accepted, respondedAt: new Date() },
           })
           await clearNotifications('project_invite', interest.id)
-        } else if (!(await resolveProjectMembership(project.teamId, project.id, volunteer.id))) {
+        } else if (!resource.standing.member) {
           // Not on the project yet: ask the owner, and hold the task until they answer.
           await prisma.$transaction(async (tx) => {
             const data = { requestedById: volunteer.id, updatedAt: new Date() }
@@ -3136,12 +3144,13 @@ export const projectsRouter = {
     .use(projectEditable, (input) => input.projectId)
     .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
-      const { task } = await findProjectTask(input.projectId, input.taskId)
-      if (task.assigneeId !== context.volunteer.id) {
-        throw new ORPCError('FORBIDDEN', {
-          message: 'Only the person doing this task can start it',
-        })
-      }
+      const { project, task } = await findProjectTask(input.projectId, input.taskId)
+      assertCan(
+        viewerOf(context),
+        'task.work',
+        await taskResource(project, task, context.volunteer.id),
+        'Only the person doing this task can start it',
+      )
       if (task.status !== TaskStatus.not_started) {
         throw new ORPCError('BAD_REQUEST', { message: 'This task has already started' })
       }
@@ -3166,11 +3175,9 @@ export const projectsRouter = {
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const { project, task } = await findProjectTask(input.projectId, input.taskId)
-      if (task.assigneeId !== volunteer.id) {
-        throw new ORPCError('FORBIDDEN', {
-          message: 'Only the person doing this task can submit it',
-        })
-      }
+      const viewer = viewerOf(context)
+      const resource = await taskResource(project, task, volunteer.id)
+      assertCan(viewer, 'task.work', resource, 'Only the person doing this task can submit it')
       if (task.status !== TaskStatus.in_progress && task.status !== TaskStatus.not_started) {
         throw new ORPCError('BAD_REQUEST', { message: 'This task has already been submitted' })
       }
@@ -3182,7 +3189,7 @@ export const projectsRouter = {
       const reviewerId = project.assigneeId
       const accepted = !awaitsOwnerReview(
         { autoAcceptTasks: project.autoAcceptTasks, ownerId: reviewerId },
-        canManageProjectTasks(project, volunteer, await isProjectDeputy(project.id, volunteer.id)),
+        can(viewer, 'task.manage', resource),
       )
       await updateWorkItem(
         task,
@@ -3249,7 +3256,12 @@ export const projectsRouter = {
     .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
-      const { task, isDeputy } = await findTaskToReview(input.projectId, input.taskId, volunteer)
+      const { task, isDeputy } = await findTaskToReview(
+        input.projectId,
+        input.taskId,
+        volunteer,
+        context.access,
+      )
       const now = new Date()
       await updateWorkItem(
         task,
@@ -3288,7 +3300,12 @@ export const projectsRouter = {
     .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
-      const { task, isDeputy } = await findTaskToReview(input.projectId, input.taskId, volunteer)
+      const { task, isDeputy } = await findTaskToReview(
+        input.projectId,
+        input.taskId,
+        volunteer,
+        context.access,
+      )
       const now = new Date()
       await updateWorkItem(
         task,
@@ -3329,12 +3346,14 @@ export const projectsRouter = {
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
       const { project, task } = await findProjectTask(input.projectId, input.taskId)
-      const isDeputy = await isProjectDeputy(project.id, volunteer.id)
-      if (!canManageProjectTasks(project, volunteer, isDeputy)) {
-        throw new ORPCError('FORBIDDEN', {
-          message: 'Only the project owner, a deputy or an admin can reopen a task',
-        })
-      }
+      const resource = await projectResource(project, volunteer.id)
+      assertCan(
+        viewerOf(context),
+        'task.manage',
+        resource,
+        'Only the project owner, a deputy or an admin can reopen a task',
+      )
+      const isDeputy = resource.standing.deputy
 
       const status = task.assigneeId === null ? TaskStatus.not_started : TaskStatus.in_progress
       const now = new Date()
@@ -3415,12 +3434,14 @@ export const projectsRouter = {
       if (!project || !task)
         throw new ORPCError('NOT_FOUND', { message: 'Project or task not found' })
 
-      const isDeputy = await isProjectDeputy(project.id, volunteer.id)
-      if (project.assigneeId !== volunteer.id && !volunteer.isAdmin && !isDeputy) {
-        throw new ORPCError('FORBIDDEN', {
-          message: 'Only the project owner, a deputy or an admin can assign',
-        })
-      }
+      const resource = await projectResource(project, volunteer.id)
+      assertCan(
+        viewerOf(context),
+        'task.assign',
+        resource,
+        'Only the project owner, a deputy or an admin can assign',
+      )
+      const isDeputy = resource.standing.deputy
       assertTaskEditable(task)
 
       const assignee = await prisma.volunteer.findFirst({
@@ -3494,12 +3515,14 @@ export const projectsRouter = {
         where: { id: input.projectId, type: WorkItemType.PROJECT },
       })
       if (!project) throw new ORPCError('NOT_FOUND', { message: 'Project not found' })
-      const isDeputy = await isProjectDeputy(project.id, volunteer.id)
-      if (!canManageProjectTasks(project, volunteer, isDeputy)) {
-        throw new ORPCError('FORBIDDEN', {
-          message: 'Only the project owner, a deputy or an admin can replan a task',
-        })
-      }
+      const resource = await projectResource(project, volunteer.id)
+      assertCan(
+        viewerOf(context),
+        'task.manage',
+        resource,
+        'Only the project owner, a deputy or an admin can replan a task',
+      )
+      const isDeputy = resource.standing.deputy
 
       const tasks = await prisma.workItem.findMany({
         where: { parentId: input.projectId, type: WorkItemType.TASK },
@@ -3586,17 +3609,17 @@ export const projectsRouter = {
 
       const task = await prisma.workItem.findFirst({
         where: { id: input.taskId, parentId: input.projectId, type: WorkItemType.TASK },
-        select: { creatorId: true },
+        select: { assigneeId: true, creatorId: true },
       })
       if (!task) throw new ORPCError('NOT_FOUND', { message: 'Task not found' })
 
-      const isDeputy = await isProjectDeputy(project.id, volunteer.id)
-      if (!canDeleteProjectTask(project, task, volunteer, isDeputy)) {
-        throw new ORPCError('FORBIDDEN', {
-          message:
-            'Only the project owner, a deputy, an admin or the task creator can delete this task',
-        })
-      }
+      const resource = await taskResource(project, task, volunteer.id)
+      assertCan(
+        viewerOf(context),
+        'task.delete',
+        resource,
+        'Only the project owner, a deputy, an admin or the task creator can delete this task',
+      )
 
       const deleted = await prisma.workItem.deleteMany({
         where: { id: input.taskId, parentId: input.projectId, type: WorkItemType.TASK },
@@ -3612,12 +3635,14 @@ export const projectsRouter = {
     .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
-      const project = await prisma.workItem.findFirst({
-        where: { id: input.projectId, type: WorkItemType.PROJECT },
-      })
-      if (!project || (project.assigneeId !== volunteer.id && !volunteer.isAdmin)) {
-        throw new ORPCError('FORBIDDEN', { message: 'Only the project owner can appoint a deputy' })
-      }
+      const project = await assertCanOnProject(
+        viewerOf(context),
+        'project.appointDeputies',
+        await prisma.workItem.findFirst({
+          where: { id: input.projectId, type: WorkItemType.PROJECT },
+        }),
+        'Only the project owner can appoint a deputy',
+      )
       const helper = await prisma.workItemInterest.findFirst({
         where: {
           workItemId: input.projectId,
@@ -3656,12 +3681,14 @@ export const projectsRouter = {
     .use(asProjectAdmin, (input) => input.projectId)
     .handler(async ({ input, context }) => {
       const volunteer = context.volunteer
-      const project = await prisma.workItem.findFirst({
-        where: { id: input.projectId, type: WorkItemType.PROJECT },
-      })
-      if (!project || (project.assigneeId !== volunteer.id && !volunteer.isAdmin)) {
-        throw new ORPCError('FORBIDDEN', { message: 'Only the project owner can remove a deputy' })
-      }
+      const project = await assertCanOnProject(
+        viewerOf(context),
+        'project.appointDeputies',
+        await prisma.workItem.findFirst({
+          where: { id: input.projectId, type: WorkItemType.PROJECT },
+        }),
+        'Only the project owner can remove a deputy',
+      )
       const removed = await prisma.projectDeputy.deleteMany({
         where: { projectId: input.projectId, volunteerId: input.volunteerId },
       })

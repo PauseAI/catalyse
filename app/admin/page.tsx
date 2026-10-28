@@ -93,6 +93,7 @@ export default function AdminLandingPage() {
       links: [
         { href: '/admin/triage', label: 'Triage queue', count: counts?.pendingTriage },
         { href: '/admin/projects', label: 'Org projects' },
+        { href: '/admin/roles', label: 'Roles and permissions' },
       ],
     },
     {
