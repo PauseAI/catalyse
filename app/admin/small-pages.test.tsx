@@ -207,9 +207,11 @@ describe('roles and permissions', () => {
     const cells = within(work.closest('tr')!).getAllByRole('cell')
     const allowed = cells.map((c) => c.textContent?.includes('Yes'))
     expect(allowed.filter(Boolean)).toHaveLength(1)
-    // Each column says where its role holds.
+    // Each mark says where the role holds it.
     expect(
-      screen.getByRole('columnheader', { name: /^Chapter lead\s*Their chapter$/ }),
+      within(screen.getByRole('rowheader', { name: /project\.delete/ }).closest('tr')!).getByText(
+        'Yes: Chapter lead, their chapter',
+      ),
     ).toBeInTheDocument()
   })
 })

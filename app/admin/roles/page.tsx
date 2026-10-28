@@ -29,8 +29,8 @@ const SCOPES: Record<Scope, { letter: string; label: string; colors: string }> =
   },
 }
 
-/** Where a role holds: its letter, and its name too unless `short`. */
-function ScopeMark({ scope, short = false }: { scope: Scope; short?: boolean }) {
+/** Where a role holds: its letter, then its name, or `spoken` read in its place. */
+function ScopeMark({ scope, spoken }: { scope: Scope; spoken?: string }) {
   const { letter, label, colors } = SCOPES[scope]
   return (
     <span
@@ -38,7 +38,7 @@ function ScopeMark({ scope, short = false }: { scope: Scope; short?: boolean }) 
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${colors}`}
     >
       <span aria-hidden="true">{letter}</span>
-      {short ? <span className="sr-only">{label}</span> : <span>{label}</span>}
+      {spoken ? <span className="sr-only">{spoken}</span> : <span>{label}</span>}
     </span>
   )
 }
@@ -92,7 +92,7 @@ export default function AdminRolesPage() {
       <section aria-labelledby="by-permission" className="mt-8">
         <H2 id="by-permission">By permission</H2>
         <P className="text-sm text-text-light flex flex-wrap items-center gap-2">
-          Each role holds where its letter says:
+          A role may do what its letter marks, and where:
           {(Object.keys(SCOPES) as Scope[]).map((scope) => (
             <ScopeMark key={scope} scope={scope} />
           ))}
@@ -106,10 +106,7 @@ export default function AdminRolesPage() {
                 </th>
                 {roles.map((role) => (
                   <th key={role} scope="col" className="p-2 align-bottom font-semibold">
-                    <div className="flex flex-col items-center gap-1">
-                      <span>{ROLES[role].name}</span>
-                      <ScopeMark scope={ROLES[role].scope} short />
-                    </div>
+                    {ROLES[role].name}
                   </th>
                 ))}
               </tr>
@@ -124,10 +121,10 @@ export default function AdminRolesPage() {
                   {roles.map((role) => (
                     <td key={role} className="p-2 text-center">
                       {grants(role, permission) ? (
-                        <>
-                          <span aria-hidden="true">✓</span>
-                          <span className="sr-only">Yes</span>
-                        </>
+                        <ScopeMark
+                          scope={ROLES[role].scope}
+                          spoken={`Yes: ${ROLES[role].name}, ${SCOPES[ROLES[role].scope].label.toLowerCase()}`}
+                        />
                       ) : (
                         <span className="sr-only">No</span>
                       )}
