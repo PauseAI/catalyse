@@ -12,6 +12,7 @@ import Button from '@/components/Button'
 import { orpc } from '@/lib/orpc'
 import { ThemeToggle } from './ThemeToggle'
 import BugReportDialog from './BugReportDialog'
+import BackButton from './BackButton'
 import { PersonInitials } from './WorkItemHeader'
 
 function MobileNavLink({
@@ -175,7 +176,10 @@ export default function Header() {
     <>
       <header className="bg-surface border-b border-brand-border py-4 sticky top-0 z-[100]">
         <div className="container flex justify-between items-center gap-2 flex-nowrap xl:gap-4">
-          <Wordmark href={homeHref} />
+          <div className="flex items-center gap-2">
+            <BackButton />
+            <Wordmark href={homeHref} />
+          </div>
 
           <nav aria-label="Main" className="hidden xl:flex gap-2 flex-wrap">
             {mounted &&

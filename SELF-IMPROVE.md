@@ -289,3 +289,12 @@ confusing than it needed to be, and that will do so again.
       tests sat for 60 s each before failing, and the run timed out before printing which.
       A dom `testTimeout` near the 20 s the node project uses, or a failing test reported as
       it fails rather than at the end, would have shown the cause in the first minute.
+
+- [ ] **A host Claude session started in an Orca worktree cannot use that worktree's agent pod,
+      so no unit test, e2e test, `check-all` or dev server can run.** The PWA Back button was
+      written beside a running `agent-catalyse-pwa-back-nav` pod, but the session was on the
+      host sandbox: vitest got `ECONNREFUSED 127.0.0.1:5432`, `dev` hit `EADDRINUSE` on the
+      pod's published port (which answered 502 with no server behind it), and `agent-pod run`
+      is not available to a host session. Only typecheck, lint and format could be checked,
+      and every runtime check fell to CI. Starting worktree sessions inside the pod, or letting
+      the host session run commands in it, would have let the change be checked before review.
