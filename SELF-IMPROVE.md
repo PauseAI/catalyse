@@ -29,7 +29,7 @@ GitHub issue. An entry here is about the work itself: something in the code
 structure, tooling, tests, docs or diagnostics that made a task slower or more
 confusing than it needed to be, and that will do so again.
 
-## 13x
+## 14x
 
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
       and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
@@ -74,6 +74,9 @@ confusing than it needed to be, and that will do so again.
       The UI-consistency run hit `app/signup/page.test.tsx`: the resend request outlasted
       `vi.waitFor`'s one-second default under load, and the fake clock it left behind timed out
       every later test in the file, so one race read as ten failures.
+      The CSP-hosts run hit the access matrix (`test/access-matrix.ts`) twice running: it builds
+      a fresh world for each persona in turn, so `tasks-access` is slow alone and its largest
+      tests sit near the node timeout; under full-suite load some time out while passing alone.
 
 ## 7x
 

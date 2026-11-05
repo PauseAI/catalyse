@@ -1,19 +1,18 @@
 import type { NextConfig } from 'next'
 
-// Google Sign-In loads its client script and renders its button in an iframe from
-// accounts.google.com; Google Analytics loads gtag.js from googletagmanager.com and
-// sends hits to google-analytics.com (regional subdomains included); everything else
-// is same-origin. 'unsafe-inline' stays in script-src because Next.js injects inline
+// Third-party sources are Google Sign-In (accounts.google.com) and Google Analytics, using the
+// hosts Google's CSP guide lists for Analytics without Ads features; everything else is
+// same-origin. 'unsafe-inline' stays in script-src because Next.js injects inline
 // bootstrap/flight scripts without a nonce — the CSP still stops any third-party script host.
 // React's development build evals to rebuild server call stacks; production never does.
 const devScript = process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''
 const CSP = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${devScript} https://accounts.google.com https://www.googletagmanager.com`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://*.googleusercontent.com",
+  "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
+  "img-src 'self' data: blob: https://*.googleusercontent.com https://www.googletagmanager.com https://*.google-analytics.com",
   "font-src 'self' data:",
-  "connect-src 'self' https://accounts.google.com https://*.google-analytics.com https://*.analytics.google.com",
+  "connect-src 'self' https://accounts.google.com https://*.google-analytics.com https://*.analytics.google.com https://www.google.com https://www.googletagmanager.com",
   "frame-src 'self' https://accounts.google.com",
   "form-action 'self'",
   "frame-ancestors 'none'",
