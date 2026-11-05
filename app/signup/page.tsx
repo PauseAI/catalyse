@@ -16,7 +16,7 @@ import Radio from '@/components/Radio'
 import SignupSkills from '@/components/SignupSkills'
 import { useAuth } from '@/lib/auth-context'
 import { orpc } from '@/lib/orpc'
-import { BLEED, SECTION_CARD } from '@/lib/ui-classes'
+import { SECTION_CARD } from '@/lib/ui-classes'
 import {
   NO_LOCAL_GROUP,
   buildLocalGroupOptionsForCountry,
@@ -111,10 +111,9 @@ export default function SignupPage() {
   const [draftRecovered, setDraftRecovered] = useState(false)
 
   // Form fields
-  const [applicationPending, setApplicationPending] = useState(false)
+  // Set once the application is in, so the draft is not saved again on the way out.
+  const [submitted, setSubmitted] = useState(false)
   const [pendingGoogleAuth, setPendingGoogleAuth] = useState<PendingGoogleAuth | null>(null)
-  const [resendSent, setResendSent] = useState(false)
-  const [resendCooldown, setResendCooldown] = useState(0)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -208,7 +207,7 @@ export default function SignupPage() {
 
   // Keep the answers so far, without the password, for the length of the browser session.
   useEffect(() => {
-    if (!restored || applicationPending) return
+    if (!restored || submitted) return
     sessionStorage.setItem(
       DRAFT_KEY,
       JSON.stringify({
@@ -235,7 +234,7 @@ export default function SignupPage() {
     )
   }, [
     restored,
-    applicationPending,
+    submitted,
     step,
     name,
     email,
@@ -277,12 +276,6 @@ export default function SignupPage() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [pendingGoogleAuth])
 
-  useEffect(() => {
-    if (resendCooldown <= 0) return
-    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000)
-    return () => clearTimeout(t)
-  }, [resendCooldown])
-
   const { data: googleClientIdData } = useQuery({
     ...orpc.auth.googleClientId.queryOptions(),
     staleTime: Infinity,
@@ -295,7 +288,6 @@ export default function SignupPage() {
     }
   }, [googleClientIdData])
 
-  const resendMutation = useMutation({ ...orpc.auth.resendVerification.mutationOptions() })
   const googleAuthMutation = useMutation({
     ...orpc.auth.google.mutationOptions(),
     onSuccess: async (data, variables) => {
@@ -320,12 +312,6 @@ export default function SignupPage() {
     ...orpc.auth.completeGoogleSignup.mutationOptions(),
   })
   const signupMutation = useMutation({ ...orpc.auth.signup.mutationOptions() })
-
-  async function handleResend() {
-    await resendMutation.mutateAsync({ email }).catch(() => {})
-    setResendSent(true)
-    setResendCooldown(60)
-  }
 
   const handleGoogleResponse = useCallback(
     (response: { credential: string }) => {
@@ -442,14 +428,13 @@ export default function SignupPage() {
             ...application,
           })
         : await signupMutation.mutateAsync({ name, email, password, ...application })
+      // An applicant still waiting on a review is signed in too: Home is where they find what
+      // they can do in the meantime.
+      setSubmitted(true)
       sessionStorage.removeItem(DRAFT_KEY)
-      if (data.pending) {
-        setApplicationPending(true)
-      } else if (data.token) {
-        sessionStorage.removeItem('google_pending_auth')
-        await setToken(data.token)
-        router.push('/dashboard')
-      }
+      sessionStorage.removeItem('google_pending_auth')
+      await setToken(data.token)
+      router.push('/dashboard')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Signup failed')
     } finally {
@@ -743,58 +728,6 @@ export default function SignupPage() {
   const prefix = isGoogle ? 'g_' : ''
 
   if (loading) return null
-
-  if (applicationPending) {
-    return (
-      <main className="container py-5 pb-15">
-        <div className="max-w-2xl mx-auto">
-          {/* role="status" so a screen reader announces that the form went through. */}
-          <div role="status" className={`bg-surface ${BLEED} shadow p-8 text-center`}>
-            <H1>Application received</H1>
-            <P className="text-text-light mt-4 mb-2">
-              Thanks for applying! A member of the team usually reviews applications within a few
-              days, and we email you when yours is approved.
-            </P>
-            {isGoogle ? (
-              <P className="text-text-light">Your Google email is already confirmed.</P>
-            ) : (
-              <>
-                <P className="text-text-light">
-                  Meanwhile, confirm your email: we&#39;ve sent a link to {email}.
-                </P>
-                <div className="mt-6 pt-6 border-t border-brand-border">
-                  {resendSent ? (
-                    <P className="text-text-light text-sm">
-                      {resendCooldown > 0
-                        ? `Email sent! You can request another in ${resendCooldown}s.`
-                        : 'Email sent! Check your inbox.'}
-                    </P>
-                  ) : (
-                    <P className="text-text-light text-sm">
-                      Didn&#39;t receive it?{' '}
-                      <button
-                        onClick={handleResend}
-                        disabled={resendCooldown > 0}
-                        className="underline disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Resend confirmation email
-                      </button>
-                    </P>
-                  )}
-                </div>
-              </>
-            )}
-            <P className="text-text-light text-sm mt-4">
-              Questions? Contact{' '}
-              <a href="mailto:uk@pauseai.info" className="underline">
-                uk@pauseai.info
-              </a>
-            </P>
-          </div>
-        </div>
-      </main>
-    )
-  }
 
   return (
     <>

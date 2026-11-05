@@ -74,12 +74,13 @@ test.describe('Admin: global admins and chapter staff invites', () => {
       await page.evaluate(() => localStorage.removeItem('pendingAdminInvite'))
 
       // Signing up proves nothing about the address, so the invite waits for the
-      // confirmation link. A pending signup leaves the browser signed out, so the link
-      // proves the mailbox only and the password chosen at signup is cleared.
+      // confirmation link. Opened signed out, as from another device, the link proves the
+      // mailbox only and the password chosen at signup is cleared.
       await signup(baseUrl, page, person.name, person.email, 'testpassword1')
-      await expect(page.getByRole('heading', { name: 'Application received' })).toBeVisible({
+      await expect(page.getByRole('heading', { name: /Thanks for applying/ })).toBeVisible({
         timeout: 15_000,
       })
+      await page.evaluate(() => localStorage.removeItem('authToken'))
 
       const api = createApiClient(baseUrl)
       const resent = await api.auth.resendVerification({ body: { email: person.email } })

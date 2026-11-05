@@ -12,15 +12,31 @@ import { fake } from '../fake'
 import { createApiClient } from '../client'
 
 test.describe('Authentication: Signup & Login', () => {
-  test('Visitor signs up successfully', async ({ browser, baseUrl }) => {
+  test('Visitor signs up and lands on Home with things to do while they wait', async ({
+    browser,
+    baseUrl,
+  }) => {
     const context = await browser.newContext()
     const page = await context.newPage()
     try {
       const person = fake.person()
       await signup(baseUrl, page, person.name, person.email, 'testpassword1')
-      await expect(page.getByRole('heading', { name: 'Application received' })).toBeVisible({
-        timeout: 10_000,
-      })
+      await expect(page).toHaveURL(`${baseUrl}/dashboard`, { timeout: 10_000 })
+      const firstName = person.name.split(' ')[0]
+      await expect(
+        page.getByRole('heading', { name: `Thanks for applying, ${firstName}!` }),
+      ).toBeVisible({ timeout: 10_000 })
+      const actions = page.getByRole('list', { name: 'Things you can do today' })
+      await expect(
+        actions.getByRole('link', { name: 'Sign the PauseAI statement (opens in a new tab)' }),
+      ).toHaveAttribute('href', 'https://pauseai.info/statement')
+      await expect(page.getByRole('heading', { name: "What you'll find here" })).toBeVisible()
+
+      // They stay signed in, so the welcome is still there when they come back.
+      await page.reload()
+      await expect(
+        page.getByRole('heading', { name: `Thanks for applying, ${firstName}!` }),
+      ).toBeVisible({ timeout: 10_000 })
     } finally {
       await context.close()
     }
@@ -195,7 +211,7 @@ test.describe('Authentication: Signup & Login', () => {
     await expect(volunteer.page).toHaveURL(`${baseUrl}/dashboard`, { timeout: 10_000 })
   })
 
-  test('Resend confirmation email button appears on pending screen and sends email', async ({
+  test('A new applicant can resend the confirmation email from Home', async ({
     browser,
     baseUrl,
   }) => {
@@ -204,10 +220,9 @@ test.describe('Authentication: Signup & Login', () => {
     try {
       const person = fake.person()
       await signup(baseUrl, page, person.name, person.email, 'testpassword1')
-      await expect(page.getByRole('heading', { name: 'Application received' })).toBeVisible({
-        timeout: 10_000,
-      })
-      await page.getByRole('button', { name: 'Resend confirmation email' }).click()
+      const checklist = page.getByRole('region', { name: 'Getting started' })
+      await expect(checklist).toBeVisible({ timeout: 10_000 })
+      await checklist.getByRole('button', { name: 'Send it again' }).click()
       await expect(page.getByText(/Email sent!/)).toBeVisible({ timeout: 5_000 })
     } finally {
       await context.close()
@@ -385,7 +400,7 @@ test.describe('Authentication: Signup & Login', () => {
       await page.getByRole('button', { name: 'Next: Skills and privacy' }).click()
       await page.getByRole('button', { name: 'Submit application' }).click()
 
-      await expect(page.getByRole('heading', { name: 'Application received' })).toBeVisible({
+      await expect(page.getByRole('heading', { name: /Thanks for applying/ })).toBeVisible({
         timeout: 10_000,
       })
     } finally {

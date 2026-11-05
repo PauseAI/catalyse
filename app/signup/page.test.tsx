@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor, fireEvent, act, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
@@ -38,8 +38,6 @@ async function toSkillsStep() {
 }
 
 beforeEach(() => sessionStorage.clear())
-// A test that fails while its clock is faked would otherwise leave every later test hanging.
-afterEach(() => vi.useRealTimers())
 
 describe('signup with email and password', () => {
   it('shows the steps, and fills Contact email from the sign-up email', async () => {
@@ -166,10 +164,9 @@ describe('signup with email and password', () => {
     expect(screen.queryByText(/Allow project owners to contact me/)).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Submit application' }))
 
-    await screen.findByRole('heading', { name: 'Application received' })
-    const done = screen.getByRole('status')
-    expect(done).toHaveTextContent('usually reviews applications within a few days')
-    expect(done).toHaveTextContent('ann.applicant@example.com')
+    // The applicant is signed in and sent Home, where the wait has things to do in it.
+    await waitFor(() => expect(navigation.push).toHaveBeenCalledWith('/dashboard'))
+    expect(localStorage.getItem('authToken')).toBeTruthy()
     const row = await prisma.volunteer.findFirstOrThrow({
       where: { email: 'ann.applicant@example.com' },
       include: { skills: true },
@@ -195,16 +192,6 @@ describe('signup with email and password', () => {
     })
     expect(row.skills.map((s) => s.skillId).sort()).toEqual([needed.id, other.id].sort())
     expect(sessionStorage.getItem('signup_draft')).toBeNull()
-
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    fireEvent.click(screen.getByRole('button', { name: 'Resend confirmation email' }))
-    // The resend is a real request, so under load it can take longer than waitFor's default second.
-    await vi.waitFor(() => expect(screen.getByText(/request another in 60s/)).toBeInTheDocument(), {
-      timeout: 10_000,
-    })
-    for (let i = 0; i < 60; i++) act(() => vi.advanceTimersByTime(1000))
-    vi.useRealTimers()
-    expect(screen.getByText('Email sent! Check your inbox.')).toBeInTheDocument()
   })
 
   it('clears a preferred contact method when its field is emptied, and picks a city with no local group', async () => {
@@ -407,8 +394,8 @@ describe('signup with Google', () => {
     await type('Other skills', 'o')
     await userEvent.click(screen.getByLabelText('Allow Google Analytics (recommended)'))
     await userEvent.click(screen.getByRole('button', { name: 'Submit application' }))
-    await screen.findByRole('heading', { name: 'Application received' })
-    expect(screen.getByRole('status')).toHaveTextContent('Your Google email is already confirmed.')
+    await waitFor(() => expect(navigation.push).toHaveBeenCalledWith('/dashboard'))
+    expect(sessionStorage.getItem('google_pending_auth')).toBeNull()
     const row = await prisma.volunteer.findFirstOrThrow({ where: { email: 'stub@example.com' } })
     expect(row).toMatchObject({
       name: 'Stub User',

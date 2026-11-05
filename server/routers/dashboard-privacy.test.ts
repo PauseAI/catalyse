@@ -549,6 +549,36 @@ describe('dashboard.get', () => {
     expect(asAdmin.find).not.toBeNull()
   })
 
+  it('tells an applicant how much work waits for them, as counts only', async () => {
+    const chapter = await createChapter()
+    const skill = await createSkill()
+    const inChapter = { nationalChapterId: chapter.id, isSeekingHelp: true }
+    await createProject({ ...inChapter, skills: { create: [{ skillId: skill.id }] } })
+    await createProject(inChapter)
+    await createProject({ ...inChapter, status: 'pending_review' })
+    await createQuickTask({ nationalChapterId: chapter.id })
+
+    const applicant = await createMember(chapter, {
+      approvalStatus: 'pending',
+      skills: { create: [{ skillId: skill.id }] },
+    })
+    const d = await clientAs(applicant).dashboard.get()
+    expect(d.waiting).toEqual({ projects: 2, matching: 1, quickTasks: 1 })
+    expect(d.find).toBeNull()
+
+    // The holding pool has no chapter's projects, and no skills match nothing.
+    const pooled = await createVolunteer({ approvalStatus: 'needs_info', nationalChapterId: null })
+    expect((await clientAs(pooled).dashboard.get()).waiting).toMatchObject({
+      projects: 0,
+      matching: 0,
+    })
+
+    // Members see the work itself; a rejected applicant is not waiting for anything.
+    expect((await clientAs(await createMember(chapter)).dashboard.get()).waiting).toBeNull()
+    const rejected = await createMember(chapter, { approvalStatus: 'rejected' })
+    expect((await clientAs(rejected).dashboard.get()).waiting).toBeNull()
+  })
+
   it('offers the approval welcome until its notification is read', async () => {
     const me = await createVolunteer({ emailConfirmed: false })
     const c = clientAs(me)
