@@ -27,7 +27,7 @@ describe('POST /api/csp-report', () => {
     expect(error).toHaveBeenLastCalledWith('[CSP VIOLATION]', '{"blockedURL":"evil2"}')
 
     await POST(post(JSON.stringify({ loose: true })))
-    expect(error).toHaveBeenLastCalledWith('[CSP VIOLATION]', '{"loose":true}')
+    expect(error).toHaveBeenLastCalledWith('[CSP VIOLATION]', '{}')
 
     await POST(post('not json'))
     expect(error).toHaveBeenLastCalledWith('[CSP VIOLATION]', '{}')
@@ -134,8 +134,66 @@ describe('POST /api/csp-report', () => {
       'document-uri': 'data:text/html,hi',
     })
 
-    await POST(post(JSON.stringify('just a string')))
-    expect(logged()).toBe('just a string')
+    error.mockRestore()
+  })
+
+  it('logs only known report fields, and nothing from a report that is not an object', async () => {
+    const { POST } = await import('./route')
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const logged = () => JSON.parse(error.mock.lastCall![1] as string)
+
+    await POST(post(JSON.stringify({ 'csp-report': 'https://catalyse.example/?token=secret' })))
+    expect(logged()).toEqual({})
+
+    await POST(post(JSON.stringify({ 'csp-report': ['https://catalyse.example/?token=secret'] })))
+    expect(logged()).toEqual({})
+
+    await POST(post(JSON.stringify('https://catalyse.example/?token=secret')))
+    expect(logged()).toEqual({})
+
+    await POST(
+      post(JSON.stringify({ resetLink: 'https://catalyse.example/reset-password?token=secret' })),
+    )
+    expect(logged()).toEqual({})
+
+    await POST(
+      post(
+        JSON.stringify({
+          'csp-report': {
+            'blocked-uri': 'inline',
+            'original-policy': "default-src 'self'; report-uri /api/csp-report?token=secret",
+            'next-page': 'https://catalyse.example/reset-password?token=secret',
+            'violated-directive': { url: 'https://catalyse.example/?token=secret' },
+            'line-number': [1],
+            'status-code': 0,
+          },
+        }),
+      ),
+    )
+    expect(logged()).toEqual({ 'blocked-uri': 'inline', 'status-code': 0 })
+
+    await POST(
+      post(
+        JSON.stringify([
+          {
+            body: {
+              blockedURL: 42,
+              documentURL: { href: 'https://catalyse.example/?token=secret' },
+              columnNumber: 7,
+              statusCode: 200,
+              disposition: 'report',
+              resetLink: 'https://catalyse.example/reset-password?token=secret',
+            },
+          },
+        ]),
+      ),
+    )
+    expect(logged()).toEqual({
+      blockedURL: 42,
+      columnNumber: 7,
+      statusCode: 200,
+      disposition: 'report',
+    })
 
     error.mockRestore()
   })

@@ -7,9 +7,10 @@ const SINGLETON_ID = 1
 // flood Railway logs with an oversized payload.
 const MAX_BODY_BYTES = 8_192
 
-// URL fields in both report shapes: legacy `report-uri` (kebab-case) and Reporting API
-// (camelCase). Their query strings and fragments can carry analytics IDs or reset tokens,
-// and the logs sit outside GDPR export and deletion, so only origin and path are kept.
+// The fields logged from each report shape: legacy `report-uri` (kebab-case) and Reporting
+// API (camelCase). Everything else is dropped, since the logs sit outside GDPR export and
+// deletion. URL fields keep only origin and path: their query strings and fragments can
+// carry analytics IDs or reset tokens.
 const URL_FIELDS = new Set([
   'blocked-uri',
   'document-uri',
@@ -19,11 +20,21 @@ const URL_FIELDS = new Set([
   'documentURL',
   'sourceFile',
 ])
-// Excerpts of the blocked script or style, which can hold page content.
-const SAMPLE_FIELDS = new Set(['script-sample', 'sample'])
+const PLAIN_FIELDS = new Set([
+  'violated-directive',
+  'effective-directive',
+  'line-number',
+  'column-number',
+  'disposition',
+  'status-code',
+  'violatedDirective',
+  'effectiveDirective',
+  'lineNumber',
+  'columnNumber',
+  'statusCode',
+])
 
-function originAndPath(value: unknown): unknown {
-  if (typeof value !== 'string') return value
+function originAndPath(value: string): string {
   try {
     const url = new URL(value)
     if (url.origin !== 'null') return url.origin + url.pathname
@@ -33,14 +44,22 @@ function originAndPath(value: unknown): unknown {
   return value.split(/[?#]/, 1)[0]
 }
 
-function redact(violation: unknown): unknown {
+// Undefined drops the field: an unknown key, or a known one holding an object or array.
+function redactField(key: string, value: unknown): unknown {
+  if (!URL_FIELDS.has(key) && !PLAIN_FIELDS.has(key)) return undefined
+  if (typeof value === 'string') return URL_FIELDS.has(key) ? originAndPath(value) : value
+  const scalar = value === null || typeof value === 'number' || typeof value === 'boolean'
+  return scalar ? value : undefined
+}
+
+function redact(violation: unknown): Record<string, unknown> {
   if (typeof violation !== 'object' || violation === null || Array.isArray(violation)) {
-    return violation
+    return {}
   }
   return Object.fromEntries(
     Object.entries(violation)
-      .filter(([key]) => !SAMPLE_FIELDS.has(key))
-      .map(([key, value]) => [key, URL_FIELDS.has(key) ? originAndPath(value) : value]),
+      .map(([key, value]) => [key, redactField(key, value)])
+      .filter(([, value]) => value !== undefined),
   )
 }
 
@@ -68,7 +87,7 @@ export async function POST(request: Request) {
     // Malformed report body; still record that something was blocked.
   }
 
-  console.error('[CSP VIOLATION]', JSON.stringify(redact(violation ?? {})))
+  console.error('[CSP VIOLATION]', JSON.stringify(redact(violation)))
 
   await prisma.platformSettings
     .update({ where: { id: SINGLETON_ID }, data: { cspViolationCount: { increment: 1 } } })
