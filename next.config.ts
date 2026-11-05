@@ -1,12 +1,9 @@
 import type { NextConfig } from 'next'
 
-// Google Sign-In loads its client script and stylesheet and renders its button in an
-// iframe from accounts.google.com. Google Analytics loads gtag.js from googletagmanager.com
-// and sends hits to google-analytics.com (regional subdomains included), www.google.com
-// and googletagmanager.com, as Google's CSP guide lists for Analytics without Ads features.
-// Everything else is same-origin. 'unsafe-inline' stays in script-src because Next.js
-// injects inline bootstrap/flight scripts without a nonce — the CSP still stops any
-// third-party script host.
+// Third-party sources are Google Sign-In (accounts.google.com) and Google Analytics, using the
+// hosts Google's CSP guide lists for Analytics without Ads features; everything else is
+// same-origin. 'unsafe-inline' stays in script-src because Next.js injects inline
+// bootstrap/flight scripts without a nonce — the CSP still stops any third-party script host.
 // React's development build evals to rebuild server call stacks; production never does.
 const devScript = process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''
 const CSP = [

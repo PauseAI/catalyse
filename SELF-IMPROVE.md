@@ -74,10 +74,9 @@ confusing than it needed to be, and that will do so again.
       The UI-consistency run hit `app/signup/page.test.tsx`: the resend request outlasted
       `vi.waitFor`'s one-second default under load, and the fake clock it left behind timed out
       every later test in the file, so one race read as ten failures.
-      The CSP-hosts run hit the access matrix (`test/access-matrix.ts`) twice running: a test
-      there builds a fresh world for each of a dozen personas in turn, so `tasks-access` takes
-      ~115 s alone, its three-matrix "reviewed" test 18 s against the 20 s node timeout, and
-      under full-suite load two or three of them time out each run while passing alone.
+      The CSP-hosts run hit the access matrix (`test/access-matrix.ts`) twice running: it builds
+      a fresh world for each persona in turn, so `tasks-access` is slow alone and its largest
+      tests sit near the node timeout; under full-suite load some time out while passing alone.
 
 ## 7x
 
