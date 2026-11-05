@@ -9,6 +9,7 @@ import {
   createVolunteer,
   createAdmin,
   createProject,
+  createTask,
   createQuickTask,
   createSkill,
   createLocalGroup,
@@ -147,6 +148,27 @@ describe('volunteer profile', () => {
     })
     await createProject({ title: 'Led', assigneeId: vol.id })
     await createProject({ title: 'Pitched', creatorId: vol.id })
+    const finished = await createProject({
+      title: 'Finished',
+      status: 'completed',
+      completedAt: new Date(Date.UTC(2026, 2, 9, 12)),
+    })
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: finished.id,
+        volunteerId: vol.id,
+        interestType: 'want_to_contribute',
+        status: 'accepted',
+        respondedAt: new Date(Date.UTC(2026, 1, 2, 12)),
+      },
+    })
+    const task = await createTask(finished.id, {
+      title: 'Wrote the copy',
+      status: 'completed',
+      assigneeId: vol.id,
+      claimedAt: new Date(Date.UTC(2026, 1, 3, 12)),
+      completedAt: new Date(Date.UTC(2026, 2, 1, 12)),
+    })
     await renderApp(<VolunteerDetailPage params={Promise.resolve({ id: String(vol.id) })} />, {
       as: me,
     })
@@ -171,9 +193,22 @@ describe('volunteer profile', () => {
     expect(screen.getByText('evenings')).toBeInTheDocument()
     expect(screen.getByText('Verified skills')).toBeInTheDocument()
     expect(screen.getByText('Done task')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Led' })).toBeInTheDocument()
-    expect(screen.getByText('Project owner')).toBeInTheDocument()
-    expect(screen.getByText('Proposer')).toBeInTheDocument()
+    const current = screen.getByRole('list', { name: 'Current projects' })
+    expect(within(current).getByRole('link', { name: 'Led' })).toBeInTheDocument()
+    expect(within(current).getByText('Owner')).toBeInTheDocument()
+    expect(within(current).getByText(/^Creator from /)).toBeInTheDocument()
+    const past = screen.getByRole('list', { name: 'Past projects' })
+    expect(
+      within(past).getByText('Member from 2 Feb 2026 · Finished 9 Mar 2026'),
+    ).toBeInTheDocument()
+    const tasks = within(past).getByRole('list', { name: 'Tasks on Finished' })
+    expect(within(tasks).getByRole('link', { name: 'Wrote the copy' })).toHaveAttribute(
+      'href',
+      `/projects/${finished.id}/tasks/${task.id}`,
+    )
+    expect(
+      within(tasks).getByText('Assignee from 3 Feb 2026 · finished 1 Mar 2026'),
+    ).toBeInTheDocument()
   })
 
   it('offers a message to someone the viewer is connected with, but not to themselves', async () => {

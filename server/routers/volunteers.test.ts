@@ -14,6 +14,7 @@ import {
   createMember,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
+import type { InterestStatus } from '@/generated/prisma/enums'
 
 describe('volunteers.list', () => {
   it('filters the approved, visible directory by skill, search and location', async () => {
@@ -163,10 +164,10 @@ describe('volunteers.getById', () => {
     expect(view.endorsements).toEqual([
       { skillId: skill.id, rating: 'strong', skillName: skill.name },
     ])
-    expect(view.projects.map((p) => [p.id, p.role]).sort()).toEqual(
+    expect(view.projects.map((p) => [p.id, p.roles.map((r) => r.role)]).sort()).toEqual(
       [
-        [owned.id, 'owner'],
-        [proposed.id, 'proposer'],
+        [owned.id, ['owner']],
+        [proposed.id, ['creator']],
       ].sort(),
     )
     expect(view.completedTasks).toEqual([
@@ -201,6 +202,70 @@ describe('volunteers.getById', () => {
     await expect(clientAs(me).volunteers.getById({ id: 999_999 })).rejects.toMatchObject({
       code: 'NOT_FOUND',
     })
+  })
+
+  it('lists every project and task they had a part in, current and past, as far as the viewer can see', async () => {
+    const [home, away] = [await createChapter(), await createChapter()]
+    const viewer = await createMember(home)
+    const vol = await createMember(home)
+    const join = (workItemId: number, interestType: string, status: InterestStatus) =>
+      prisma.workItemInterest.create({
+        data: { workItemId, volunteerId: vol.id, interestType, status, respondedAt: new Date() },
+      })
+    const inHome = { nationalChapterId: home.id }
+
+    const deputised = await createProject(inHome)
+    await prisma.projectDeputy.create({ data: { projectId: deputised.id, volunteerId: vol.id } })
+    const joined = await createProject(inHome)
+    await join(joined.id, 'want_to_contribute', 'accepted')
+    const left = await createProject({ ...inHome, status: 'completed', completedAt: new Date() })
+    await join(left.id, 'want_to_contribute', 'removed')
+    const tasked = await createProject(inHome)
+    const led = await createTask(tasked.id, { assigneeId: vol.id, claimedAt: new Date() })
+    const helped = await createTask(tasked.id, { status: 'completed' })
+    await join(helped.id, 'want_to_help_task', 'accepted')
+    await createTask(tasked.id, { title: 'Not theirs' })
+    // An application never accepted is no part in a project.
+    const applied = await createProject(inHome)
+    await prisma.workItemInterest.create({
+      data: { workItemId: applied.id, volunteerId: vol.id, interestType: 'want_to_contribute' },
+    })
+    const withdrawn = await createProject(inHome)
+    await prisma.workItemInterest.create({
+      data: {
+        workItemId: withdrawn.id,
+        volunteerId: vol.id,
+        interestType: 'want_to_contribute',
+        status: 'withdrawn',
+      },
+    })
+    // Another chapter's project stays out of sight of someone with no part in it.
+    const abroad = await createProject({ nationalChapterId: away.id, assigneeId: vol.id })
+
+    const { projects } = await clientAs(viewer).volunteers.getById({ id: vol.id })
+    const byId = new Map(projects.map((p) => [p.id, p]))
+    expect([...byId.keys()].sort()).toEqual([deputised.id, joined.id, left.id, tasked.id].sort())
+    expect(byId.get(deputised.id)).toMatchObject({
+      current: true,
+      roles: [{ role: 'deputy', ended: false }],
+    })
+    expect(byId.get(joined.id)!.roles).toMatchObject([{ role: 'member', ended: false }])
+    expect(byId.get(left.id)).toMatchObject({
+      current: false,
+      roles: [{ role: 'member', ended: true }],
+    })
+    expect(byId.get(tasked.id)).toMatchObject({
+      current: true,
+      roles: [],
+      tasks: [
+        { id: led.id, role: 'assignee', current: true },
+        { id: helped.id, role: 'helper', current: false },
+      ],
+    })
+    expect(projects.at(-1)!.id).toBe(left.id)
+
+    const adminView = await clientAs(await createAdmin()).volunteers.getById({ id: vol.id })
+    expect(adminView.projects.map((p) => p.id)).toContain(abroad.id)
   })
 
   it('reveals a hidden profile only to themselves, global admins, or an involving project owner', async () => {
