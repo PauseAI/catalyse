@@ -29,7 +29,7 @@ GitHub issue. An entry here is about the work itself: something in the code
 structure, tooling, tests, docs or diagnostics that made a task slower or more
 confusing than it needed to be, and that will do so again.
 
-## 14x
+## 15x
 
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
       and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
@@ -77,6 +77,9 @@ confusing than it needed to be, and that will do so again.
       The CSP-hosts run hit the access matrix (`test/access-matrix.ts`) twice running: it builds
       a fresh world for each persona in turn, so `tasks-access` is slow alone and its largest
       tests sit near the node timeout; under full-suite load some time out while passing alone.
+      The CSP-report run hit it again: one timed out in `check-all`, then passed eight reruns of
+      the file. Building each matrix's world once per file, or running the roles of one
+      `expectAccess` concurrently, would keep it well clear of the timeout.
 
 ## 7x
 
