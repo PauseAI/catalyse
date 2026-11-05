@@ -303,3 +303,10 @@ confusing than it needed to be, and that will do so again.
       need no database, and a script that prints a CI run's failing tests from its annotations,
       would give such a session a loop of seconds for pure code and one readable command for the
       rest.
+
+- [ ] **`server/routers/tasks-access.test.ts` runs its access matrix one role at a time
+      against the database, so the file alone takes about 100 s and its slowest tests sit
+      near the 20 s node `testTimeout`.** In a full `check-all` run one of them timed out,
+      failing an unrelated change and costing a full rerun plus eight reruns of the file,
+      all of which passed. Building each matrix's world once per file, or running the
+      roles of one `expectAccess` concurrently, would keep it well clear of the timeout.
