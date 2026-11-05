@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   static-checks:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       # Never connected to: `prisma.config.ts` refuses to load without a URL, and the
       # generated client is needed for typecheck.
@@ -48,7 +48,7 @@ jobs:
           min-severity: low
 
   unit-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:18
@@ -80,7 +80,7 @@ jobs:
         run: npm run --silent coverage:report >> "$GITHUB_STEP_SUMMARY"
 
   e2e-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:18
