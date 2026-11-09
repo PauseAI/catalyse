@@ -16,6 +16,7 @@
     "lint:fix": "eslint --cache --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "audit:critical": "npm audit --audit-level=critical",
     "generate": "CHECKPOINT_DISABLE=1 npx prisma generate && tsx scripts/post-generate.ts",
     "build:railway": "tsx scripts/build-railway.ts",
     "new-migration": "tsx scripts/new-migration.ts",

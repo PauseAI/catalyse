@@ -38,6 +38,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run format:check
+      # Fails on any critical npm advisory, so a vulnerable dependency can't reach main unseen.
+      - run: npm run audit:critical
       # Static security audit of this file: dangerous triggers, template injection, unpinned
       # actions, broad permissions, leaked credentials. Runs the digest-pinned zizmor image.
       - uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
