@@ -39,6 +39,18 @@ describe('rolesOn', () => {
     expect(rolesOn(admin, on())).toEqual(['globalAdmin'])
   })
 
+  it('gives a coordinator their role over the platform only, and with it nothing but calls', () => {
+    const coordinator = volunteer(9, { coordinator: true })
+    expect(rolesOn(coordinator, { type: 'global' })).toEqual(['coordinator'])
+    expect(rolesOn(coordinator, { type: 'chapter', chapterId: UK })).toEqual([])
+    expect(rolesOn(coordinator, on())).toEqual([])
+    expect(permissionsOn(coordinator, { type: 'global' })).toEqual(['call.send'])
+    expect(can(volunteer(8), 'call.send', { type: 'global' })).toBe(false)
+    expect(can(volunteer(7, { role: 'LEAD' }), 'call.send', { type: 'global' })).toBe(false)
+    const both = volunteer(6, { globalAdmin: true, coordinator: true })
+    expect(rolesOn(both, { type: 'global' })).toEqual(['globalAdmin', 'coordinator'])
+  })
+
   it('gives chapter staff their role in their own chapter only, never in the pool', () => {
     const lead = volunteer(9, { role: 'LEAD' })
     const deputy = volunteer(8, { role: 'DEPUTY' })

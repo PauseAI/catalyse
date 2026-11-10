@@ -85,7 +85,7 @@ export default function AdminLandingPage() {
           globalOnly: true,
         },
         { href: '/admin/required-actions', label: 'Outstanding actions', globalOnly: true },
-        { href: '/admin/team', label: 'Global admins', globalOnly: true },
+        { href: '/admin/team', label: 'Global admins and coordinators', globalOnly: true },
       ],
     },
     {

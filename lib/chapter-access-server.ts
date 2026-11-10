@@ -17,6 +17,7 @@ export async function loadAccess(volunteer: AccessSubject | null): Promise<Chapt
       nationalChapterId: true,
       ledChapter: { select: { id: true } },
       chapterDeputyRole: { select: { nationalChapterId: true } },
+      coordinatorRole: { select: { id: true } },
     },
   })
   const chapterId = row?.nationalChapterId ?? null
@@ -32,6 +33,7 @@ export async function loadAccess(volunteer: AccessSubject | null): Promise<Chapt
     globalAdmin: Boolean(volunteer.isAdmin) && isSuperAdmin(volunteer),
     chapterId,
     role,
+    coordinator: Boolean(row?.coordinatorRole),
   }
 }
 

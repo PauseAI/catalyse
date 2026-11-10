@@ -1,14 +1,112 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRequireAdmin } from '@/lib/hooks/auth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { SECTION_CARD } from '@/lib/ui-classes'
-import { H1 } from '@/components/Heading'
+import { H1, H2 } from '@/components/Heading'
 import { P } from '@/components/Text'
 import FormLabel from '@/components/FormLabel'
+import Button from '@/components/Button'
+import FullVolunteerSelect from '@/components/FullVolunteerSelect'
+import Input from '@/components/ui/Input'
+
+const errorText = (err: unknown) => (err instanceof Error ? err.message : 'Failed to update')
+
+/** Coordinators put out calls to volunteers in every chapter; only a global admin names them. */
+function Coordinators() {
+  const showToast = useToast()
+  const queryClient = useQueryClient()
+  const [volunteerId, setVolunteerId] = useState('')
+  const [remit, setRemit] = useState('')
+  const { data: coordinators = [] } = useQuery(orpc.admin.coordinators.list.queryOptions())
+  const onSuccess = (data: { message: string }) => {
+    showToast(data.message, 'success')
+    void queryClient.invalidateQueries({ queryKey: orpc.admin.coordinators.list.key() })
+  }
+  const appoint = useMutation({
+    ...orpc.admin.coordinators.appoint.mutationOptions(),
+    onSuccess: (data) => {
+      onSuccess(data)
+      setVolunteerId('')
+      setRemit('')
+    },
+    onError: (err) => showToast(errorText(err), 'error'),
+  })
+  const remove = useMutation({
+    ...orpc.admin.coordinators.remove.mutationOptions(),
+    onSuccess,
+    onError: (err) => showToast(errorText(err), 'error'),
+  })
+
+  return (
+    <section aria-labelledby="coordinators-heading" className="mt-8">
+      <H2 id="coordinators-heading">Coordinators</H2>
+      <P className="text-text-light">
+        A coordinator puts out calls to volunteers in every chapter, such as for photos of events,
+        and reads the answers. They see only those who answer, and get no admin powers.
+      </P>
+      <div id="coordinatorList">
+        {coordinators.map((c) => (
+          <div
+            key={c.volunteerId}
+            className={`card ${SECTION_CARD} mb-3 overflow-hidden wrap-break-word`}
+          >
+            <div className="flex justify-between items-center gap-4">
+              <div>
+                <strong>{c.name}</strong>
+                {c.remit && <span className="text-text-light"> · {c.remit}</span>}
+                <P className="text-text-light text-sm m-0">{c.email}</P>
+              </div>
+              <Button
+                size="sm"
+                variant="warning"
+                disabled={remove.isPending}
+                onClick={() => remove.mutate({ volunteerId: c.volunteerId })}
+                aria-label={`Remove ${c.name} as a coordinator`}
+              >
+                Remove
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <form
+        className={`${SECTION_CARD} flex flex-wrap items-end gap-3`}
+        onSubmit={(e) => {
+          e.preventDefault()
+          appoint.mutate({ volunteerId: Number(volunteerId), remit: remit.trim() || null })
+        }}
+      >
+        <div className="flex-1 min-w-60">
+          <FullVolunteerSelect
+            id="coordinator-volunteer"
+            label="Make a coordinator"
+            ariaLabel="Volunteer to make a coordinator"
+            value={volunteerId}
+            onChange={setVolunteerId}
+          />
+        </div>
+        <div className="flex-1 min-w-40">
+          <FormLabel htmlFor="coordinator-remit">What they coordinate</FormLabel>
+          <Input
+            id="coordinator-remit"
+            value={remit}
+            maxLength={100}
+            onChange={(e) => setRemit(e.target.value)}
+            placeholder="Media"
+          />
+        </div>
+        <Button type="submit" size="sm" disabled={!volunteerId || appoint.isPending}>
+          Appoint
+        </Button>
+      </form>
+    </section>
+  )
+}
 
 /** The global admins, who are set by ADMIN_EMAILS and so are listed here, not managed. */
 export default function AdminTeamPage() {
@@ -77,6 +175,7 @@ export default function AdminTeamPage() {
           ))}
         </div>
       )}
+      <Coordinators />
     </main>
   )
 }

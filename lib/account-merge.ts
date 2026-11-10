@@ -18,8 +18,8 @@ type Tx = Prisma.TransactionClient
  *   one the kept account already has, by any unique index, is dropped instead.
  * - `delete` drops the merged account's rows (credentials, and requests the merge settles).
  * - `keep` leaves them on the merged account.
- * - `refuse` stops the merge while the merged account has any: a chapter role must be handed to
- *   the kept account first, since staff belong to the chapter they serve.
+ * - `refuse` stops the merge while the merged account has any: a chapter or coordinator role must
+ *   be handed to the kept account first, since staff belong to the chapter they serve.
  * - `pairs` is the distinct-account pair table, whose lower id comes first.
  *
  * A reference missing from this map stops every merge, and `account-merge.test.ts` fails on it.
@@ -38,6 +38,8 @@ export const MERGE_REFERENCES = {
   'bug_reports.assignee_id': 'move',
   'bug_reports.reporter_id': 'move',
   'bug_reports.resolved_by_id': 'move',
+  'call_responses.volunteer_id': 'move',
+  'calls.sender_id': 'move',
   'chapter_audit_events.actor_id': 'move',
   'chapter_audit_events.target_volunteer_id': 'move',
   'chapter_deputies.appointed_by_id': 'move',
@@ -48,6 +50,8 @@ export const MERGE_REFERENCES = {
   'contact_messages.to_volunteer_id': 'move',
   'contact_requests.from_volunteer_id': 'move',
   'contact_requests.to_volunteer_id': 'move',
+  'coordinators.appointed_by_id': 'move',
+  'coordinators.volunteer_id': 'refuse',
   'distinct_account_pairs.dismissed_by_id': 'move',
   'distinct_account_pairs.volunteer_a_id': 'pairs',
   'distinct_account_pairs.volunteer_b_id': 'pairs',
@@ -287,7 +291,7 @@ export async function mergeAccounts(
         )
         if (count) {
           throw refused(
-            'The account being merged in holds a chapter role. A global admin must give the role to the account being kept first.',
+            'The account being merged in holds a chapter role or is a coordinator. A global admin must give the role to the account being kept first.',
           )
         }
       }

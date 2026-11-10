@@ -19,6 +19,11 @@ export type Scope = 'global' | 'chapter' | 'project' | 'task'
 type PermissionInfo = { scope: Scope; summary: string }
 
 export const PERMISSIONS = {
+  'call.send': {
+    scope: 'global',
+    summary:
+      'Put out a call to volunteers in any chapter and read who answers; never who it reached',
+  },
   'project.unlimitedDrafts': {
     scope: 'chapter',
     summary: 'Keep any number of project drafts',
@@ -115,7 +120,13 @@ export const ROLES = {
     scope: 'global',
     name: 'Global admin',
     heldBy: 'An address listed in ADMIN_EMAILS, over every chapter and the holding pool',
-    grants: PROJECT_ADMIN,
+    grants: [...PROJECT_ADMIN, 'call.send'],
+  },
+  coordinator: {
+    scope: 'global',
+    name: 'Coordinator',
+    heldBy: 'Someone a global admin has made a coordinator, across every chapter',
+    grants: ['call.send'],
   },
   chapterLead: {
     scope: 'chapter',
@@ -253,8 +264,11 @@ function projectRoles(viewer: Viewer, project: ProjectFacts, standing: Standing)
 /** Every role `viewer` holds over `resource`, including those over what contains it. */
 export function rolesOn(viewer: Viewer, resource: Resource): Role[] {
   switch (resource.type) {
-    case 'global':
-      return viewer.access.globalAdmin ? ['globalAdmin'] : []
+    case 'global': {
+      const roles: Role[] = viewer.access.globalAdmin ? ['globalAdmin'] : []
+      if (viewer.access.coordinator) roles.push('coordinator')
+      return roles
+    }
     case 'chapter':
       return chapterRoles(viewer.access, resource.chapterId)
     case 'project':
@@ -279,3 +293,6 @@ export function permissionsOn(viewer: Viewer, resource: Resource): Permission[] 
   const held = new Set(rolesOn(viewer, resource).flatMap((role) => ROLES[role].grants))
   return (Object.keys(PERMISSIONS) as Permission[]).filter((p) => held.has(p))
 }
+
+/** Whether `viewer` may put out calls to volunteers, for the server, pages and links alike. */
+export const canSendCalls = (viewer: Viewer) => can(viewer, 'call.send', { type: 'global' })

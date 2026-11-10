@@ -9,10 +9,15 @@ import {
   type ChapterAccess,
 } from './chapter-access'
 
-const global: ChapterAccess = { globalAdmin: true, chapterId: null, role: null }
-const lead: ChapterAccess = { globalAdmin: false, chapterId: 1, role: 'LEAD' }
-const deputy: ChapterAccess = { globalAdmin: false, chapterId: 1, role: 'DEPUTY' }
-const member: ChapterAccess = { globalAdmin: false, chapterId: 1, role: null }
+const global: ChapterAccess = { globalAdmin: true, chapterId: null, role: null, coordinator: false }
+const lead: ChapterAccess = { globalAdmin: false, chapterId: 1, role: 'LEAD', coordinator: false }
+const deputy: ChapterAccess = {
+  globalAdmin: false,
+  chapterId: 1,
+  role: 'DEPUTY',
+  coordinator: false,
+}
+const member: ChapterAccess = { globalAdmin: false, chapterId: 1, role: null, coordinator: false }
 const pooled: ChapterAccess = NO_ACCESS
 
 describe('chapter access', () => {

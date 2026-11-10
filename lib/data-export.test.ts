@@ -260,6 +260,13 @@ const rowFor: Record<string, (who: Person, other: Person) => Promise<Row>> = {
       data: { bugReportId: report.id, authorId: who.id, content: 'c' },
     })
   },
+  'Call.sender': (who) => prisma.call.create({ data: { senderId: who.id, title: 't', body: 'b' } }),
+  'CallResponse.volunteer': async (who, other) => {
+    const call = await prisma.call.create({ data: { senderId: other.id, title: 't', body: 'b' } })
+    return prisma.callResponse.create({
+      data: { callId: call.id, volunteerId: who.id, message: 'm' },
+    })
+  },
   'ChapterAuditEvent.targetVolunteer': (who, other) =>
     prisma.chapterAuditEvent.create({
       data: { action: 'LEAD_APPOINTED', actorId: other.id, targetVolunteerId: who.id },
@@ -268,6 +275,8 @@ const rowFor: Record<string, (who: Person, other: Person) => Promise<Row>> = {
     prisma.chapterDeputy.create({
       data: { nationalChapterId: (await createChapter()).id, volunteerId: who.id },
     }),
+  'Coordinator.volunteer': (who, other) =>
+    prisma.coordinator.create({ data: { volunteerId: who.id, appointedById: other.id } }),
   'ChapterTransferRequest.volunteer': (who) =>
     prisma.chapterTransferRequest.create({ data: { volunteerId: who.id, toCountry: 'FR' } }),
   'ContactRequest.from': (who, other) =>

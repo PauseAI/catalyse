@@ -80,6 +80,8 @@ enum ChapterAuditAction {
   ROLE_INVITE_SENT
   ROLE_INVITE_ACCEPTED
   JOINED_FROM_POOL
+  COORDINATOR_APPOINTED
+  COORDINATOR_REMOVED
 }
 
 /// One country's members and the people who run it. A volunteer with no chapter is in the
@@ -1064,6 +1066,7 @@ model Skill {
   category        SkillCategory      @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   workItems       WorkItem[]
   volunteerSkills VolunteerSkill[]
+  calls           Call[]
 
   @@unique([categoryId, name])
   @@index([categoryId], map: "idx_skills_category")
@@ -1154,6 +1157,10 @@ model Volunteer {
   distinctPairsDismissed                  DistinctAccountPair[]    @relation("DistinctAccountPairDismissedBy")
   ledChapter                              NationalChapter?         @relation("ChapterLead")
   chapterDeputyRole                       ChapterDeputy?           @relation("ChapterDeputyVolunteer")
+  coordinatorRole                         Coordinator?             @relation("CoordinatorVolunteer")
+  coordinatorsAppointed                   Coordinator[]            @relation("CoordinatorAppointedBy")
+  callsSent                               Call[]                   @relation("CallSender")
+  callResponses                           CallResponse[]           @relation("CallResponder")
   chapterDeputiesAppointed                ChapterDeputy[]          @relation("ChapterDeputyAppointedBy")
   chapterTransferRequests                 ChapterTransferRequest[] @relation("TransferVolunteer")
   chapterTransfersDecided                 ChapterTransferRequest[] @relation("TransferDecidedBy")
@@ -1422,4 +1429,62 @@ model ContactRequest {
   @@index([fromVolunteerId, createdAt], map: "idx_contact_requests_from")
   @@index([toVolunteerId, status], map: "idx_contact_requests_to")
   @@map("contact_requests")
+}
+
+/// Someone a global admin has made a coordinator: they may put out calls to volunteers in any
+/// chapter, and read the answers. It grants nothing else; in particular no sight of anyone's
+/// profile or contact details beyond what a volunteer sends in answer to a call.
+model Coordinator {
+  id            Int      @id @default(autoincrement())
+  volunteerId   Int      @unique @map("volunteer_id")
+  /// What they coordinate, e.g. "Media"; shown to volunteers beside their name on a call.
+  remit         String?
+  appointedById Int?     @map("appointed_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  volunteer   Volunteer  @relation("CoordinatorVolunteer", fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  appointedBy Volunteer? @relation("CoordinatorAppointedBy", fields: [appointedById], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@map("coordinators")
+}
+
+/// A request a coordinator sends to volunteers across chapters, such as for photos of events.
+/// Who it reaches is worked out from its filters when asked and never stored or shown to the
+/// sender; only those who answer become known to them.
+model Call {
+  id         Int       @id @default(autoincrement())
+  senderId   Int?      @map("sender_id")
+  title      String
+  body       String
+  /// The chapters it is addressed to; empty means every chapter and the holding pool.
+  chapterIds Int[]     @default([]) @map("chapter_ids")
+  /// When set, only volunteers with this skill are asked.
+  skillId    Int?      @map("skill_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  /// Set when the sender stops taking answers.
+  closedAt   DateTime? @map("closed_at")
+
+  sender    Volunteer?     @relation("CallSender", fields: [senderId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  skill     Skill?         @relation(fields: [skillId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  responses CallResponse[]
+
+  @@index([createdAt], map: "idx_calls_created")
+  @@map("calls")
+}
+
+/// A volunteer's answer to a call. Answering is what shares their name, email and message with
+/// the call's sender; withdrawing deletes the row, and with it the sender's sight of them.
+model CallResponse {
+  id          Int      @id @default(autoincrement())
+  callId      Int      @map("call_id")
+  volunteerId Int      @map("volunteer_id")
+  message     String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  call      Call      @relation(fields: [callId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  volunteer Volunteer @relation("CallResponder", fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([callId, volunteerId])
+  @@index([volunteerId], map: "idx_call_responses_volunteer")
+  @@map("call_responses")
 }

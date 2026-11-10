@@ -27,7 +27,7 @@ export function withoutAdminRights<
   return { ...volunteer, isAdmin: false, isTechnicalAdmin: false }
 }
 
-/** Chapter access with its admin powers removed; the person stays in their chapter. */
+/** Chapter access with its admin and coordinator powers removed; the person stays in their chapter. */
 export function withoutChapterRights(access: ChapterAccess): ChapterAccess {
-  return { ...access, globalAdmin: false, role: null }
+  return { ...access, globalAdmin: false, role: null, coordinator: false }
 }

@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/lib/auth-context'
 import { adminAreaName } from '@/lib/chapter-access'
+import { canSendCalls } from '@/lib/permissions'
 import { useRequiredActions } from '@/lib/required-actions-context'
 import { viewOf } from '@/components/required-actions/registry'
 import Button from '@/components/Button'
@@ -107,6 +108,7 @@ function WaitingBadge({ count, updates }: { count: number; updates: boolean }) {
 export default function Header() {
   const { user, loading, logout } = useAuth()
   const adminArea = user ? adminAreaName(user.access, user.chapter) : null
+  const coordinates = user ? canSendCalls(user) : false
   const { actions: requiredActions, show: showRequiredAction } = useRequiredActions()
   const firstAction = requiredActions[0]
   const pathname = usePathname()
@@ -240,6 +242,17 @@ export default function Header() {
                       >
                         Settings
                       </Link>
+                      <Link href="/calls" className="block px-4 py-3 text-brand-text no-underline">
+                        Calls for volunteers
+                      </Link>
+                      {coordinates && (
+                        <Link
+                          href="/coordinate"
+                          className="block px-4 py-3 text-brand-text no-underline"
+                        >
+                          Coordinate
+                        </Link>
+                      )}
                       {adminArea && (
                         <Link
                           href="/admin"
@@ -397,6 +410,8 @@ export default function Header() {
                   ))}
                   <MobileNavLink href={`/volunteers/${user.id}`}>My profile</MobileNavLink>
                   <MobileNavLink href="/settings">Settings</MobileNavLink>
+                  <MobileNavLink href="/calls">Calls for volunteers</MobileNavLink>
+                  {coordinates && <MobileNavLink href="/coordinate">Coordinate</MobileNavLink>}
 
                   {adminArea && (
                     <>

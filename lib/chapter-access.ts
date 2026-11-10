@@ -5,6 +5,9 @@
  * deputies and only a global admin appoints the lead. Everyone else is a member of one chapter,
  * or of the pool when `chapterId` is null, and sees only that.
  *
+ * A coordinator works across every chapter, but only through calls (server/routers/calls.ts):
+ * the flag grants no admin power anywhere and no sight of anyone it would not otherwise have.
+ *
  * Pure, so the client can make the same decisions the server does.
  */
 export type ChapterRole = 'LEAD' | 'DEPUTY'
@@ -13,9 +16,15 @@ export type ChapterAccess = {
   globalAdmin: boolean
   chapterId: number | null
   role: ChapterRole | null
+  coordinator: boolean
 }
 
-export const NO_ACCESS: ChapterAccess = { globalAdmin: false, chapterId: null, role: null }
+export const NO_ACCESS: ChapterAccess = {
+  globalAdmin: false,
+  chapterId: null,
+  role: null,
+  coordinator: false,
+}
 
 export const isStaff = (access: ChapterAccess) => access.role !== null
 

@@ -64,11 +64,12 @@ describe('createContext', () => {
       globalAdmin: false,
       chapterId: chapter.id,
       role: 'LEAD',
+      coordinator: false,
     })
     const leadView = await contextFor(leadToken, 'volunteer')
     expect(leadView).toMatchObject({
       viewingAsVolunteer: true,
-      access: { globalAdmin: false, chapterId: chapter.id, role: null },
+      access: { globalAdmin: false, chapterId: chapter.id, role: null, coordinator: false },
     })
     expect(await clientAs(leadView.volunteer, leadView).auth.me()).toMatchObject({
       chapter: { id: chapter.id, country: chapter.country },

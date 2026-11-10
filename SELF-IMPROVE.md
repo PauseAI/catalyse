@@ -29,7 +29,7 @@ GitHub issue. An entry here is about the work itself: something in the code
 structure, tooling, tests, docs or diagnostics that made a task slower or more
 confusing than it needed to be, and that will do so again.
 
-## 15x
+## 16x
 
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
       and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
@@ -51,6 +51,9 @@ confusing than it needed to be, and that will do so again.
       file under the same parallel load (for example all unit files at once with
       only the suspect repeated) would find them in one pass instead of one per
       full run.
+      The coordinator-role run hit e2e `39` "a task dragged later keeps following what it
+      waits on": the poll for the dependency's `lagDays` to reach 0 outlasted 5 s under load,
+      then passed 8/8 alone.
       After the status-badge stack was merged up to main, the unit tier hit
       `scripts/disposable-db.test.ts` twice running (its `DROP DATABASE` hook outlasting 10 s
       while the rest of the suite loads the server), and e2e `09` "Posting a comment notifies

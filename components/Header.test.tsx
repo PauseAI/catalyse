@@ -5,6 +5,7 @@ import { MutationObserver } from '@tanstack/react-query'
 import { prisma } from '@/lib/prisma'
 import { queryClient } from '@/lib/query-client'
 import {
+  createCoordinator,
   createVolunteer,
   createSuperAdmin,
   createChapter,
@@ -231,6 +232,26 @@ describe('Header', () => {
       `/volunteers/${vol.id}`,
     )
     expect(screen.queryByRole('link', { name: 'Privacy & data' })).toBeNull()
+  })
+
+  it('offers everyone the calls, and a coordinator the page to put them out, in both menus', async () => {
+    const coordinator = await createCoordinator(undefined, { locationConfirmedAt: new Date() })
+    await mount(coordinator, '/dashboard')
+    await userEvent.click(await screen.findByRole('button', { name: coordinator.name }))
+    expect(screen.getByRole('link', { name: 'Coordinate' })).toHaveAttribute('href', '/coordinate')
+    expect(screen.getByRole('link', { name: 'Calls for volunteers' })).toHaveAttribute(
+      'href',
+      '/calls',
+    )
+    await userEvent.click(screen.getByLabelText('Open menu'))
+    expect(screen.getAllByRole('link', { name: 'Coordinate' })).toHaveLength(2)
+
+    cleanup()
+    const vol = await createVolunteer({ locationConfirmedAt: new Date() })
+    await mount(vol, '/dashboard')
+    await userEvent.click(await screen.findByRole('button', { name: vol.name }))
+    expect(screen.getByRole('link', { name: 'Calls for volunteers' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Coordinate' })).toBeNull()
   })
 
   it("names a chapter's admin area for its staff, and offers none to a member", async () => {
