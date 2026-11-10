@@ -122,6 +122,7 @@ export const ROLES = {
     heldBy: 'An address listed in ADMIN_EMAILS, over every chapter and the holding pool',
     grants: [...PROJECT_ADMIN, 'call.send'],
   },
+  /** Also sees and messages every volunteer: seesAllVolunteers (lib/chapter-access.ts). */
   coordinator: {
     scope: 'global',
     name: 'Coordinator',

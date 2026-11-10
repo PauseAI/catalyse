@@ -117,8 +117,7 @@ function NewCall() {
       </select>
       <P className="text-text-light text-sm mt-3">
         The platform delivers the call to everyone it is addressed to, in their Inbox and by email.
-        You see only the volunteers who answer, with what they choose to send; not who else it
-        reached.
+        Their answers appear here.
       </P>
       <Button type="submit" disabled={!title.trim() || !body.trim() || send.isPending}>
         Send call
@@ -225,8 +224,8 @@ export default function CoordinatePage() {
     <main className="container py-5 pb-15">
       <H1>Coordinate</H1>
       <P className="text-text-light">
-        Ask volunteers in every chapter for help. Those who answer share their name, email and
-        message with you; everyone else stays private.
+        Ask volunteers in every chapter for help. You can also find and message any volunteer in the
+        directory, including those hidden from it.
       </P>
       <NewCall />
       <H2>{user.access.globalAdmin ? 'All calls' : 'Your calls'}</H2>

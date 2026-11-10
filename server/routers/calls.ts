@@ -19,8 +19,8 @@ const CallInput = z.object({
 
 /**
  * Tells each addressee of a call about it, in the Inbox and, unless they have muted its
- * category, by email. The addressees are read here and never returned: a call's sender learns of
- * a volunteer only by their answer. Emails go one at a time, so a call to every chapter does not
+ * category, by email. The addressees are read here and never returned, so a call does not tell
+ * its sender whom it reached. Emails go one at a time, so a call to every chapter does not
  * burst at the mail provider.
  */
 async function deliver(call: { id: number; title: string; body: string } & AddressingFields) {

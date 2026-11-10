@@ -990,7 +990,8 @@ export default function SignupPage() {
                   </label>
                   <P className="text-sm text-text-light mt-1 mb-0 ml-6">
                     Other volunteers can find you and ask to see your contact details. Turn this off
-                    and they can&apos;t.
+                    and they can&apos;t; your chapter&apos;s organisers and PauseAI&apos;s
+                    coordinators still can.
                   </P>
                 </div>
                 <div>

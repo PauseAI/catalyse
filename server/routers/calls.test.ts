@@ -196,8 +196,8 @@ describe('delivering a call', () => {
   })
 })
 
-describe('volunteers hidden from the directory', () => {
-  it('are never named to a coordinator unless they answer', async () => {
+describe('who a call reached', () => {
+  it('is never named to the coordinator, only those who answer', async () => {
     const s = await setup()
     const { id } = await s.c.calls.send(call({}))
     for (const v of [s.ukHidden, s.deHidden, s.poolHidden]) await delivered(id, v.id)
@@ -209,29 +209,6 @@ describe('volunteers hidden from the directory', () => {
       expect(seen).not.toContain(v.name)
       expect(seen).not.toContain(v.email)
     }
-  })
-
-  it("stay out of the coordinator's directory, profiles, contact and messages", async () => {
-    const s = await setup()
-    const { id } = await s.c.calls.send(call({}))
-    await delivered(id, s.ukHidden.id)
-
-    const directory = (await s.c.volunteers.list({ limit: 100 })).volunteers.map((v) => v.id)
-    expect(directory).toContain(s.ukVisible.id)
-    expect(directory).not.toContain(s.ukHidden.id)
-    for (const v of [s.ukHidden, s.deHidden, s.deVisible, s.poolHidden]) {
-      await expect(s.c.volunteers.getById({ id: v.id })).rejects.toMatchObject(notFound)
-      await expect(
-        s.c.messages.send({ recipientId: v.id, subject: 'Hi', message: 'Hello' }),
-      ).rejects.toBeTruthy()
-    }
-    const people = await s.c.volunteers.lookup({
-      ids: [s.ukHidden.id, s.deHidden.id, s.poolHidden.id],
-    })
-    expect(people.every((p) => !p.canView)).toBe(true)
-    await expect(s.c.admin.volunteers.getById({ id: s.ukHidden.id })).rejects.toMatchObject(
-      forbidden,
-    )
   })
 
   it('who answer share their name, email and message, and take them back by withdrawing', async () => {
@@ -259,9 +236,6 @@ describe('volunteers hidden from the directory', () => {
     })
     expect(answered.title).toContain(s.deHidden.name)
 
-    // Answering does not open their profile to the coordinator.
-    await expect(s.c.volunteers.getById({ id: s.deHidden.id })).rejects.toMatchObject(notFound)
-
     await them.calls.respond({ callId: id, message: 'Berlin and Hamburg' })
     expect((await s.c.calls.responses({ callId: id }))[0].message).toBe('Berlin and Hamburg')
     expect(
@@ -277,6 +251,100 @@ describe('volunteers hidden from the directory', () => {
     expect(seen).not.toContain(s.deHidden.name)
     expect(seen).not.toContain(s.deHidden.email)
     await expect(them.calls.withdraw({ callId: id })).rejects.toMatchObject(notFound)
+  })
+})
+
+describe("a coordinator's sight of volunteers", () => {
+  it('takes in every chapter and the pool, hidden volunteers included', async () => {
+    const s = await setup()
+    const everyone = [s.ukVisible, s.ukHidden, s.deVisible, s.deHidden, s.poolHidden]
+    const directory = (await s.c.volunteers.list({ limit: 100 })).volunteers
+    const ids = directory.map((v) => v.id)
+    for (const v of everyone) expect(ids).toContain(v.id)
+    expect(directory.find((v) => v.id === s.deHidden.id)).toMatchObject({
+      hiddenFromDirectory: true,
+      canMessage: true,
+    })
+    expect(directory[0]).not.toHaveProperty('email')
+
+    const inGermany = (await s.c.volunteers.list({ chapter: s.de.id, limit: 100 })).volunteers
+    expect(inGermany.map((v) => v.id)).toEqual(
+      expect.arrayContaining([s.deVisible.id, s.deHidden.id]),
+    )
+    expect(inGermany.map((v) => v.id)).not.toContain(s.ukHidden.id)
+    const pool = (await s.c.volunteers.list({ chapter: 'pool', limit: 100 })).volunteers
+    expect(pool.map((v) => v.id)).toContain(s.poolHidden.id)
+    expect(pool.map((v) => v.id)).not.toContain(s.deHidden.id)
+
+    const people = await s.c.volunteers.lookup({ ids: everyone.map((v) => v.id) })
+    expect(people.every((p) => p.canView)).toBe(true)
+  })
+
+  it('opens the full profile of a hidden volunteer in another chapter, skills and contact included', async () => {
+    const s = await setup()
+    const skill = await createSkill({ name: 'Drone filming' })
+    await prisma.volunteerSkill.create({ data: { volunteerId: s.deHidden.id, skillId: skill.id } })
+    await prisma.volunteer.update({
+      where: { id: s.deHidden.id },
+      data: { signalNumber: '+49 30 1234567' },
+    })
+
+    const profile = await s.c.volunteers.getById({ id: s.deHidden.id })
+    expect(profile).toMatchObject({
+      name: s.deHidden.name,
+      signalNumber: '+49 30 1234567',
+      canMessage: true,
+      skills: [expect.objectContaining({ name: 'Drone filming' })],
+    })
+    // The login address and duplicate marking stay a global admin's, as does the admin area.
+    expect(profile).not.toHaveProperty('email')
+    await expect(s.c.admin.volunteers.getById({ id: s.deHidden.id })).rejects.toMatchObject(
+      forbidden,
+    )
+  })
+
+  it('messages a hidden volunteer in another chapter, who can reply', async () => {
+    const s = await setup()
+    const { threadId } = await s.c.messages.send({
+      recipientId: s.deHidden.id,
+      subject: 'Your photos',
+      message: 'Could we use your march photos?',
+    })
+    const them = clientAs(s.deHidden)
+    expect(await them.messages.thread({ id: threadId })).toMatchObject({ canReply: true })
+    await them.messages.reply({ threadId, message: 'Yes, go ahead' })
+    expect((await s.c.messages.thread({ id: threadId })).messages.map((m) => m.body)).toEqual([
+      'Could we use your march photos?',
+      'Yes, go ahead',
+    ])
+  })
+
+  it('ends with the role, and was never another volunteer’s to have', async () => {
+    const s = await setup()
+    const { threadId } = await s.c.messages.send({
+      recipientId: s.deHidden.id,
+      subject: 'Hi',
+      message: 'Hello',
+    })
+    const plain = clientAs(s.ukVisible)
+    await expect(plain.volunteers.getById({ id: s.deHidden.id })).rejects.toMatchObject(notFound)
+    expect((await plain.volunteers.list({ limit: 100 })).volunteers.map((v) => v.id)).not.toContain(
+      s.ukHidden.id,
+    )
+
+    const viewingAs = clientAs(s.coordinator, { viewingAsVolunteer: true })
+    await expect(viewingAs.volunteers.getById({ id: s.deHidden.id })).rejects.toMatchObject(
+      notFound,
+    )
+
+    await prisma.coordinator.deleteMany({ where: { volunteerId: s.coordinator.id } })
+    await expect(s.c.volunteers.getById({ id: s.deHidden.id })).rejects.toMatchObject(notFound)
+    await expect(
+      s.c.messages.send({ recipientId: s.deHidden.id, subject: 'Hi', message: 'Again' }),
+    ).rejects.toMatchObject(forbidden)
+    await expect(
+      clientAs(s.deHidden).messages.reply({ threadId, message: 'Hello back' }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
   })
 })
 

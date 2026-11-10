@@ -1,4 +1,4 @@
-import { test, expect } from '../fixtures'
+import { test, expect, getAlert } from '../fixtures'
 import { createApprovedVolunteerNamed, readAdminToken, signedInPage } from '../fixtures'
 import { createApiClient } from '../client'
 import { fake } from '../fake'
@@ -50,5 +50,36 @@ test.describe('Coordinator calls', () => {
     await expect(answering.getByText('Your answer is withdrawn')).toBeVisible()
     await coordinating.reload()
     await expect(sent.getByRole('button', { name: 'Answers (0)' })).toBeVisible()
+  })
+
+  test('A coordinator finds a hidden volunteer in the directory and messages them', async ({
+    browser,
+    baseUrl,
+    snap,
+  }) => {
+    const adminApi = createApiClient(baseUrl, readAdminToken(baseUrl))
+    const coordinator = await createApprovedVolunteerNamed(baseUrl, fake.personName())
+    await adminApi.admin.coordinators.appoint({
+      body: { volunteerId: coordinator.id, remit: null },
+    })
+    const hidden = await createApprovedVolunteerNamed(baseUrl, fake.personName(), { hidden: true })
+    const subject = fake.messageSubject()
+
+    const page = await signedInPage(browser, coordinator.token)
+    await page.goto(`${baseUrl}/volunteers`)
+    await page.getByLabel('Search').fill(hidden.name)
+    await page.getByRole('link', { name: hidden.name }).click()
+    await expect(page.getByRole('heading', { level: 1, name: hidden.name })).toBeVisible()
+    await page.getByRole('button', { name: 'Message', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByLabel('Subject').fill(subject)
+    await dialog.getByLabel('Message').fill('Could we use your photos from the march?')
+    await snap(page, 'message to hidden volunteer')
+    await dialog.getByRole('button', { name: 'Send message' }).click()
+    await expect(getAlert(page)).toContainText('Message sent')
+
+    const inbox = await signedInPage(browser, hidden.token)
+    await inbox.goto(`${baseUrl}/inbox`)
+    await expect(inbox.getByText(subject)).toBeVisible()
   })
 })

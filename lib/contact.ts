@@ -1,5 +1,5 @@
 import { prisma } from './prisma'
-import { isStaff, type ChapterAccess } from './chapter-access'
+import { isStaff, seesAllVolunteers, type ChapterAccess } from './chapter-access'
 import { ContactRequestStatus, InterestStatus, WorkItemType } from '@/generated/prisma/enums'
 
 /**
@@ -8,8 +8,8 @@ import { ContactRequestStatus, InterestStatus, WorkItemType } from '@/generated/
  * Only within a chapter (the holding pool counts as one): there, people who work together may,
  * a project's owner and everyone on it (accepted helpers and task holders), including those
  * helpers with each other. So may two people once one has accepted the other's contact request.
- * A chapter's staff may reach anyone in it, a global admin anyone at all, and everyone sees their
- * own. Anyone else in the viewer's chapter's directory can be sent a contact request instead.
+ * A chapter's staff may reach anyone in it, a global admin or coordinator anyone at all, and
+ * everyone sees their own. Anyone else in the viewer's chapter's directory can be sent a contact request instead.
  */
 
 type Viewer = { id: number }
@@ -65,7 +65,7 @@ export async function contactRelations(
   const requested = new Set<number>()
   const candidates = targetIds.filter((id) => id !== viewer.id)
   if (candidates.length === 0) return { reachable, requested }
-  if (access.globalAdmin) {
+  if (seesAllVolunteers(access)) {
     for (const id of candidates) reachable.add(id)
     return { reachable, requested }
   }
