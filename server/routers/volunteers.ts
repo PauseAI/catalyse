@@ -7,7 +7,7 @@ import { redactVolunteer } from '@/lib/auth'
 import { UpdateVolunteerSchema } from '@/lib/schemas'
 import { projectScopeWhere } from '@/lib/work-item'
 import { contactRelations } from '@/lib/contact'
-import { canAdminChapter } from '@/lib/chapter-access'
+import { canAdminChapter, seesEveryChapter } from '@/lib/chapter-access'
 import { peopleInfo, viewableVolunteers } from '@/lib/people'
 import { chapterFilter } from '@/lib/chapter-access-server'
 import { isActiveRecently } from '@/lib/activity'
@@ -26,7 +26,7 @@ export const volunteersRouter = {
       z.object({
         skillIds: z.array(z.number().int()).optional(),
         search: z.string().optional(),
-        /** A global admin's choice of chapter; everyone else sees their own. */
+        /** A global admin's or coordinator's choice of chapter; everyone else sees their own. */
         chapter: z.union([z.number().int(), z.literal('pool')]).optional(),
         localGroup: z.string().optional(),
         limit: z.number().int().min(1).max(100).optional().default(50),
@@ -35,8 +35,10 @@ export const volunteersRouter = {
     )
     .handler(async ({ input, context }) => {
       const currentVolunteer = context.volunteer
-      // The directory is the viewer's chapter's, and its staff see profiles hidden from it.
-      const isAdmin = canAdminChapter(context.access, context.access.chapterId)
+      // The directory is the viewer's chapter's, and its staff see profiles hidden from it. A
+      // global admin or coordinator sees every chapter's, hidden profiles included.
+      const seesAll = seesEveryChapter(context.access)
+      const seesHidden = seesAll || canAdminChapter(context.access, context.access.chapterId)
 
       // A global admin sees, and searches by, each volunteer's login address, and sees which
       // accounts are marked as another's duplicate.
@@ -66,8 +68,8 @@ export const volunteersRouter = {
 
       const where: Record<string, unknown> = {
         deletedAt: null,
-        nationalChapterId: chapterFilter(context.access, input.chapter),
-        ...(isAdmin ? {} : { consentMakeProfileVisibleInDirectory: true }),
+        nationalChapterId: chapterFilter(context.access, input.chapter, seesAll),
+        ...(seesHidden ? {} : { consentMakeProfileVisibleInDirectory: true }),
         approvalStatus: ApprovalStatus.approved,
         ...(input.skillIds && input.skillIds.length > 0
           ? { skills: { some: { skillId: { in: input.skillIds } } } }
@@ -127,7 +129,7 @@ export const volunteersRouter = {
           otherSkills: v.otherSkills,
           localGroup: v.group?.name ?? null,
           createdAt: v.createdAt,
-          hiddenFromDirectory: isAdmin ? !v.consentMakeProfileVisibleInDirectory : false,
+          hiddenFromDirectory: seesHidden ? !v.consentMakeProfileVisibleInDirectory : false,
           skills: v.skills.map((vs) => ({
             id: vs.skill.id,
             categoryId: vs.skill.categoryId,
@@ -191,7 +193,8 @@ export const volunteersRouter = {
       const isAdmin = canAdminChapter(context.access, vol.nationalChapterId)
 
       // Contact details go only to people who work with the volunteer, or whom they have
-      // accepted a contact request from (lib/contact.ts); their chapter's staff see them too.
+      // accepted a contact request from; their chapter's staff and coordinators see them too
+      // (lib/contact.ts).
       const [relations, incoming] = await Promise.all([
         contactRelations(currentVolunteer, context.access, [vol.id]),
         prisma.contactRequest.findFirst({

@@ -32,6 +32,8 @@ const ACTION_LABELS: Record<ChapterAuditAction, string> = {
   ROLE_INVITE_SENT: 'sent a staff invite',
   ROLE_INVITE_ACCEPTED: 'accepted a staff invite:',
   JOINED_FROM_POOL: 'joined from the holding pool',
+  COORDINATOR_APPOINTED: 'made a coordinator:',
+  COORDINATOR_REMOVED: 'removed a coordinator:',
 }
 
 const NONE = ''

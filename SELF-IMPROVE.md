@@ -29,7 +29,7 @@ GitHub issue. An entry here is about the work itself: something in the code
 structure, tooling, tests, docs or diagnostics that made a task slower or more
 confusing than it needed to be, and that will do so again.
 
-## 15x
+## 18x
 
 - [ ] **Races that only show under full-suite load surface one per `check-all` run,
       and each costs another run of up to ten minutes.** `ProjectEditor.test.tsx`
@@ -51,6 +51,9 @@ confusing than it needed to be, and that will do so again.
       file under the same parallel load (for example all unit files at once with
       only the suspect repeated) would find them in one pass instead of one per
       full run.
+      The coordinator-role run hit e2e `39` "a task dragged later keeps following what it
+      waits on": the poll for the dependency's `lagDays` to reach 0 outlasted 5 s under load,
+      then passed 8/8 alone.
       After the status-badge stack was merged up to main, the unit tier hit
       `scripts/disposable-db.test.ts` twice running (its `DROP DATABASE` hook outlasting 10 s
       while the rest of the suite loads the server), and e2e `09` "Posting a comment notifies
@@ -78,7 +81,7 @@ confusing than it needed to be, and that will do so again.
       a fresh world for each persona in turn, so `tasks-access` is slow alone and its largest
       tests sit near the node timeout; under full-suite load some time out while passing alone.
       The CSP-report run hit it again: one timed out in `check-all`, then passed eight reruns of
-      the file. Building each matrix's world once per file, or running the roles of one
+      the file, and the coordinator-sight runs likewise (its file took 111 s in the suite; a later run timed out `projects-access` and `ProjectEditor` once each, both 8/8 alone; the next run failed `ProjectEditor` "admins publish org projects directly" again: no publish dialog and no warning, so the fresh task count likely came from a `getById` fetch already in flight before the task; cancelling in-flight queries before `fetchQuery` made it fail alone 3 in 6, so something else is cancelling or racing it too). Building each matrix's world once per file, or running the roles of one
       `expectAccess` concurrently, would keep it well clear of the timeout.
 
 ## 7x

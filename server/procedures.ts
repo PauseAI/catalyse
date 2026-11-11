@@ -2,6 +2,7 @@ import { os, ORPCError } from '@orpc/server'
 import { ApprovalStatus } from '@/generated/prisma/enums'
 import { touchLastActive } from '@/lib/activity'
 import { actingOn, isStaff, type ChapterAccess } from '@/lib/chapter-access'
+import { canSendCalls } from '@/lib/permissions'
 import { prisma } from '@/lib/prisma'
 import { inputLimitViolation } from '@/lib/input-limits'
 import { canBypassMaintenance, isMaintenanceMode } from '@/lib/maintenance'
@@ -73,6 +74,17 @@ export const staffProcedure = base.use(({ context, next }) => {
   if (!context.volunteer) throw new ORPCError('UNAUTHORIZED')
   if (!context.access.globalAdmin && !isStaff(context.access)) throw new ORPCError('FORBIDDEN')
   return next({ context: { volunteer: context.volunteer } })
+})
+
+/**
+ * Whoever may put out calls to volunteers (`call.send`): an approved, confirmed coordinator or a
+ * global admin.
+ */
+export const coordinatorProcedure = confirmedProcedure.use(({ context, next }) => {
+  if (!canSendCalls({ id: context.volunteer.id, access: context.access })) {
+    throw new ORPCError('FORBIDDEN')
+  }
+  return next({ context })
 })
 
 /**

@@ -17,6 +17,7 @@ export async function loadAccess(volunteer: AccessSubject | null): Promise<Chapt
       nationalChapterId: true,
       ledChapter: { select: { id: true } },
       chapterDeputyRole: { select: { nationalChapterId: true } },
+      coordinatorRole: { select: { id: true } },
     },
   })
   const chapterId = row?.nationalChapterId ?? null
@@ -32,6 +33,7 @@ export async function loadAccess(volunteer: AccessSubject | null): Promise<Chapt
     globalAdmin: Boolean(volunteer.isAdmin) && isSuperAdmin(volunteer),
     chapterId,
     role,
+    coordinator: Boolean(row?.coordinatorRole),
   }
 }
 
@@ -41,12 +43,14 @@ export type ChapterSelection = number | 'pool' | undefined
 /**
  * The `nationalChapterId` a query matches. Everyone but a global admin is held to their own
  * chapter, whatever they ask for; a global admin gets what they ask for. Undefined matches all.
+ * `acrossChapters` widens who gets their choice, as the directory does for coordinators.
  */
 export function chapterFilter(
   access: ChapterAccess,
   requested?: ChapterSelection,
+  acrossChapters = access.globalAdmin,
 ): number | null | undefined {
-  if (!access.globalAdmin) return access.chapterId
+  if (!acrossChapters) return access.chapterId
   return requested === 'pool' ? null : requested
 }
 

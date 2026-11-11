@@ -11,6 +11,7 @@ import FilterDropdown from '@/components/FilterDropdown'
 import { volunteerLocation, type LocalGroupOption } from '@/lib/filter-options'
 import { useCountries } from '@/lib/hooks/countries'
 import ChapterFilter, { chapterSelection } from '@/components/ChapterFilter'
+import { seesEveryChapter } from '@/lib/chapter-access'
 import { InferRouterOutputs } from '@orpc/server'
 import { orpc } from '@/lib/orpc'
 import { AppRouter } from '@/server/router'
@@ -38,7 +39,7 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
   const [skillFilter, setSkillFilter] = useUrlParam('skill')
   const [locationFilter, setLocationFilter] = useUrlParam('group')
   const [chapterParam, setChapterParam] = useUrlParam('chapter')
-  const isGlobal = user.access.globalAdmin
+  const isGlobal = seesEveryChapter(user.access)
   const { label: countryLabel, loaded: countriesLoaded } = useCountries()
   const [pageParam, setPageParam] = useUrlParam('page')
   const page = Math.max(1, parseInt(pageParam, 10) || 1)
@@ -69,7 +70,8 @@ function VolunteersPageContent({ user }: { user: AuthUser }) {
     cat.skills.map((s) => ({ ...s, categoryName: cat.name })),
   )
 
-  // The local groups of the chapter on show: the viewer's own, or the one a global admin picked.
+  // The local groups of the chapter on show: the viewer's own, or the one a global admin or
+  // coordinator picked.
   const { data: chapters = [] } = useQuery({
     ...orpc.chapters.list.queryOptions(),
     enabled: isGlobal,

@@ -26,19 +26,27 @@ describe('loadAccess', () => {
       globalAdmin: false,
       chapterId: chapter.id,
       role: 'LEAD',
+      coordinator: false,
     })
     expect(await loadAccess(deputy)).toMatchObject({ role: 'DEPUTY' })
     expect(await loadAccess(member)).toEqual({
       globalAdmin: false,
       chapterId: chapter.id,
       role: null,
+      coordinator: false,
     })
     expect(await loadAccess(await createVolunteer())).toEqual({
       globalAdmin: false,
       chapterId: null,
       role: null,
+      coordinator: false,
     })
-    expect(await loadAccess(null)).toEqual({ globalAdmin: false, chapterId: null, role: null })
+    expect(await loadAccess(null)).toEqual({
+      globalAdmin: false,
+      chapterId: null,
+      role: null,
+      coordinator: false,
+    })
   })
 
   it('grants nothing for a role in a chapter the person has left', async () => {
@@ -49,7 +57,12 @@ describe('loadAccess', () => {
       where: { id: { in: [lead.id, deputy.id] } },
       data: { nationalChapterId: away.id },
     })
-    expect(await loadAccess(lead)).toEqual({ globalAdmin: false, chapterId: away.id, role: null })
+    expect(await loadAccess(lead)).toEqual({
+      globalAdmin: false,
+      chapterId: away.id,
+      role: null,
+      coordinator: false,
+    })
     expect((await loadAccess(deputy)).role).toBeNull()
   })
 
@@ -60,8 +73,8 @@ describe('loadAccess', () => {
 })
 
 describe('chapterFilter', () => {
-  const member = { globalAdmin: false, chapterId: 3, role: null }
-  const global = { globalAdmin: true, chapterId: null, role: null }
+  const member = { globalAdmin: false, chapterId: 3, role: null, coordinator: false }
+  const global = { globalAdmin: true, chapterId: null, role: null, coordinator: false }
 
   it('holds everyone but a global admin to their own chapter', () => {
     expect(chapterFilter(member)).toBe(3)

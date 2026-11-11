@@ -822,7 +822,8 @@ function SettingsPageContent() {
                 </Checkbox>
                 <P className="text-sm text-text-light mt-1 ml-7">
                   Other volunteers can find you and ask to see your contact details; you choose
-                  whether to accept. People on your projects can always reach you.
+                  whether to accept. People on your projects, your chapter&apos;s organisers and
+                  PauseAI&apos;s coordinators can always see your profile and reach you.
                 </P>
               </div>
 

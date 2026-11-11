@@ -205,3 +205,15 @@ export function connect(a: { id: number }, b: { id: number }) {
     },
   })
 }
+
+/** A volunteer made a coordinator, in `chapter` when one is given and the pool otherwise. */
+export async function createCoordinator(
+  chapter?: { id: number; country: string },
+  overrides: Partial<Prisma.VolunteerUncheckedCreateInput> = {},
+) {
+  const coordinator = chapter
+    ? await createMember(chapter, overrides)
+    : await createVolunteer(overrides)
+  await prisma.coordinator.create({ data: { volunteerId: coordinator.id, remit: 'Media' } })
+  return coordinator
+}

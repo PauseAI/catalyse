@@ -5,6 +5,10 @@
  * deputies and only a global admin appoints the lead. Everyone else is a member of one chapter,
  * or of the pool when `chapterId` is null, and sees only that.
  *
+ * A coordinator works across every chapter: they put out calls (server/routers/calls.ts), and
+ * see and message every approved volunteer, including those hidden from the directory, but hold
+ * no admin power anywhere.
+ *
  * Pure, so the client can make the same decisions the server does.
  */
 export type ChapterRole = 'LEAD' | 'DEPUTY'
@@ -13,9 +17,15 @@ export type ChapterAccess = {
   globalAdmin: boolean
   chapterId: number | null
   role: ChapterRole | null
+  coordinator: boolean
 }
 
-export const NO_ACCESS: ChapterAccess = { globalAdmin: false, chapterId: null, role: null }
+export const NO_ACCESS: ChapterAccess = {
+  globalAdmin: false,
+  chapterId: null,
+  role: null,
+  coordinator: false,
+}
 
 export const isStaff = (access: ChapterAccess) => access.role !== null
 
@@ -31,6 +41,14 @@ export function canAdminChapter(access: ChapterAccess, chapterId: number | null)
 
 export function canAppointDeputies(access: ChapterAccess, chapterId: number | null): boolean {
   return access.globalAdmin || staffRoleIn(access, chapterId) === 'LEAD'
+}
+
+/**
+ * Whether `access` sees the directory of every chapter and the pool. Whose profile opens, and who
+ * may be messaged, is seesFullProfile (lib/contact.ts).
+ */
+export function seesEveryChapter(access: ChapterAccess): boolean {
+  return access.globalAdmin || access.coordinator
 }
 
 /** Whether something in `chapterId` is visible to `access`; pool members see the pool. */

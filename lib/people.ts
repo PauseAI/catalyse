@@ -1,7 +1,7 @@
 import { prisma } from './prisma'
 import { isSuperAdmin } from './auth'
 import { canAdminChapter, inChapter, type ChapterAccess } from './chapter-access'
-import { contactRelations, projectIdsOf } from './contact'
+import { contactRelations, projectIdsOf, seesFullProfile } from './contact'
 import {
   InterestStatus,
   TeamJoinRequestStatus,
@@ -22,10 +22,11 @@ const LIVE_INTEREST = {
 /**
  * Which of `targetIds` the viewer may open the profile of, in a few queries for a whole list.
  *
- * Someone in another chapter is out of sight, unless the two already work together on a project
- * from before chapters. A profile hidden from the public directory is still visible to:
+ * A global admin sees everyone, and a coordinator every approved volunteer. Otherwise someone in another chapter is out of
+ * sight, unless the two already work together on a project from before chapters. A profile hidden
+ * from the public directory is still visible to:
  *  - the volunteer themselves
- *  - a global admin, or the staff of the volunteer's chapter
+ *  - the staff of the volunteer's chapter
  *  - the owner of a project the volunteer holds a task on or has a live interest in, and the
  *    leader of a team the volunteer is in or has applied to, so they can assess the volunteer's
  *    skills before accepting them
@@ -39,12 +40,17 @@ export async function viewableVolunteers(
   const ids = [...new Set(targetIds)]
   const rows = await prisma.volunteer.findMany({
     where: { id: { in: ids }, deletedAt: null },
-    select: { id: true, nationalChapterId: true, consentMakeProfileVisibleInDirectory: true },
+    select: {
+      id: true,
+      nationalChapterId: true,
+      consentMakeProfileVisibleInDirectory: true,
+      approvalStatus: true,
+    },
   })
   const viewable = new Set<number>()
   const others = rows.filter((v) => {
-    if (v.id === viewer.id) viewable.add(v.id)
-    return v.id !== viewer.id
+    if (v.id === viewer.id || seesFullProfile(access, v)) viewable.add(v.id)
+    return !viewable.has(v.id)
   })
   if (others.length === 0) return viewable
 

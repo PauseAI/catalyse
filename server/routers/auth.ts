@@ -41,7 +41,13 @@ import {
 } from '@/lib/schemas'
 import { publicProcedure, authedProcedure } from '../procedures'
 import { env } from '@/lib/env'
-import { ApprovalStatus, ProjectStatus, WorkItemType } from '@/generated/prisma/enums'
+import {
+  ApprovalStatus,
+  ChapterAuditAction,
+  ProjectStatus,
+  WorkItemType,
+} from '@/generated/prisma/enums'
+import { audit } from '@/lib/chapter-roles'
 
 // Google sign-in is stubbed when asked, or when no client id is set outside production.
 const stubGoogle = () => env.STUB_GOOGLE || (!env.GOOGLE_CLIENT_ID && env.NODE_ENV !== 'production')
@@ -785,6 +791,22 @@ export const authRouter = {
         },
       })
       await prisma.volunteerSkill.deleteMany({ where: { volunteerId: context.volunteer.id } })
+      // A coordinator's role goes with the account, and their open calls close.
+      const { count: wasCoordinator } = await prisma.coordinator.deleteMany({
+        where: { volunteerId: context.volunteer.id },
+      })
+      if (wasCoordinator) {
+        await prisma.call.updateMany({
+          where: { senderId: context.volunteer.id, closedAt: null },
+          data: { closedAt: new Date() },
+        })
+        await audit(prisma, ChapterAuditAction.COORDINATOR_REMOVED, {
+          actorId: context.volunteer.id,
+          chapterId: null,
+          targetVolunteerId: context.volunteer.id,
+          details: { reason: 'account deleted' },
+        })
+      }
       return { message: "Your account has been deleted. We're sorry to see you go." }
     }),
 

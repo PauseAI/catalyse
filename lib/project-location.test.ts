@@ -2,8 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { createChapter, createLocalGroup } from '@/test/factories'
 import { projectLocation } from './project-location'
 
-const member = (chapterId: number | null) => ({ globalAdmin: false, chapterId, role: null })
-const global = { globalAdmin: true, chapterId: null, role: null }
+const member = (chapterId: number | null) => ({
+  globalAdmin: false,
+  chapterId,
+  role: null,
+  coordinator: false,
+})
+const global = { globalAdmin: true, chapterId: null, role: null, coordinator: false }
 
 describe('projectLocation', () => {
   it("puts a new project in its creator's chapter, country-wide unless asked", async () => {

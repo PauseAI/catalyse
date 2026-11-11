@@ -24,6 +24,8 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
   api_tokens: { name: 'rows-deleted', token_hash: 'rows-deleted' },
   anonymised_emails: { email_hash: 'token' },
   bug_report_comments: { content: 'redact' },
+  calls: { title: 'redact', body: 'redact' },
+  call_responses: { message: 'redact' },
   // Ids and enum values only; never free text.
   chapter_audit_events: { details: 'keep' },
   chapter_transfer_requests: { to_country: 'keep', reason: 'redact', decision_note: 'redact' },
@@ -39,6 +41,7 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
   },
   contact_messages: { subject: 'redact', message: 'redact' },
   contact_requests: { message: 'redact' },
+  coordinators: { remit: 'keep' },
   countries: { code: 'keep', name: 'keep' },
   cron_job_runs: { job_name: 'keep', triggered_by: 'keep', status: 'keep', summary: 'null' },
   deletion_requests: { volunteer_email: 'null', status: 'keep' },
