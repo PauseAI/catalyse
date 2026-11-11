@@ -15,24 +15,32 @@ export const ADDRESSABLE = {
 } satisfies Prisma.VolunteerWhereInput
 
 /**
- * The volunteers a call is addressed to: addressable accounts in its chapters (or anywhere, the
- * holding pool included, when it names none) with its skill if it asks for one. The one rule
- * both for delivering a call and for who may see and answer it.
+ * Who may see and answer a call: addressable accounts other than its sender, in its chapters (or
+ * anywhere, the holding pool included, when it names none). Its skill does not narrow this.
  */
-export function addresseeWhere(call: Addressing): Prisma.VolunteerWhereInput {
+export function audienceWhere(call: Addressing): Prisma.VolunteerWhereInput {
   return {
     ...ADDRESSABLE,
     ...(call.senderId !== null && { NOT: { id: call.senderId } }),
     ...(call.chapterIds.length > 0 && { nationalChapterId: { in: call.chapterIds } }),
+  }
+}
+
+/**
+ * Who a call is delivered to: its audience, narrowed to those with its skill if it asks for one.
+ */
+export function addresseeWhere(call: Addressing): Prisma.VolunteerWhereInput {
+  return {
+    ...audienceWhere(call),
     ...(call.skillId !== null && { skills: { some: { skillId: call.skillId } } }),
   }
 }
 
 /**
- * `addresseeWhere` turned round: the calls whose chapters and skill take in `volunteer`, who must
- * also be ADDRESSABLE.
+ * `audienceWhere` turned round: the calls whose chapters take in `volunteer`, who must also be
+ * ADDRESSABLE.
  */
-export function addressedToWhere(volunteer: {
+export function visibleToWhere(volunteer: {
   id: number
   nationalChapterId: number | null
 }): Prisma.CallWhereInput {
@@ -47,6 +55,18 @@ export function addressedToWhere(volunteer: {
               { chapterIds: { has: volunteer.nationalChapterId } },
             ],
           },
+    ],
+  }
+}
+
+/** `addresseeWhere` turned round: the visible calls whose skill, if any, `volunteer` has. */
+export function addressedToWhere(volunteer: {
+  id: number
+  nationalChapterId: number | null
+}): Prisma.CallWhereInput {
+  return {
+    AND: [
+      visibleToWhere(volunteer),
       {
         OR: [
           { skillId: null },

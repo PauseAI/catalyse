@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import type { InferRouterOutputs } from '@orpc/server'
 import type { AppRouter } from '@/server/router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -9,13 +10,14 @@ import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
 import { SECTION_CARD } from '@/lib/ui-classes'
+import { Badge } from '@/components/Badge'
 import Button from '@/components/Button'
 import EmptyState from '@/components/EmptyState'
 import FormLabel from '@/components/FormLabel'
 import Linkify from '@/components/Linkify'
 import PageLoading from '@/components/PageLoading'
 import Textarea from '@/components/ui/Textarea'
-import { H1, H2 } from '@/components/Heading'
+import { H1, H2, H3 } from '@/components/Heading'
 import { P } from '@/components/Text'
 
 type Call = InferRouterOutputs<AppRouter>['calls']['forMe'][number]
@@ -101,7 +103,34 @@ function Answer({ call }: { call: Call }) {
   )
 }
 
-/** The calls put out to the signed-in volunteer, which they may answer or leave. */
+function CallCard({ call }: { call: Call }) {
+  return (
+    <section
+      aria-labelledby={`call-${call.id}-title`}
+      className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}
+    >
+      <H3 id={`call-${call.id}-title`}>{call.title}</H3>
+      {!call.matchesSkills && call.skillName && (
+        <Badge className="mb-2">Asks for {call.skillName}</Badge>
+      )}
+      <P className="text-text-light text-sm">
+        {call.senderName ?? 'A coordinator'}
+        {call.senderRemit && ` · ${call.senderRemit} coordinator`} · {formatDate(call.createdAt)}
+        {call.matchesSkills && call.skillName && ` · for ${call.skillName}`}
+        {!call.open && ' · closed'}
+      </P>
+      <P className="whitespace-pre-line">
+        <Linkify text={call.body} />
+      </P>
+      <Answer call={call} />
+    </section>
+  )
+}
+
+/**
+ * The calls the signed-in volunteer may see, which they may answer or leave: first those that
+ * ask for no skill or one they have, then those asking for a skill they have not listed.
+ */
 export default function CallsPage() {
   const { user, loading } = useRequireConfirmed()
   const { data: calls, isLoading } = useQuery({
@@ -110,6 +139,8 @@ export default function CallsPage() {
   })
 
   if (loading || !user || isLoading) return <PageLoading />
+  const matching = calls?.filter((c) => c.matchesSkills) ?? []
+  const other = calls?.filter((c) => !c.matchesSkills) ?? []
 
   return (
     <main className="container py-5 pb-15">
@@ -118,29 +149,36 @@ export default function CallsPage() {
         Coordinators ask for help here across every chapter, such as photos and video of your
         events. Answer the ones you can help with.
       </P>
-      {!calls?.length ? (
-        <EmptyState title="No open calls" body="When a coordinator asks for help, it shows here." />
-      ) : (
-        calls.map((call) => (
-          <section
-            key={call.id}
-            aria-labelledby={`call-${call.id}-title`}
-            className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}
-          >
-            <H2 id={`call-${call.id}-title`}>{call.title}</H2>
-            <P className="text-text-light text-sm">
-              {call.senderName ?? 'A coordinator'}
-              {call.senderRemit && ` · ${call.senderRemit} coordinator`} ·{' '}
-              {formatDate(call.createdAt)}
-              {call.skillName && ` · for ${call.skillName}`}
-              {!call.open && ' · closed'}
-            </P>
-            <P className="whitespace-pre-line">
-              <Linkify text={call.body} />
-            </P>
-            <Answer call={call} />
-          </section>
-        ))
+      <section aria-labelledby="matching-calls" className="mt-6">
+        <H2 id="matching-calls">Calls that match your skills</H2>
+        {matching.length ? (
+          matching.map((call) => <CallCard key={call.id} call={call} />)
+        ) : (
+          <EmptyState
+            title="No calls match your skills right now"
+            body={
+              <>
+                When a coordinator asks for help you can give, it shows here. Keep your{' '}
+                <Link href="/settings" className="underline">
+                  skills
+                </Link>{' '}
+                up to date so calls find you.
+              </>
+            }
+          />
+        )}
+      </section>
+      {other.length > 0 && (
+        <section aria-labelledby="other-calls" className="mt-6">
+          <H2 id="other-calls">Other calls</H2>
+          <P className="text-text-light">
+            These ask for a skill that is not on your profile. You can still answer any you can help
+            with.
+          </P>
+          {other.map((call) => (
+            <CallCard key={call.id} call={call} />
+          ))}
+        </section>
       )}
     </main>
   )

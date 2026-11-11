@@ -96,7 +96,7 @@ function NewCall() {
         </div>
       </fieldset>
       <FormLabel htmlFor="call-skill" className="mt-3">
-        Only volunteers with this skill
+        Skill it asks for
       </FormLabel>
       <select
         id="call-skill"
@@ -116,8 +116,9 @@ function NewCall() {
         ))}
       </select>
       <P className="text-text-light text-sm mt-3">
-        The platform delivers the call to the Inbox of everyone it is addressed to. It sends no
-        email. Their answers appear here.
+        Everyone in the chosen chapters can see and answer the call on their Calls page. The
+        platform also puts it in the Inbox of those with its skill (or everyone, if it asks for
+        none), and sends no email. Their answers appear here.
       </P>
       <Button type="submit" disabled={!title.trim() || !body.trim() || send.isPending}>
         Send call

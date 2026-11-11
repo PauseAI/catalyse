@@ -7,8 +7,10 @@ import {
   ADDRESSABLE,
   addressedToWhere,
   addresseeWhere,
+  audienceWhere,
   CALL_ANSWERED,
   CALL_POSTED,
+  visibleToWhere,
 } from '@/lib/calls'
 import type { ChapterAccess } from '@/lib/chapter-access'
 import { confirmedProcedure, coordinatorProcedure } from '../procedures'
@@ -54,13 +56,13 @@ async function callRunBy(volunteerId: number, access: ChapterAccess, id: number)
   return call
 }
 
-/** A call put out to `volunteerId` and still open, or not found. */
+/** A call `volunteerId` may see, skill or not, and still open; or not found. */
 async function openCallFor(volunteerId: number, id: number) {
   const call = await prisma.call.findUnique({ where: { id } })
-  const addressed =
+  const visible =
     call &&
-    (await prisma.volunteer.count({ where: { AND: [{ id: volunteerId }, addresseeWhere(call)] } }))
-  if (!call || !addressed) throw new ORPCError('NOT_FOUND', { message: 'Call not found' })
+    (await prisma.volunteer.count({ where: { AND: [{ id: volunteerId }, audienceWhere(call)] } }))
+  if (!call || !visible) throw new ORPCError('NOT_FOUND', { message: 'Call not found' })
   if (call.closedAt) {
     throw new ORPCError('BAD_REQUEST', { message: 'This call is no longer taking answers' })
   }
@@ -159,14 +161,17 @@ export const callsRouter = {
       return { message: 'The call is closed to new answers' }
     }),
 
-  /** Open calls put out to the caller, and any they have answered. */
+  /**
+   * Open calls the caller may see, and any they have answered, each marked by whether it was
+   * addressed to them: it asks for no skill, or for one they have.
+   */
   forMe: confirmedProcedure.handler(async ({ context }) => {
     const me = context.volunteer
     if (!(await prisma.volunteer.count({ where: { id: me.id, ...ADDRESSABLE } }))) return []
     const calls = await prisma.call.findMany({
       where: {
         AND: [
-          addressedToWhere(me),
+          visibleToWhere(me),
           { OR: [{ closedAt: null }, { responses: { some: { volunteerId: me.id } } }] },
         ],
       },
@@ -177,11 +182,17 @@ export const callsRouter = {
       },
       orderBy: { createdAt: 'desc' },
     })
+    const addressed = await prisma.call.findMany({
+      where: { AND: [{ id: { in: calls.map((c) => c.id) } }, addressedToWhere(me)] },
+      select: { id: true },
+    })
+    const addressedIds = new Set(addressed.map((c) => c.id))
     return calls.map((c) => ({
       id: c.id,
       title: c.title,
       body: c.body,
       skillName: c.skill?.name ?? null,
+      matchesSkills: addressedIds.has(c.id),
       senderName: c.sender?.name ?? null,
       senderRemit: c.sender?.coordinatorRole?.remit ?? null,
       createdAt: c.createdAt,

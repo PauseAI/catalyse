@@ -30,10 +30,7 @@ describe('coordinate', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: chapter.name }))
     await userEvent.click(screen.getByRole('checkbox', { name: chapter.name }))
     await userEvent.click(screen.getByRole('checkbox', { name: chapter.name }))
-    await userEvent.selectOptions(
-      await screen.findByLabelText(/Only volunteers with/),
-      'Photography',
-    )
+    await userEvent.selectOptions(await screen.findByLabelText(/Skill it asks for/), 'Photography')
     await userEvent.click(screen.getByRole('button', { name: 'Send call' }))
     await screen.findByText('Your call is on its way to volunteers')
 

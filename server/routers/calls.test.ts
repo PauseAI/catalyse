@@ -150,6 +150,31 @@ describe('delivering a call', () => {
     ).rejects.toMatchObject(notFound)
   })
 
+  it('is shown to those without its skill, apart from the calls that match, and they may answer', async () => {
+    const s = await setup()
+    const photography = await createSkill({ name: 'Photography' })
+    await prisma.volunteerSkill.create({
+      data: { volunteerId: s.deHidden.id, skillId: photography.id },
+    })
+    const { id } = await s.c.calls.send(call({ skillId: photography.id }))
+    await delivered(id, s.deHidden.id)
+    expect(await notifiedOf(id, s.deVisible.id)).toBe(0)
+
+    const shown = async (v: Parameters<typeof clientAs>[0]) =>
+      (await clientAs(v).calls.forMe()).find((x) => x.id === id)
+    expect(await shown(s.deHidden)).toMatchObject({ matchesSkills: true, skillName: 'Photography' })
+    expect(await shown(s.deVisible)).toMatchObject({
+      matchesSkills: false,
+      skillName: 'Photography',
+    })
+
+    await clientAs(s.deVisible).calls.respond({ callId: id, message: 'I take photos too' })
+    expect(await s.c.calls.responses({ callId: id })).toEqual([
+      expect.objectContaining({ name: s.deVisible.name, message: 'I take photos too' }),
+    ])
+    expect(await notifiedOf(id, s.deVisible.id)).toBe(0)
+  })
+
   it('logs a delivery that fails outright', async () => {
     const s = await setup()
     const failed = vi.spyOn(logger, 'error').mockImplementation(() => {})

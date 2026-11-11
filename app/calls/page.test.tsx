@@ -26,6 +26,8 @@ describe('calls for volunteers', () => {
     await renderApp(<CallsPage />, { as: me })
 
     const section = await card('Film the march')
+    const matching = screen.getByRole('heading', { name: 'Calls that match your skills' })
+    expect(matching.closest('section')).toContainElement(section)
     expect(within(section).getByText(/Caio Coordinator · Media coordinator/)).toBeInTheDocument()
     expect(within(section).getByText(/for Filming/)).toBeInTheDocument()
     expect(
@@ -73,10 +75,34 @@ describe('calls for volunteers', () => {
     expect(within(section).queryByRole('textbox')).not.toBeInTheDocument()
   })
 
-  it('says so when there are no calls', async () => {
+  it('says so when there are no calls, and leaves out the other calls', async () => {
     await prisma.call.updateMany({ data: { closedAt: new Date() } })
     await renderApp(<CallsPage />, { as: await createVolunteer() })
-    expect(await screen.findByText('No open calls')).toBeInTheDocument()
+    expect(await screen.findByText('No calls match your skills right now')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Other calls' })).not.toBeInTheDocument()
+  })
+
+  it('puts calls for a skill the volunteer lacks under other calls, labelled and answerable', async () => {
+    await prisma.call.updateMany({ data: { closedAt: new Date() } })
+    const me = await createVolunteer()
+    const skill = await createSkill({ name: 'Drone piloting' })
+    const call = await postCall({ title: 'Fly over the march', skillId: skill.id })
+    await renderApp(<CallsPage />, { as: me })
+
+    const other = (await screen.findByRole('heading', { name: 'Other calls' })).closest(
+      'section',
+    ) as HTMLElement
+    const section = await card('Fly over the march')
+    expect(other).toContainElement(section)
+    expect(screen.getByText('No calls match your skills right now')).toBeInTheDocument()
+    expect(within(section).getByText('Asks for Drone piloting')).toBeInTheDocument()
+
+    await userEvent.type(within(section).getByLabelText('Answer this call'), 'I fly one')
+    await userEvent.click(within(section).getByRole('button', { name: 'Send answer' }))
+    await screen.findByText(/the coordinator can now see your answer/)
+    expect(
+      await prisma.callResponse.count({ where: { callId: call.id, volunteerId: me.id } }),
+    ).toBe(1)
   })
 
   it('reports a refused answer and a refused withdrawal', async () => {
