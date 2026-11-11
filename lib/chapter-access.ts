@@ -44,8 +44,8 @@ export function canAppointDeputies(access: ChapterAccess, chapterId: number | nu
 }
 
 /**
- * Whether `access` reaches across chapters to volunteers: the directory spans them all, and
- * conversations carry on across them. Whose profile opens is seesFullProfile (lib/contact.ts).
+ * Whether `access` sees the directory of every chapter and the pool. Whose profile opens, and who
+ * may be messaged, is seesFullProfile (lib/contact.ts).
  */
 export function seesEveryChapter(access: ChapterAccess): boolean {
   return access.globalAdmin || access.coordinator

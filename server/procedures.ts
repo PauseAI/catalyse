@@ -77,10 +77,10 @@ export const staffProcedure = base.use(({ context, next }) => {
 })
 
 /**
- * Whoever may put out calls to volunteers (`call.send`): an approved coordinator or a global
- * admin.
+ * Whoever may put out calls to volunteers (`call.send`): an approved, confirmed coordinator or a
+ * global admin.
  */
-export const coordinatorProcedure = approvedProcedure.use(({ context, next }) => {
+export const coordinatorProcedure = confirmedProcedure.use(({ context, next }) => {
   if (!canSendCalls({ id: context.volunteer.id, access: context.access })) {
     throw new ORPCError('FORBIDDEN')
   }

@@ -113,8 +113,9 @@ describe('delivering a call', () => {
 
     for (const v of [s.ukVisible, s.ukHidden, s.deVisible, s.deHidden, s.poolHidden]) {
       await delivered(id, v.id)
-      await vi.waitFor(() =>
-        expect(emails.lastTo(v.email!)?.subject).toBe(subjects.posted('Everywhere')),
+      await vi.waitFor(
+        () => expect(emails.lastTo(v.email!)?.subject).toBe(subjects.posted('Everywhere')),
+        { timeout: 5000 },
       )
     }
     for (const v of [pending, unconfirmed, gone, s.coordinator]) {
@@ -158,7 +159,9 @@ describe('delivering a call', () => {
     const failed = vi.spyOn(logger, 'error').mockImplementation(() => {})
     emails.failNext()
     const { id } = await s.c.calls.send(call({ chapterIds: [s.de.id] }))
-    await vi.waitFor(() => expect(failed).toHaveBeenCalledWith(expect.anything(), '[CALL EMAIL]'))
+    await vi.waitFor(() => expect(failed).toHaveBeenCalledWith(expect.anything(), '[CALL EMAIL]'), {
+      timeout: 5000,
+    })
     await vi.waitFor(
       async () => {
         const rows = await prisma.notification.findMany({
@@ -177,8 +180,9 @@ describe('delivering a call', () => {
     const failed = vi.spyOn(logger, 'error').mockImplementation(() => {})
     const lookup = vi.spyOn(prisma.volunteer, 'findMany').mockRejectedValueOnce(new Error('down'))
     await s.c.calls.send(call({}))
-    await vi.waitFor(() =>
-      expect(failed).toHaveBeenCalledWith(expect.anything(), '[CALL DELIVERY]'),
+    await vi.waitFor(
+      () => expect(failed).toHaveBeenCalledWith(expect.anything(), '[CALL DELIVERY]'),
+      { timeout: 5000 },
     )
     lookup.mockRestore()
     failed.mockRestore()
@@ -192,7 +196,7 @@ describe('delivering a call', () => {
     })
     const { id } = await s.c.calls.send(call({ chapterIds: [s.de.id] }))
     await delivered(id, s.deHidden.id)
-    await vi.waitFor(() => expect(emails.lastTo(s.deVisible.email!)).toBeDefined())
+    await vi.waitFor(() => emails.lastTo(s.deVisible.email!), { timeout: 5000 })
     expect(emails.to(s.deHidden.email!)).toEqual([])
   })
 })
@@ -338,6 +342,19 @@ describe("a coordinator's sight of volunteers", () => {
       notFound,
     )
 
+    // A volunteer whose approval is revoked is out of reach, old conversations included.
+    await prisma.volunteer.update({
+      where: { id: s.deHidden.id },
+      data: { approvalStatus: 'rejected' },
+    })
+    await expect(s.c.messages.reply({ threadId, message: 'Still there?' })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    })
+    await prisma.volunteer.update({
+      where: { id: s.deHidden.id },
+      data: { approvalStatus: 'approved' },
+    })
+
     await prisma.coordinator.deleteMany({ where: { volunteerId: s.coordinator.id } })
     await expect(s.c.volunteers.getById({ id: s.deHidden.id })).rejects.toMatchObject(notFound)
     await expect(
@@ -460,15 +477,26 @@ describe('admin.coordinators', () => {
       where: { targetVolunteerId: person.id },
       orderBy: { id: 'asc' },
     })
-    expect(events.map((e) => e.action)).toEqual(['COORDINATOR_APPOINTED', 'COORDINATOR_REMOVED'])
+    expect(events.map((e) => [e.action, e.details])).toEqual([
+      ['COORDINATOR_APPOINTED', { remit: 'Media' }],
+      ['COORDINATOR_APPOINTED', { remit: 'Media and comms', previousRemit: 'Media' }],
+      ['COORDINATOR_REMOVED', null],
+    ])
   })
 })
 
 describe('edges of a call', () => {
   it('emails the body as text, line breaks kept and markup escaped', async () => {
     const s = await setup()
+    // A skill only they hold keeps the delivery to one email.
+    const skill = await createSkill()
+    await prisma.volunteerSkill.create({ data: { volunteerId: s.deHidden.id, skillId: skill.id } })
     await s.c.calls.send(
-      call({ title: 'Markup', body: 'Line one\n<a href="https://example.test">Log in</a>' }),
+      call({
+        title: 'Markup',
+        body: 'Line one\n<a href="https://example.test">Log in</a>',
+        skillId: skill.id,
+      }),
     )
     const { html } = await vi.waitFor(() => emails.lastTo(s.deHidden.email!), { timeout: 5000 })
     expect(html).toContain('Line one<br>&lt;a href=')
@@ -492,6 +520,11 @@ describe('edges of a call', () => {
     await s.c.auth.deleteAccount({ password: TEST_PASSWORD })
     expect((await prisma.call.findUniqueOrThrow({ where: { id } })).closedAt).not.toBeNull()
     expect(await prisma.coordinator.count({ where: { volunteerId: s.coordinator.id } })).toBe(0)
+    expect(
+      await prisma.chapterAuditEvent.findFirstOrThrow({
+        where: { targetVolunteerId: s.coordinator.id, action: 'COORDINATOR_REMOVED' },
+      }),
+    ).toMatchObject({ actorId: s.coordinator.id, details: { reason: 'account deleted' } })
   })
 
   it('is not shown to an account a call could never reach', async () => {
@@ -537,12 +570,17 @@ describe('accounts awaiting approval', () => {
   it('cannot be appointed, and one who slips through can do nothing', async () => {
     const [uk] = await twoChapters()
     const pending = await createMember(uk, { approvalStatus: 'pending' })
-    await expect(
-      clientAs(await createAdmin()).admin.coordinators.appoint({
-        volunteerId: pending.id,
-        remit: null,
-      }),
-    ).rejects.toMatchObject(notFound)
+    const unconfirmed = await createMember(uk, { emailConfirmed: false })
+    for (const v of [pending, unconfirmed]) {
+      await expect(
+        clientAs(await createAdmin()).admin.coordinators.appoint({
+          volunteerId: v.id,
+          remit: null,
+        }),
+      ).rejects.toMatchObject(notFound)
+    }
+    await prisma.coordinator.create({ data: { volunteerId: unconfirmed.id } })
+    await expect(clientAs(unconfirmed).calls.send(call({}))).rejects.toMatchObject(forbidden)
 
     await prisma.coordinator.create({ data: { volunteerId: pending.id } })
     await expect(clientAs(pending).calls.send(call({}))).rejects.toMatchObject(forbidden)

@@ -231,9 +231,10 @@ export const callsRouter = {
         skipDuplicates: true,
       })
       const response = created
-        ? await prisma.callResponse.findUniqueOrThrow({ where })
+        ? await prisma.callResponse.findUnique({ where })
         : await prisma.callResponse.update({ where, data: { message: input.message } })
-      if (created && call.senderId !== null) {
+      // Null when a withdrawal got in first: there is nothing left to tell the sender about.
+      if (created && response && call.senderId !== null) {
         await notifyUser(
           call.senderId,
           CALL_ANSWERED,

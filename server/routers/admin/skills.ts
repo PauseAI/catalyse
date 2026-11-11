@@ -64,12 +64,16 @@ export const adminSkillsRouter = {
     if (!skill) throw new ORPCError('NOT_FOUND', { message: 'Skill not found' })
 
     await prisma.workItem.updateMany({ where: { skillId: input.id }, data: { skillId: null } })
-    // A call for the skill would otherwise widen to everyone in its chapters.
-    await prisma.call.updateMany({
-      where: { skillId: input.id, closedAt: null },
-      data: { closedAt: new Date() },
+    await prisma.$transaction(async (tx) => {
+      // The row lock holds off a call being sent for the skill until it is gone, when the call's
+      // foreign key refuses it. A call for the skill would otherwise widen to everyone.
+      await tx.$queryRaw`SELECT id FROM skills WHERE id = ${input.id} FOR UPDATE`
+      await tx.call.updateMany({
+        where: { skillId: input.id, closedAt: null },
+        data: { closedAt: new Date() },
+      })
+      await tx.skill.delete({ where: { id: input.id } })
     })
-    await prisma.skill.delete({ where: { id: input.id } })
 
     return { success: true, deletedSkill: { id: skill.id, name: skill.name } }
   }),

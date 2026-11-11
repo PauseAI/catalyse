@@ -4,12 +4,12 @@ import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { sendRelayMessage, isEmailConfigured } from '@/lib/email'
 import { checkRateLimit } from '@/lib/rate-limit'
-import { canReach } from '@/lib/contact'
-import { inChapter, seesEveryChapter } from '@/lib/chapter-access'
+import { canReach, seesFullProfile } from '@/lib/contact'
+import { inChapter } from '@/lib/chapter-access'
 import { loadAccess } from '@/lib/chapter-access-server'
 import { projectScopeWhere } from '@/lib/work-item'
 import { authedProcedure, approvedProcedure } from '../procedures'
-import { WorkItemType } from '@/generated/prisma/enums'
+import { ApprovalStatus, WorkItemType } from '@/generated/prisma/enums'
 import type { Context } from '../context'
 
 const ContactSchema = z.object({
@@ -111,6 +111,7 @@ async function loadThread(threadId: number, viewerId: number) {
           email: true,
           emailConfirmed: true,
           isAdmin: true,
+          approvalStatus: true,
           deletedAt: true,
           nationalChapterId: true,
         },
@@ -122,6 +123,7 @@ async function loadThread(threadId: number, viewerId: number) {
           email: true,
           emailConfirmed: true,
           isAdmin: true,
+          approvalStatus: true,
           deletedAt: true,
           nationalChapterId: true,
         },
@@ -135,15 +137,16 @@ async function loadThread(threadId: number, viewerId: number) {
 }
 
 /**
- * Whether a conversation can go on: both people in one chapter, or either of them a global admin
- * or coordinator, who may message anyone.
+ * Whether a conversation can go on: both people in one chapter, or either of them one who may
+ * reach the other anywhere (seesFullProfile).
  */
 async function canContinue(
+  me: Pick<Sender, 'id'> & { approvalStatus: ApprovalStatus | null },
   access: Context['access'],
   other: Awaited<ReturnType<typeof loadThread>>['other'],
 ): Promise<boolean> {
-  if (inChapter(access, other.nationalChapterId) || seesEveryChapter(access)) return true
-  return seesEveryChapter(await loadAccess(other))
+  if (inChapter(access, other.nationalChapterId) || seesFullProfile(access, other)) return true
+  return seesFullProfile(await loadAccess(other), me)
 }
 
 export const messagesRouter = {
@@ -217,7 +220,8 @@ export const messagesRouter = {
         relatedProject: root.relatedWorkItem,
         // A conversation from before chapters can cross them: it stays readable, not answerable,
         // unless one side is a global admin or coordinator.
-        canReply: other.deletedAt === null && (await canContinue(context.access, other)),
+        canReply:
+          other.deletedAt === null && (await canContinue(context.volunteer, context.access, other)),
         messages: messages.map((m) => ({
           id: m.id,
           fromMe: m.fromVolunteerId === me,
@@ -243,7 +247,7 @@ export const messagesRouter = {
       if (other.deletedAt) {
         throw new ORPCError('BAD_REQUEST', { message: 'This volunteer has left Catalyse' })
       }
-      if (!(await canContinue(context.access, other))) {
+      if (!(await canContinue(context.volunteer, context.access, other))) {
         throw new ORPCError('BAD_REQUEST', {
           message: `${other.name} is in another national chapter, so you can no longer message them`,
         })

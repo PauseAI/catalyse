@@ -24,7 +24,7 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
   api_tokens: { name: 'rows-deleted', token_hash: 'rows-deleted' },
   anonymised_emails: { email_hash: 'token' },
   bug_report_comments: { content: 'redact' },
-  calls: { title: 'keep', body: 'keep' },
+  calls: { title: 'redact', body: 'redact' },
   call_responses: { message: 'redact' },
   // Ids and enum values only; never free text.
   chapter_audit_events: { details: 'keep' },

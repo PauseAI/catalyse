@@ -42,17 +42,26 @@ export const adminCoordinatorsRouter = {
           deletedAt: null,
           duplicateOfId: null,
           approvalStatus: ApprovalStatus.approved,
+          emailConfirmed: true,
         },
         select: { id: true, name: true },
       })
       if (!volunteer) {
-        throw new ORPCError('NOT_FOUND', { message: 'Only an approved volunteer can coordinate' })
+        throw new ORPCError('NOT_FOUND', {
+          message: 'Only an approved, confirmed volunteer can coordinate',
+        })
       }
       const remitText = input.remit || null
       await prisma.$transaction(async (tx) => {
         const existing = await tx.coordinator.findUnique({ where: { volunteerId: volunteer.id } })
         if (existing) {
           await tx.coordinator.update({ where: { id: existing.id }, data: { remit: remitText } })
+          await audit(tx, ChapterAuditAction.COORDINATOR_APPOINTED, {
+            actorId: context.volunteer.id,
+            chapterId: null,
+            targetVolunteerId: volunteer.id,
+            details: { remit: remitText, previousRemit: existing.remit },
+          })
           return
         }
         await tx.coordinator.create({

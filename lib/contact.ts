@@ -90,11 +90,12 @@ export async function contactRelations(
   }
   if (access.coordinator) {
     const approved = await prisma.volunteer.findMany({
-      where: { id: { in: candidates }, approvalStatus: ApprovalStatus.approved },
+      where: { id: { in: candidates }, approvalStatus: ApprovalStatus.approved, deletedAt: null },
       select: { id: true },
     })
     for (const v of approved) reachable.add(v.id)
     candidates = candidates.filter((id) => !reachable.has(id))
+    if (candidates.length === 0) return { reachable, requested }
   }
   const sameChapter = await prisma.volunteer.findMany({
     where: { id: { in: candidates }, nationalChapterId: access.chapterId },
