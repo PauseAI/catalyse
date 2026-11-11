@@ -247,6 +247,13 @@ enum EmailDelivery {
   digest
 }
 
+/// How often a person's notification digest may go out.
+enum DigestFrequency {
+  daily
+  every_3_days
+  weekly
+}
+
 enum DailySummaryPreference {
   email_and_in_app
   in_app_only
@@ -1169,6 +1176,11 @@ model Volunteer {
   deletedAt                               DateTime?                @map("deleted_at")
   country                                 String?
   emailDigest                             String?                  @default("none") @map("email_digest") // TODO: enum — none, daily, weekly
+  /// IANA time zone, from their browser or chosen in Settings; null falls back by chapter country.
+  timeZone                                String?                  @map("time_zone")
+  digestFrequency                         DigestFrequency          @default(daily) @map("digest_frequency")
+  /// Local hour (0-23) the notification digest goes out.
+  digestHour                              Int                      @default(8) @map("digest_hour")
   /// How the daily summary of reminders and project activity reaches this person.
   dailySummary                            DailySummaryPreference   @default(email_and_in_app) @map("daily_summary")
   /// Set from `country`; null is the holding pool. Changing it is a transfer (ChapterTransferRequest).

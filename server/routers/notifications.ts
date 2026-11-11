@@ -20,7 +20,9 @@ import type { Prisma } from '@/generated/prisma/client'
 import { isStaff, type ChapterAccess } from '@/lib/chapter-access'
 import { loadWorkItemSummaries, workItemIdFromLink } from '@/lib/work-item-summary'
 import { preferenceRows } from '@/lib/notification-types'
-import { chosenDeliveries } from '@/lib/notification-preferences'
+import { chosenDeliveries, digestScheduleOf, heldRoles } from '@/lib/notification-preferences'
+import { nextDigestAt } from '@/lib/notification-digest'
+import { effectiveTimeZone } from '@/lib/time-zone'
 
 type Viewer = { id: number; isAdmin: boolean | null }
 
@@ -237,12 +239,35 @@ export const notificationsRouter = {
   /** The settings panel: every notification type this person can get, with how it reaches them. */
   preferences: authedProcedure.handler(async ({ context }) => {
     const v = context.volunteer
-    return preferenceRows(
-      {
-        isTechnicalAdmin: !!v.isTechnicalAdmin,
-        isStaff: !!context.access.globalAdmin || isStaff(context.access),
+    const viewer = {
+      isTechnicalAdmin: !!v.isTechnicalAdmin,
+      isStaff: !!context.access.globalAdmin || isStaff(context.access),
+    }
+    const [chosen, roles] = await Promise.all([chosenDeliveries(v.id), heldRoles(v.id, viewer)])
+    return { rows: preferenceRows(viewer, chosen), heldRoles: roles }
+  }),
+
+  /** The person's digest schedule, the zone it follows and why, and when the next can go. */
+  digestSettings: authedProcedure.handler(async ({ context }) => {
+    const v = await prisma.volunteer.findUniqueOrThrow({
+      where: { id: context.volunteer.id },
+      select: {
+        id: true,
+        timeZone: true,
+        digestHour: true,
+        digestFrequency: true,
+        chapter: { select: { country: true } },
       },
-      await chosenDeliveries(v.id),
-    )
+    })
+    const zone = effectiveTimeZone(v.timeZone, v.chapter?.country ?? null)
+    const schedule = await digestScheduleOf(v.id)
+    return {
+      frequency: v.digestFrequency,
+      hour: v.digestHour,
+      timeZone: v.timeZone,
+      effectiveTimeZone: zone.timeZone,
+      timeZoneSource: zone.source,
+      nextDigestAt: schedule ? nextDigestAt(new Date(), schedule) : null,
+    }
   }),
 }

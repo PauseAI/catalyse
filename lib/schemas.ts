@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import { EMAIL_DELIVERIES } from './notification-types'
+import { DIGEST_FREQUENCIES } from './notification-digest'
+import { isTimeZone } from './time-zone'
 import { isHttpUrl } from './url'
 import {
   AdminInviteSchema,
@@ -16,6 +18,12 @@ import {
   WorkItemCommentSchema,
   VolunteerSchema,
 } from '@/generated/zod'
+
+/** An IANA time zone name the runtime knows, such as Europe/London. */
+export const TimeZoneSchema = z
+  .string()
+  .max(64)
+  .refine(isTimeZone, 'Choose a time zone from the list')
 
 const BASE_OMIT = { id: true, createdAt: true, updatedAt: true } as const
 
@@ -552,5 +560,8 @@ export const UpdateVolunteerSchema = VolunteerSchema.omit({
     availabilityHoursPerWeek: AvailabilitySchema.nullable().optional(),
     /** Delivery by notification type, for the types being changed (lib/notification-types.ts). */
     notificationPreferences: z.record(z.string().max(64), z.enum(EMAIL_DELIVERIES)).optional(),
+    timeZone: TimeZoneSchema.nullable().optional(),
+    digestFrequency: z.enum(DIGEST_FREQUENCIES).optional(),
+    digestHour: z.number().int().min(0).max(23).optional(),
     dailySummary: z.enum(['email_and_in_app', 'in_app_only', 'off']).optional(),
   })

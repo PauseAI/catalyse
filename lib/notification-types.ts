@@ -9,8 +9,72 @@ import { categoryOf, type NotificationCategory } from './notification-categories
 export const EMAIL_DELIVERIES = ['in_app', 'email', 'digest'] as const
 export type Delivery = (typeof EMAIL_DELIVERIES)[number]
 
-/** Who a type is for: everyone, chapter staff and global admins, or technical admins. */
-export type Audience = 'everyone' | 'staff' | 'technical'
+/**
+ * The role a type comes with. Everyone's types are any volunteer's; the others reach someone
+ * only while they hold that role. Staff (chapter leads, deputies and global admins) and
+ * technical admins see their types only while they hold the role.
+ */
+export const ROLES = [
+  'everyone',
+  'project_lead',
+  'team_lead',
+  'quick_task_poster',
+  'coordinator',
+  'staff',
+  'technical',
+] as const
+export type Role = (typeof ROLES)[number]
+
+export const ROLE_LABELS: Record<Role, string> = {
+  everyone: 'Everyone',
+  project_lead: 'If you lead a project, or are its deputy',
+  team_lead: 'If you lead a team',
+  quick_task_poster: 'If you post Quick Tasks',
+  coordinator: 'Coordinators',
+  staff: 'Chapter staff and admins',
+  technical: 'Technical admins',
+}
+
+/** Roles shown only to whoever holds them. */
+const HIDDEN_UNLESS_HELD: Role[] = ['staff', 'technical']
+
+const ROLE_TYPES: Record<Exclude<Role, 'everyone'>, string[]> = {
+  project_lead: [
+    'new_interest',
+    'task_submitted',
+    'project_ready_to_complete',
+    'invite_accepted',
+    'invite_declined',
+    'deputy_removed',
+    'no_update_warning',
+    'task_needs_decision',
+    'plan_slip',
+    'account_deleted_impact',
+  ],
+  team_lead: ['team_join_request'],
+  quick_task_poster: ['quick_task_submitted'],
+  coordinator: ['call_answered'],
+  staff: [
+    'new_volunteer_signup',
+    'new_project_proposal',
+    'project_lead_offer',
+    'project_resubmitted',
+    'team_suggestion',
+    'local_group_suggestion',
+    'chapter_transfer_request',
+    'new_bug_report',
+    'bug_report_comment',
+    'chapter_joined',
+  ],
+  technical: ['csp_violation_summary'],
+}
+
+export function roleOf(type: string): Role {
+  const held = (Object.keys(ROLE_TYPES) as (keyof typeof ROLE_TYPES)[]).find((r) =>
+    ROLE_TYPES[r].includes(type),
+  )
+  return held ?? 'everyone'
+}
 
 export type Recipient = { isTechnicalAdmin: boolean }
 
@@ -19,7 +83,6 @@ export type Fixed = { shows: string; why: string }
 
 type TypeInfo = {
   label: string
-  audience?: Audience
   /** How it reaches someone who never chose; a function when it differs by person. */
   default: Delivery | ((who: Recipient) => Delivery)
   /** Not a choice: what the panel shows instead, and why. */
@@ -70,38 +133,31 @@ const TYPES: Record<string, TypeInfo> = {
   },
   new_volunteer_signup: {
     label: 'A new volunteer signs up',
-    audience: 'staff',
     default: 'email',
   },
   new_project_proposal: {
     label: 'A new project is proposed',
-    audience: 'staff',
     default: 'email',
   },
   project_lead_offer: {
     label: 'Someone offers to lead a project',
-    audience: 'staff',
     default: 'email',
   },
-  team_suggestion: { label: 'Someone suggests a team', audience: 'staff', default: 'email' },
+  team_suggestion: { label: 'Someone suggests a team', default: 'email' },
   local_group_suggestion: {
     label: 'Someone suggests a local group',
-    audience: 'staff',
     default: 'in_app',
   },
   chapter_transfer_request: {
     label: 'Someone asks to move to your chapter',
-    audience: 'staff',
     default: 'in_app',
   },
   new_bug_report: {
     label: 'A bug is reported',
-    audience: 'staff',
     default: (who) => (who.isTechnicalAdmin ? 'email' : 'in_app'),
   },
   bug_report_comment: {
     label: 'A reporter comments on a bug report',
-    audience: 'staff',
     default: 'in_app',
   },
 
@@ -189,10 +245,9 @@ const TYPES: Record<string, TypeInfo> = {
   bug_report_submitted: { label: 'Your bug report is received', default: 'in_app' },
   bug_report_comment_reply: { label: 'An admin replies on your bug report', default: 'in_app' },
   bug_report_resolved: { label: 'Your bug report is resolved', default: 'email' },
-  chapter_joined: { label: 'Someone joins your chapter', audience: 'staff', default: 'in_app' },
+  chapter_joined: { label: 'Someone joins your chapter', default: 'in_app' },
   csp_violation_summary: {
     label: 'Daily count of blocked scripts (CSP violations)',
-    audience: 'technical',
     default: 'email',
     fixed: { shows: 'Email', why: 'An operational alert, always emailed.' },
   },
@@ -236,10 +291,15 @@ export function resolveDelivery(
 
 export type Viewer = Recipient & { isStaff: boolean }
 
-function shownTo(audience: Audience, viewer: Viewer): boolean {
-  if (audience === 'technical') return viewer.isTechnicalAdmin
-  if (audience === 'staff') return viewer.isStaff || viewer.isTechnicalAdmin
+function shownTo(role: Role, viewer: Viewer): boolean {
+  if (role === 'technical') return viewer.isTechnicalAdmin
+  if (role === 'staff') return viewer.isStaff || viewer.isTechnicalAdmin
   return true
+}
+
+/** Whether a role's types are shown only to someone who holds it. */
+export function hiddenUnlessHeld(role: Role): boolean {
+  return HIDDEN_UNLESS_HELD.includes(role)
 }
 
 export type PreferenceRow = {
@@ -249,8 +309,7 @@ export type PreferenceRow = {
   delivery: Delivery
   /** Why the delivery is set, for a type with no choice. */
   fixed: Fixed | null
-  /** Sent only to chapter staff and admins. */
-  staffOnly: boolean
+  role: Role
 }
 
 /** The settings panel's rows for `viewer`, in the order above, with their current choices. */
@@ -259,7 +318,7 @@ export function preferenceRows(
   chosen: ReadonlyMap<string, Delivery>,
 ): PreferenceRow[] {
   return Object.entries(TYPES)
-    .filter(([, info]) => shownTo(info.audience ?? 'everyone', viewer))
+    .filter(([type]) => shownTo(roleOf(type), viewer))
     .map(([type, info]) => {
       const def = defaultDelivery(type, viewer) as Delivery
       return {
@@ -268,7 +327,7 @@ export function preferenceRows(
         category: categoryOf(type),
         delivery: info.fixed ? def : (chosen.get(type) ?? def),
         fixed: info.fixed ?? null,
-        staffOnly: (info.audience ?? 'everyone') !== 'everyone',
+        role: roleOf(type),
       }
     })
 }
@@ -292,7 +351,7 @@ export type PresetKey = (typeof PRESETS)[number]['key']
 /** How `preset` delivers one row. Recommended emails admin-only types, which are an admin's work. */
 export function presetDelivery(preset: PresetKey, row: PreferenceRow): Delivery {
   if (preset !== 'recommended') return preset
-  return row.category === 'update' && !row.staffOnly ? 'digest' : 'email'
+  return row.category === 'update' && !hiddenUnlessHeld(row.role) ? 'digest' : 'email'
 }
 
 /** The choices `preset` makes for every row that has a choice. */

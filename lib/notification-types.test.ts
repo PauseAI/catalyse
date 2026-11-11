@@ -55,7 +55,7 @@ describe('notification types', () => {
       category: 'update',
       delivery: 'digest',
       fixed: null,
-      staffOnly: false,
+      role: 'everyone',
     })
     expect(rows.find((r) => r.type === 'call_posted')).toMatchObject({
       delivery: 'in_app',

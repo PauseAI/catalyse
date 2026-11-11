@@ -44,7 +44,7 @@ export const CRON_JOB_INFO: Record<CronJobName, { description: string; idempoten
   },
   'notification-digest': {
     description:
-      'Emails each person one daily digest of the unread notifications they chose to get that way.',
+      'Hourly: emails each person whose local digest hour it is, and whose period has passed, everything they chose to get in their digest.',
     idempotent: true,
   },
 }

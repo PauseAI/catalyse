@@ -59,6 +59,11 @@ describe('AuthProvider', () => {
       ).toBe(true),
     )
 
+    // Signing in records the browser's time zone for someone who has none.
+    expect((await prisma.volunteer.findUniqueOrThrow({ where: { id: vol.id } })).timeZone).toBe(
+      Intl.DateTimeFormat().resolvedOptions().timeZone,
+    )
+
     await user.click(screen.getByText('refresh'))
     await user.click(screen.getByText('logout'))
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('anon|no-token'))
@@ -67,7 +72,7 @@ describe('AuthProvider', () => {
   })
 
   it('does not sync cookie consent when none was stored, and refresh without a token is a no-op', async () => {
-    const vol = await createVolunteer({ cookieConsentAnalytics: null })
+    const vol = await createVolunteer({ cookieConsentAnalytics: null, timeZone: 'Asia/Tokyo' })
     const { createSession } = await import('@/lib/auth')
     localStorage.setItem('nextToken', await createSession(vol.id))
     await renderApp(<Probe />)
@@ -75,9 +80,11 @@ describe('AuthProvider', () => {
     await user.click(screen.getByText('refresh'))
     await user.click(screen.getByText('login'))
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('token'))
-    expect(
-      (await prisma.volunteer.findUniqueOrThrow({ where: { id: vol.id } })).cookieConsentAnalytics,
-    ).toBeNull()
+    expect(await prisma.volunteer.findUniqueOrThrow({ where: { id: vol.id } })).toMatchObject({
+      cookieConsentAnalytics: null,
+      // A zone they already have is kept.
+      timeZone: 'Asia/Tokyo',
+    })
   })
 
   it('keeps the session when loading the user fails for a reason other than the token', async () => {

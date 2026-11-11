@@ -5,7 +5,7 @@ import { Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 import { groupIn, placement } from '@/lib/chapter-placement'
 import { redactVolunteer } from '@/lib/auth'
-import { UpdateVolunteerSchema } from '@/lib/schemas'
+import { TimeZoneSchema, UpdateVolunteerSchema } from '@/lib/schemas'
 import { projectScopeWhere } from '@/lib/work-item'
 import { contactRelations } from '@/lib/contact'
 import { canAdminChapter, seesEveryChapter } from '@/lib/chapter-access'
@@ -333,6 +333,17 @@ export const volunteersRouter = {
     return { message: 'Application resubmitted for review' }
   }),
 
+  /** Records the browser's time zone for someone who has none yet; a chosen one is kept. */
+  detectTimeZone: authedProcedure
+    .input(z.object({ timeZone: TimeZoneSchema }))
+    .handler(async ({ input, context }) => {
+      const { count } = await prisma.volunteer.updateMany({
+        where: { id: context.volunteer.id, timeZone: null },
+        data: { timeZone: input.timeZone },
+      })
+      return { saved: count > 0 }
+    }),
+
   updateMe: authedProcedure.input(UpdateVolunteerSchema).handler(async ({ input, context }) => {
     const volunteer = context.volunteer
     const data: Record<string, unknown> = { updatedAt: new Date() }
@@ -350,6 +361,9 @@ export const volunteersRouter = {
       'otherSkills',
       'emailDigest',
       'dailySummary',
+      'timeZone',
+      'digestFrequency',
+      'digestHour',
       'applicationMessage',
     ] as const
     for (const field of scalarFields) {

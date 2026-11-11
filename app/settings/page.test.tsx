@@ -209,6 +209,35 @@ describe('settings — account tab', () => {
 })
 
 describe('settings — notifications and privacy tabs', () => {
+  it('takes the browser time zone, and saves how often, when and where the digest comes', async () => {
+    const vol = await createVolunteer({ timeZone: null })
+    await renderApp(<SettingsPage />, { as: vol, url: '/settings?tab=notifications' })
+    const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    await waitFor(async () => expect((await me(vol.id)).timeZone).toBe(browserZone))
+    expect(await screen.findByText(/^Next digest: /)).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Daily' })).toBeChecked()
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Weekly' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Digest time' }))
+    await userEvent.click(screen.getByRole('option', { name: '19:00' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Your time zone' }))
+    await userEvent.type(screen.getByRole('searchbox'), 'Tokyo')
+    await userEvent.click(screen.getByRole('option', { name: 'Asia/Tokyo' }))
+    // An unsaved change has no next time to show yet; the help text follows it.
+    expect(screen.queryByText(/^Next digest: /)).toBeNull()
+    expect(screen.getByText(/once a week at 19:00 your time \(Asia\/Tokyo\)/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await screen.findByText('Profile updated!')
+    expect(await me(vol.id)).toMatchObject({
+      digestFrequency: 'weekly',
+      digestHour: 19,
+      timeZone: 'Asia/Tokyo',
+    })
+    expect(
+      await screen.findByText(/^Next digest: .* 19:00 Asia\/Tokyo, if anything/),
+    ).toBeInTheDocument()
+  })
+
   it('saves notification and consent preferences, and exports data', async () => {
     const vol = await createVolunteer({ consentContactableByProjectOwners: true })
     URL.createObjectURL = vi.fn(() => 'blob:x')

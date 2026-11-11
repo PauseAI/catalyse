@@ -89,6 +89,7 @@ export const COLUMN_TREATMENT: Record<string, Record<string, Treatment>> = {
   volunteers: {
     name: 'custom',
     email: 'custom',
+    time_zone: 'keep',
     bio: 'custom',
     discord_handle: 'custom',
     signal_number: 'custom',

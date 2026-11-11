@@ -14,13 +14,13 @@ export function NotificationDigestEmail({ name, sections, appUrl }: Notification
   return (
     <EmailLayout>
       <Text>{`Hi ${name},`}</Text>
-      <Text>Here are the notifications you asked to get in one daily email.</Text>
+      <Text>Here is everything you chose to get in your digest since the last one.</Text>
       {sections.map((s) => (
         <div key={s.category}>
           <h3 style={{ margin: '24px 0 8px' }}>{s.heading}</h3>
           <LinkList
             appUrl={appUrl}
-            items={s.items.map((i) => ({ text: i.title, href: i.href, detail: i.body }))}
+            items={s.items.map((i) => ({ text: i.title, href: i.href, detail: i.detail }))}
           />
         </div>
       ))}

@@ -1,0 +1,9 @@
+# The hourly trigger for per-person notification digests. A second Railway cron service built
+# from this file, with CRON_URL set to <app>/api/cron/notification-digest and CRON_SECRET.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.cron"
+
+[deploy]
+restartPolicyType = "NEVER"
+cronSchedule = "0 * * * *"

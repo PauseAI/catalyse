@@ -1,5 +1,8 @@
-import { test, expect, getAlert } from '../fixtures'
+import { test, expect, getAlert, readAdminToken } from '../fixtures'
 import { selectFilterDropdown } from '../actions/ui'
+import { adminCreateProjectViaApi } from '../actions/projects'
+import { createApiClient } from '../client'
+import { fake } from '../fake'
 
 // 18-gdpr-privacy.spec.ts covers directory visibility and the contact request end-to-end via
 // another volunteer's search. This file covers what it does not exercise: the email digest
@@ -90,6 +93,70 @@ test.describe('Settings: email for each notification', () => {
     await expect(preset(/^Recommended/)).toBeChecked({ timeout: 10_000 })
     await approved.getByText('Email', { exact: true }).click()
     await expect(preset(/^Custom/)).toBeChecked()
+  })
+
+  test('role sections open for roles held, and stay closed and muted otherwise', async ({
+    volunteer,
+    baseUrl,
+    snap,
+  }) => {
+    const page = volunteer.page
+    await page.goto(`${baseUrl}/settings?tab=notifications`)
+    const lead = page.getByRole('button', { name: /If you lead a project/ })
+    await expect(lead).toHaveAttribute('aria-expanded', 'false', { timeout: 10_000 })
+    await expect(page.getByText(/You don't have this role right now/).first()).toBeVisible()
+    await expect(
+      page.getByRole('radiogroup', { name: 'Someone offers to help on a project you run' }),
+    ).toBeHidden()
+    // Closed is still settable ahead of time.
+    await lead.click()
+    await expect(lead).toHaveAttribute('aria-expanded', 'true')
+    await snap(page, 'no roles')
+
+    // Leading a project opens its section.
+    const token = await page.evaluate(() => localStorage.getItem('authToken'))
+    const me = (await createApiClient(baseUrl, token).auth.me()).body as { id: number }
+    const projectId = await adminCreateProjectViaApi(baseUrl, fake.projectTitle(), 'A project')
+    await createApiClient(baseUrl, readAdminToken(baseUrl)).projects.assign({
+      body: { projectId, volunteerId: me.id, interestType: 'want_to_own' },
+    })
+    await page.reload()
+    await expect(page.getByRole('button', { name: /If you lead a project/ })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+      { timeout: 10_000 },
+    )
+    await expect(
+      page.getByRole('radiogroup', { name: 'Someone offers to help on a project you run' }),
+    ).toBeVisible()
+    await expect(page.getByRole('button', { name: /If you lead a team/ })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    await snap(page, 'project lead')
+  })
+
+  test('the digest comes as often, when and where the volunteer chooses', async ({
+    volunteer,
+    baseUrl,
+  }) => {
+    const page = volunteer.page
+    await page.goto(`${baseUrl}/settings?tab=notifications`)
+    await expect(page.getByText(/^Next digest: /)).toBeVisible({ timeout: 10_000 })
+    await page
+      .getByRole('radiogroup', { name: 'Digest frequency' })
+      .getByText('Every 3 days')
+      .click()
+    await selectFilterDropdown(page, 'Digest time', '18:00')
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await expect(getAlert(page)).toBeVisible({ timeout: 10_000 })
+    await page.reload()
+    await expect(
+      page.getByRole('radiogroup', { name: 'Digest frequency' }).getByRole('radio', {
+        name: 'Every 3 days',
+      }),
+    ).toBeChecked({ timeout: 10_000 })
+    await expect(page.getByText(/^Next digest: .* 18:00 /)).toBeVisible()
   })
 
   test('an admin also sees the notifications only staff get', async ({ adminPage, baseUrl }) => {

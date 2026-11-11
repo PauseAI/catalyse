@@ -26,7 +26,9 @@ import { useUrlParam } from '@/lib/hooks/url-filters'
 import { formatDate } from '@/lib/format-date'
 import { BUG_STATUS_VARIANT, bugStatusLabel } from '@/lib/bug-report-labels'
 import type { Delivery } from '@/lib/notification-types'
-import { DIGEST_HOUR_UTC } from '@/lib/notification-digest'
+import { DEFAULT_DIGEST_HOUR, type DigestFrequency } from '@/lib/notification-digest'
+import { browserTimeZone } from '@/lib/time-zone'
+import DigestSchedule from '@/components/DigestSchedule'
 import NotificationPreferences from '@/components/NotificationPreferences'
 import {
   NO_LOCAL_GROUP,
@@ -56,7 +58,13 @@ const TABS: { key: TabKey; label: string }[] = [
 
 const VALID_TABS = new Set<string>(TABS.map((t) => t.key))
 
-const DIGEST_TIME = `${String(DIGEST_HOUR_UTC).padStart(2, '0')}:00 UTC`
+const DIGEST_EVERY: Record<DigestFrequency, string> = {
+  daily: 'each day',
+  every_3_days: 'every three days',
+  weekly: 'once a week',
+}
+
+const TIME_ZONES = Intl.supportedValuesOf('timeZone')
 
 const SUBHEADING = 'mt-6 mb-3'
 const HINT =
@@ -125,6 +133,12 @@ function SettingsPageContent() {
   )
   /** Choices changed since the panel loaded, by notification type. */
   const [deliveries, setDeliveries] = useState<Record<string, Delivery>>({})
+  /** Digest schedule fields changed since it loaded. */
+  const [schedule, setSchedule] = useState<{
+    frequency?: DigestFrequency
+    hour?: number
+    timeZone?: string
+  }>({})
   const [dailySummary, setDailySummary] = useState<DailySummaryChoice>('email_and_in_app')
   const [consentMakeProfileVisibleInDirectory, setConsentMakeProfileVisibleInDirectory] =
     useState(true)
@@ -145,10 +159,26 @@ function SettingsPageContent() {
     ...orpc.auth.me.queryOptions(),
     enabled: !!user,
   })
-  const { data: preferenceRows } = useQuery({
+  const { data: preferences } = useQuery({
     ...orpc.notifications.preferences.queryOptions(),
     enabled: !!user && activeTab === 'notifications',
   })
+  const { data: digestSettings } = useQuery({
+    ...orpc.notifications.digestSettings.queryOptions(),
+    enabled: !!user && activeTab === 'notifications',
+  })
+  const detectTimeZone = useMutation({
+    ...orpc.volunteers.detectTimeZone.mutationOptions(),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: orpc.notifications.digestSettings.key() })
+    },
+  })
+  const { mutate: detect, isIdle: notYetDetected } = detectTimeZone
+  // Someone with no time zone yet takes their browser's, as on signing in.
+  useEffect(() => {
+    const zone = browserTimeZone()
+    if (me && !me.timeZone && zone && notYetDetected) detect({ timeZone: zone })
+  }, [me, detect, notYetDetected])
   const { data: localGroupsData } = useQuery(orpc.localGroups.list.queryOptions({ input: {} }))
   const allLocalGroups: LocalGroupOption[] = localGroupsData?.groups ?? []
 
@@ -236,7 +266,9 @@ function SettingsPageContent() {
       await refreshUser()
       showToast('Profile updated!', 'success')
       await queryClient.invalidateQueries({ queryKey: orpc.notifications.preferences.key() })
+      await queryClient.invalidateQueries({ queryKey: orpc.notifications.digestSettings.key() })
       setDeliveries({})
+      setSchedule({})
     },
     onError: (err: unknown) => {
       showToast(err instanceof Error ? err.message : 'Failed to save', 'error')
@@ -340,6 +372,9 @@ function SettingsPageContent() {
       emailDigest,
       dailySummary,
       ...(Object.keys(deliveries).length > 0 ? { notificationPreferences: deliveries } : {}),
+      ...(schedule.frequency ? { digestFrequency: schedule.frequency } : {}),
+      ...(schedule.hour !== undefined ? { digestHour: schedule.hour } : {}),
+      ...(schedule.timeZone ? { timeZone: schedule.timeZone } : {}),
       otherSkills: otherSkills.trim() || null,
       skillIds: skills.map((s) => s.skillId),
       consentMakeProfileVisibleInDirectory,
@@ -387,6 +422,12 @@ function SettingsPageContent() {
     }
     deleteAccountMutation.mutate(user?.hasPassword ? { password: deletePassword } : {})
   }
+
+  const digestFrequency = schedule.frequency ?? digestSettings?.frequency ?? 'daily'
+  const digestHour = schedule.hour ?? digestSettings?.hour ?? DEFAULT_DIGEST_HOUR
+  const digestZone = schedule.timeZone ?? digestSettings?.effectiveTimeZone ?? 'UTC'
+  const changedSchedule = Object.keys(schedule).length > 0
+  const digestSummary = `${DIGEST_EVERY[digestFrequency]} at ${String(digestHour).padStart(2, '0')}:00 your time (${digestZone.replace(/_/g, ' ')})`
 
   if (loading || !user) return null
 
@@ -790,9 +831,9 @@ function SettingsPageContent() {
               <p className="m-0 mb-2">
                 Everything arrives in your Inbox whatever you choose here. Choose which
                 notifications also come by email: <strong>Email</strong> sends each one as it
-                happens, and <strong>Digest</strong> gathers them into one email each morning at{' '}
-                {DIGEST_TIME}, listing what you have not yet read. No digest is sent on a day with
-                nothing in it.
+                happens, and <strong>Digest</strong> gathers them into one email {digestSummary},
+                listing everything since the last one, read or not. No digest is sent when there is
+                nothing new.
               </p>
               <p className="m-0">
                 Some emails are always sent and are not listed: sign-in links, password resets,
@@ -801,9 +842,22 @@ function SettingsPageContent() {
                 operational alerts to admins.
               </p>
             </div>
-            {preferenceRows ? (
+            {digestSettings && (
+              <DigestSchedule
+                frequency={digestFrequency}
+                hour={digestHour}
+                timeZone={schedule.timeZone ?? digestSettings.timeZone ?? ''}
+                effectiveTimeZone={digestZone}
+                timeZoneSource={schedule.timeZone ? 'chosen' : digestSettings.timeZoneSource}
+                nextDigestAt={changedSchedule ? null : digestSettings.nextDigestAt}
+                zones={TIME_ZONES}
+                onChange={(next) => setSchedule((s) => ({ ...s, ...next }))}
+              />
+            )}
+            {preferences ? (
               <NotificationPreferences
-                rows={preferenceRows}
+                rows={preferences.rows}
+                heldRoles={preferences.heldRoles}
                 value={deliveries}
                 onChange={setDeliveries}
               />
