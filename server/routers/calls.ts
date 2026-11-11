@@ -3,9 +3,15 @@ import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { clearNotifications, notifyUser } from '@/lib/notify'
 import { logger } from '@/lib/logger'
-import { sendAdminAlertEmail } from '@/lib/email'
+import { html, sendAdminAlertEmail } from '@/lib/email'
 import { categoryOf } from '@/lib/notification-categories'
-import { addressedToWhere, addresseeWhere, CALL_ANSWERED, CALL_POSTED } from '@/lib/calls'
+import {
+  ADDRESSABLE,
+  addressedToWhere,
+  addresseeWhere,
+  CALL_ANSWERED,
+  CALL_POSTED,
+} from '@/lib/calls'
 import type { ChapterAccess } from '@/lib/chapter-access'
 import { confirmedProcedure, coordinatorProcedure } from '../procedures'
 
@@ -42,13 +48,14 @@ async function deliver(call: { id: number; title: string; body: string } & Addre
   })
   const notificationOf = new Map(notifications.map((n) => [n.volunteerId, n.id]))
   const category = categoryOf(CALL_POSTED)
+  const message = html`${call.body}`.replace(/\n/g, '<br>')
   for (const v of addressees) {
     if (!v.email || v.emailMutedCategories.includes(category)) continue
     const sent = await sendAdminAlertEmail({
       to: v.email,
       name: v.name,
       subject: title,
-      message: call.body,
+      message,
       ctaLabel: 'Answer the call',
       ctaUrl: '/calls',
     }).catch((e) => {
@@ -90,8 +97,8 @@ async function openCallFor(volunteerId: number, id: number) {
 
 /**
  * Calls: a coordinator (or global admin) asks volunteers across chapters for help, and the
- * platform carries the ask to them. The sender sees each call's answers and nothing about
- * who else it reached, so a volunteer hidden from the directory stays hidden unless they answer.
+ * platform carries the ask to them. The sender sees each call's answers, never whom else it
+ * reached.
  */
 export const callsRouter = {
   send: coordinatorProcedure.input(CallInput).handler(async ({ input, context }) => {
@@ -123,7 +130,7 @@ export const callsRouter = {
       include: {
         skill: { select: { name: true } },
         sender: { select: { name: true } },
-        _count: { select: { responses: true } },
+        _count: { select: { responses: { where: { volunteer: { deletedAt: null } } } } },
       },
       orderBy: { createdAt: 'desc' },
     })
@@ -183,6 +190,7 @@ export const callsRouter = {
   /** Open calls put out to the caller, and any they have answered. */
   forMe: confirmedProcedure.handler(async ({ context }) => {
     const me = context.volunteer
+    if (!(await prisma.volunteer.count({ where: { id: me.id, ...ADDRESSABLE } }))) return []
     const calls = await prisma.call.findMany({
       where: {
         AND: [
@@ -217,13 +225,15 @@ export const callsRouter = {
       const me = context.volunteer
       const call = await openCallFor(me.id, input.callId)
       const where = { callId_volunteerId: { callId: call.id, volunteerId: me.id } }
-      const existing = await prisma.callResponse.findUnique({ where })
-      const response = await prisma.callResponse.upsert({
-        where,
-        create: { callId: call.id, volunteerId: me.id, message: input.message },
-        update: { message: input.message },
+      // Create first, so of two first answers sent at once only one notifies the sender.
+      const { count: created } = await prisma.callResponse.createMany({
+        data: [{ callId: call.id, volunteerId: me.id, message: input.message }],
+        skipDuplicates: true,
       })
-      if (!existing && call.senderId !== null) {
+      const response = created
+        ? await prisma.callResponse.findUniqueOrThrow({ where })
+        : await prisma.callResponse.update({ where, data: { message: input.message } })
+      if (created && call.senderId !== null) {
         await notifyUser(
           call.senderId,
           CALL_ANSWERED,
@@ -237,7 +247,7 @@ export const callsRouter = {
       return { message: 'Thanks: the coordinator can now see your answer and contact you' }
     }),
 
-  /** Takes back an answer, and with it the sender's sight of the caller, notification included. */
+  /** Takes back an answer, and the sender's notification of it. */
   withdraw: confirmedProcedure
     .input(z.object({ callId: z.number().int() }))
     .handler(async ({ input, context }) => {

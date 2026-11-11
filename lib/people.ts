@@ -1,7 +1,7 @@
 import { prisma } from './prisma'
 import { isSuperAdmin } from './auth'
-import { canAdminChapter, inChapter, seesAllVolunteers, type ChapterAccess } from './chapter-access'
-import { contactRelations, projectIdsOf } from './contact'
+import { canAdminChapter, inChapter, type ChapterAccess } from './chapter-access'
+import { contactRelations, projectIdsOf, seesFullProfile } from './contact'
 import {
   InterestStatus,
   TeamJoinRequestStatus,
@@ -22,7 +22,7 @@ const LIVE_INTEREST = {
 /**
  * Which of `targetIds` the viewer may open the profile of, in a few queries for a whole list.
  *
- * A global admin or coordinator sees everyone. Otherwise someone in another chapter is out of
+ * A global admin sees everyone, and a coordinator every approved volunteer. Otherwise someone in another chapter is out of
  * sight, unless the two already work together on a project from before chapters. A profile hidden
  * from the public directory is still visible to:
  *  - the volunteer themselves
@@ -40,11 +40,16 @@ export async function viewableVolunteers(
   const ids = [...new Set(targetIds)]
   const rows = await prisma.volunteer.findMany({
     where: { id: { in: ids }, deletedAt: null },
-    select: { id: true, nationalChapterId: true, consentMakeProfileVisibleInDirectory: true },
+    select: {
+      id: true,
+      nationalChapterId: true,
+      consentMakeProfileVisibleInDirectory: true,
+      approvalStatus: true,
+    },
   })
   const viewable = new Set<number>()
   const others = rows.filter((v) => {
-    if (v.id === viewer.id || seesAllVolunteers(access)) viewable.add(v.id)
+    if (v.id === viewer.id || seesFullProfile(access, v)) viewable.add(v.id)
     return !viewable.has(v.id)
   })
   if (others.length === 0) return viewable

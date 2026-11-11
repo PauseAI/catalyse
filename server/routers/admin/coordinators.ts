@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { audit } from '@/lib/chapter-roles'
-import { ChapterAuditAction } from '@/generated/prisma/enums'
+import { ApprovalStatus, ChapterAuditAction } from '@/generated/prisma/enums'
 import { adminProcedure } from '../../procedures'
 
 const remit = z.string().trim().max(100).nullable()
@@ -37,10 +37,17 @@ export const adminCoordinatorsRouter = {
     .input(z.object({ volunteerId: z.number().int(), remit }))
     .handler(async ({ input, context }) => {
       const volunteer = await prisma.volunteer.findFirst({
-        where: { id: input.volunteerId, deletedAt: null },
+        where: {
+          id: input.volunteerId,
+          deletedAt: null,
+          duplicateOfId: null,
+          approvalStatus: ApprovalStatus.approved,
+        },
         select: { id: true, name: true },
       })
-      if (!volunteer) throw new ORPCError('NOT_FOUND', { message: 'Volunteer not found' })
+      if (!volunteer) {
+        throw new ORPCError('NOT_FOUND', { message: 'Only an approved volunteer can coordinate' })
+      }
       const remitText = input.remit || null
       await prisma.$transaction(async (tx) => {
         const existing = await tx.coordinator.findUnique({ where: { volunteerId: volunteer.id } })

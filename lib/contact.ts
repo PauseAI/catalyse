@@ -1,6 +1,11 @@
 import { prisma } from './prisma'
-import { isStaff, seesAllVolunteers, type ChapterAccess } from './chapter-access'
-import { ContactRequestStatus, InterestStatus, WorkItemType } from '@/generated/prisma/enums'
+import { isStaff, type ChapterAccess } from './chapter-access'
+import {
+  ApprovalStatus,
+  ContactRequestStatus,
+  InterestStatus,
+  WorkItemType,
+} from '@/generated/prisma/enums'
 
 /**
  * Who may see whose contact details and message whom.
@@ -8,11 +13,25 @@ import { ContactRequestStatus, InterestStatus, WorkItemType } from '@/generated/
  * Only within a chapter (the holding pool counts as one): there, people who work together may,
  * a project's owner and everyone on it (accepted helpers and task holders), including those
  * helpers with each other. So may two people once one has accepted the other's contact request.
- * A chapter's staff may reach anyone in it, a global admin or coordinator anyone at all, and
- * everyone sees their own. Anyone else in the viewer's chapter's directory can be sent a contact request instead.
+ * A chapter's staff may reach anyone in it, a global admin anyone at all, a coordinator any
+ * approved volunteer (seesFullProfile), and everyone sees their own. Anyone else in the viewer's
+ * chapter's directory can be sent a contact request instead.
  */
 
 type Viewer = { id: number }
+
+/**
+ * Whether `access` sees `target`'s full profile wherever they are, hidden or not, and may message
+ * them: a global admin anyone, a coordinator any approved volunteer.
+ */
+export function seesFullProfile(
+  access: ChapterAccess,
+  target: { approvalStatus: ApprovalStatus | null },
+): boolean {
+  return (
+    access.globalAdmin || (access.coordinator && target.approvalStatus === ApprovalStatus.approved)
+  )
+}
 
 /** The projects a volunteer owns or is on. */
 export async function projectIdsOf(volunteerIds: number[]): Promise<Map<number, Set<number>>> {
@@ -63,11 +82,19 @@ export async function contactRelations(
 ): Promise<ContactRelations> {
   const reachable = new Set<number>(targetIds.includes(viewer.id) ? [viewer.id] : [])
   const requested = new Set<number>()
-  const candidates = targetIds.filter((id) => id !== viewer.id)
+  let candidates = targetIds.filter((id) => id !== viewer.id)
   if (candidates.length === 0) return { reachable, requested }
-  if (seesAllVolunteers(access)) {
+  if (access.globalAdmin) {
     for (const id of candidates) reachable.add(id)
     return { reachable, requested }
+  }
+  if (access.coordinator) {
+    const approved = await prisma.volunteer.findMany({
+      where: { id: { in: candidates }, approvalStatus: ApprovalStatus.approved },
+      select: { id: true },
+    })
+    for (const v of approved) reachable.add(v.id)
+    candidates = candidates.filter((id) => !reachable.has(id))
   }
   const sameChapter = await prisma.volunteer.findMany({
     where: { id: { in: candidates }, nationalChapterId: access.chapterId },

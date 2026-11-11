@@ -76,13 +76,15 @@ export const staffProcedure = base.use(({ context, next }) => {
   return next({ context: { volunteer: context.volunteer } })
 })
 
-/** Whoever may put out calls to volunteers (`call.send`): a coordinator or a global admin. */
-export const coordinatorProcedure = base.use(({ context, next }) => {
-  if (!context.volunteer) throw new ORPCError('UNAUTHORIZED')
+/**
+ * Whoever may put out calls to volunteers (`call.send`): an approved coordinator or a global
+ * admin.
+ */
+export const coordinatorProcedure = approvedProcedure.use(({ context, next }) => {
   if (!canSendCalls({ id: context.volunteer.id, access: context.access })) {
     throw new ORPCError('FORBIDDEN')
   }
-  return next({ context: { volunteer: context.volunteer } })
+  return next({ context })
 })
 
 /**

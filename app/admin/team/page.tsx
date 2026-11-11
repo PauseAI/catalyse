@@ -47,7 +47,8 @@ function Coordinators() {
       <H2 id="coordinators-heading">Coordinators</H2>
       <P className="text-text-light">
         A coordinator puts out calls to volunteers in every chapter, such as for photos of events,
-        and reads the answers. They see only those who answer, and get no admin powers.
+        and reads the answers. They can see and message every approved volunteer, including those
+        hidden from the directory, but get no admin powers.
       </P>
       <div id="coordinatorList">
         {coordinators.map((c) => (

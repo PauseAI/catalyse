@@ -785,6 +785,12 @@ export const authRouter = {
         },
       })
       await prisma.volunteerSkill.deleteMany({ where: { volunteerId: context.volunteer.id } })
+      // A coordinator's role goes with the account, and their open calls close.
+      await prisma.coordinator.deleteMany({ where: { volunteerId: context.volunteer.id } })
+      await prisma.call.updateMany({
+        where: { senderId: context.volunteer.id, closedAt: null },
+        data: { closedAt: new Date() },
+      })
       return { message: "Your account has been deleted. We're sorry to see you go." }
     }),
 

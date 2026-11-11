@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { sendRelayMessage, isEmailConfigured } from '@/lib/email'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { canReach } from '@/lib/contact'
-import { inChapter, seesAllVolunteers } from '@/lib/chapter-access'
+import { inChapter, seesEveryChapter } from '@/lib/chapter-access'
 import { loadAccess } from '@/lib/chapter-access-server'
 import { projectScopeWhere } from '@/lib/work-item'
 import { authedProcedure, approvedProcedure } from '../procedures'
@@ -142,8 +142,8 @@ async function canContinue(
   access: Context['access'],
   other: Awaited<ReturnType<typeof loadThread>>['other'],
 ): Promise<boolean> {
-  if (inChapter(access, other.nationalChapterId) || seesAllVolunteers(access)) return true
-  return seesAllVolunteers(await loadAccess(other))
+  if (inChapter(access, other.nationalChapterId) || seesEveryChapter(access)) return true
+  return seesEveryChapter(await loadAccess(other))
 }
 
 export const messagesRouter = {

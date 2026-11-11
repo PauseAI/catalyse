@@ -6,8 +6,8 @@
  * or of the pool when `chapterId` is null, and sees only that.
  *
  * A coordinator works across every chapter: they put out calls (server/routers/calls.ts), and
- * see and message every volunteer, including those hidden from the directory, but hold no admin
- * power anywhere.
+ * see and message every approved volunteer, including those hidden from the directory, but hold
+ * no admin power anywhere.
  *
  * Pure, so the client can make the same decisions the server does.
  */
@@ -43,8 +43,11 @@ export function canAppointDeputies(access: ChapterAccess, chapterId: number | nu
   return access.globalAdmin || staffRoleIn(access, chapterId) === 'LEAD'
 }
 
-/** Whether `access` sees every volunteer's profile, in any chapter, and may message them. */
-export function seesAllVolunteers(access: ChapterAccess): boolean {
+/**
+ * Whether `access` reaches across chapters to volunteers: the directory spans them all, and
+ * conversations carry on across them. Whose profile opens is seesFullProfile (lib/contact.ts).
+ */
+export function seesEveryChapter(access: ChapterAccess): boolean {
   return access.globalAdmin || access.coordinator
 }
 

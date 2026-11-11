@@ -64,6 +64,11 @@ export const adminSkillsRouter = {
     if (!skill) throw new ORPCError('NOT_FOUND', { message: 'Skill not found' })
 
     await prisma.workItem.updateMany({ where: { skillId: input.id }, data: { skillId: null } })
+    // A call for the skill would otherwise widen to everyone in its chapters.
+    await prisma.call.updateMany({
+      where: { skillId: input.id, closedAt: null },
+      data: { closedAt: new Date() },
+    })
     await prisma.skill.delete({ where: { id: input.id } })
 
     return { success: true, deletedSkill: { id: skill.id, name: skill.name } }

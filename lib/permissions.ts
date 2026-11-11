@@ -22,7 +22,7 @@ export const PERMISSIONS = {
   'call.send': {
     scope: 'global',
     summary:
-      'Put out a call to volunteers in any chapter and read who answers; never who it reached',
+      'Put out a call to volunteers in any chapter and read who answers; never whom it reached',
   },
   'project.unlimitedDrafts': {
     scope: 'chapter',
@@ -122,7 +122,7 @@ export const ROLES = {
     heldBy: 'An address listed in ADMIN_EMAILS, over every chapter and the holding pool',
     grants: [...PROJECT_ADMIN, 'call.send'],
   },
-  /** Also sees and messages every volunteer: seesAllVolunteers (lib/chapter-access.ts). */
+  /** Also sees and messages every volunteer: seesFullProfile (lib/contact.ts). */
   coordinator: {
     scope: 'global',
     name: 'Coordinator',

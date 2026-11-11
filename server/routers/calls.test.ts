@@ -11,6 +11,7 @@ import {
   createMember,
   createSkill,
   createVolunteer,
+  TEST_PASSWORD,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 import { emails } from '@/test/fakes/email'
@@ -20,7 +21,7 @@ const forbidden = { code: 'FORBIDDEN' }
 const notFound = { code: 'NOT_FOUND' }
 
 const call = (
-  overrides: Partial<{ title: string; chapterIds: number[]; skillId: number | null }>,
+  overrides: Partial<{ title: string; body: string; chapterIds: number[]; skillId: number | null }>,
 ) => ({
   title: 'Photos of your next event',
   body: 'We need photos and short videos of events in every country.',
@@ -460,5 +461,102 @@ describe('admin.coordinators', () => {
       orderBy: { id: 'asc' },
     })
     expect(events.map((e) => e.action)).toEqual(['COORDINATOR_APPOINTED', 'COORDINATOR_REMOVED'])
+  })
+})
+
+describe('edges of a call', () => {
+  it('emails the body as text, line breaks kept and markup escaped', async () => {
+    const s = await setup()
+    await s.c.calls.send(
+      call({ title: 'Markup', body: 'Line one\n<a href="https://example.test">Log in</a>' }),
+    )
+    const { html } = await vi.waitFor(() => emails.lastTo(s.deHidden.email!), { timeout: 5000 })
+    expect(html).toContain('Line one<br>&lt;a href=')
+    expect(html).not.toContain('<a href="https://example.test">')
+  })
+
+  it('closes when its skill is deleted, rather than widening to everyone', async () => {
+    const s = await setup()
+    const skill = await createSkill()
+    const { id } = await s.c.calls.send(call({ skillId: skill.id }))
+    await clientAs(await createAdmin()).admin.skills.delete({ id: skill.id })
+    expect((await prisma.call.findUniqueOrThrow({ where: { id } })).closedAt).not.toBeNull()
+    await expect(
+      clientAs(s.deVisible).calls.respond({ callId: id, message: 'Me' }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+  })
+
+  it("closes, with the role, when the coordinator's account is deleted", async () => {
+    const s = await setup()
+    const { id } = await s.c.calls.send(call({}))
+    await s.c.auth.deleteAccount({ password: TEST_PASSWORD })
+    expect((await prisma.call.findUniqueOrThrow({ where: { id } })).closedAt).not.toBeNull()
+    expect(await prisma.coordinator.count({ where: { volunteerId: s.coordinator.id } })).toBe(0)
+  })
+
+  it('is not shown to an account a call could never reach', async () => {
+    const s = await setup()
+    const { id } = await s.c.calls.send(call({}))
+    const duplicate = await createMember(s.uk, { duplicateOfId: s.ukVisible.id })
+    expect(await clientAs(duplicate).calls.forMe()).toEqual([])
+    expect((await clientAs(s.ukVisible).calls.forMe()).map((x) => x.id)).toContain(id)
+  })
+
+  it('counts only the answers it lists', async () => {
+    const s = await setup()
+    const { id } = await s.c.calls.send(call({}))
+    for (const v of [s.ukVisible, s.deVisible]) {
+      await clientAs(v).calls.respond({ callId: id, message: 'Here' })
+    }
+    await prisma.volunteer.update({
+      where: { id: s.deVisible.id },
+      data: { deletedAt: new Date() },
+    })
+    expect((await s.c.calls.sent()).find((x) => x.id === id)?.responseCount).toBe(1)
+    expect(await s.c.calls.responses({ callId: id })).toHaveLength(1)
+  })
+
+  it('notifies the sender once when the first answer is sent twice at once', async () => {
+    const s = await setup()
+    const { id } = await s.c.calls.send(call({}))
+    const them = clientAs(s.ukVisible)
+    await Promise.all([
+      them.calls.respond({ callId: id, message: 'First' }),
+      them.calls.respond({ callId: id, message: 'First' }),
+    ])
+    expect(
+      await prisma.notification.count({
+        where: { type: CALL_ANSWERED, volunteerId: s.coordinator.id },
+      }),
+    ).toBe(1)
+    expect(await prisma.callResponse.count({ where: { callId: id } })).toBe(1)
+  })
+})
+
+describe('accounts awaiting approval', () => {
+  it('cannot be appointed, and one who slips through can do nothing', async () => {
+    const [uk] = await twoChapters()
+    const pending = await createMember(uk, { approvalStatus: 'pending' })
+    await expect(
+      clientAs(await createAdmin()).admin.coordinators.appoint({
+        volunteerId: pending.id,
+        remit: null,
+      }),
+    ).rejects.toMatchObject(notFound)
+
+    await prisma.coordinator.create({ data: { volunteerId: pending.id } })
+    await expect(clientAs(pending).calls.send(call({}))).rejects.toMatchObject(forbidden)
+  })
+
+  it('are not opened to a coordinator, nor are pending or rejected applicants', async () => {
+    const s = await setup()
+    for (const status of ['pending', 'rejected'] as const) {
+      const applicant = await createMember(s.de, { approvalStatus: status })
+      await expect(s.c.volunteers.getById({ id: applicant.id })).rejects.toMatchObject(notFound)
+      await expect(
+        s.c.messages.send({ recipientId: applicant.id, subject: 'Hi', message: 'Hello' }),
+      ).rejects.toMatchObject(forbidden)
+      expect((await s.c.volunteers.lookup({ ids: [applicant.id] }))[0].canView).toBe(false)
+    }
   })
 })

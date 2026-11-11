@@ -7,8 +7,9 @@ import { redactVolunteer } from '@/lib/auth'
 import { UpdateVolunteerSchema } from '@/lib/schemas'
 import { projectScopeWhere } from '@/lib/work-item'
 import { contactRelations } from '@/lib/contact'
-import { canAdminChapter, seesAllVolunteers } from '@/lib/chapter-access'
+import { canAdminChapter, seesEveryChapter } from '@/lib/chapter-access'
 import { peopleInfo, viewableVolunteers } from '@/lib/people'
+import { chapterFilter } from '@/lib/chapter-access-server'
 import { isActiveRecently } from '@/lib/activity'
 import { approvedProcedure, authedProcedure } from '../procedures'
 import {
@@ -36,7 +37,7 @@ export const volunteersRouter = {
       const currentVolunteer = context.volunteer
       // The directory is the viewer's chapter's, and its staff see profiles hidden from it. A
       // global admin or coordinator sees every chapter's, hidden profiles included.
-      const seesAll = seesAllVolunteers(context.access)
+      const seesAll = seesEveryChapter(context.access)
       const seesHidden = seesAll || canAdminChapter(context.access, context.access.chapterId)
 
       // A global admin sees, and searches by, each volunteer's login address, and sees which
@@ -67,11 +68,7 @@ export const volunteersRouter = {
 
       const where: Record<string, unknown> = {
         deletedAt: null,
-        nationalChapterId: seesAll
-          ? input.chapter === 'pool'
-            ? null
-            : input.chapter
-          : context.access.chapterId,
+        nationalChapterId: chapterFilter(context.access, input.chapter, seesAll),
         ...(seesHidden ? {} : { consentMakeProfileVisibleInDirectory: true }),
         approvalStatus: ApprovalStatus.approved,
         ...(input.skillIds && input.skillIds.length > 0

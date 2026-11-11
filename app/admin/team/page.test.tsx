@@ -73,7 +73,7 @@ describe('admin team', () => {
     await userEvent.click(await screen.findByRole('option', { name: /Gina Gone/ }))
     await prisma.volunteer.update({ where: { id: gone.id }, data: { deletedAt: new Date() } })
     await userEvent.click(screen.getByRole('button', { name: 'Appoint' }))
-    await screen.findByText('Volunteer not found')
+    await screen.findByText('Only an approved volunteer can coordinate')
 
     const button = await screen.findByRole('button', {
       name: 'Remove Rory Removed as a coordinator',
