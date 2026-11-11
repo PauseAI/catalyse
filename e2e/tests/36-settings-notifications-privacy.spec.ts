@@ -64,6 +64,34 @@ test.describe('Settings: email for each notification', () => {
     await expect(mention.getByRole('radio', { name: 'Email' })).toBeChecked()
   })
 
+  test('a preset fills in the choices, and editing one shows Custom', async ({
+    volunteer,
+    baseUrl,
+    snap,
+  }) => {
+    const page = volunteer.page
+    await page.goto(`${baseUrl}/settings?tab=notifications`)
+    const presets = page.getByRole('radiogroup', { name: 'Preset' })
+    const preset = (name: RegExp) => presets.getByRole('radio', { name })
+    await expect(preset(/^Custom/)).toBeVisible({ timeout: 10_000 })
+    await presets.locator('label', { hasText: /^Recommended/ }).click()
+    const approved = page.getByRole('radiogroup', { name: 'Your project proposal is approved' })
+    await expect(approved.getByRole('radio', { name: 'Digest' })).toBeChecked()
+    await expect(
+      page
+        .getByRole('radiogroup', { name: 'A volunteer sends you a message' })
+        .getByRole('radio', { name: 'Email' }),
+    ).toBeChecked()
+    await snap(page, 'recommended preset')
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await expect(getAlert(page)).toBeVisible({ timeout: 10_000 })
+
+    await page.reload()
+    await expect(preset(/^Recommended/)).toBeChecked({ timeout: 10_000 })
+    await approved.getByText('Email', { exact: true }).click()
+    await expect(preset(/^Custom/)).toBeChecked()
+  })
+
   test('an admin also sees the notifications only staff get', async ({ adminPage, baseUrl }) => {
     await adminPage.goto(`${baseUrl}/settings?tab=notifications`)
     await expect(

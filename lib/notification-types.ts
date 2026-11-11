@@ -198,14 +198,7 @@ const TYPES: Record<string, TypeInfo> = {
   },
 
   // Messages
-  message_received: {
-    label: 'A volunteer sends you a message',
-    default: 'email',
-    fixed: {
-      shows: 'Email',
-      why: 'Always emailed: the email carries the message, so you can read and reply to it.',
-    },
-  },
+  message_received: { label: 'A volunteer sends you a message', default: 'email' },
 }
 
 export const NOTIFICATION_TYPES: readonly string[] = Object.keys(TYPES)
@@ -256,6 +249,8 @@ export type PreferenceRow = {
   delivery: Delivery
   /** Why the delivery is set, for a type with no choice. */
   fixed: Fixed | null
+  /** Sent only to chapter staff and admins. */
+  staffOnly: boolean
 }
 
 /** The settings panel's rows for `viewer`, in the order above, with their current choices. */
@@ -273,6 +268,46 @@ export function preferenceRows(
         category: categoryOf(type),
         delivery: info.fixed ? def : (chosen.get(type) ?? def),
         fixed: info.fixed ?? null,
+        staffOnly: (info.audience ?? 'everyone') !== 'everyone',
       }
     })
+}
+
+/**
+ * Starting points that fill in every choice in the panel at once; the choices stay editable.
+ * A fixed type keeps its delivery whichever is picked.
+ */
+export const PRESETS = [
+  {
+    key: 'recommended',
+    label: 'Recommended',
+    hint: 'What needs you, and messages, by email; updates in the daily digest.',
+  },
+  { key: 'email', label: 'Everything by email', hint: 'Each notification as it happens.' },
+  { key: 'digest', label: 'Daily digest only', hint: 'One email a morning, at most.' },
+  { key: 'in_app', label: 'In app only', hint: 'No notification emails; check your Inbox.' },
+] as const
+export type PresetKey = (typeof PRESETS)[number]['key']
+
+/** How `preset` delivers one row. Recommended emails admin-only types, which are an admin's work. */
+export function presetDelivery(preset: PresetKey, row: PreferenceRow): Delivery {
+  if (preset !== 'recommended') return preset
+  return row.category === 'update' && !row.staffOnly ? 'digest' : 'email'
+}
+
+/** The choices `preset` makes for every row that has a choice. */
+export function applyPreset(preset: PresetKey, rows: PreferenceRow[]): Record<string, Delivery> {
+  return Object.fromEntries(
+    rows.filter((r) => !r.fixed).map((r) => [r.type, presetDelivery(preset, r)]),
+  )
+}
+
+/** The preset the current choices match, or null for a custom mix. */
+export function matchingPreset(
+  rows: PreferenceRow[],
+  current: (row: PreferenceRow) => Delivery,
+): PresetKey | null {
+  const choosable = rows.filter((r) => !r.fixed)
+  const match = PRESETS.find((p) => choosable.every((r) => current(r) === presetDelivery(p.key, r)))
+  return match?.key ?? null
 }

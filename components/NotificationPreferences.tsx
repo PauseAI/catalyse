@@ -3,7 +3,14 @@ import Radio from '@/components/Radio'
 import { H3 } from '@/components/Heading'
 import { P } from '@/components/Text'
 import { CATEGORY_LABELS, NOTIFICATION_CATEGORIES } from '@/lib/notification-categories'
-import { EMAIL_DELIVERIES, type Delivery, type PreferenceRow } from '@/lib/notification-types'
+import {
+  EMAIL_DELIVERIES,
+  PRESETS,
+  applyPreset,
+  matchingPreset,
+  type Delivery,
+  type PreferenceRow,
+} from '@/lib/notification-types'
 
 const SHORT_LABELS: Record<Delivery, string> = {
   in_app: 'In app',
@@ -41,7 +48,8 @@ function Choices({
 
 /**
  * One row per notification type under its Inbox category, each a choice of In app, Email or
- * Digest, with a "Set all" row per category. A fixed type shows its delivery and why.
+ * Digest, with a "Set all" row per category. A fixed type shows its delivery and why. Presets
+ * above fill in every choice; the one the choices match is shown checked, or Custom.
  */
 export default function NotificationPreferences({
   rows,
@@ -53,8 +61,25 @@ export default function NotificationPreferences({
   onChange: (next: Record<string, Delivery>) => void
 }) {
   const id = useId()
+  const preset = matchingPreset(rows, (r) => value[r.type] ?? r.delivery)
   return (
     <>
+      <div role="radiogroup" aria-label="Preset" className="mb-6 flex flex-col gap-2">
+        <span className="font-medium">Start from a preset</span>
+        {PRESETS.map((p) => (
+          <Radio
+            key={p.key}
+            name={`${id}-preset`}
+            checked={preset === p.key}
+            onChange={() => onChange({ ...value, ...applyPreset(p.key, rows) })}
+          >
+            {p.label} <span className="text-sm text-text-light">— {p.hint}</span>
+          </Radio>
+        ))}
+        <Radio name={`${id}-preset`} checked={preset === null} disabled readOnly>
+          Custom <span className="text-sm text-text-light">— your own mix, set below</span>
+        </Radio>
+      </div>
       {NOTIFICATION_CATEGORIES.map((category) => {
         const inCategory = rows.filter((r) => r.category === category)
         if (inCategory.length === 0) return null

@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
-import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { sendRelayMessage, isEmailConfigured } from '@/lib/email'
+import { notifyUser } from '@/lib/notify'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { canReach, seesFullProfile } from '@/lib/contact'
 import { inChapter } from '@/lib/chapter-access'
@@ -40,8 +40,8 @@ function limitSends(context: Pick<Context, 'request'>) {
 }
 
 /**
- * Stores one message in its conversation, tells the recipient in the Inbox, and emails them a
- * copy. `threadId` is null for a new conversation, which then becomes its own thread.
+ * Stores one message in its conversation and tells the recipient, who gets a copy by email as
+ * their choice for messages says. `threadId` is null for a new conversation, which then becomes its own thread.
  */
 async function deliver(
   sender: Sender,
@@ -66,32 +66,31 @@ async function deliver(
         threadId: message.threadId,
       },
     })
-    const threadId = message.threadId ?? row.id
-    await tx.notification.create({
-      data: {
-        volunteerId: recipient.id,
-        type: 'message_received',
-        title: `Message from ${sender.name}`,
-        body: message.subject,
-        link: `/inbox/messages/${threadId}`,
-        entityId: threadId,
-      },
-    })
-    return { id: row.id, threadId }
+    return { id: row.id, threadId: message.threadId ?? row.id }
   })
 
-  if (recipient.email && isEmailConfigured()) {
-    sendRelayMessage({
-      to: recipient.email,
-      toName: recipient.name,
-      fromName: sender.name,
-      replyTo: message.shareEmail ? sender.email : null,
-      subject: message.subject,
-      message: message.body,
-      projectTitle: message.projectTitle ?? undefined,
-      threadId: created.threadId,
-    }).catch((e) => logger.error(e, '[EMAIL ERROR]'))
-  }
+  await notifyUser(
+    recipient.id,
+    'message_received',
+    `Message from ${sender.name}`,
+    message.subject,
+    `/inbox/messages/${created.threadId}`,
+    {
+      send: async (to, name) =>
+        isEmailConfigured() &&
+        sendRelayMessage({
+          to,
+          toName: name,
+          fromName: sender.name,
+          replyTo: message.shareEmail ? sender.email : null,
+          subject: message.subject,
+          message: message.body,
+          projectTitle: message.projectTitle ?? undefined,
+          threadId: created.threadId,
+        }),
+    },
+    created.threadId,
+  )
   return created
 }
 
