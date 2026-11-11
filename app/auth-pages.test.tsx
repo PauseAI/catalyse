@@ -59,6 +59,10 @@ describe('forgot / reset password', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Send reset link' }))
     const link = await screen.findByText(/reset-password\?token=/)
     const token = link.textContent!.split('token=')[1]
+    expect(screen.getByRole('link', { name: 'contact support' })).toHaveAttribute(
+      'href',
+      'mailto:tech-support@pauseai.info',
+    )
 
     await renderApp(<ResetPasswordPage />, { url: `/reset-password?token=${token}` })
     const pw = screen.getByLabelText('New password')

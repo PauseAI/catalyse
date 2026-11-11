@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useMutation } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
 import { SECTION_CARD } from '@/lib/ui-classes'
+import { SUPPORT_EMAIL } from '@/lib/support-email'
 import Button from '@/components/Button'
 import FormLabel from '@/components/FormLabel'
 import { H1, H3 } from '@/components/Heading'
@@ -91,7 +92,7 @@ export default function ForgotPasswordPage() {
                 </Button>
                 <P className="text-sm text-text-light mt-4">
                   Not receiving the email? Check your spam folder, or{' '}
-                  <TextLink href="mailto:matilda@pauseai.info">contact support</TextLink>.
+                  <TextLink href={`mailto:${SUPPORT_EMAIL}`}>contact support</TextLink>.
                 </P>
               </div>
               {devUrl && (
