@@ -305,4 +305,16 @@ describe('FilterDropdown', () => {
     await userEvent.keyboard('{Backspace}')
     expect(screen.queryByRole('listbox')).toBeNull()
   })
+
+  it('hands focus back to the trigger whenever a searchable list closes from the keyboard', async () => {
+    render(<Host searchable />)
+    const trigger = () => screen.getByRole('button', { name: 'Fruit' })
+    for (const keys of ['{Escape}', '{Backspace}', 'ban{ArrowDown}{Enter}']) {
+      await userEvent.click(trigger())
+      await userEvent.keyboard(keys)
+      expect(screen.queryByRole('listbox')).toBeNull()
+      expect(trigger()).toHaveFocus()
+    }
+    expect(screen.getByTestId('v')).toHaveTextContent('b')
+  })
 })

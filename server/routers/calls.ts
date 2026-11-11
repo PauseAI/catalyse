@@ -7,8 +7,10 @@ import {
   ADDRESSABLE,
   addressedToWhere,
   addresseeWhere,
+  audienceWhere,
   CALL_ANSWERED,
   CALL_POSTED,
+  visibleToWhere,
 } from '@/lib/calls'
 import type { ChapterAccess } from '@/lib/chapter-access'
 import { confirmedProcedure, coordinatorProcedure } from '../procedures'
@@ -18,7 +20,8 @@ const CallInput = z.object({
   body: z.string().trim().min(1, 'Say what you are asking for').max(2000),
   /** Empty: every chapter and the holding pool. */
   chapterIds: z.array(z.number().int()).max(200),
-  skillId: z.number().int().nullable(),
+  /** Any one of these addresses the call to a volunteer; empty: anyone. */
+  skillIds: z.array(z.number().int()).max(50),
 })
 
 /**
@@ -28,7 +31,7 @@ const CallInput = z.object({
  */
 async function deliver(
   tx: Prisma.TransactionClient,
-  call: { id: number; title: string; body: string } & AddressingFields,
+  call: { id: number; title: string; body: string } & Addressing,
 ) {
   const addressees = await tx.volunteer.findMany({
     where: addresseeWhere(call),
@@ -46,7 +49,14 @@ async function deliver(
   })
 }
 
-type AddressingFields = { senderId: number | null; chapterIds: number[]; skillId: number | null }
+type Addressing = { senderId: number | null; chapterIds: number[]; skillIds: number[] }
+
+/** Reads a call's skill names, in alphabetical order, with `skillNames`. */
+const SKILL_NAMES = {
+  skills: { select: { skill: { select: { name: true } } }, orderBy: { skill: { name: 'asc' } } },
+} as const
+const skillNames = (call: { skills: { skill: { name: string } }[] }) =>
+  call.skills.map((s) => s.skill.name)
 
 /** A call the caller may run: their own, or any for a global admin. */
 async function callRunBy(volunteerId: number, access: ChapterAccess, id: number) {
@@ -57,13 +67,13 @@ async function callRunBy(volunteerId: number, access: ChapterAccess, id: number)
   return call
 }
 
-/** A call put out to `volunteerId` and still open, or not found. */
+/** A call `volunteerId` may see, skill or not, and still open; or not found. */
 async function openCallFor(volunteerId: number, id: number) {
   const call = await prisma.call.findUnique({ where: { id } })
-  const addressed =
+  const visible =
     call &&
-    (await prisma.volunteer.count({ where: { AND: [{ id: volunteerId }, addresseeWhere(call)] } }))
-  if (!call || !addressed) throw new ORPCError('NOT_FOUND', { message: 'Call not found' })
+    (await prisma.volunteer.count({ where: { AND: [{ id: volunteerId }, audienceWhere(call)] } }))
+  if (!call || !visible) throw new ORPCError('NOT_FOUND', { message: 'Call not found' })
   if (call.closedAt) {
     throw new ORPCError('BAD_REQUEST', { message: 'This call is no longer taking answers' })
   }
@@ -82,21 +92,27 @@ export const callsRouter = {
     if (found !== chapterIds.length) {
       throw new ORPCError('BAD_REQUEST', { message: 'Choose chapters from the list' })
     }
-    if (input.skillId !== null && !(await prisma.skill.count({ where: { id: input.skillId } }))) {
-      throw new ORPCError('BAD_REQUEST', { message: 'Choose a skill from the list' })
-    }
+    const skillIds = [...new Set(input.skillIds)]
     // One transaction, so a delivery that fails takes its call with it and the sender can resend.
     return prisma.$transaction(async (tx) => {
+      // Shared row locks keep the skills from being deleted until the call is in.
+      const found = skillIds.length
+        ? await tx.$queryRaw<{ id: number }[]>`
+            SELECT id FROM skills WHERE id = ANY(${skillIds}::int[]) FOR SHARE`
+        : []
+      if (found.length !== skillIds.length) {
+        throw new ORPCError('BAD_REQUEST', { message: 'Choose a skill from the list' })
+      }
       const call = await tx.call.create({
         data: {
           senderId: context.volunteer.id,
           title: input.title,
           body: input.body,
           chapterIds,
-          skillId: input.skillId,
+          skills: { create: skillIds.map((skillId) => ({ skillId })) },
         },
       })
-      await deliver(tx, call)
+      await deliver(tx, { ...call, skillIds })
       return { id: call.id }
     })
   }),
@@ -106,7 +122,7 @@ export const callsRouter = {
     const calls = await prisma.call.findMany({
       where: context.access.globalAdmin ? {} : { senderId: context.volunteer.id },
       include: {
-        skill: { select: { name: true } },
+        ...SKILL_NAMES,
         sender: { select: { name: true } },
         _count: { select: { responses: { where: { volunteer: { deletedAt: null } } } } },
       },
@@ -119,7 +135,7 @@ export const callsRouter = {
       title: c.title,
       body: c.body,
       chapters: c.chapterIds.map((id) => chapterName.get(id) ?? 'A removed chapter'),
-      skillName: c.skill?.name ?? null,
+      skillNames: skillNames(c),
       senderName: c.sender?.name ?? null,
       createdAt: c.createdAt,
       closedAt: c.closedAt,
@@ -165,29 +181,38 @@ export const callsRouter = {
       return { message: 'The call is closed to new answers' }
     }),
 
-  /** Open calls put out to the caller, and any they have answered. */
+  /**
+   * Open calls the caller may see, and any they have answered, each marked by whether it was
+   * addressed to them: it asks for no skill, or for one they have.
+   */
   forMe: confirmedProcedure.handler(async ({ context }) => {
     const me = context.volunteer
     if (!(await prisma.volunteer.count({ where: { id: me.id, ...ADDRESSABLE } }))) return []
     const calls = await prisma.call.findMany({
       where: {
         AND: [
-          addressedToWhere(me),
+          visibleToWhere(me),
           { OR: [{ closedAt: null }, { responses: { some: { volunteerId: me.id } } }] },
         ],
       },
       include: {
-        skill: { select: { name: true } },
+        ...SKILL_NAMES,
         sender: { select: { name: true, coordinatorRole: { select: { remit: true } } } },
         responses: { where: { volunteerId: me.id }, select: { message: true, createdAt: true } },
       },
       orderBy: { createdAt: 'desc' },
     })
+    const addressed = await prisma.call.findMany({
+      where: { AND: [{ id: { in: calls.map((c) => c.id) } }, addressedToWhere(me)] },
+      select: { id: true },
+    })
+    const addressedIds = new Set(addressed.map((c) => c.id))
     return calls.map((c) => ({
       id: c.id,
       title: c.title,
       body: c.body,
-      skillName: c.skill?.name ?? null,
+      skillNames: skillNames(c),
+      matchesSkills: addressedIds.has(c.id),
       senderName: c.sender?.name ?? null,
       senderRemit: c.sender?.coordinatorRole?.remit ?? null,
       createdAt: c.createdAt,

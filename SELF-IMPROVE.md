@@ -309,3 +309,9 @@ confusing than it needed to be, and that will do so again.
       need no database, and a script that prints a CI run's failing tests from its annotations,
       would give such a session a loop of seconds for pure code and one readable command for the
       rest.
+- [ ] **A headless screenshot cannot sign in as a dev account, because signing in means
+      running `localStorage.setItem` in the page.** Screenshot tools that only click, fill and
+      navigate (the pod's `shot`) had no way to do it, so a screenshot of a signed-in page meant
+      dropping a throwaway HTML file into `public/` to set the token and redirect, then deleting
+      it. A development-only route that takes a `dev-` token, stores it and redirects (refused
+      outside `NODE_ENV=development`) would make any signed-in page one URL away.

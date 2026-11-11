@@ -19,12 +19,12 @@ const forbidden = { code: 'FORBIDDEN' }
 const notFound = { code: 'NOT_FOUND' }
 
 const call = (
-  overrides: Partial<{ title: string; body: string; chapterIds: number[]; skillId: number | null }>,
+  overrides: Partial<{ title: string; body: string; chapterIds: number[]; skillIds: number[] }>,
 ) => ({
   title: 'Photos of your next event',
   body: 'We need photos and short videos of events in every country.',
   chapterIds: [],
-  skillId: null,
+  skillIds: [],
   ...overrides,
 })
 
@@ -94,7 +94,7 @@ describe('who may put out a call', () => {
     await expect(c.calls.send(call({ chapterIds: [987654] }))).rejects.toMatchObject({
       code: 'BAD_REQUEST',
     })
-    await expect(c.calls.send(call({ skillId: 987654 }))).rejects.toMatchObject({
+    await expect(c.calls.send(call({ skillIds: [987654] }))).rejects.toMatchObject({
       code: 'BAD_REQUEST',
     })
   })
@@ -127,7 +127,7 @@ describe('delivering a call', () => {
       data: { volunteerId: s.deHidden.id, skillId: photography.id },
     })
     const toGermany = await s.c.calls.send(call({ chapterIds: [s.de.id] }))
-    const photographers = await s.c.calls.send(call({ skillId: photography.id }))
+    const photographers = await s.c.calls.send(call({ skillIds: [photography.id] }))
 
     await delivered(toGermany.id, s.deVisible.id)
     await delivered(toGermany.id, s.deHidden.id)
@@ -149,6 +149,68 @@ describe('delivering a call', () => {
     await expect(
       clientAs(s.ukVisible).calls.respond({ callId: toGermany.id, message: 'Me!' }),
     ).rejects.toMatchObject(notFound)
+  })
+
+  it('is shown to those without its skill, apart from the calls that match, and they may answer', async () => {
+    const s = await setup()
+    const photography = await createSkill({ name: 'Photography' })
+    await prisma.volunteerSkill.create({
+      data: { volunteerId: s.deHidden.id, skillId: photography.id },
+    })
+    const { id } = await s.c.calls.send(call({ skillIds: [photography.id] }))
+    await delivered(id, s.deHidden.id)
+    expect(await notifiedOf(id, s.deVisible.id)).toBe(0)
+
+    const shown = async (v: Parameters<typeof clientAs>[0]) =>
+      (await clientAs(v).calls.forMe()).find((x) => x.id === id)
+    expect(await shown(s.deHidden)).toMatchObject({
+      matchesSkills: true,
+      skillNames: ['Photography'],
+    })
+    expect(await shown(s.deVisible)).toMatchObject({
+      matchesSkills: false,
+      skillNames: ['Photography'],
+    })
+
+    await clientAs(s.deVisible).calls.respond({ callId: id, message: 'I take photos too' })
+    expect(await s.c.calls.responses({ callId: id })).toEqual([
+      expect.objectContaining({ name: s.deVisible.name, message: 'I take photos too' }),
+    ])
+    expect(await notifiedOf(id, s.deVisible.id)).toBe(0)
+  })
+
+  it('asking for several skills, reaches anyone with any of them, and lists them all', async () => {
+    const s = await setup()
+    const [film, photo, sound] = [
+      await createSkill({ name: 'Film' }),
+      await createSkill({ name: 'Photography' }),
+      await createSkill({ name: 'Sound' }),
+    ]
+    await prisma.volunteerSkill.createMany({
+      data: [
+        { volunteerId: s.deHidden.id, skillId: photo.id },
+        { volunteerId: s.ukHidden.id, skillId: film.id },
+        { volunteerId: s.ukVisible.id, skillId: sound.id },
+      ],
+    })
+    const { id } = await s.c.calls.send(call({ skillIds: [photo.id, film.id, photo.id] }))
+
+    await delivered(id, s.deHidden.id)
+    await delivered(id, s.ukHidden.id)
+    for (const v of [s.ukVisible, s.deVisible, s.poolHidden]) {
+      expect(await notifiedOf(id, v.id)).toBe(0)
+    }
+    const shown = async (v: Parameters<typeof clientAs>[0]) =>
+      (await clientAs(v).calls.forMe()).find((x) => x.id === id)
+    expect(await shown(s.ukHidden)).toMatchObject({
+      matchesSkills: true,
+      skillNames: ['Film', 'Photography'],
+    })
+    expect(await shown(s.ukVisible)).toMatchObject({ matchesSkills: false })
+    expect((await s.c.calls.sent()).find((x) => x.id === id)?.skillNames).toEqual([
+      'Film',
+      'Photography',
+    ])
   })
 })
 
@@ -439,15 +501,33 @@ describe('admin.coordinators', () => {
 })
 
 describe('edges of a call', () => {
-  it('closes when its skill is deleted, rather than widening to everyone', async () => {
+  it('loses a deleted skill, closing only once none it asked for is left, rather than widening to everyone', async () => {
     const s = await setup()
-    const skill = await createSkill()
-    const { id } = await s.c.calls.send(call({ skillId: skill.id }))
-    await clientAs(await createAdmin()).admin.skills.delete({ id: skill.id })
-    expect((await prisma.call.findUniqueOrThrow({ where: { id } })).closedAt).not.toBeNull()
+    const [film, photo] = [await createSkill(), await createSkill()]
+    const admin = clientAs(await createAdmin())
+    const { id } = await s.c.calls.send(call({ skillIds: [film.id, photo.id] }))
+    const callNow = () =>
+      prisma.call.findUniqueOrThrow({ where: { id }, include: { skills: true } })
+
+    await admin.admin.skills.delete({ id: film.id })
+    expect(await callNow()).toMatchObject({ closedAt: null, skills: [{ skillId: photo.id }] })
+    await admin.admin.skills.delete({ id: photo.id })
+    expect(await callNow()).toMatchObject({ closedAt: expect.any(Date), skills: [] })
     await expect(
       clientAs(s.deVisible).calls.respond({ callId: id, message: 'Me' }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
+  })
+
+  it('closes when its last two skills are deleted at once', async () => {
+    const s = await setup()
+    const [film, photo] = [await createSkill(), await createSkill()]
+    const { id } = await s.c.calls.send(call({ skillIds: [film.id, photo.id] }))
+    const [a, b] = [clientAs(await createAdmin()), clientAs(await createAdmin())]
+    await Promise.all([
+      a.admin.skills.delete({ id: film.id }),
+      b.admin.skills.delete({ id: photo.id }),
+    ])
+    expect((await prisma.call.findUniqueOrThrow({ where: { id } })).closedAt).not.toBeNull()
   })
 
   it("closes, with the role, when the coordinator's account is deleted", async () => {

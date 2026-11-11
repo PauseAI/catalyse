@@ -18,9 +18,11 @@ const card = async (title: string) =>
   (await screen.findByRole('heading', { name: title })).closest('section') as HTMLElement
 
 describe('coordinate', () => {
-  it('puts out a call to chosen chapters and skill, reads its answers and closes it', async () => {
+  it('puts out a call to chosen chapters and skills, reads its answers and closes it', async () => {
     const chapter = await createChapter()
-    const skill = await createSkill({ name: 'Photography' })
+    const photo = await createSkill({ name: 'March photography' })
+    const video = await createSkill({ name: 'Rally videography' })
+    await createSkill({ name: 'Rally sound' })
     const coordinator = await createCoordinator(chapter)
     await renderApp(<CoordinatePage />, { as: coordinator })
 
@@ -30,18 +32,46 @@ describe('coordinate', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: chapter.name }))
     await userEvent.click(screen.getByRole('checkbox', { name: chapter.name }))
     await userEvent.click(screen.getByRole('checkbox', { name: chapter.name }))
-    await userEvent.selectOptions(
-      await screen.findByLabelText(/Only volunteers with/),
-      'Photography',
-    )
+    // Keyboard only: type to filter, pick, and the field keeps focus for the next pick.
+    const skills = await screen.findByRole('button', { name: 'Skills it asks for' })
+    skills.focus()
+    for (const [typed, picked] of [
+      ['March photo', 'March photography'],
+      ['Rally vid', 'Rally videography'],
+      ['Rally sou', 'Rally sound'],
+    ]) {
+      await userEvent.keyboard('{Enter}')
+      await userEvent.type(screen.getByRole('searchbox', { name: 'Skills it asks for' }), typed)
+      expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([picked])
+      await userEvent.keyboard('{ArrowDown}{Enter}')
+      expect(screen.getByRole('button', { name: 'Skills it asks for' })).toHaveFocus()
+    }
+    const chosen = screen.getByRole('list', { name: 'Skills it asks for: chosen' })
+    await userEvent.click(within(chosen).getByRole('button', { name: 'Remove Rally sound' }))
+    expect(
+      within(chosen)
+        .getAllByRole('listitem')
+        .map((li) => li.firstChild?.textContent),
+    ).toEqual(['March photography', 'Rally videography'])
+    await userEvent.click(screen.getByRole('button', { name: 'Skills it asks for' }))
+    expect(screen.queryByRole('option', { name: 'March photography' })).not.toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
     await userEvent.click(screen.getByRole('button', { name: 'Send call' }))
     await screen.findByText('Your call is on its way to volunteers')
 
-    const call = await prisma.call.findFirstOrThrow({ where: { senderId: coordinator.id } })
-    expect(call).toMatchObject({ chapterIds: [chapter.id], skillId: skill.id })
+    const call = await prisma.call.findFirstOrThrow({
+      where: { senderId: coordinator.id },
+      include: { skills: { orderBy: { skillId: 'asc' } } },
+    })
+    expect(call).toMatchObject({
+      chapterIds: [chapter.id],
+      skills: [{ skillId: photo.id }, { skillId: video.id }],
+    })
     const section = await card('Photos of protests')
     expect(
-      within(section).getByText(new RegExp(`${chapter.name} · Photography · open`)),
+      within(section).getByText(
+        new RegExp(`${chapter.name} · for March photography or Rally videography · open`),
+      ),
     ).toBeTruthy()
 
     await userEvent.click(within(section).getByRole('button', { name: 'Answers (0)' }))
