@@ -244,3 +244,15 @@ export async function runBackupJob(): Promise<{ localSuccess: boolean; b2Success
   console.log('[BACKUP] Backup cycle complete')
   return { localSuccess: true, b2Success }
 }
+
+/**
+ * The scheduled backup: a dump that failed, or an upload that failed with B2 set up, throws, so
+ * the run is recorded as failed and the next hourly trigger tries again.
+ */
+export async function runBackupJobOrFail(): Promise<{ localSuccess: boolean; b2Success: boolean }> {
+  const result = await runBackupJob()
+  if (!result.localSuccess || (isB2Configured() && !result.b2Success)) {
+    throw new Error(`Backup incomplete: ${JSON.stringify(result)}`)
+  }
+  return result
+}

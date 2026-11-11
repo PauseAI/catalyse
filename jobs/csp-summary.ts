@@ -1,18 +1,17 @@
 import { prisma } from '@/lib/prisma'
 import { notifyUser } from '@/lib/notify'
+import { startOfUtcDay } from '@/lib/schedule'
 
 const SINGLETON_ID = 1
-const SEND_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 export async function runCspSummaryJob(): Promise<Record<string, unknown>> {
   const settings = await prisma.platformSettings.findUniqueOrThrow({ where: { id: SINGLETON_ID } })
 
   if (settings.cspViolationCount === 0) return { skipped: true, reason: 'no violations recorded' }
 
-  const dueSince = settings.cspSummaryLastSentAt
-    ? Date.now() - settings.cspSummaryLastSentAt.getTime()
-    : Infinity
-  if (dueSince < SEND_INTERVAL_MS) return { skipped: true, reason: 'not due yet' }
+  // Once a UTC day, whenever in it the scheduler runs this.
+  const last = settings.cspSummaryLastSentAt
+  if (last && last >= startOfUtcDay(new Date())) return { skipped: true, reason: 'sent today' }
 
   const count = settings.cspViolationCount
   const admins = await prisma.volunteer.findMany({

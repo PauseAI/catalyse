@@ -12,7 +12,8 @@ try {
   const res = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${secret}` },
-    signal: AbortSignal.timeout(20_000),
+    // The call waits for every job due this hour, a backup included.
+    signal: AbortSignal.timeout(15 * 60_000),
   })
   const body = await res.text()
   console.log(`[cron-trigger] HTTP ${res.status}`)

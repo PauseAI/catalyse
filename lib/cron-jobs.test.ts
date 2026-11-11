@@ -9,7 +9,7 @@ import {
   setCronJobRunners,
 } from './cron-jobs'
 import { CRON_JOB_INFO, DAILY_JOBS_HOUR_UTC } from './cron-job-names'
-import { runBackupJob } from '@/jobs/backup'
+import { runBackupJobOrFail } from '@/jobs/backup'
 import { cronJobs } from '@/test/fakes/cron-jobs'
 
 describe('CRON_JOBS', () => {
@@ -34,8 +34,8 @@ describe('CRON_JOBS', () => {
 
   it('runs the real jobs unless swapped', () => {
     expect(setCronJobRunners(undefined)).toBe(cronJobs.runners)
-    expect(cronJobRunners().backup).toBe(runBackupJob)
-    expect(setCronJobRunners(cronJobs.runners).backup).toBe(runBackupJob)
+    expect(cronJobRunners().backup).toBe(runBackupJobOrFail)
+    expect(setCronJobRunners(cronJobs.runners).backup).toBe(runBackupJobOrFail)
   })
 })
 
@@ -89,11 +89,37 @@ describe('runScheduledJobs (the hourly trigger)', () => {
     ])
     expect((await trigger(hour('2026-12-04', 10))).ran).toEqual(['notification-digest'])
 
-    // A run started minutes ago and still going holds the day; one an hour old has died.
+    // A run started an hour ago and still going holds the day; one six hours old has died.
     await prisma.cronJobRun.create({
       data: { jobName: 'backup', status: 'running', startedAt: new Date('2026-12-05T08:00:00Z') },
     })
-    expect((await trigger('2026-12-05T08:30:00Z')).ran).not.toContain('backup')
-    expect((await trigger('2026-12-05T09:30:00Z')).ran).toContain('backup')
+    expect((await trigger('2026-12-05T09:30:00Z')).ran).not.toContain('backup')
+    expect((await trigger('2026-12-05T14:30:00Z')).ran).toContain('backup')
+  })
+
+  it('gives a failing job three tries a day, then waits for the next day', async () => {
+    cronJobs.fails('applications-summary', 'still broken')
+    const tries: number[] = []
+    for (let h = 8; h < 24; h++) {
+      const { ran } = await trigger(hour('2026-12-06', h))
+      if (ran.includes('applications-summary')) tries.push(h)
+    }
+    expect(tries).toEqual([8, 9, 10])
+    cronJobs.returns('applications-summary', 'fixed')
+    expect((await trigger(hour('2026-12-07', 8))).ran).toContain('applications-summary')
+  })
+
+  it('starts a daily job once when two triggers arrive together', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(hour('2026-12-08', 8)))
+    const before = cronJobs.runs.length
+    await Promise.all([runScheduledJobs(), runScheduledJobs()])
+    const ran = cronJobs.runs.slice(before)
+    for (const name of DAILY)
+      expect(
+        ran.filter((n) => n === name),
+        name,
+      ).toHaveLength(1)
+    expect(ran.filter((n) => n === 'notification-digest')).toHaveLength(2)
   })
 })

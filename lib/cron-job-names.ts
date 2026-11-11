@@ -15,8 +15,8 @@ export type CronJobName = (typeof CRON_JOB_NAMES)[number]
 export const DAILY_JOBS_HOUR_UTC = 8
 
 /**
- * `hourly` jobs run on every trigger; `daily` ones on the first trigger at or after
- * {@link DAILY_JOBS_HOUR_UTC} each UTC day that has no successful run yet.
+ * `every: 'hour'` jobs run on every trigger; `every: 'day'` ones on the first trigger at or
+ * after {@link DAILY_JOBS_HOUR_UTC} each UTC day that has no successful run yet.
  */
 export type CronJobInfo = { description: string; idempotent: boolean; every: 'hour' | 'day' }
 

@@ -7,7 +7,8 @@ import { orpc } from '@/lib/orpc'
 import { formatDateTime } from '@/lib/format-date'
 import { Badge, type BadgeVariant } from '@/components/Badge'
 import { useToast } from '@/lib/toast'
-import { CRON_JOB_NAMES, CRON_JOB_INFO } from '@/lib/cron-job-names'
+import { CRON_JOB_NAMES, CRON_JOB_INFO, DAILY_JOBS_HOUR_UTC } from '@/lib/cron-job-names'
+import { hourLabel } from '@/lib/time-zone'
 import Button from '@/components/Button'
 import Modal from '@/components/ui/Modal'
 import { H1 } from '@/components/Heading'
@@ -72,9 +73,16 @@ export default function AdminCronRunsPage() {
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold">{jobName}</span>
-                <Badge variant={info.idempotent ? 'success' : 'attention'}>
-                  {info.idempotent ? 'idempotent' : 'not idempotent'}
-                </Badge>
+                <span className="flex gap-1">
+                  <Badge variant="neutral">
+                    {info.every === 'hour'
+                      ? 'hourly'
+                      : `daily from ${hourLabel(DAILY_JOBS_HOUR_UTC)} UTC`}
+                  </Badge>
+                  <Badge variant={info.idempotent ? 'success' : 'attention'}>
+                    {info.idempotent ? 'idempotent' : 'not idempotent'}
+                  </Badge>
+                </span>
               </div>
               <P className="text-sm text-text-light m-0 flex-1">{info.description}</P>
               <Button

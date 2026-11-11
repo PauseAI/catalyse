@@ -1,9 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { createVolunteer } from '@/test/factories'
 import { createSession } from '@/lib/auth'
 
 import { cronJobs } from '@/test/fakes/cron-jobs'
+
+afterEach(() => vi.useRealTimers())
 
 beforeEach(() => {
   cronJobs.returns('backup', 'backup-ok')
@@ -60,7 +62,6 @@ describe('cron routes', () => {
       'applications-summary': 'summary-ok',
       'applications-anonymisation': { error: 'Error: anon failed' },
     })
-    vi.useRealTimers()
   })
 })
 

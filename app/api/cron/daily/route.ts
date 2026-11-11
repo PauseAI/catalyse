@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkCronAuth } from '@/lib/cron-auth'
 import { runScheduledJobs } from '@/lib/cron-jobs'
 
-// The cron service calls this every hour (railway.cron.toml); each job runs when it is due.
+// The one cron trigger: the cron service calls it every hour (railway.cron.toml), and each job
+// runs when it is due (lib/cron-jobs.ts). The path predates the hourly schedule.
 // Can be triggered manually: POST with Authorization: Bearer <CRON_SECRET>
 export async function POST(request: NextRequest) {
   const authError = checkCronAuth(request)
