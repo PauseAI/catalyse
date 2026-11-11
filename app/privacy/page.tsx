@@ -11,8 +11,8 @@ import {
 } from '@/lib/staleness'
 import { ExportData, LogInPrompt } from './account-actions'
 
-/** Stichting PauseAI's privacy contact, as its own privacy policy at pauseai.info/privacy gives it. */
-const PRIVACY_EMAIL = 'maxime@pauseai.info'
+/** Stichting PauseAI's privacy inbox, a group that reaches the people who handle data requests. */
+const PRIVACY_EMAIL = 'privacy@pauseai.info'
 
 export const metadata: Metadata = {
   title: 'Privacy policy',
