@@ -11,6 +11,9 @@ import {
 } from '@/lib/staleness'
 import { ExportData, LogInPrompt } from './account-actions'
 
+/** Stichting PauseAI's privacy inbox, a group that reaches the people who handle data requests. */
+const PRIVACY_EMAIL = 'privacy@pauseai.info'
+
 export const metadata: Metadata = {
   title: 'Privacy policy',
   description:
@@ -142,7 +145,7 @@ export default function PrivacyPage() {
               </li>
             </ul>
             <P className="text-text-light mb-4">
-              Where data is processed outside the UK/EEA, we rely on the service provider&apos;s
+              Where data is processed outside the EEA, we rely on the service provider&apos;s
               standard contractual clauses and data processing agreements as safeguards for
               international transfers.
             </P>
@@ -191,7 +194,7 @@ export default function PrivacyPage() {
           <div className={`${SECTION_CARD} overflow-hidden wrap-break-word mb-6`}>
             <H2>Your GDPR rights</H2>
             <P className="text-text-light mb-4">
-              Under GDPR and the UK Data Protection Act 2018, you have the right to:
+              Under the GDPR and Dutch privacy law, you have the right to:
             </P>
             <ul className="list-disc text-text-light pl-5">
               <li>
@@ -221,21 +224,29 @@ export default function PrivacyPage() {
               </li>
             </ul>
             <P className="text-text-light mt-4">
-              <strong>Data Controller:</strong> Safe AI Alliance Ltd (trading as PauseAI UK /
-              Catalyse)
+              <strong>Data Controller:</strong> Stichting PauseAI (PauseAI Global), a Dutch
+              foundation
+              <br />
+              <strong>KVK number:</strong> 92951031
+              <br />
+              <strong>Address:</strong> Box C5957, Kwikstaartlaan 42, 3704GS Zeist, The Netherlands
               <br />
               <strong>Contact:</strong>{' '}
-              <TextLink href="mailto:matilda@pauseai.info">matilda@pauseai.info</TextLink>
+              <TextLink href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</TextLink>
+              <br />
+              <TextLink href="https://pauseai.info/legal" target="_blank" rel="noopener noreferrer">
+                Legal information
+              </TextLink>
             </P>
             <P className="text-text-light mt-3">
               If you are not satisfied with how we handle your data, you have the right to lodge a
-              complaint with the <strong>Information Commissioner&apos;s Office (ICO)</strong> at{' '}
+              complaint with the Dutch Data Protection Authority,{' '}
               <TextLink
-                href="https://ico.org.uk/make-a-complaint/"
+                href="https://autoriteitpersoonsgegevens.nl"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                ico.org.uk
+                Autoriteit Persoonsgegevens
               </TextLink>
               .
             </P>

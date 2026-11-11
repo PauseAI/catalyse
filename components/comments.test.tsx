@@ -800,6 +800,10 @@ describe('Footer', () => {
   it('shows the version and PR link when deployed, plain links otherwise', async () => {
     await renderApp(<Footer />)
     expect(screen.getByRole('link', { name: 'Privacy & Data' })).toHaveAttribute('href', '/privacy')
+    expect(screen.getByRole('link', { name: 'Contact' })).toHaveAttribute(
+      'href',
+      'mailto:tech-support@pauseai.info',
+    )
     await waitFor(() => expect(screen.queryByText(/PR #/)).toBeNull())
   })
 })

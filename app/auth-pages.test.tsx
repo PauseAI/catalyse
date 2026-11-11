@@ -59,6 +59,10 @@ describe('forgot / reset password', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Send reset link' }))
     const link = await screen.findByText(/reset-password\?token=/)
     const token = link.textContent!.split('token=')[1]
+    expect(screen.getByRole('link', { name: 'contact support' })).toHaveAttribute(
+      'href',
+      'mailto:tech-support@pauseai.info',
+    )
 
     await renderApp(<ResetPasswordPage />, { url: `/reset-password?token=${token}` })
     const pw = screen.getByLabelText('New password')
@@ -203,9 +207,9 @@ describe('accept invite', () => {
       await renderApp(<AcceptInvitePage />, { url, as: invitee })
       await screen.findByText('Invite not accepted')
       expect(screen.getByText(message)).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'uk@pauseai.info' })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: 'tech-support@pauseai.info' })).toHaveAttribute(
         'href',
-        'mailto:uk@pauseai.info',
+        'mailto:tech-support@pauseai.info',
       )
     }
     const invite = (inviteToken: string, data: object) =>

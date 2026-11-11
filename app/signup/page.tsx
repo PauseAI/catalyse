@@ -24,6 +24,7 @@ import {
 } from '@/lib/filter-options'
 import { OTHER_COUNTRY } from '@/lib/countries'
 import { useCountries } from '@/lib/hooks/countries'
+import { SUPPORT_EMAIL } from '@/lib/support-email'
 
 interface SelectedSkill {
   skillId: number
@@ -786,8 +787,8 @@ export default function SignupPage() {
             )}
             <P className="text-text-light text-sm mt-4">
               Questions? Contact{' '}
-              <a href="mailto:uk@pauseai.info" className="underline">
-                uk@pauseai.info
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+                {SUPPORT_EMAIL}
               </a>
             </P>
           </div>

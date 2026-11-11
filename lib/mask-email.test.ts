@@ -3,7 +3,7 @@ import { maskEmail } from './mask-email'
 
 describe('maskEmail', () => {
   it('keeps the first and last letters and the domain', () => {
-    expect(maskEmail('birchbenji@gmail.com')).toBe('b••••••••i@gmail.com')
+    expect(maskEmail('jordanlee@example.com')).toBe('j•••••••e@example.com')
     expect(maskEmail('sam@example.com')).toBe('s•m@example.com')
   })
 

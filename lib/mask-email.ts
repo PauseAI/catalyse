@@ -1,4 +1,4 @@
-/** `birchbenji@gmail.com` as `b••••••••i@gmail.com`: enough for its owner to know it. */
+/** `jordanlee@example.com` as `j•••••••e@example.com`: enough for its owner to know it. */
 export function maskEmail(email: string): string {
   const at = email.lastIndexOf('@')
   if (at < 1) return '•••'

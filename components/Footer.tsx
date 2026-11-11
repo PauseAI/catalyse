@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { orpc } from '@/lib/orpc'
+import { SUPPORT_EMAIL } from '@/lib/support-email'
 
 export default function Footer() {
   const { data: versionData } = useQuery({
@@ -21,7 +22,7 @@ export default function Footer() {
           Privacy &amp; Data
         </Link>
         <a
-          href="mailto:matilda@pauseai.info"
+          href={`mailto:${SUPPORT_EMAIL}`}
           className="underline hover:text-brand-text transition-colors"
         >
           Contact

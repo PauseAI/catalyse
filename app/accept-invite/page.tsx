@@ -10,6 +10,7 @@ import { SECTION_CARD } from '@/lib/ui-classes'
 import Button from '@/components/Button'
 import { H2 } from '@/components/Heading'
 import { P } from '@/components/Text'
+import { SUPPORT_EMAIL } from '@/lib/support-email'
 
 function AcceptInviteContent() {
   const router = useRouter()
@@ -93,8 +94,8 @@ function AcceptInviteContent() {
       <P className="my-4 text-error">{errorMsg}</P>
       <P className="text-text-light text-sm mb-6">
         Need help? Contact{' '}
-        <a href="mailto:uk@pauseai.info" className="underline">
-          uk@pauseai.info
+        <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+          {SUPPORT_EMAIL}
         </a>
         .
       </P>
