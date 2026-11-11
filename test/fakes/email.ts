@@ -38,6 +38,14 @@ export class MemoryEmailTransport extends EmailTransport {
     this.isConfigured = value
   }
 
+  /**
+   * Gives fire-and-forget sends time to land, so asserting that nobody was emailed proves it
+   * rather than passing while a send is still rendering.
+   */
+  async settle(ms = 250): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
   reset(): void {
     this.sent.length = 0
     this.pendingFailures = 0
