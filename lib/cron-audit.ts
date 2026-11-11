@@ -18,7 +18,7 @@ export async function recordCronRun<T>(
   triggeredBy: CronTriggerSource = 'cron',
 ): Promise<T> {
   const run = await prisma.cronJobRun.create({
-    data: { jobName, status: 'running', triggeredBy },
+    data: { jobName, status: 'running', triggeredBy, startedAt: new Date() },
   })
 
   try {

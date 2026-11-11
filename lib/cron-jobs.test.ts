@@ -1,7 +1,14 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { prisma } from '@/lib/prisma'
 
-import { CRON_JOBS, CRON_JOB_NAMES, cronJobRunners, setCronJobRunners } from './cron-jobs'
+import {
+  CRON_JOBS,
+  CRON_JOB_NAMES,
+  cronJobRunners,
+  runScheduledJobs,
+  setCronJobRunners,
+} from './cron-jobs'
+import { CRON_JOB_INFO, DAILY_JOBS_HOUR_UTC } from './cron-job-names'
 import { runBackupJob } from '@/jobs/backup'
 import { cronJobs } from '@/test/fakes/cron-jobs'
 
@@ -29,5 +36,64 @@ describe('CRON_JOBS', () => {
     expect(setCronJobRunners(undefined)).toBe(cronJobs.runners)
     expect(cronJobRunners().backup).toBe(runBackupJob)
     expect(setCronJobRunners(cronJobs.runners).backup).toBe(runBackupJob)
+  })
+})
+
+describe('runScheduledJobs (the hourly trigger)', () => {
+  afterEach(() => vi.useRealTimers())
+
+  const DAILY = CRON_JOB_NAMES.filter((n) => CRON_JOB_INFO[n].every === 'day')
+
+  /** Runs the trigger at `iso`, with the clock there too; the jobs it ran. */
+  async function trigger(iso: string) {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(iso))
+    const before = cronJobs.runs.length
+    const body = await runScheduledJobs()
+    return { ran: cronJobs.runs.slice(before), body }
+  }
+  const hour = (day: string, h: number) => `${day}T${String(h).padStart(2, '0')}:05:00Z`
+
+  it('runs each daily job once a day from its hour, and the digest every hour', async () => {
+    const ran: string[] = []
+    for (let h = 0; h < 24; h++) ran.push(...(await trigger(hour('2026-12-01', h))).ran)
+    for (const name of DAILY)
+      expect(
+        ran.filter((n) => n === name),
+        name,
+      ).toHaveLength(1)
+    expect(ran.filter((n) => n === 'notification-digest')).toHaveLength(24)
+    // Not before the hour.
+    expect((await trigger(hour('2026-12-02', DAILY_JOBS_HOUR_UTC - 1))).ran).toEqual([
+      'notification-digest',
+    ])
+    expect((await trigger(hour('2026-12-02', DAILY_JOBS_HOUR_UTC))).ran).toContain('backup')
+  })
+
+  it('catches up when the hour was missed, and reports what it skipped', async () => {
+    const { ran } = await trigger(hour('2026-12-03', 13))
+    expect([...ran].sort()).toEqual([...CRON_JOB_NAMES].sort())
+    const again = await trigger(hour('2026-12-03', 14))
+    expect(again.ran).toEqual(['notification-digest'])
+    expect(again.body).toMatchObject({ backup: { skipped: 'not due' } })
+  })
+
+  it('tries a failed job again next hour, but not one that succeeded or is still running', async () => {
+    cronJobs.fails('nudges', 'smtp down')
+    const first = await trigger(hour('2026-12-04', 8))
+    expect(first.body.nudges).toEqual({ error: 'Error: smtp down' })
+    cronJobs.returns('nudges', { nudged: 0 })
+    expect((await trigger(hour('2026-12-04', 9))).ran.sort()).toEqual([
+      'notification-digest',
+      'nudges',
+    ])
+    expect((await trigger(hour('2026-12-04', 10))).ran).toEqual(['notification-digest'])
+
+    // A run started minutes ago and still going holds the day; one an hour old has died.
+    await prisma.cronJobRun.create({
+      data: { jobName: 'backup', status: 'running', startedAt: new Date('2026-12-05T08:00:00Z') },
+    })
+    expect((await trigger('2026-12-05T08:30:00Z')).ran).not.toContain('backup')
+    expect((await trigger('2026-12-05T09:30:00Z')).ran).toContain('backup')
   })
 })

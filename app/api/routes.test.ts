@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { createVolunteer } from '@/test/factories'
 import { createSession } from '@/lib/auth'
@@ -38,10 +38,6 @@ describe('cron routes', () => {
     const reminders = await import('./cron/deadline-reminders/route')
     expect((await reminders.POST(cron('deadline-reminders', 'x'))).status).toBe(401)
     expect(await (await reminders.POST(cron('deadline-reminders'))).json()).toEqual({ emails: 2 })
-    cronJobs.returns('notification-digest', { sent: 3 })
-    const digests = await import('./cron/notification-digest/route')
-    expect((await digests.POST(cron('notification-digest', 'x'))).status).toBe(401)
-    expect(await (await digests.POST(cron('notification-digest'))).json()).toEqual({ sent: 3 })
     const anon = await import('./cron/applications-anonymisation/route')
     expect((await anon.POST(cron('applications-anonymisation', 'x'))).status).toBe(401)
     await expect(anon.POST(cron('applications-anonymisation'))).rejects.toThrow('anon failed')
@@ -51,7 +47,9 @@ describe('cron routes', () => {
     })
   })
 
-  it('daily runs every job and reports failures inline', async () => {
+  it('daily runs every job due and reports failures inline', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-12-10T09:00:00Z'))
     const { POST } = await import('./cron/daily/route')
     expect((await POST(cron('daily', 'Bearer nope'))).status).toBe(401)
     const body = await (await POST(cron('daily'))).json()
@@ -62,6 +60,7 @@ describe('cron routes', () => {
       'applications-summary': 'summary-ok',
       'applications-anonymisation': { error: 'Error: anon failed' },
     })
+    vi.useRealTimers()
   })
 })
 
