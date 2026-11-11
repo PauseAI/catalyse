@@ -11,6 +11,7 @@ import { H1 } from '@/components/Heading'
 import { P } from '@/components/Text'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import Input from '@/components/ui/Input'
+import { SUPPORT_EMAIL } from '@/lib/support-email'
 
 const CARD = `${SECTION_CARD} text-center`
 
@@ -148,8 +149,8 @@ function VerifyEmailContent() {
       )}
       <P className="text-text-light text-sm mt-6">
         Questions? Contact{' '}
-        <a href="mailto:uk@pauseai.info" className="underline">
-          uk@pauseai.info
+        <a href={`mailto:${SUPPORT_EMAIL}`} className="underline">
+          {SUPPORT_EMAIL}
         </a>
       </P>
     </div>

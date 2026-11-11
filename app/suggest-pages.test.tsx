@@ -170,6 +170,11 @@ describe('/privacy', () => {
     expect(screen.queryByRole('button', { name: 'Download my data' })).toBeNull()
     expect(await screen.findByText(/to export your data or manage your account/)).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Privacy & data' })).toBeInTheDocument()
+    expect(screen.getByText(/Stichting PauseAI \(PauseAI Global\)/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'maxime@pauseai.info' })).toHaveAttribute(
+      'href',
+      'mailto:maxime@pauseai.info',
+    )
     expect(
       screen.getByText(/a reminder after 14 days, a final warning after 21, and after 28 days/),
     ).toBeInTheDocument()

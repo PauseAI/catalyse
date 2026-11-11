@@ -1,6 +1,7 @@
 import { Heading, Text } from '@react-email/components'
 import { EmailLayout } from './components/Layout'
 import { EmailFooter } from './components/Footer'
+import { SUPPORT_EMAIL } from '../support-email'
 
 export type ApplicationRejectedEmailProps = {
   name: string
@@ -41,7 +42,7 @@ export function ApplicationRejectedEmail({
         </>
       )}
       <Text>
-        You can contact <a href="mailto:uk@pauseai.info">uk@pauseai.info</a> if you have any
+        You can contact <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> if you have any
         queries.
       </Text>
       <EmailFooter appUrl={appUrl} />
