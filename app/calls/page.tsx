@@ -6,6 +6,7 @@ import type { InferRouterOutputs } from '@orpc/server'
 import type { AppRouter } from '@/server/router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRequireConfirmed } from '@/lib/hooks/auth'
+import { anyOfSkills } from '@/lib/calls'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
@@ -110,13 +111,15 @@ function CallCard({ call }: { call: Call }) {
       className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}
     >
       <H3 id={`call-${call.id}-title`}>{call.title}</H3>
-      {!call.matchesSkills && call.skillName && (
-        <Badge className="mb-2">Asks for {call.skillName}</Badge>
+      {!call.matchesSkills && (
+        <Badge className="mb-2">Asks for {anyOfSkills(call.skillNames)}</Badge>
       )}
       <P className="text-text-light text-sm">
         {call.senderName ?? 'A coordinator'}
         {call.senderRemit && ` · ${call.senderRemit} coordinator`} · {formatDate(call.createdAt)}
-        {call.matchesSkills && call.skillName && ` · for ${call.skillName}`}
+        {call.matchesSkills &&
+          call.skillNames.length > 0 &&
+          ` · for ${anyOfSkills(call.skillNames)}`}
         {!call.open && ' · closed'}
       </P>
       <P className="whitespace-pre-line">
@@ -172,7 +175,7 @@ export default function CallsPage() {
         <section aria-labelledby="other-calls" className="mt-6">
           <H2 id="other-calls">Other calls</H2>
           <P className="text-text-light">
-            These ask for a skill that is not on your profile. You can still answer any you can help
+            These ask for skills that are not on your profile. You can still answer any you can help
             with.
           </P>
           {other.map((call) => (

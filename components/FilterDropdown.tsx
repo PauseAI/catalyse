@@ -159,6 +159,8 @@ export default function FilterDropdown<T extends string>({
     setOpen(false)
     setQuery('')
     setFocusedIndex(-1)
+    // The search input that held focus goes with the list.
+    if (searchable) triggerRef.current?.focus()
   }
 
   function nextSelectableIndex(from: number, direction: 1 | -1): number {

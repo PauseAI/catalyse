@@ -4,7 +4,7 @@ import { ApprovalStatus } from '@/generated/prisma/enums'
 export const CALL_POSTED = 'call_posted'
 export const CALL_ANSWERED = 'call_answered'
 
-type Addressing = { senderId: number | null; chapterIds: number[]; skillId: number | null }
+type Audience = { senderId: number | null; chapterIds: number[] }
 
 /** The accounts any call may reach: approved, confirmed, live and not marked a duplicate. */
 export const ADDRESSABLE = {
@@ -16,9 +16,9 @@ export const ADDRESSABLE = {
 
 /**
  * Who may see and answer a call: addressable accounts other than its sender, in its chapters (or
- * anywhere, the holding pool included, when it names none). Its skill does not narrow this.
+ * anywhere, the holding pool included, when it names none). Its skills do not narrow this.
  */
-export function audienceWhere(call: Addressing): Prisma.VolunteerWhereInput {
+export function audienceWhere(call: Audience): Prisma.VolunteerWhereInput {
   return {
     ...ADDRESSABLE,
     ...(call.senderId !== null && { NOT: { id: call.senderId } }),
@@ -27,12 +27,15 @@ export function audienceWhere(call: Addressing): Prisma.VolunteerWhereInput {
 }
 
 /**
- * Who a call is delivered to: its audience, narrowed to those with its skill if it asks for one.
+ * Who a call is delivered to: its audience, narrowed to those with any of its skills when it asks
+ * for some.
  */
-export function addresseeWhere(call: Addressing): Prisma.VolunteerWhereInput {
+export function addresseeWhere(
+  call: Audience & { skillIds: number[] },
+): Prisma.VolunteerWhereInput {
   return {
     ...audienceWhere(call),
-    ...(call.skillId !== null && { skills: { some: { skillId: call.skillId } } }),
+    ...(call.skillIds.length > 0 && { skills: { some: { skillId: { in: call.skillIds } } } }),
   }
 }
 
@@ -59,7 +62,7 @@ export function visibleToWhere(volunteer: {
   }
 }
 
-/** `addresseeWhere` turned round: the visible calls whose skill, if any, `volunteer` has. */
+/** `addresseeWhere` turned round: the visible calls asking for no skill or one `volunteer` has. */
 export function addressedToWhere(volunteer: {
   id: number
   nationalChapterId: number | null
@@ -69,10 +72,18 @@ export function addressedToWhere(volunteer: {
       visibleToWhere(volunteer),
       {
         OR: [
-          { skillId: null },
-          { skill: { volunteerSkills: { some: { volunteerId: volunteer.id } } } },
+          { skills: { none: {} } },
+          {
+            skills: {
+              some: { skill: { volunteerSkills: { some: { volunteerId: volunteer.id } } } },
+            },
+          },
         ],
       },
     ],
   }
 }
+
+/** The skills a call asks for, read as the choice they are: "Film, Photography or Video". */
+export const anyOfSkills = (names: string[]) =>
+  new Intl.ListFormat('en-GB', { type: 'disjunction' }).format(names)

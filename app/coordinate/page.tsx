@@ -8,6 +8,7 @@ import type { AppRouter } from '@/server/router'
 import { useAuth } from '@/lib/auth-context'
 import { NO_ACCESS_NOTICE_URL } from '@/lib/hooks/auth'
 import { canSendCalls } from '@/lib/permissions'
+import { anyOfSkills } from '@/lib/calls'
 import { orpc } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDate } from '@/lib/format-date'
@@ -16,6 +17,7 @@ import Button from '@/components/Button'
 import EmptyState from '@/components/EmptyState'
 import FormLabel from '@/components/FormLabel'
 import PageLoading from '@/components/PageLoading'
+import SkillMultiSelect from '@/components/SkillMultiSelect'
 import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
 import { H1, H2, H3 } from '@/components/Heading'
@@ -31,9 +33,8 @@ function NewCall() {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [chapterIds, setChapterIds] = useState<number[]>([])
-  const [skillId, setSkillId] = useState('')
+  const [skillIds, setSkillIds] = useState<number[]>([])
   const { data: chapters = [] } = useQuery(orpc.chapters.list.queryOptions())
-  const { data: categories = [] } = useQuery(orpc.skills.list.queryOptions())
   const send = useMutation({
     ...orpc.calls.send.mutationOptions(),
     onSuccess: () => {
@@ -41,7 +42,7 @@ function NewCall() {
       setTitle('')
       setBody('')
       setChapterIds([])
-      setSkillId('')
+      setSkillIds([])
       void queryClient.invalidateQueries({ queryKey: orpc.calls.sent.key() })
     },
     onError: (err) => showToast(errorText(err), 'error'),
@@ -55,7 +56,7 @@ function NewCall() {
       className={`${SECTION_CARD} mb-6`}
       onSubmit={(e) => {
         e.preventDefault()
-        send.mutate({ title, body, chapterIds, skillId: skillId ? Number(skillId) : null })
+        send.mutate({ title, body, chapterIds, skillIds })
       }}
     >
       <H2 id="new-call-heading">Put out a call</H2>
@@ -95,30 +96,21 @@ function NewCall() {
           ))}
         </div>
       </fieldset>
-      <FormLabel htmlFor="call-skill" className="mt-3">
-        Skill it asks for
-      </FormLabel>
-      <select
-        id="call-skill"
-        className="block w-full rounded-lg border border-brand-border bg-surface p-2"
-        value={skillId}
-        onChange={(e) => setSkillId(e.target.value)}
-      >
-        <option value="">Anyone</option>
-        {categories.map((cat) => (
-          <optgroup key={cat.id} label={cat.name}>
-            {cat.skills.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
+      <div className="mt-3">
+        <SkillMultiSelect
+          id="call-skills"
+          label="Skills it asks for"
+          value={skillIds}
+          onChange={setSkillIds}
+        />
+        <P className="text-text-light text-sm m-0 mt-1">
+          Leave empty to ask anyone. With several, a volunteer with any one of them is asked.
+        </P>
+      </div>
       <P className="text-text-light text-sm mt-3">
         Everyone in the chosen chapters can see and answer the call on their Calls page. The
-        platform also puts it in the Inbox of those with its skill (or everyone, if it asks for
-        none), and sends no email. Their answers appear here.
+        platform also puts it in the Inbox of those with any of its skills (or everyone, if it asks
+        for none), and sends no email. Their answers appear here.
       </P>
       <Button type="submit" disabled={!title.trim() || !body.trim() || send.isPending}>
         Send call
@@ -176,7 +168,7 @@ function SentCallCard({ call, showSender }: { call: SentCall; showSender: boolea
       <H3 id={`sent-${call.id}-title`}>{call.title}</H3>
       <P className="text-text-light text-sm">
         {formatDate(call.createdAt)} · {reach}
-        {call.skillName && ` · ${call.skillName}`}
+        {call.skillNames.length > 0 && ` · for ${anyOfSkills(call.skillNames)}`}
         {showSender && call.senderName && ` · from ${call.senderName}`}
         {call.closedAt ? ' · closed' : ' · open'}
       </P>

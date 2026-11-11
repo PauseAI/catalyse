@@ -53,7 +53,7 @@ test.describe('Coordinator calls', () => {
     await expect(sent.getByRole('button', { name: 'Answers (0)' })).toBeVisible()
   })
 
-  test('A volunteer answers a call that asks for a skill they have not listed', async ({
+  test('A volunteer answers a call that asks for skills they have not listed', async ({
     browser,
     baseUrl,
     snap,
@@ -63,7 +63,7 @@ test.describe('Coordinator calls', () => {
     await adminApi.admin.coordinators.appoint({
       body: { volunteerId: coordinator.id, remit: 'Media' },
     })
-    const skill = await createSkillViaApi(baseUrl)
+    const skills = [await createSkillViaApi(baseUrl), await createSkillViaApi(baseUrl)]
     const volunteer = await createApprovedVolunteerNamed(baseUrl, fake.personName())
     const title = fake.projectTitle()
 
@@ -71,7 +71,14 @@ test.describe('Coordinator calls', () => {
     await coordinating.goto(`${baseUrl}/coordinate`)
     await coordinating.getByLabel('Title').fill(title)
     await coordinating.getByLabel('What you are asking for').fill('Drone footage of the march')
-    await coordinating.getByLabel('Skill it asks for').selectOption({ label: skill.name })
+    for (const skill of skills) {
+      await coordinating.getByRole('button', { name: 'Skills it asks for' }).click()
+      await coordinating.getByRole('searchbox', { name: 'Skills it asks for' }).fill(skill.name)
+      await coordinating.getByRole('option', { name: skill.name, exact: true }).click()
+    }
+    const chosen = coordinating.getByRole('list', { name: 'Skills it asks for: chosen' })
+    await expect(chosen.getByRole('listitem')).toHaveCount(2)
+    await snap(coordinating, 'call asking for two skills')
     await coordinating.getByRole('button', { name: 'Send call' }).click()
     await expect(coordinating.getByText('Your call is on its way to volunteers')).toBeVisible()
 
@@ -79,7 +86,8 @@ test.describe('Coordinator calls', () => {
     await answering.goto(`${baseUrl}/calls`)
     const other = answering.getByRole('region', { name: 'Other calls' })
     const received = other.getByRole('region', { name: title })
-    await expect(received.getByText(`Asks for ${skill.name}`)).toBeVisible()
+    const names = skills.map((k) => k.name).sort((a, b) => a.localeCompare(b))
+    await expect(received.getByText(`Asks for ${names[0]} or ${names[1]}`)).toBeVisible()
     await snap(answering, 'call outside my skills')
     await received.getByLabel('Answer this call').fill('I can borrow a drone')
     await received.getByRole('button', { name: 'Send answer' }).click()

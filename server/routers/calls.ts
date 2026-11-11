@@ -20,7 +20,8 @@ const CallInput = z.object({
   body: z.string().trim().min(1, 'Say what you are asking for').max(2000),
   /** Empty: every chapter and the holding pool. */
   chapterIds: z.array(z.number().int()).max(200),
-  skillId: z.number().int().nullable(),
+  /** Any one of these addresses the call to a volunteer; empty: anyone. */
+  skillIds: z.array(z.number().int()).max(50),
 })
 
 /**
@@ -28,7 +29,7 @@ const CallInput = z.object({
  * every volunteer, so emailing each would spend the mail provider's quota in one send. The
  * addressees are read here and never returned, so a call does not tell its sender whom it reached.
  */
-async function deliver(call: { id: number; title: string; body: string } & AddressingFields) {
+async function deliver(call: { id: number; title: string; body: string } & Addressing) {
   const addressees = await prisma.volunteer.findMany({
     where: addresseeWhere(call),
     select: { id: true },
@@ -45,7 +46,14 @@ async function deliver(call: { id: number; title: string; body: string } & Addre
   })
 }
 
-type AddressingFields = { senderId: number | null; chapterIds: number[]; skillId: number | null }
+type Addressing = { senderId: number | null; chapterIds: number[]; skillIds: number[] }
+
+/** Reads a call's skill names, in alphabetical order, with `skillNames`. */
+const SKILL_NAMES = {
+  skills: { select: { skill: { select: { name: true } } }, orderBy: { skill: { name: 'asc' } } },
+} as const
+const skillNames = (call: { skills: { skill: { name: string } }[] }) =>
+  call.skills.map((s) => s.skill.name)
 
 /** A call the caller may run: their own, or any for a global admin. */
 async function callRunBy(volunteerId: number, access: ChapterAccess, id: number) {
@@ -81,7 +89,8 @@ export const callsRouter = {
     if (found !== chapterIds.length) {
       throw new ORPCError('BAD_REQUEST', { message: 'Choose chapters from the list' })
     }
-    if (input.skillId !== null && !(await prisma.skill.count({ where: { id: input.skillId } }))) {
+    const skillIds = [...new Set(input.skillIds)]
+    if ((await prisma.skill.count({ where: { id: { in: skillIds } } })) !== skillIds.length) {
       throw new ORPCError('BAD_REQUEST', { message: 'Choose a skill from the list' })
     }
     const call = await prisma.call.create({
@@ -90,10 +99,10 @@ export const callsRouter = {
         title: input.title,
         body: input.body,
         chapterIds,
-        skillId: input.skillId,
+        skills: { create: skillIds.map((skillId) => ({ skillId })) },
       },
     })
-    deliver(call).catch((e) => logger.error(e, '[CALL DELIVERY]'))
+    deliver({ ...call, skillIds }).catch((e) => logger.error(e, '[CALL DELIVERY]'))
     return { id: call.id }
   }),
 
@@ -102,7 +111,7 @@ export const callsRouter = {
     const calls = await prisma.call.findMany({
       where: context.access.globalAdmin ? {} : { senderId: context.volunteer.id },
       include: {
-        skill: { select: { name: true } },
+        ...SKILL_NAMES,
         sender: { select: { name: true } },
         _count: { select: { responses: { where: { volunteer: { deletedAt: null } } } } },
       },
@@ -115,7 +124,7 @@ export const callsRouter = {
       title: c.title,
       body: c.body,
       chapters: c.chapterIds.map((id) => chapterName.get(id) ?? 'A removed chapter'),
-      skillName: c.skill?.name ?? null,
+      skillNames: skillNames(c),
       senderName: c.sender?.name ?? null,
       createdAt: c.createdAt,
       closedAt: c.closedAt,
@@ -176,7 +185,7 @@ export const callsRouter = {
         ],
       },
       include: {
-        skill: { select: { name: true } },
+        ...SKILL_NAMES,
         sender: { select: { name: true, coordinatorRole: { select: { remit: true } } } },
         responses: { where: { volunteerId: me.id }, select: { message: true, createdAt: true } },
       },
@@ -191,7 +200,7 @@ export const callsRouter = {
       id: c.id,
       title: c.title,
       body: c.body,
-      skillName: c.skill?.name ?? null,
+      skillNames: skillNames(c),
       matchesSkills: addressedIds.has(c.id),
       senderName: c.sender?.name ?? null,
       senderRemit: c.sender?.coordinatorRole?.remit ?? null,
