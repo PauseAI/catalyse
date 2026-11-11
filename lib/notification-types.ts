@@ -343,7 +343,7 @@ export const PRESETS = [
     hint: 'What needs you, and messages, by email; updates in the daily digest.',
   },
   { key: 'email', label: 'Everything by email', hint: 'Each notification as it happens.' },
-  { key: 'digest', label: 'Daily digest only', hint: 'One email a morning, at most.' },
+  { key: 'digest', label: 'Daily digest only', hint: 'One email at your digest time, at most.' },
   { key: 'in_app', label: 'In app only', hint: 'No notification emails; check your Inbox.' },
 ] as const
 export type PresetKey = (typeof PRESETS)[number]['key']
