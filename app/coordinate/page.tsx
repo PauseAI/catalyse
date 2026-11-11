@@ -116,8 +116,8 @@ function NewCall() {
         ))}
       </select>
       <P className="text-text-light text-sm mt-3">
-        The platform delivers the call to everyone it is addressed to, in their Inbox and by email.
-        Their answers appear here.
+        The platform delivers the call to the Inbox of everyone it is addressed to. It sends no
+        email. Their answers appear here.
       </P>
       <Button type="submit" disabled={!title.trim() || !body.trim() || send.isPending}>
         Send call

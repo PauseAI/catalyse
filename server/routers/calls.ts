@@ -3,8 +3,6 @@ import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { clearNotifications, notifyUser } from '@/lib/notify'
 import { logger } from '@/lib/logger'
-import { html, sendAdminAlertEmail } from '@/lib/email'
-import { categoryOf } from '@/lib/notification-categories'
 import {
   ADDRESSABLE,
   addressedToWhere,
@@ -24,51 +22,25 @@ const CallInput = z.object({
 })
 
 /**
- * Tells each addressee of a call about it, in the Inbox and, unless they have muted its
- * category, by email. The addressees are read here and never returned, so a call does not tell
- * its sender whom it reached. Emails go one at a time, so a call to every chapter does not
- * burst at the mail provider.
+ * Tells each addressee of a call about it in their Inbox, and never by email: one call can reach
+ * every volunteer, so emailing each would spend the mail provider's quota in one send. The
+ * addressees are read here and never returned, so a call does not tell its sender whom it reached.
  */
 async function deliver(call: { id: number; title: string; body: string } & AddressingFields) {
   const addressees = await prisma.volunteer.findMany({
     where: addresseeWhere(call),
-    select: { id: true, name: true, email: true, emailMutedCategories: true },
+    select: { id: true },
   })
-  const title = `Call for volunteers: ${call.title}`
-  const notifications = await prisma.notification.createManyAndReturn({
+  await prisma.notification.createMany({
     data: addressees.map((v) => ({
       volunteerId: v.id,
       type: CALL_POSTED,
-      title,
+      title: `Call for volunteers: ${call.title}`,
       body: call.body,
       link: '/calls',
       entityId: call.id,
     })),
-    select: { id: true, volunteerId: true },
   })
-  const notificationOf = new Map(notifications.map((n) => [n.volunteerId, n.id]))
-  const category = categoryOf(CALL_POSTED)
-  const message = html`${call.body}`.replace(/\n/g, '<br>')
-  for (const v of addressees) {
-    if (!v.email || v.emailMutedCategories.includes(category)) continue
-    const sent = await sendAdminAlertEmail({
-      to: v.email,
-      name: v.name,
-      subject: title,
-      message,
-      ctaLabel: 'Answer the call',
-      ctaUrl: '/calls',
-    }).catch((e) => {
-      logger.error(e, '[CALL EMAIL]')
-      return false
-    })
-    if (sent) {
-      await prisma.notification.update({
-        where: { id: notificationOf.get(v.id) },
-        data: { emailedAt: new Date() },
-      })
-    }
-  }
 }
 
 type AddressingFields = { senderId: number | null; chapterIds: number[]; skillId: number | null }

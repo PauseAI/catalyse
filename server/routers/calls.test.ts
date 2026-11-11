@@ -16,7 +16,6 @@ import {
 import { clientAs } from '@/test/rpc'
 import { emails } from '@/test/fakes/email'
 
-const subjects = { posted: (title: string) => `Call for volunteers: ${title}` }
 const forbidden = { code: 'FORBIDDEN' }
 const notFound = { code: 'NOT_FOUND' }
 
@@ -104,7 +103,7 @@ describe('who may put out a call', () => {
 })
 
 describe('delivering a call', () => {
-  it('reaches every chapter and the pool, hidden volunteers included, in the Inbox and by email', async () => {
+  it('reaches every chapter and the pool, hidden volunteers included, in the Inbox only', async () => {
     const s = await setup()
     const pending = await createMember(s.de, { approvalStatus: 'pending' })
     const unconfirmed = await createMember(s.de, { emailConfirmed: false })
@@ -113,10 +112,7 @@ describe('delivering a call', () => {
 
     for (const v of [s.ukVisible, s.ukHidden, s.deVisible, s.deHidden, s.poolHidden]) {
       await delivered(id, v.id)
-      await vi.waitFor(
-        () => expect(emails.lastTo(v.email!)?.subject).toBe(subjects.posted('Everywhere')),
-        { timeout: 5000 },
-      )
+      expect(emails.to(v.email!)).toEqual([])
     }
     for (const v of [pending, unconfirmed, gone, s.coordinator]) {
       expect(await notifiedOf(id, v.id)).toBe(0)
@@ -154,27 +150,6 @@ describe('delivering a call', () => {
     ).rejects.toMatchObject(notFound)
   })
 
-  it('carries on past an email that fails, and records which were sent', async () => {
-    const s = await setup()
-    const failed = vi.spyOn(logger, 'error').mockImplementation(() => {})
-    emails.failNext()
-    const { id } = await s.c.calls.send(call({ chapterIds: [s.de.id] }))
-    await vi.waitFor(() => expect(failed).toHaveBeenCalledWith(expect.anything(), '[CALL EMAIL]'), {
-      timeout: 5000,
-    })
-    await vi.waitFor(
-      async () => {
-        const rows = await prisma.notification.findMany({
-          where: { type: CALL_POSTED, entityId: id },
-        })
-        expect(rows.filter((r) => r.emailedAt === null)).toHaveLength(1)
-        expect(rows.filter((r) => r.emailedAt !== null).length).toBeGreaterThan(0)
-      },
-      { timeout: 5000 },
-    )
-    failed.mockRestore()
-  })
-
   it('logs a delivery that fails outright', async () => {
     const s = await setup()
     const failed = vi.spyOn(logger, 'error').mockImplementation(() => {})
@@ -186,18 +161,6 @@ describe('delivering a call', () => {
     )
     lookup.mockRestore()
     failed.mockRestore()
-  })
-
-  it('leaves a volunteer who has muted updates with the Inbox copy only', async () => {
-    const s = await setup()
-    await prisma.volunteer.update({
-      where: { id: s.deHidden.id },
-      data: { emailMutedCategories: ['update'] },
-    })
-    const { id } = await s.c.calls.send(call({ chapterIds: [s.de.id] }))
-    await delivered(id, s.deHidden.id)
-    await vi.waitFor(() => emails.lastTo(s.deVisible.email!), { timeout: 5000 })
-    expect(emails.to(s.deHidden.email!)).toEqual([])
   })
 })
 
@@ -240,6 +203,7 @@ describe('who a call reached', () => {
       where: { type: CALL_ANSWERED, volunteerId: s.coordinator.id },
     })
     expect(answered.title).toContain(s.deHidden.name)
+    expect(emails.to(s.coordinator.email!)).toEqual([])
 
     await them.calls.respond({ callId: id, message: 'Berlin and Hamburg' })
     expect((await s.c.calls.responses({ callId: id }))[0].message).toBe('Berlin and Hamburg')
@@ -486,23 +450,6 @@ describe('admin.coordinators', () => {
 })
 
 describe('edges of a call', () => {
-  it('emails the body as text, line breaks kept and markup escaped', async () => {
-    const s = await setup()
-    // A skill only they hold keeps the delivery to one email.
-    const skill = await createSkill()
-    await prisma.volunteerSkill.create({ data: { volunteerId: s.deHidden.id, skillId: skill.id } })
-    await s.c.calls.send(
-      call({
-        title: 'Markup',
-        body: 'Line one\n<a href="https://example.test">Log in</a>',
-        skillId: skill.id,
-      }),
-    )
-    const { html } = await vi.waitFor(() => emails.lastTo(s.deHidden.email!), { timeout: 5000 })
-    expect(html).toContain('Line one<br>&lt;a href=')
-    expect(html).not.toContain('<a href="https://example.test">')
-  })
-
   it('closes when its skill is deleted, rather than widening to everyone', async () => {
     const s = await setup()
     const skill = await createSkill()
