@@ -29,7 +29,7 @@ import {
 } from '@/lib/email'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { verifyGoogleToken } from '@/lib/google-auth'
-import { notifyChapterStaff, notifyUser } from '@/lib/notify'
+import { notifyChapterStaff, notifyUserOfEach } from '@/lib/notify'
 import { placement } from '@/lib/chapter-placement'
 import {
   SignupSchema,
@@ -130,12 +130,18 @@ async function sendAccountDeletionNotifications(deletedId: number, deletedName: 
   const { sendProjectNotificationEmail } = await import('@/lib/email')
   for (const [recipientId, r] of Object.entries(recipients)) {
     const allProjects = [...r.taskProjects, ...r.ownerlessProjects]
-    const lines = [
-      ...r.taskProjects.map(
-        (p) =>
-          `${p.taskCount} ${p.taskCount === 1 ? 'task' : 'tasks'} in '${p.projectTitle}' assigned to ${deletedName} need a new assignee.`,
-      ),
-      ...r.ownerlessProjects.map((p) => `'${p.projectTitle}' needs a new owner.`),
+    const title = `${deletedName} has deleted their account`
+    const items = [
+      ...r.taskProjects.map((p) => ({
+        title,
+        body: `${p.taskCount} ${p.taskCount === 1 ? 'task' : 'tasks'} in '${p.projectTitle}' assigned to ${deletedName} need a new assignee.`,
+        link: `/projects/${p.projectId}`,
+      })),
+      ...r.ownerlessProjects.map((p) => ({
+        title,
+        body: `'${p.projectTitle}' needs a new owner.`,
+        link: `/projects/${p.projectId}`,
+      })),
     ]
     const msgParts = [html`<p><strong>${deletedName}</strong> has deleted their account.</p>`]
     if (r.taskProjects.length)
@@ -166,25 +172,17 @@ async function sendAccountDeletionNotifications(deletedId: number, deletedName: 
             )}
           </ul>`,
       )
-    const title = `${deletedName} has deleted their account`
-    await notifyUser(
-      Number(recipientId),
-      'account_deleted_impact',
-      title,
-      lines.join(' '),
-      `/projects/${allProjects[0].projectId}`,
-      {
-        send: (to, name) =>
-          sendProjectNotificationEmail({
-            to,
-            name,
-            subject: title,
-            message: msgParts.join(''),
-            projectTitle: allProjects[0].projectTitle,
-            projectId: allProjects[0].projectId,
-          }),
-      },
-    )
+    await notifyUserOfEach(Number(recipientId), 'account_deleted_impact', items, {
+      send: (to, name) =>
+        sendProjectNotificationEmail({
+          to,
+          name,
+          subject: title,
+          message: msgParts.join(''),
+          projectTitle: allProjects[0].projectTitle,
+          projectId: allProjects[0].projectId,
+        }),
+    })
   }
 }
 

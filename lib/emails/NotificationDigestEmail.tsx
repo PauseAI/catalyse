@@ -1,6 +1,7 @@
 import { Text } from '@react-email/components'
 import { EmailLayout } from './components/Layout'
 import { EmailFooter } from './components/Footer'
+import { LinkList } from './components/LinkList'
 import type { DigestSection } from '../notification-digest'
 
 export type NotificationDigestEmailProps = {
@@ -17,14 +18,10 @@ export function NotificationDigestEmail({ name, sections, appUrl }: Notification
       {sections.map((s) => (
         <div key={s.category}>
           <h3 style={{ margin: '24px 0 8px' }}>{s.heading}</h3>
-          <ul style={{ paddingLeft: 20, margin: 0 }}>
-            {s.items.map((item, i) => (
-              <li key={i} style={{ marginBottom: 6 }}>
-                <a href={`${appUrl}${item.href}`}>{item.title}</a>
-                {item.body && <div style={{ color: '#4a5568', fontSize: 14 }}>{item.body}</div>}
-              </li>
-            ))}
-          </ul>
+          <LinkList
+            appUrl={appUrl}
+            items={s.items.map((i) => ({ text: i.title, href: i.href, detail: i.body }))}
+          />
         </div>
       ))}
       <Text style={{ fontSize: 13, color: '#718096', marginTop: 24 }}>

@@ -21,6 +21,7 @@ import {
   notifyTeamOfProject,
   notifyAdmins,
   notifyChapterStaff,
+  notifyUserOfEach,
 } from './notify'
 
 afterEach(() => {
@@ -98,7 +99,7 @@ describe('notifyUser email preferences', () => {
     const vol = await createVolunteer()
     await choose(vol.id, 'project_approved', 'digest')
     await notifyUser(vol.id, 'project_approved', 'Approved', null, null, payload)
-    expect(await rowsOf(vol.id)).toMatchObject([{ inDigest: true, digestedAt: null }])
+    expect(await rowsOf(vol.id)).toMatchObject([{ inDigest: true, digestId: null }])
     expect(emails.to(vol.email!)).toEqual([])
 
     // Someone with no address has no digest to hold it for.
@@ -130,6 +131,30 @@ describe('notifyUser email preferences', () => {
     const send = vi.fn(async () => true)
     await notifyUser(vol.id, 'local_group_suggestion_reviewed', 'Reviewed', null, null, { send })
     await vi.waitFor(() => expect(send).toHaveBeenCalledWith(vol.email, 'Bo'))
+  })
+
+  it('delivers several of one type together: a row each, one email or all held', async () => {
+    const vol = await createVolunteer()
+    const items = [
+      { title: 'One', link: '/1' },
+      { title: 'Two', link: '/2', entityId: 2 },
+    ]
+    await notifyUserOfEach(vol.id, 'account_deleted_impact', items)
+    await vi.waitFor(async () =>
+      expect(
+        (await rowsOf(vol.id)).map((n) => [n.title, n.entityId, n.emailedAt !== null]),
+      ).toEqual([
+        ['One', null, true],
+        ['Two', 2, true],
+      ]),
+    )
+    expect(emails.to(vol.email!)).toMatchObject([{ subject: 'One' }])
+
+    const held = await createVolunteer()
+    await choose(held.id, 'account_deleted_impact', 'digest')
+    await notifyUserOfEach(held.id, 'account_deleted_impact', items)
+    expect((await rowsOf(held.id)).map((n) => n.inDigest)).toEqual([true, true])
+    expect(emails.to(held.email!)).toEqual([])
   })
 
   it('ignores a stored choice for a fixed type', async () => {
@@ -180,7 +205,7 @@ describe('notifyUser email preferences', () => {
   it('resolves even when looking up who to email fails, and sends nothing', async () => {
     const vol = await createVolunteer()
     const error = vi.spyOn(logger, 'error').mockImplementation(() => logger as never)
-    vi.spyOn(prisma.volunteer, 'findFirst').mockRejectedValueOnce(new Error('db') as never)
+    vi.spyOn(prisma, '$queryRaw').mockRejectedValueOnce(new Error('db') as never)
     await notifyUser(vol.id, 'project_approved', 'Lookup fails', null, null, payload)
     expect(error).toHaveBeenCalledWith(expect.any(Error), '[EMAIL ERROR]')
     expect(await prisma.notification.findFirst({ where: { volunteerId: vol.id } })).toMatchObject({

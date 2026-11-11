@@ -23,7 +23,7 @@ describe('notification digest', () => {
         ],
       },
     ])
-    expect(digestSubject(1)).toBe('Catalyse: 1 notification from the last day')
-    expect(digestSubject(2)).toBe('Catalyse: 2 notifications from the last day')
+    expect(digestSubject(1)).toBe('Catalyse: your daily digest of 1 notification')
+    expect(digestSubject(2)).toBe('Catalyse: your daily digest of 2 notifications')
   })
 })

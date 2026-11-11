@@ -8,7 +8,6 @@ const row = (type: string, category: PreferenceRow['category']): PreferenceRow =
   type,
   label: `Label ${type}`,
   category,
-  default: 'email',
   delivery: 'email',
   fixed: null,
 })

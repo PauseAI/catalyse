@@ -290,10 +290,7 @@ describe('notification preferences', () => {
         task_done: 'in_app',
       },
     })
-    expect(await rowOf(c, 'project_approved')).toMatchObject({
-      delivery: 'digest',
-      default: 'email',
-    })
+    expect(await rowOf(c, 'project_approved')).toMatchObject({ delivery: 'digest' })
     expect(await rowOf(c, 'mention')).toMatchObject({ delivery: 'email' })
     const stored = await prisma.notificationPreference.findMany({ where: { volunteerId: vol.id } })
     expect(stored.map((p) => p.type).sort()).toEqual(['mention', 'project_approved'])

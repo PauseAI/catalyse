@@ -61,6 +61,7 @@ export const MERGE_REFERENCES = {
   'local_group_suggestions.suggested_by_id': 'move',
   'national_chapters.lead_id': 'refuse',
   'notifications.volunteer_id': 'move',
+  'notification_digests.volunteer_id': 'move',
   'notification_preferences.volunteer_id': 'move',
   'password_reset_tokens.volunteer_id': 'delete',
   'project_deputies.appointed_by_id': 'move',

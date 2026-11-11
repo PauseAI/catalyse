@@ -2,8 +2,18 @@
 CREATE TYPE "EmailDelivery" AS ENUM ('in_app', 'email', 'digest');
 
 -- AlterTable
-ALTER TABLE "notifications" ADD COLUMN     "digested_at" TIMESTAMP(3),
+ALTER TABLE "notifications" ADD COLUMN     "digest_id" INTEGER,
 ADD COLUMN     "in_digest" BOOLEAN NOT NULL DEFAULT false;
+
+-- CreateTable
+CREATE TABLE "notification_digests" (
+    "id" SERIAL NOT NULL,
+    "volunteer_id" INTEGER NOT NULL,
+    "sent_on" DATE NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "notification_digests_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateTable
 CREATE TABLE "notification_preferences" (
@@ -16,10 +26,19 @@ CREATE TABLE "notification_preferences" (
 );
 
 -- CreateIndex
+CREATE UNIQUE INDEX "notification_digests_volunteer_id_sent_on_key" ON "notification_digests"("volunteer_id", "sent_on");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "notification_preferences_volunteer_id_type_key" ON "notification_preferences"("volunteer_id", "type");
 
 -- CreateIndex
-CREATE INDEX "idx_notifications_digest" ON "notifications"("in_digest", "digested_at");
+CREATE INDEX "idx_notifications_digest" ON "notifications"("in_digest", "digest_id");
+
+-- AddForeignKey
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_digest_id_fkey" FOREIGN KEY ("digest_id") REFERENCES "notification_digests"("id") ON DELETE SET NULL ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "notification_digests" ADD CONSTRAINT "notification_digests_volunteer_id_fkey" FOREIGN KEY ("volunteer_id") REFERENCES "volunteers"("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE "notification_preferences" ADD CONSTRAINT "notification_preferences_volunteer_id_fkey" FOREIGN KEY ("volunteer_id") REFERENCES "volunteers"("id") ON DELETE CASCADE ON UPDATE NO ACTION;

@@ -1,6 +1,6 @@
 import { prisma } from './prisma'
 import { sendProjectNotificationEmail, sendAdminAlertEmail, html } from './email'
-import { resolveDelivery } from './notification-types'
+import { resolveDelivery, type Delivery } from './notification-types'
 import { chapterCarers, globalAdminWhere } from './chapter-access-server'
 import { logger } from './logger'
 
@@ -96,6 +96,13 @@ function sendNotificationEmail(
   })
 }
 
+type NotificationItem = {
+  title: string
+  body?: string | null
+  link?: string | null
+  entityId?: number | null
+}
+
 /**
  * The one place a notification is delivered: it always lands in the Inbox, and the recipient's
  * choice for its type (lib/notification-types.ts) decides whether it is also emailed now, held
@@ -110,55 +117,68 @@ export async function notifyUser(
   email?: NotifyEmailPayload,
   entityId?: number | null,
 ): Promise<void> {
-  // The row is awaited so a caller can rely on it being there when this resolves; only the
+  await notifyUserOfEach(volunteerId, type, [{ title, body, link, entityId }], email)
+}
+
+/**
+ * Several notifications of one type to one person, delivered as `notifyUser` does but emailed
+ * together: one Inbox row each, and at most one email, written by `email` or else from the first.
+ */
+export async function notifyUserOfEach(
+  volunteerId: number,
+  type: string,
+  items: NotificationItem[],
+  email?: NotifyEmailPayload,
+): Promise<void> {
+  // The rows are awaited so a caller can rely on them being there when this resolves; only the
   // email is left to run on its own. Nothing here throws: the caller's change is already saved.
-  const vol = await prisma.volunteer
-    .findFirst({
-      where: { id: volunteerId, deletedAt: null },
-      select: {
-        name: true,
-        email: true,
-        isTechnicalAdmin: true,
-        notificationPreferences: { where: { type }, select: { delivery: true } },
-      },
-    })
+  // One round trip for the person and their choice for this type, as every notification pays it.
+  const vol = await prisma.$queryRaw<
+    { name: string; email: string | null; technical: boolean; delivery: Delivery | null }[]
+  >`
+    SELECT v.name, v.email, coalesce(v.is_technical_admin, false) AS technical, p.delivery::text AS delivery
+    FROM volunteers v
+    LEFT JOIN notification_preferences p ON p.volunteer_id = v.id AND p.type = ${type}
+    WHERE v.id = ${volunteerId} AND v.deleted_at IS NULL
+  `
+    .then((rows) => rows[0] ?? null)
     .catch((e) => {
       logger.error(e, '[EMAIL ERROR]')
       return null
     })
   const delivery = vol
-    ? resolveDelivery(
-        type,
-        { isTechnicalAdmin: !!vol.isTechnicalAdmin },
-        vol.notificationPreferences[0]?.delivery,
-        !!email,
-      )
+    ? resolveDelivery(type, { isTechnicalAdmin: vol.technical }, vol.delivery ?? undefined, !!email)
     : 'in_app'
   const emailTo = vol?.email ? vol.email : null
 
-  const notification = await prisma.notification
-    .create({
-      data: {
-        volunteerId,
-        type,
-        title,
-        body: body ?? null,
-        link: link ?? null,
-        entityId: entityId ?? null,
-        inDigest: delivery === 'digest' && !!emailTo,
-      },
-    })
-    .catch((e) => {
-      logger.error(e, '[NOTIFY ERROR]')
-      return null
-    })
+  const ids: number[] = []
+  for (const item of items) {
+    const row = await prisma.notification
+      .create({
+        data: {
+          volunteerId,
+          type,
+          title: item.title,
+          body: item.body ?? null,
+          link: item.link ?? null,
+          entityId: item.entityId ?? null,
+          inDigest: delivery === 'digest' && !!emailTo,
+        },
+      })
+      .catch((e) => {
+        logger.error(e, '[NOTIFY ERROR]')
+        return null
+      })
+    if (row) ids.push(row.id)
+  }
   if (delivery !== 'email' || !vol || !emailTo) return
 
-  sendNotificationEmail(emailTo, vol.name, title, body, link, email)
+  const [first] = items
+  sendNotificationEmail(emailTo, vol.name, first.title, first.body, first.link, email)
     .then(async (sent) => {
-      if (sent && notification) {
-        await prisma.notification.update({
-          where: { id: notification.id },
+      if (sent) {
+        await prisma.notification.updateMany({
+          where: { id: { in: ids } },
           data: { emailedAt: new Date() },
         })
       }

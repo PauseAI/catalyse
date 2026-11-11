@@ -791,6 +791,24 @@ describe('deleteAccount', () => {
     expect(sent).not.toContain(null)
   })
 
+  it('gives each affected project its own Inbox row, with one email for them all', async () => {
+    const me = await createVolunteer({ passwordHash: null, name: 'Leaver' })
+    const owner = await createVolunteer()
+    const a = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    const b = await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    await createQuickTask({ contextProjectId: a.id, assigneeId: me.id, status: 'in_progress' })
+    await createQuickTask({ contextProjectId: b.id, assigneeId: me.id, status: 'in_progress' })
+    await clientAs(me).auth.deleteAccount({})
+    const rows = await prisma.notification.findMany({
+      where: { volunteerId: owner.id, type: 'account_deleted_impact' },
+    })
+    expect(rows.map((n) => n.link).sort()).toEqual(
+      [`/projects/${a.id}`, `/projects/${b.id}`].sort(),
+    )
+    await vi.waitFor(() => expect(emails.to(owner.email!)).toHaveLength(1))
+    expect(emails.lastTo(owner.email!).html).toContain(b.title)
+  })
+
   it('deletes a passwordless account without a password, and one with nothing to notify', async () => {
     const me = await createVolunteer({ passwordHash: null })
     expect((await clientAs(me).auth.deleteAccount({})).message).toContain('deleted')

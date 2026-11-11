@@ -85,7 +85,7 @@ describe('runNudgesJob', () => {
     const notes = await prisma.notification.findMany({ where: { volunteerId: gone.assignee.id } })
     expect(notes).toEqual([
       expect.objectContaining({
-        type: 'task_released',
+        type: 'task_auto_released',
         title: 'Released: released',
         link: `/projects/${gone.project.id}/tasks/${gone.task.id}`,
         entityId: gone.task.id,

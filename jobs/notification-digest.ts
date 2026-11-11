@@ -5,18 +5,18 @@ import { addDays, startOfUtcDay } from '@/lib/schedule'
 import { DIGEST_LOOKBACK_DAYS, digestSections, digestSubject } from '@/lib/notification-digest'
 
 /**
- * One email a day to each person holding unread notifications for their digest. A notification
- * is claimed by stamping `digestedAt` before the send, under a lock on the person, so a rerun or
- * a second run at once never mails it twice, and nobody gets two digests in a UTC day. A failed
- * send releases its claim for the next run.
+ * One email a day to each person holding unread notifications for their digest. The day's
+ * digest is recorded (one per person per UTC day) and its notifications pointed at it before the
+ * send, so a rerun or a second run at once never mails anything twice. A failed send removes the
+ * record, which frees its notifications for the next run.
  */
 export async function runNotificationDigestJob(now: Date = new Date()) {
   if (!isEmailConfigured()) return { skipped: true, reason: 'email not configured' }
 
-  const today = startOfUtcDay(now)
+  const sentOn = startOfUtcDay(now)
   const pending = {
     inDigest: true,
-    digestedAt: null,
+    digestId: null,
     readAt: null,
     createdAt: { gte: addDays(now, -DIGEST_LOOKBACK_DAYS) },
   }
@@ -30,36 +30,42 @@ export async function runNotificationDigestJob(now: Date = new Date()) {
   let sent = 0
   let notifications = 0
   for (const { volunteerId } of people) {
-    const stamp = now
-    const to = await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM volunteers WHERE id = ${volunteerId} FOR UPDATE`
+    const digest = await prisma.$transaction(async (tx) => {
       const vol = await tx.volunteer.findFirst({
         where: { id: volunteerId, deletedAt: null },
         select: { name: true, email: true },
       })
       if (!vol?.email) return null
-      const already = await tx.notification.findFirst({
-        where: { volunteerId, digestedAt: { gte: today } },
+      // A second run the same day waits here on the first, then finds the day taken.
+      const { count: created } = await tx.notificationDigest.createMany({
+        data: { volunteerId, sentOn },
+        skipDuplicates: true,
+      })
+      if (created === 0) return null
+      const { id } = await tx.notificationDigest.findUniqueOrThrow({
+        where: { volunteerId_sentOn: { volunteerId, sentOn } },
         select: { id: true },
       })
-      if (already) return null
       const { count } = await tx.notification.updateMany({
         where: { volunteerId, ...pending },
-        data: { digestedAt: stamp },
+        data: { digestId: id },
       })
-      if (count === 0) return null
-      return { name: vol.name, email: vol.email }
+      if (count === 0) {
+        await tx.notificationDigest.delete({ where: { id } })
+        return null
+      }
+      return { id, name: vol.name, email: vol.email }
     })
-    if (!to) continue
+    if (!digest) continue
 
     const items = await prisma.notification.findMany({
-      where: { volunteerId, digestedAt: stamp },
+      where: { digestId: digest.id },
       orderBy: { createdAt: 'asc' },
       select: { type: true, title: true, body: true, link: true },
     })
     const ok = await sendNotificationDigestEmail({
-      to: to.email,
-      name: to.name,
+      to: digest.email,
+      name: digest.name,
       subject: digestSubject(items.length),
       sections: digestSections(items),
     }).catch((e) => {
@@ -70,12 +76,9 @@ export async function runNotificationDigestJob(now: Date = new Date()) {
       sent++
       notifications += items.length
     } else {
-      await prisma.notification.updateMany({
-        where: { volunteerId, digestedAt: stamp },
-        data: { digestedAt: null },
-      })
+      await prisma.notificationDigest.delete({ where: { id: digest.id } })
     }
   }
 
-  return { recipients: people.length, sent, notifications }
+  return { candidates: people.length, sent, notifications }
 }

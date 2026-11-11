@@ -433,8 +433,8 @@ model DeletionRequest {
 }
 
 model Notification {
-  id          Int       @id @default(autoincrement())
-  volunteerId Int       @map("volunteer_id")
+  id          Int                 @id @default(autoincrement())
+  volunteerId Int                 @map("volunteer_id")
   type        String // TODO: enum — new_project_proposal, project_approved, project_needs_discussion, project_status_changed, new_interest, interest_accepted, interest_declined, interest_withdrawn, assigned_to_project, task_assigned, new_bug_report, quick_task_assigned, quick_task_submitted, quick_task_reviewed, local_group_suggestion
   title       String
   body        String?
@@ -443,21 +443,35 @@ model Notification {
   // that when the underlying item is resolved by one person, matching notifications for the
   // same (type, entityId) can be cleared for every other recipient. Null for types that aren't
   // cleared this way.
-  entityId    Int?      @map("entity_id")
-  readAt      DateTime? @map("read_at")
-  emailedAt   DateTime? @map("emailed_at")
+  entityId    Int?                @map("entity_id")
+  readAt      DateTime?           @map("read_at")
+  emailedAt   DateTime?           @map("emailed_at")
   /// Held for the recipient's daily notification digest, because they chose Digest for its type.
-  inDigest    Boolean   @default(false) @map("in_digest")
-  /// When a digest listed this notification; a digest lists each one once.
-  digestedAt  DateTime? @map("digested_at")
-  createdAt   DateTime? @default(now()) @map("created_at")
-  volunteer   Volunteer @relation(fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  inDigest    Boolean             @default(false) @map("in_digest")
+  /// The daily digest that listed this notification; a digest lists each one once.
+  digestId    Int?                @map("digest_id")
+  createdAt   DateTime?           @default(now()) @map("created_at")
+  volunteer   Volunteer           @relation(fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  digest      NotificationDigest? @relation(fields: [digestId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([volunteerId, readAt], map: "idx_notifications_unread")
   @@index([volunteerId], map: "idx_notifications_volunteer")
   @@index([type, entityId], map: "idx_notifications_type_entity")
-  @@index([inDigest, digestedAt], map: "idx_notifications_digest")
+  @@index([inDigest, digestId], map: "idx_notifications_digest")
   @@map("notifications")
+}
+
+/// One daily digest email: at most one per person per UTC day, recorded before it is sent.
+model NotificationDigest {
+  id            Int            @id @default(autoincrement())
+  volunteerId   Int            @map("volunteer_id")
+  sentOn        DateTime       @map("sent_on") @db.Date
+  createdAt     DateTime       @default(now()) @map("created_at")
+  volunteer     Volunteer      @relation(fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  notifications Notification[]
+
+  @@unique([volunteerId, sentOn])
+  @@map("notification_digests")
 }
 
 /// A volunteer's choice of delivery for one notification type, kept only where it differs from
@@ -1213,6 +1227,7 @@ model Volunteer {
   messagesReceived                        Message[]                @relation("MessageTo")
   notifications                           Notification[]
   notificationPreferences                 NotificationPreference[]
+  notificationDigests                     NotificationDigest[]
   finishByReminders                       FinishByReminder[]
   emailVerificationTokens                 EmailVerificationToken[]
   passwordResetTokens                     PasswordResetToken[]

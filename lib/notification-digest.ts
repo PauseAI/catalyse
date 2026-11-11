@@ -36,5 +36,5 @@ export function digestSections(items: DigestItem[]): DigestSection[] {
 }
 
 export function digestSubject(count: number): string {
-  return `Catalyse: ${count} ${count === 1 ? 'notification' : 'notifications'} from the last day`
+  return `Catalyse: your daily digest of ${count} ${count === 1 ? 'notification' : 'notifications'}`
 }

@@ -1,6 +1,12 @@
 import { prisma } from './prisma'
 import type { Prisma } from '@/generated/prisma/client'
-import { defaultDelivery, isFixed, type Delivery, type Recipient } from './notification-types'
+import {
+  defaultDelivery,
+  isFixed,
+  isKnownType,
+  type Delivery,
+  type Recipient,
+} from './notification-types'
 
 /** What `volunteerId` has chosen, by type. */
 export async function chosenDeliveries(volunteerId: number): Promise<Map<string, Delivery>> {
@@ -34,7 +40,5 @@ export async function saveDeliveries(
 
 /** The types in `choices` that cannot be chosen: unknown, or fixed. */
 export function unchoosableTypes(choices: Record<string, Delivery>): string[] {
-  return Object.keys(choices).filter(
-    (t) => defaultDelivery(t, { isTechnicalAdmin: false }) === null || isFixed(t),
-  )
+  return Object.keys(choices).filter((t) => !isKnownType(t) || isFixed(t))
 }

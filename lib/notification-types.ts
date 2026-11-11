@@ -124,6 +124,11 @@ const TYPES: Record<string, TypeInfo> = {
   task_assigned: { label: "You're assigned a task", default: 'email' },
   task_reassigned: { label: 'A task you held goes to someone else', default: 'in_app' },
   task_released: { label: 'A task you held is released', default: 'in_app' },
+  task_auto_released: {
+    label: 'A task you held is released after weeks with no update',
+    default: 'email',
+    fixed: { shows: 'Email', why: 'Sent with the inactivity warnings, which always email.' },
+  },
   task_done: { label: "A task you're helping on or reviewing is done", default: 'in_app' },
   task_accepted: { label: 'Your submitted work is accepted', default: 'in_app' },
   task_reopened: { label: "A task you're on is reopened", default: 'in_app' },
@@ -222,8 +227,8 @@ export function isFixed(type: string): boolean {
 
 /**
  * How one notification reaches its recipient. A stored choice wins, unless the type is fixed.
- * A type not in the list follows its call site: emailed when the caller wrote an email for it,
- * as every notification was before there were choices, so a new type never emails by surprise.
+ * A type not in the list follows its call site: emailed only when the caller wrote an email for
+ * it, so a new type never emails by surprise.
  */
 export function resolveDelivery(
   type: string,
@@ -248,7 +253,6 @@ export type PreferenceRow = {
   type: string
   label: string
   category: NotificationCategory
-  default: Delivery
   delivery: Delivery
   /** Why the delivery is set, for a type with no choice. */
   fixed: Fixed | null
@@ -267,7 +271,6 @@ export function preferenceRows(
         type,
         label: info.label,
         category: categoryOf(type),
-        default: def,
         delivery: info.fixed ? def : (chosen.get(type) ?? def),
         fixed: info.fixed ?? null,
       }

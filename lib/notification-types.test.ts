@@ -49,7 +49,6 @@ describe('notification types', () => {
       type: 'project_approved',
       label: 'Your project proposal is approved',
       category: 'update',
-      default: 'email',
       delivery: 'digest',
       fixed: null,
     })

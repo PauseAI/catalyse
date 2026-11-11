@@ -354,6 +354,8 @@ const rowFor: Record<string, (who: Person, other: Person) => Promise<Row>> = {
   'NationalChapter.lead': (who) => createChapter({ leadId: who.id }),
   'Notification.volunteer': (who) =>
     prisma.notification.create({ data: { volunteerId: who.id, type: 't', title: 't' } }),
+  'NotificationDigest.volunteer': (who) =>
+    prisma.notificationDigest.create({ data: { volunteerId: who.id, sentOn: new Date() } }),
   'NotificationPreference.volunteer': (who) =>
     prisma.notificationPreference.create({
       data: { volunteerId: who.id, type: 'mention', delivery: 'email' },

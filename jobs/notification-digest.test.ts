@@ -7,8 +7,8 @@ import { logger } from '@/lib/logger'
 import { runNotificationDigestJob } from './notification-digest'
 
 const subjects = {
-  one: 'Catalyse: 1 notification from the last day',
-  three: 'Catalyse: 3 notifications from the last day',
+  one: 'Catalyse: your daily digest of 1 notification',
+  three: 'Catalyse: your daily digest of 3 notifications',
 }
 
 const held = (volunteerId: number, type: string, title: string, extra: object = {}) =>
@@ -53,7 +53,7 @@ describe('runNotificationDigestJob', () => {
     expect(emails.lastTo(bo.email!).subject).toBe(subjects.one)
 
     const covered = await prisma.notification.findMany({
-      where: { volunteerId: ana.id, digestedAt: { not: null } },
+      where: { volunteerId: ana.id, digestId: { not: null } },
     })
     expect(covered.map((n) => n.title).sort()).toEqual(['Approved', 'Hello', 'Helper'])
   })
@@ -74,6 +74,17 @@ describe('runNotificationDigestJob', () => {
     expect(emails.to(ana.email!)).toHaveLength(2)
     expect(emails.lastTo(ana.email!).html).toContain('Second')
     expect(emails.lastTo(ana.email!).html).not.toContain('First')
+  })
+
+  it("sends no second digest the same day after the first one's notifications are cleared", async () => {
+    const ana = await createVolunteer()
+    await held(ana.id, 'team_join_request', 'Join')
+    const now = new Date()
+    await runNotificationDigestJob(now)
+    await prisma.notification.deleteMany({ where: { volunteerId: ana.id } })
+    await held(ana.id, 'project_approved', 'Later')
+    expect(await runNotificationDigestJob(now)).toMatchObject({ sent: 0 })
+    expect(emails.to(ana.email!)).toHaveLength(1)
   })
 
   it('claims each notification once when two runs overlap', async () => {
@@ -106,7 +117,7 @@ describe('runNotificationDigestJob', () => {
     expect(error).toHaveBeenCalledWith(expect.any(Error), '[NOTIFICATION DIGEST] send failed')
     expect(
       await prisma.notification.count({
-        where: { volunteerId: ana.id, digestedAt: { not: null } },
+        where: { volunteerId: ana.id, digestId: { not: null } },
       }),
     ).toBe(0)
     await runNotificationDigestJob(now)

@@ -69,6 +69,7 @@ export const EXPORTED_LINKS: readonly string[] = [
   'Message.to',
   'NationalChapter.lead',
   'Notification.volunteer',
+  'NotificationDigest.volunteer',
   'NotificationPreference.volunteer',
   'PasswordResetToken.volunteer',
   'ProjectDeputy.volunteer',
