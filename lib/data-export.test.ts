@@ -261,6 +261,10 @@ const rowFor: Record<string, (who: Person, other: Person) => Promise<Row>> = {
     })
   },
   'Call.sender': (who) => prisma.call.create({ data: { senderId: who.id, title: 't', body: 'b' } }),
+  'CallDismissal.volunteer': async (who, other) => {
+    const call = await prisma.call.create({ data: { senderId: other.id, title: 't', body: 'b' } })
+    return prisma.callDismissal.create({ data: { callId: call.id, volunteerId: who.id } })
+  },
   'CallResponse.volunteer': async (who, other) => {
     const call = await prisma.call.create({ data: { senderId: other.id, title: 't', body: 'b' } })
     return prisma.callResponse.create({
@@ -427,8 +431,9 @@ describe('every exported link', () => {
   it("returns the person's rows under each link, and no one else's", async () => {
     const me = await createVolunteer()
     const other = await createVolunteer()
-    // A row's id, or for a pair with no id of its own, the two people it pairs.
-    const key = (r: Row) => String(r.id ?? [r.volunteerAId, r.volunteerBId])
+    // A row's id, or for a row with no id of its own, the columns of its primary key.
+    const key = (r: Row) =>
+      String(r.id ?? ('callId' in r ? [r.callId, r.volunteerId] : [r.volunteerAId, r.volunteerBId]))
     const mine: Record<string, string> = {}
     const theirs: Record<string, string> = {}
     for (const link of EXPORTED_LINKS) {

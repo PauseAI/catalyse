@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRequireAuth } from '@/lib/hooks/auth'
 import { orpc } from '@/lib/orpc'
 import Button from '@/components/Button'
+import DashboardCalls from '@/components/DashboardCalls'
 import { DueChip, ProjectStatusBadge, WorkStatusBadge } from '@/components/StatusBadges'
 import { handedIn } from '@/lib/overdue'
 import WorkRow, { PersonAvatar, STRETCHED_LINK } from '@/components/WorkRow'
@@ -484,6 +485,8 @@ export default function HomePage() {
                 </div>
               </section>
             )}
+
+            {(user.emailConfirmed || user.isAdmin) && <DashboardCalls />}
 
             {current.length === 0 && (
               <P className="text-text-light mb-8">

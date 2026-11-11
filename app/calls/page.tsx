@@ -2,148 +2,88 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import type { InferRouterOutputs } from '@orpc/server'
-import type { AppRouter } from '@/server/router'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useRequireConfirmed } from '@/lib/hooks/auth'
 import { anyOfSkills } from '@/lib/calls'
 import { orpc } from '@/lib/orpc'
-import { useToast } from '@/lib/toast'
-import { formatDate } from '@/lib/format-date'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import { Badge } from '@/components/Badge'
 import Button from '@/components/Button'
+import { type Call, CallAnswer, CallMeta, useDismissCall } from '@/components/CallAnswer'
 import EmptyState from '@/components/EmptyState'
-import FormLabel from '@/components/FormLabel'
 import Linkify from '@/components/Linkify'
 import PageLoading from '@/components/PageLoading'
-import Textarea from '@/components/ui/Textarea'
 import { H1, H2, H3 } from '@/components/Heading'
 import { P } from '@/components/Text'
 
-type Call = InferRouterOutputs<AppRouter>['calls']['forMe'][number]
-
-const errorText = (err: unknown) => (err instanceof Error ? err.message : 'Something went wrong')
-
-function Answer({ call }: { call: Call }) {
-  const showToast = useToast()
-  const queryClient = useQueryClient()
-  const [message, setMessage] = useState(call.myResponse?.message ?? '')
-  const refresh = () => queryClient.invalidateQueries({ queryKey: orpc.calls.forMe.key() })
-  const respond = useMutation({
-    ...orpc.calls.respond.mutationOptions(),
-    onSuccess: (data) => {
-      showToast(data.message, 'success')
-      void refresh()
-    },
-    onError: (err) => showToast(errorText(err), 'error'),
-  })
-  const withdraw = useMutation({
-    ...orpc.calls.withdraw.mutationOptions(),
-    onSuccess: (data) => {
-      showToast(data.message, 'success')
-      setMessage('')
-      void refresh()
-    },
-    onError: (err) => showToast(errorText(err), 'error'),
-  })
-  const sender = call.senderName ?? 'the coordinator'
-  const fieldId = `call-${call.id}-answer`
-
-  return (
-    <form
-      className="mt-4"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (message.trim()) respond.mutate({ callId: call.id, message })
-      }}
-    >
-      {call.open && (
-        <>
-          <FormLabel htmlFor={fieldId}>
-            {call.myResponse ? 'Your answer' : 'Answer this call'}
-          </FormLabel>
-          <Textarea
-            id={fieldId}
-            rows={3}
-            value={message}
-            maxLength={2000}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="What you can do, and where"
-          />
-          <P className="text-text-light text-sm mt-2">
-            Answering shares your name, email address and this message with {sender}. Until you
-            answer, they cannot see that this call reached you.
-          </P>
-        </>
-      )}
-      {!call.open && call.myResponse && (
-        <P className="text-sm">
-          You answered on {formatDate(call.myResponse.createdAt)}: {call.myResponse.message}
-        </P>
-      )}
-      <div className="flex gap-2 mt-3">
-        {call.open && (
-          <Button type="submit" size="sm" disabled={!message.trim() || respond.isPending}>
-            {call.myResponse ? 'Update answer' : 'Send answer'}
-          </Button>
-        )}
-        {call.myResponse && (
-          <Button
-            type="button"
-            size="sm"
-            variant="warning"
-            disabled={withdraw.isPending}
-            onClick={() => withdraw.mutate({ callId: call.id })}
-          >
-            Withdraw answer
-          </Button>
-        )}
-      </div>
-    </form>
-  )
-}
-
 function CallCard({ call }: { call: Call }) {
+  const { dismiss, undismiss } = useDismissCall()
+  // An answer is withdrawn rather than dismissed; answering a dismissed call restores it.
+  const canSetAside = call.open && !call.myResponse
   return (
     <section
       aria-labelledby={`call-${call.id}-title`}
       className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}
     >
-      <H3 id={`call-${call.id}-title`}>{call.title}</H3>
+      <div className="flex items-start justify-between gap-3">
+        <H3 id={`call-${call.id}-title`} className="min-w-0">
+          {call.title}
+        </H3>
+        {canSetAside &&
+          (call.dismissed ? (
+            <Button
+              size="sm"
+              variant="outline"
+              aria-label={`Restore ${call.title}`}
+              disabled={undismiss.isPending}
+              onClick={() => undismiss.mutate({ callId: call.id })}
+            >
+              Restore
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={`Dismiss ${call.title}`}
+              disabled={dismiss.isPending}
+              onClick={() => dismiss.mutate({ callId: call.id })}
+            >
+              Dismiss
+            </Button>
+          ))}
+      </div>
       {!call.matchesSkills && (
         <Badge className="mb-2">Asks for {anyOfSkills(call.skillNames)}</Badge>
       )}
       <P className="text-text-light text-sm">
-        {call.senderName ?? 'A coordinator'}
-        {call.senderRemit && ` · ${call.senderRemit} coordinator`} · {formatDate(call.createdAt)}
-        {call.matchesSkills &&
-          call.skillNames.length > 0 &&
-          ` · for ${anyOfSkills(call.skillNames)}`}
-        {!call.open && ' · closed'}
+        <CallMeta call={call} />
       </P>
       <P className="whitespace-pre-line">
         <Linkify text={call.body} />
       </P>
-      <Answer call={call} />
+      <CallAnswer call={call} />
     </section>
   )
 }
 
 /**
- * The calls the signed-in volunteer may see, which they may answer or leave: first those that
- * ask for no skill or one they have, then those asking for a skill they have not listed.
+ * The calls the signed-in volunteer may see, which they may answer, dismiss or leave: first those
+ * that ask for no skill or one they have, then those asking for a skill they have not listed, then
+ * those they dismissed, folded away.
  */
 export default function CallsPage() {
   const { user, loading } = useRequireConfirmed()
+  const [dismissedOpen, setDismissedOpen] = useState(false)
   const { data: calls, isLoading } = useQuery({
     ...orpc.calls.forMe.queryOptions(),
     enabled: !!user,
   })
 
   if (loading || !user || isLoading) return <PageLoading />
-  const matching = calls?.filter((c) => c.matchesSkills) ?? []
-  const other = calls?.filter((c) => !c.matchesSkills) ?? []
+  const shown = calls?.filter((c) => !c.dismissed) ?? []
+  const matching = shown.filter((c) => c.matchesSkills)
+  const other = shown.filter((c) => !c.matchesSkills)
+  const dismissed = calls?.filter((c) => c.dismissed) ?? []
 
   return (
     <main className="container py-5 pb-15">
@@ -181,6 +121,31 @@ export default function CallsPage() {
           {other.map((call) => (
             <CallCard key={call.id} call={call} />
           ))}
+        </section>
+      )}
+      {dismissed.length > 0 && (
+        <section aria-labelledby="dismissed-calls" className="mt-6">
+          <H2 id="dismissed-calls">
+            <button
+              type="button"
+              aria-expanded={dismissedOpen}
+              aria-controls="dismissed-calls-body"
+              onClick={() => setDismissedOpen(!dismissedOpen)}
+              className="cursor-pointer bg-transparent border-0 p-0 text-inherit font-inherit"
+            >
+              <span aria-hidden="true" className="inline-block w-5">
+                {dismissedOpen ? '▾' : '▸'}
+              </span>
+              Dismissed ({dismissed.length})
+            </button>
+          </H2>
+          {dismissedOpen && (
+            <div id="dismissed-calls-body">
+              {dismissed.map((call) => (
+                <CallCard key={call.id} call={call} />
+              ))}
+            </div>
+          )}
         </section>
       )}
     </main>

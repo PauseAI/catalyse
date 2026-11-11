@@ -147,4 +147,51 @@ describe('calls for volunteers', () => {
     expect(respond).not.toHaveBeenCalled()
     respond.mockRestore()
   })
+
+  it('folds a dismissed call away, where it can be restored or answered', async () => {
+    const me = await createVolunteer()
+    const call = await postCall({ title: 'Banner painting' })
+    const other = await postCall({ title: 'Leaflet run' })
+    await renderApp(<CallsPage />, { as: me })
+
+    await userEvent.click(
+      within(await card('Banner painting')).getByRole('button', {
+        name: 'Dismiss Banner painting',
+      }),
+    )
+    const toggle = await screen.findByRole('button', { name: 'Dismissed (1)' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('heading', { name: 'Banner painting' })).not.toBeInTheDocument()
+    await userEvent.click(toggle)
+    const dismissed = await card('Banner painting')
+    expect(toggle.closest('section')).toContainElement(dismissed)
+    await userEvent.click(
+      within(dismissed).getByRole('button', { name: 'Restore Banner painting' }),
+    )
+    await screen.findByText('Call restored')
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: /Dismissed/ })).not.toBeInTheDocument(),
+    )
+    expect(await prisma.callDismissal.count({ where: { callId: call.id } })).toBe(0)
+
+    await prisma.callDismissal.create({ data: { callId: other.id, volunteerId: me.id } })
+    await userEvent.click(
+      within(await card('Banner painting')).getByRole('button', {
+        name: 'Dismiss Banner painting',
+      }),
+    )
+    // The group stays as it was last left: open.
+    expect(await screen.findByRole('button', { name: 'Dismissed (2)' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    const leaflet = await card('Leaflet run')
+    await userEvent.type(within(leaflet).getByLabelText('Answer this call'), 'I will')
+    await userEvent.click(within(leaflet).getByRole('button', { name: 'Send answer' }))
+    await screen.findByRole('button', { name: 'Dismissed (1)' })
+    expect(await prisma.callDismissal.count({ where: { callId: other.id } })).toBe(0)
+    expect(
+      within(await card('Leaflet run')).queryByRole('button', { name: /Dismiss/ }),
+    ).not.toBeInTheDocument()
+  })
 })
