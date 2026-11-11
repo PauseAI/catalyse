@@ -1112,7 +1112,7 @@ model Skill {
   category        SkillCategory      @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   workItems       WorkItem[]
   volunteerSkills VolunteerSkill[]
-  calls           Call[]
+  callSkills      CallSkill[]
 
   @@unique([categoryId, name])
   @@index([categoryId], map: "idx_skills_category")
@@ -1509,18 +1509,29 @@ model Call {
   body       String
   /// The chapters it is addressed to; empty means every chapter and the holding pool.
   chapterIds Int[]     @default([]) @map("chapter_ids")
-  /// When set, only volunteers with this skill are asked.
-  skillId    Int?      @map("skill_id")
   createdAt  DateTime  @default(now()) @map("created_at")
-  /// Set when it stops taking answers: closed by its sender, or when its sender or skill goes.
+  /// Set when it stops taking answers: closed by its sender, when its sender goes, or when the
+  /// last of the skills it asked for is deleted.
   closedAt   DateTime? @map("closed_at")
 
   sender    Volunteer?     @relation("CallSender", fields: [senderId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  skill     Skill?         @relation(fields: [skillId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  /// The skills it asks for, any one of which addresses it to a volunteer; none means anyone.
+  skills    CallSkill[]
   responses CallResponse[]
 
   @@index([createdAt], map: "idx_calls_created")
   @@map("calls")
+}
+
+model CallSkill {
+  callId  Int   @map("call_id")
+  skillId Int   @map("skill_id")
+  call    Call  @relation(fields: [callId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  skill   Skill @relation(fields: [skillId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([callId, skillId])
+  @@index([skillId], map: "idx_call_skills_skill")
+  @@map("call_skills")
 }
 
 /// A volunteer's answer to a call, which shares their name, email and message with the call's

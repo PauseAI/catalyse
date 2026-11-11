@@ -4,7 +4,7 @@ import { ApprovalStatus } from '@/generated/prisma/enums'
 export const CALL_POSTED = 'call_posted'
 export const CALL_ANSWERED = 'call_answered'
 
-type Addressing = { senderId: number | null; chapterIds: number[]; skillId: number | null }
+type Audience = { senderId: number | null; chapterIds: number[] }
 
 /** The accounts any call may reach: approved, confirmed, live and not marked a duplicate. */
 export const ADDRESSABLE = {
@@ -15,24 +15,35 @@ export const ADDRESSABLE = {
 } satisfies Prisma.VolunteerWhereInput
 
 /**
- * The volunteers a call is addressed to: addressable accounts in its chapters (or anywhere, the
- * holding pool included, when it names none) with its skill if it asks for one. The one rule
- * both for delivering a call and for who may see and answer it.
+ * Who may see and answer a call: addressable accounts other than its sender, in its chapters (or
+ * anywhere, the holding pool included, when it names none). Its skills do not narrow this.
  */
-export function addresseeWhere(call: Addressing): Prisma.VolunteerWhereInput {
+export function audienceWhere(call: Audience): Prisma.VolunteerWhereInput {
   return {
     ...ADDRESSABLE,
     ...(call.senderId !== null && { NOT: { id: call.senderId } }),
     ...(call.chapterIds.length > 0 && { nationalChapterId: { in: call.chapterIds } }),
-    ...(call.skillId !== null && { skills: { some: { skillId: call.skillId } } }),
   }
 }
 
 /**
- * `addresseeWhere` turned round: the calls whose chapters and skill take in `volunteer`, who must
- * also be ADDRESSABLE.
+ * Who a call is delivered to: its audience, narrowed to those with any of its skills when it asks
+ * for some.
  */
-export function addressedToWhere(volunteer: {
+export function addresseeWhere(
+  call: Audience & { skillIds: number[] },
+): Prisma.VolunteerWhereInput {
+  return {
+    ...audienceWhere(call),
+    ...(call.skillIds.length > 0 && { skills: { some: { skillId: { in: call.skillIds } } } }),
+  }
+}
+
+/**
+ * `audienceWhere` turned round: the calls whose chapters take in `volunteer`, who must also be
+ * ADDRESSABLE.
+ */
+export function visibleToWhere(volunteer: {
   id: number
   nationalChapterId: number | null
 }): Prisma.CallWhereInput {
@@ -47,12 +58,33 @@ export function addressedToWhere(volunteer: {
               { chapterIds: { has: volunteer.nationalChapterId } },
             ],
           },
+    ],
+  }
+}
+
+/** `addresseeWhere` turned round: the visible calls asking for no skill or one `volunteer` has. */
+export function addressedToWhere(volunteer: {
+  id: number
+  nationalChapterId: number | null
+}): Prisma.CallWhereInput {
+  return {
+    AND: [
+      visibleToWhere(volunteer),
       {
         OR: [
-          { skillId: null },
-          { skill: { volunteerSkills: { some: { volunteerId: volunteer.id } } } },
+          { skills: { none: {} } },
+          {
+            skills: {
+              some: { skill: { volunteerSkills: { some: { volunteerId: volunteer.id } } } },
+            },
+          },
         ],
       },
     ],
   }
 }
+
+const choice = new Intl.ListFormat('en-GB', { type: 'disjunction' })
+
+/** The skills a call asks for, read as the choice they are: "Film, Photography or Video". */
+export const anyOfSkills = (names: string[]) => choice.format(names)

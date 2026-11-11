@@ -65,11 +65,20 @@ export const adminSkillsRouter = {
 
     await prisma.workItem.updateMany({ where: { skillId: input.id }, data: { skillId: null } })
     await prisma.$transaction(async (tx) => {
-      // The row lock holds off a call being sent for the skill until it is gone, when the call's
-      // foreign key refuses it. A call for the skill would otherwise widen to everyone.
+      // The skill's row lock holds off a call being sent for it until it is gone, when the call's
+      // foreign key refuses it. A call left with none of the skills it asked for would otherwise
+      // widen to everyone, so it closes; one with others left keeps asking for those. Locking
+      // the calls makes a second deletion wait for this one, then see what it left.
       await tx.$queryRaw`SELECT id FROM skills WHERE id = ${input.id} FOR UPDATE`
+      await tx.$queryRaw`
+        SELECT id FROM calls
+        WHERE closed_at IS NULL AND id IN (SELECT call_id FROM call_skills WHERE skill_id = ${input.id})
+        ORDER BY id FOR UPDATE`
       await tx.call.updateMany({
-        where: { skillId: input.id, closedAt: null },
+        where: {
+          closedAt: null,
+          skills: { some: { skillId: input.id }, every: { skillId: input.id } },
+        },
         data: { closedAt: new Date() },
       })
       await tx.skill.delete({ where: { id: input.id } })
