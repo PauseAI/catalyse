@@ -822,7 +822,7 @@ describe('deleteAccount', () => {
     await createQuickTask({ contextProjectId: p.id, assigneeId: me.id })
     await createProject({ assigneeId: me.id })
     const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
-    vi.spyOn(prisma.notification, 'create').mockRejectedValue(new Error('db') as never)
+    vi.spyOn(prisma.notification, 'createManyAndReturn').mockRejectedValue(new Error('db') as never)
     emails.failAll()
     await clientAs(me).auth.deleteAccount({})
     expect(error).toHaveBeenCalledWith(expect.any(Error), '[NOTIFY ERROR]')

@@ -196,7 +196,9 @@ describe('notifyUser email preferences', () => {
     )
     // An in-app notice that failed to save leaves nothing to stamp.
     const error = vi.spyOn(logger, 'error').mockImplementation(() => logger as never)
-    vi.spyOn(prisma.notification, 'create').mockRejectedValueOnce(new Error('db') as never)
+    vi.spyOn(prisma.notification, 'createManyAndReturn').mockRejectedValueOnce(
+      new Error('db') as never,
+    )
     await notifyUser(vol.id, 'project_approved', 'Again', null, null, payload)
     await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.any(Error), '[NOTIFY ERROR]'))
     await vi.waitFor(() => expect(emails.lastTo(vol.email!)).toMatchObject({ subject: 'Again' }))
@@ -254,7 +256,9 @@ describe('notifyUser', () => {
     await new Promise((r) => setImmediate(r))
     expect(error).toHaveBeenCalledWith(expect.any(Error), '[EMAIL ERROR]')
 
-    vi.spyOn(prisma.notification, 'create').mockRejectedValueOnce(new Error('db') as never)
+    vi.spyOn(prisma.notification, 'createManyAndReturn').mockRejectedValueOnce(
+      new Error('db') as never,
+    )
     await notifyUser(vol.id, 'a', 'T', null, null)
     await new Promise((r) => setImmediate(r))
     expect(error).toHaveBeenCalledWith(expect.any(Error), '[NOTIFY ERROR]')

@@ -1,6 +1,6 @@
 import { prisma } from './prisma'
 import type { DigestSchedule } from './notification-digest'
-import { effectiveTimeZone } from './time-zone'
+import { effectiveTimeZone, type TimeZoneSource } from './time-zone'
 import type { Prisma } from '@/generated/prisma/client'
 import {
   defaultDelivery,
@@ -46,29 +46,67 @@ export function unchoosableTypes(choices: Record<string, Delivery>): string[] {
   return Object.keys(choices).filter((t) => !isKnownType(t) || isFixed(t))
 }
 
-/** A person's digest schedule, from their settings and their last digest. */
-export async function digestScheduleOf(
-  volunteerId: number,
-  db: Pick<typeof prisma, 'volunteer'> = prisma,
-): Promise<DigestSchedule | null> {
-  const vol = await db.volunteer.findFirst({
-    where: { id: volunteerId, deletedAt: null },
-    select: {
-      timeZone: true,
-      digestHour: true,
-      digestFrequency: true,
-      chapter: { select: { country: true } },
-      notificationDigests: { orderBy: { sentOn: 'desc' }, take: 1, select: { sentOn: true } },
-    },
-  })
-  if (!vol) return null
+const SCHEDULE_FIELDS = {
+  id: true,
+  timeZone: true,
+  digestHour: true,
+  digestFrequency: true,
+  chapter: { select: { country: true } },
+  notificationDigests: { orderBy: { sentOn: 'desc' }, take: 1, select: { sentOn: true } },
+} as const
+
+/** A digest schedule, with the person's own zone choice and where the zone in use came from. */
+export type ScheduleOf = DigestSchedule & {
+  volunteerId: number
+  ownTimeZone: string | null
+  timeZoneSource: TimeZoneSource
+}
+
+type ScheduleRow = {
+  id: number
+  timeZone: string | null
+  digestHour: number
+  digestFrequency: DigestSchedule['frequency']
+  chapter: { country: string } | null
+  notificationDigests: { sentOn: Date }[]
+}
+
+function toSchedule(vol: ScheduleRow): ScheduleOf {
+  const zone = effectiveTimeZone(vol.timeZone, vol.chapter?.country ?? null)
   const last = vol.notificationDigests[0]?.sentOn
   return {
-    timeZone: effectiveTimeZone(vol.timeZone, vol.chapter?.country ?? null).timeZone,
+    volunteerId: vol.id,
+    timeZone: zone.timeZone,
+    ownTimeZone: vol.timeZone,
+    timeZoneSource: zone.source,
     hour: vol.digestHour,
     frequency: vol.digestFrequency,
     lastSentOn: last ? last.toISOString().slice(0, 10) : null,
   }
+}
+
+/** A person's digest schedule, from their settings and their last digest. */
+export async function digestScheduleOf(
+  volunteerId: number,
+  db: Pick<typeof prisma, 'volunteer'> = prisma,
+): Promise<ScheduleOf> {
+  return toSchedule(
+    await db.volunteer.findUniqueOrThrow({ where: { id: volunteerId }, select: SCHEDULE_FIELDS }),
+  )
+}
+
+/** In one query, the schedules of everyone with an address who holds notifications for a digest. */
+export async function pendingDigestSchedules(): Promise<ScheduleOf[]> {
+  const people = await prisma.volunteer.findMany({
+    where: {
+      deletedAt: null,
+      email: { not: null },
+      notifications: { some: { inDigest: true, digestId: null } },
+    },
+    select: SCHEDULE_FIELDS,
+    orderBy: { id: 'asc' },
+  })
+  return people.map(toSchedule)
 }
 
 const CLOSED_PROJECT = ['completed', 'archived']

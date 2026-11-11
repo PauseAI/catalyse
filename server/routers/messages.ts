@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { sendRelayMessage, isEmailConfigured } from '@/lib/email'
-import { notifyUser } from '@/lib/notify'
+import { emailIfChosen, heldForDigest, routeFor, type Route } from '@/lib/notify'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { canReach, seesFullProfile } from '@/lib/contact'
 import { inChapter } from '@/lib/chapter-access'
@@ -40,8 +40,8 @@ function limitSends(context: Pick<Context, 'request'>) {
 }
 
 /**
- * Stores one message in its conversation and tells the recipient, who gets a copy by email as
- * their choice for messages says. `threadId` is null for a new conversation, which then becomes its own thread.
+ * Stores one message in its conversation with the recipient's Inbox notification, then emails
+ * them a copy if that is their choice for messages. `threadId` is null for a new conversation, which then becomes its own thread.
  */
 async function deliver(
   sender: Sender,
@@ -55,6 +55,12 @@ async function deliver(
     shareEmail: boolean
   },
 ) {
+  const title = `Message from ${sender.name}`
+  // A failed lookup still emails the copy: for a message, the email is the message itself.
+  const route: Route = (await routeFor(recipient.id, 'message_received', true)) ?? {
+    delivery: 'email',
+    to: recipient.email ? { name: recipient.name, email: recipient.email } : null,
+  }
   const created = await prisma.$transaction(async (tx) => {
     const row = await tx.message.create({
       data: {
@@ -66,15 +72,25 @@ async function deliver(
         threadId: message.threadId,
       },
     })
-    return { id: row.id, threadId: message.threadId ?? row.id }
+    const threadId = message.threadId ?? row.id
+    const note = await tx.notification.create({
+      data: {
+        volunteerId: recipient.id,
+        type: 'message_received',
+        title,
+        body: message.subject,
+        link: `/inbox/messages/${threadId}`,
+        entityId: threadId,
+        inDigest: heldForDigest(route),
+      },
+    })
+    return { id: row.id, threadId, noteId: note.id }
   })
 
-  await notifyUser(
-    recipient.id,
-    'message_received',
-    `Message from ${sender.name}`,
-    message.subject,
-    `/inbox/messages/${created.threadId}`,
+  emailIfChosen(
+    route,
+    [created.noteId],
+    { title },
     {
       send: async (to, name) =>
         isEmailConfigured() &&
@@ -89,9 +105,8 @@ async function deliver(
           threadId: created.threadId,
         }),
     },
-    created.threadId,
   )
-  return created
+  return { id: created.id, threadId: created.threadId }
 }
 
 /** The first message of a thread the viewer takes part in, or NOT_FOUND. */

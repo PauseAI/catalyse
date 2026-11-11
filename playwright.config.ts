@@ -19,6 +19,9 @@ const laneProjects: Project[] = LANES.map((lane) => ({
     isMobile: lane.isMobile,
     hasTouch: lane.isMobile,
     colorScheme: lane.theme,
+    // Pages that show the viewer's own clock, such as the next digest time, read the same
+    // whichever machine takes the picture.
+    timezoneId: 'Europe/London',
   },
 }))
 

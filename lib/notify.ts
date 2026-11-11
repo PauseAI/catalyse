@@ -96,7 +96,7 @@ function sendNotificationEmail(
   })
 }
 
-type NotificationItem = {
+export type NotificationItem = {
   title: string
   body?: string | null
   link?: string | null
@@ -106,7 +106,7 @@ type NotificationItem = {
 /**
  * The one place a notification is delivered: it always lands in the Inbox, and the recipient's
  * choice for its type (lib/notification-types.ts) decides whether it is also emailed now, held
- * for their daily digest, or neither.
+ * for their digest, or neither.
  */
 export async function notifyUser(
   volunteerId: number,
@@ -124,16 +124,22 @@ export async function notifyUser(
  * Several notifications of one type to one person, delivered as `notifyUser` does but emailed
  * together: one Inbox row each, and at most one email, written by `email` or else from the first.
  */
-export async function notifyUserOfEach(
+export type Route = {
+  delivery: Delivery
+  /** Who an email would go to; null for someone gone or without an address. */
+  to: { name: string; email: string } | null
+}
+
+/**
+ * How a notification of `type` reaches `volunteerId`, in one round trip for the person and
+ * their choice. Null when the lookup itself fails, so the caller can decide what that means.
+ */
+export async function routeFor(
   volunteerId: number,
   type: string,
-  items: NotificationItem[],
-  email?: NotifyEmailPayload,
-): Promise<void> {
-  // The rows are awaited so a caller can rely on them being there when this resolves; only the
-  // email is left to run on its own. Nothing here throws: the caller's change is already saved.
-  // One round trip for the person and their choice for this type, as every notification pays it.
-  const vol = await prisma.$queryRaw<
+  hasEmail: boolean,
+): Promise<Route | null> {
+  return prisma.$queryRaw<
     { name: string; email: string | null; technical: boolean; delivery: Delivery | null }[]
   >`
     SELECT v.name, v.email, coalesce(v.is_technical_admin, false) AS technical, p.delivery::text AS delivery
@@ -141,40 +147,39 @@ export async function notifyUserOfEach(
     LEFT JOIN notification_preferences p ON p.volunteer_id = v.id AND p.type = ${type}
     WHERE v.id = ${volunteerId} AND v.deleted_at IS NULL
   `
-    .then((rows) => rows[0] ?? null)
+    .then(([vol]): Route => {
+      if (!vol) return { delivery: 'in_app', to: null }
+      return {
+        delivery: resolveDelivery(
+          type,
+          { isTechnicalAdmin: vol.technical },
+          vol.delivery ?? undefined,
+          hasEmail,
+        ),
+        to: vol.email ? { name: vol.name, email: vol.email } : null,
+      }
+    })
     .catch((e) => {
       logger.error(e, '[EMAIL ERROR]')
       return null
     })
-  const delivery = vol
-    ? resolveDelivery(type, { isTechnicalAdmin: vol.technical }, vol.delivery ?? undefined, !!email)
-    : 'in_app'
-  const emailTo = vol?.email ? vol.email : null
+}
 
-  const ids: number[] = []
-  for (const item of items) {
-    const row = await prisma.notification
-      .create({
-        data: {
-          volunteerId,
-          type,
-          title: item.title,
-          body: item.body ?? null,
-          link: item.link ?? null,
-          entityId: item.entityId ?? null,
-          inDigest: delivery === 'digest' && !!emailTo,
-        },
-      })
-      .catch((e) => {
-        logger.error(e, '[NOTIFY ERROR]')
-        return null
-      })
-    if (row) ids.push(row.id)
-  }
-  if (delivery !== 'email' || !vol || !emailTo) return
+/** Whether rows for `route` are held for the digest. */
+export const heldForDigest = (route: Route) => route.delivery === 'digest' && route.to !== null
 
-  const [first] = items
-  sendNotificationEmail(emailTo, vol.name, first.title, first.body, first.link, email)
+/**
+ * Emails notifications `ids` on their own (nothing awaits it) when `route` says to, and
+ * records when they were emailed.
+ */
+export function emailIfChosen(
+  route: Route,
+  ids: number[],
+  item: NotificationItem,
+  email: NotifyEmailPayload | undefined,
+): void {
+  if (route.delivery !== 'email' || !route.to) return
+  sendNotificationEmail(route.to.email, route.to.name, item.title, item.body, item.link, email)
     .then(async (sent) => {
       if (sent) {
         await prisma.notification.updateMany({
@@ -184,6 +189,40 @@ export async function notifyUserOfEach(
       }
     })
     .catch((e) => logger.error(e, '[EMAIL ERROR]'))
+}
+
+export async function notifyUserOfEach(
+  volunteerId: number,
+  type: string,
+  items: NotificationItem[],
+  email?: NotifyEmailPayload,
+): Promise<void> {
+  // The rows are awaited so a caller can rely on them being there when this resolves; only the
+  // email is left to run on its own. Nothing here throws: the caller's change is already saved.
+  const route = (await routeFor(volunteerId, type, !!email)) ?? { delivery: 'in_app', to: null }
+  const rows = await prisma.notification
+    .createManyAndReturn({
+      data: items.map((item) => ({
+        volunteerId,
+        type,
+        title: item.title,
+        body: item.body ?? null,
+        link: item.link ?? null,
+        entityId: item.entityId ?? null,
+        inDigest: heldForDigest(route),
+      })),
+      select: { id: true },
+    })
+    .catch((e) => {
+      logger.error(e, '[NOTIFY ERROR]')
+      return []
+    })
+  emailIfChosen(
+    route,
+    rows.map((r) => r.id),
+    items[0],
+    email,
+  )
 }
 
 /** Alerts every member of a team that a project has been tagged to them and gone live. */

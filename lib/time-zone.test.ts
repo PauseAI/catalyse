@@ -63,5 +63,18 @@ describe('time zones', () => {
     expect(zonedInstant('2026-11-01', 1, 'America/New_York').toISOString()).toBe(
       '2026-11-01T05:00:00.000Z',
     )
+    // London repeats 01:00 on 25 October, first in summer time (00:00 UTC), then at 01:00 UTC.
+    expect(zonedInstant('2026-10-25', 1, 'Europe/London').toISOString()).toBe(
+      '2026-10-25T00:00:00.000Z',
+    )
+    // And skips 01:00 on 29 March.
+    expect(localTime(zonedInstant('2026-03-29', 1, 'Europe/London'), 'Europe/London').hour).toBe(2)
+    // Sydney, south of the equator: repeats 02:00 on 5 April, skips it on 4 October.
+    expect(zonedInstant('2026-04-05', 2, 'Australia/Sydney').toISOString()).toBe(
+      '2026-04-04T15:00:00.000Z',
+    )
+    expect(
+      localTime(zonedInstant('2026-10-04', 2, 'Australia/Sydney'), 'Australia/Sydney').hour,
+    ).toBe(3)
   })
 })

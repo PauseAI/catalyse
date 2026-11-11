@@ -6,28 +6,14 @@ import {
   DIGEST_FREQUENCY_LABELS,
   type DigestFrequency,
 } from '@/lib/notification-digest'
-import type { TimeZoneSource } from '@/lib/time-zone'
+import { formatLocalDay, hourLabel, zoneLabel, type TimeZoneSource } from '@/lib/time-zone'
 
-const hourLabel = (h: number) => `${String(h).padStart(2, '0')}:00`
 const HOURS = Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: hourLabel(h) }))
 
 const SOURCE_NOTES: Record<TimeZoneSource, string> = {
   chosen: '',
   country: " (from your chapter's country until you choose)",
   default: ' (UTC until you choose)',
-}
-
-/** `nextDigestAt` on the person's own clock: "Thu 13 Nov, 08:00". */
-export function formatDigestTime(at: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone,
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).format(at)
 }
 
 /** How often the digest goes, at what local hour, in which time zone, and when it next can. */
@@ -55,7 +41,7 @@ export default function DigestSchedule({
   // The runtime's list can miss UTC and name a zone the browser spells otherwise.
   const zoneOptions = [...new Set([...zones, 'UTC', current])]
     .sort()
-    .map((z) => ({ value: z, label: z.replace(/_/g, ' ') }))
+    .map((z) => ({ value: z, label: zoneLabel(z) }))
   return (
     <div className="mb-6 flex flex-col gap-3">
       <div role="radiogroup" aria-label="Digest frequency" className="flex flex-col gap-2">
@@ -98,7 +84,7 @@ export default function DigestSchedule({
       </div>
       <P className="text-sm text-text-light m-0">
         {nextDigestAt
-          ? `Next digest: ${formatDigestTime(nextDigestAt, effectiveTimeZone)} ${effectiveTimeZone.replace(/_/g, ' ')}${SOURCE_NOTES[timeZoneSource]}, if anything new has arrived by then.`
+          ? `Next digest: ${formatLocalDay(nextDigestAt, effectiveTimeZone, true)} ${zoneLabel(effectiveTimeZone)}${SOURCE_NOTES[timeZoneSource]}, if anything new has arrived by then.`
           : null}
       </P>
     </div>

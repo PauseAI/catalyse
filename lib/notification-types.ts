@@ -3,7 +3,7 @@ import { categoryOf, type NotificationCategory } from './notification-categories
 /**
  * Every notification type a person can be sent, in the words the settings panel shows, with how
  * it reaches them unless they choose otherwise. A notification always lands in the Inbox; the
- * choice is only whether it is also emailed, at once or in the daily digest.
+ * choice is only whether it is also emailed, at once or in their digest.
  */
 
 export const EMAIL_DELIVERIES = ['in_app', 'email', 'digest'] as const
@@ -340,10 +340,10 @@ export const PRESETS = [
   {
     key: 'recommended',
     label: 'Recommended',
-    hint: 'What needs you, and messages, by email; updates in the daily digest.',
+    hint: 'What needs you, and messages, by email; updates in your digest.',
   },
   { key: 'email', label: 'Everything by email', hint: 'Each notification as it happens.' },
-  { key: 'digest', label: 'Daily digest only', hint: 'One email at your digest time, at most.' },
+  { key: 'digest', label: 'Digest only', hint: 'One email at your digest time, at most.' },
   { key: 'in_app', label: 'In app only', hint: 'No notification emails; check your Inbox.' },
 ] as const
 export type PresetKey = (typeof PRESETS)[number]['key']

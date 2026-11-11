@@ -27,7 +27,7 @@ import { formatDate } from '@/lib/format-date'
 import { BUG_STATUS_VARIANT, bugStatusLabel } from '@/lib/bug-report-labels'
 import type { Delivery } from '@/lib/notification-types'
 import { DEFAULT_DIGEST_HOUR, type DigestFrequency } from '@/lib/notification-digest'
-import { browserTimeZone } from '@/lib/time-zone'
+import { browserTimeZone, hourLabel, zoneLabel } from '@/lib/time-zone'
 import DigestSchedule from '@/components/DigestSchedule'
 import NotificationPreferences from '@/components/NotificationPreferences'
 import {
@@ -427,7 +427,7 @@ function SettingsPageContent() {
   const digestHour = schedule.hour ?? digestSettings?.hour ?? DEFAULT_DIGEST_HOUR
   const digestZone = schedule.timeZone ?? digestSettings?.effectiveTimeZone ?? 'UTC'
   const changedSchedule = Object.keys(schedule).length > 0
-  const digestSummary = `${DIGEST_EVERY[digestFrequency]} at ${String(digestHour).padStart(2, '0')}:00 your time (${digestZone.replace(/_/g, ' ')})`
+  const digestSummary = `${DIGEST_EVERY[digestFrequency]} at ${hourLabel(digestHour)} your time (${zoneLabel(digestZone)})`
 
   if (loading || !user) return null
 

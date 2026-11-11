@@ -160,6 +160,21 @@ describe('runNotificationDigestJob', () => {
     error.mockRestore()
   })
 
+  it("carries on to everyone else when one person's digest fails", async () => {
+    const first = await person()
+    const second = await person()
+    await held(first.id, 'project_approved', 'First')
+    await held(second.id, 'project_approved', 'Second')
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
+    vi.spyOn(prisma, '$transaction').mockRejectedValueOnce(new Error('lock timeout') as never)
+    const result = await runNotificationDigestJob(at('2026-11-12T08:00:00Z'))
+    expect(result).toMatchObject({ failed: 1, sent: 1 })
+    expect(error).toHaveBeenCalledWith(expect.any(Error), '[NOTIFICATION DIGEST] failed')
+    expect(digestsTo(first)).toHaveLength(0)
+    expect(digestsTo(second)).toHaveLength(1)
+    vi.restoreAllMocks()
+  })
+
   it('skips when email is not configured', async () => {
     emails.setConfigured(false)
     expect(await runNotificationDigestJob()).toEqual({

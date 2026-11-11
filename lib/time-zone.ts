@@ -94,8 +94,8 @@ export function addLocalDays(date: string, days: number): string {
 }
 
 /**
- * The instant `date` at `hour`:00 is on the wall clock in `timeZone`. An hour the clocks skip
- * comes out as the first instant after it.
+ * The instant `date` at `hour`:00 is on the wall clock in `timeZone`. An hour the clocks repeat
+ * gives its first pass; an hour they skip gives the first instant after it.
  */
 export function zonedInstant(date: string, hour: number, timeZone: string): Date {
   const wall = Date.parse(`${date}T${String(hour).padStart(2, '0')}:00:00Z`)
@@ -106,9 +106,36 @@ export function zonedInstant(date: string, hour: number, timeZone: string): Date
       Date.parse(`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:00Z`) - (t - (t % 60_000))
     )
   }
-  let t = wall - offsetAt(wall)
-  t = wall - offsetAt(t)
-  const landed = localTime(new Date(t), timeZone)
-  if (landed.date === date && landed.hour < hour) t += 60 * 60_000
-  return new Date(t)
+  // The offsets either side of any clock change that day give every instant the wall time can be.
+  const candidates = [...new Set([offsetAt(wall - DAY_MS), offsetAt(wall + DAY_MS)])]
+    .map((offset) => wall - offset)
+    .sort((a, b) => a - b)
+  const target = `${date}T${hour}`
+  const exact = candidates.find((t) => {
+    const l = localTime(new Date(t), timeZone)
+    return `${l.date}T${l.hour}` === target
+  })
+  if (exact !== undefined) return new Date(exact)
+  const after = candidates.find((t) => {
+    const l = localTime(new Date(t), timeZone)
+    return l.date > date || (l.date === date && l.hour > hour)
+  })
+  return new Date(after ?? candidates[candidates.length - 1])
+}
+
+/** An hour of the day as the panel shows it: "08:00". */
+export const hourLabel = (hour: number) => `${String(hour).padStart(2, '0')}:00`
+
+/** A zone's name as people read it: "America/New York". */
+export const zoneLabel = (zone: string) => zone.replace(/_/g, ' ')
+
+/** A day on the local clock, "Thu 12 Nov", or with `withTime` a moment, "Thu 12 Nov, 08:00". */
+export function formatLocalDay(at: Date, timeZone: string, withTime = false): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    ...(withTime ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } : {}),
+  }).format(at)
 }

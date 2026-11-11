@@ -22,7 +22,6 @@ import { loadWorkItemSummaries, workItemIdFromLink } from '@/lib/work-item-summa
 import { preferenceRows } from '@/lib/notification-types'
 import { chosenDeliveries, digestScheduleOf, heldRoles } from '@/lib/notification-preferences'
 import { nextDigestAt } from '@/lib/notification-digest'
-import { effectiveTimeZone } from '@/lib/time-zone'
 
 type Viewer = { id: number; isAdmin: boolean | null }
 
@@ -249,25 +248,14 @@ export const notificationsRouter = {
 
   /** The person's digest schedule, the zone it follows and why, and when the next can go. */
   digestSettings: authedProcedure.handler(async ({ context }) => {
-    const v = await prisma.volunteer.findUniqueOrThrow({
-      where: { id: context.volunteer.id },
-      select: {
-        id: true,
-        timeZone: true,
-        digestHour: true,
-        digestFrequency: true,
-        chapter: { select: { country: true } },
-      },
-    })
-    const zone = effectiveTimeZone(v.timeZone, v.chapter?.country ?? null)
-    const schedule = await digestScheduleOf(v.id)
+    const s = await digestScheduleOf(context.volunteer.id)
     return {
-      frequency: v.digestFrequency,
-      hour: v.digestHour,
-      timeZone: v.timeZone,
-      effectiveTimeZone: zone.timeZone,
-      timeZoneSource: zone.source,
-      nextDigestAt: schedule ? nextDigestAt(new Date(), schedule) : null,
+      frequency: s.frequency,
+      hour: s.hour,
+      timeZone: s.ownTimeZone,
+      effectiveTimeZone: s.timeZone,
+      timeZoneSource: s.timeZoneSource,
+      nextDigestAt: nextDigestAt(new Date(), s),
     }
   }),
 }

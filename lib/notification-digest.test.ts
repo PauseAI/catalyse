@@ -39,6 +39,10 @@ describe('digest schedule', () => {
     const nyOne = { ...ny, hour: 1 }
     const autumn = ['2026-11-01T05:00:00Z', '2026-11-01T06:00:00Z']
     expect(autumn.map((t) => digestDueOn(at(t), nyOne))).toEqual(['2026-11-01', null])
+    // London's repeated 01:00 on 25 October: summer time's pass, not the second.
+    const londonOne = { ...london, hour: 1 }
+    const repeat = ['2026-10-25T00:30:00Z', '2026-10-25T01:30:00Z']
+    expect(repeat.map((t) => digestDueOn(at(t), londonOne))).toEqual(['2026-10-25', null])
   })
 
   it('waits for the period to pass since the last digest, for each frequency', () => {

@@ -4,7 +4,7 @@ import {
   categoryOf,
   type NotificationCategory,
 } from './notification-categories'
-import { addLocalDays, daysBetween, localTime, zonedInstant } from './time-zone'
+import { addLocalDays, daysBetween, formatLocalDay, localTime, zonedInstant } from './time-zone'
 
 export const DIGEST_FREQUENCIES = ['daily', 'every_3_days', 'weekly'] as const
 export type DigestFrequency = (typeof DIGEST_FREQUENCIES)[number]
@@ -78,15 +78,6 @@ export type DigestSection = {
   items: { title: string; detail: string | null; href: string }[]
 }
 
-function dayLabel(date: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone,
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  }).format(date)
-}
-
 /**
  * The items under their Inbox categories, in the Inbox's order, oldest first within each. When
  * they span more than one local day, each says which day it came.
@@ -100,7 +91,7 @@ export function digestSections(items: DigestItem[], timeZone: string): DigestSec
     items: items
       .filter((i) => categoryOf(i.type) === category)
       .map((i) => {
-        const day = dated && i.createdAt ? dayLabel(i.createdAt, timeZone) : null
+        const day = dated && i.createdAt ? formatLocalDay(i.createdAt, timeZone) : null
         return {
           title: i.title,
           detail: [day, i.body].filter(Boolean).join(' · ') || null,

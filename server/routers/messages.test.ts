@@ -101,6 +101,23 @@ describe('messages.send', () => {
     expect(emails.to(batched.email!)).toEqual([])
   })
 
+  it("still emails the copy when the recipient's choice cannot be read", async () => {
+    const sender = await createVolunteer()
+    const recipient = await createVolunteer()
+    await connect(sender, recipient)
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
+    vi.spyOn(prisma, '$queryRaw').mockRejectedValueOnce(new Error('db') as never)
+    await clientAs(sender).messages.send({ recipientId: recipient.id, subject: 'S', message: 'm' })
+    expect(error).toHaveBeenCalledWith(expect.any(Error), '[EMAIL ERROR]')
+    expect(
+      await prisma.notification.count({
+        where: { volunteerId: recipient.id, type: 'message_received' },
+      }),
+    ).toBe(1)
+    await vi.waitFor(() => expect(emails.lastTo(recipient.email!).subject).toContain('S'))
+    vi.restoreAllMocks()
+  })
+
   it('refuses self, unknown recipients and people the sender does not work with, and rate limits', async () => {
     const sender = await createVolunteer()
     const c = clientAs(sender)

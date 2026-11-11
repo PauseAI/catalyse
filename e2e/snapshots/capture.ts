@@ -199,6 +199,11 @@ export async function normaliseDates(page: Page): Promise<void> {
       [new RegExp(`\\b${months} \\d{4}\\b`, 'g'), fixed.long.slice(3)],
       [/\b\d{4}-\d{2}-\d{2}\b/g, fixed.input],
       [/\b\d{1,2}\/\d{1,2}\/\d{4}\b/g, '12/09/2026'],
+      // A coming day on the viewer's own clock, "Thu 12 Nov, 08:00", keeping its chosen hour.
+      [
+        new RegExp(`\\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun) \\d{1,2} ${shortMonths}(, \\d{2}:\\d{2})?`, 'g'),
+        'Sat 12 Sep$2',
+      ],
       [/\bjust now\b/g, fixed.relative],
       // A measured duration, such as a job's run time, is wall clock too.
       [/\b\d+(?:\.\d+)?(?:ms|s|m)\b(?=\s|$|<)/g, '100ms'],
