@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { clearNotifications, notifyUser } from '@/lib/notify'
-import { logger } from '@/lib/logger'
+import type { Prisma } from '@/generated/prisma/client'
 import {
   ADDRESSABLE,
   addressedToWhere,
@@ -26,12 +26,15 @@ const CallInput = z.object({
  * every volunteer, so emailing each would spend the mail provider's quota in one send. The
  * addressees are read here and never returned, so a call does not tell its sender whom it reached.
  */
-async function deliver(call: { id: number; title: string; body: string } & AddressingFields) {
-  const addressees = await prisma.volunteer.findMany({
+async function deliver(
+  tx: Prisma.TransactionClient,
+  call: { id: number; title: string; body: string } & AddressingFields,
+) {
+  const addressees = await tx.volunteer.findMany({
     where: addresseeWhere(call),
     select: { id: true },
   })
-  await prisma.notification.createMany({
+  await tx.notification.createMany({
     data: addressees.map((v) => ({
       volunteerId: v.id,
       type: CALL_POSTED,
@@ -82,17 +85,20 @@ export const callsRouter = {
     if (input.skillId !== null && !(await prisma.skill.count({ where: { id: input.skillId } }))) {
       throw new ORPCError('BAD_REQUEST', { message: 'Choose a skill from the list' })
     }
-    const call = await prisma.call.create({
-      data: {
-        senderId: context.volunteer.id,
-        title: input.title,
-        body: input.body,
-        chapterIds,
-        skillId: input.skillId,
-      },
+    // One transaction, so a delivery that fails takes its call with it and the sender can resend.
+    return prisma.$transaction(async (tx) => {
+      const call = await tx.call.create({
+        data: {
+          senderId: context.volunteer.id,
+          title: input.title,
+          body: input.body,
+          chapterIds,
+          skillId: input.skillId,
+        },
+      })
+      await deliver(tx, call)
+      return { id: call.id }
     })
-    deliver(call).catch((e) => logger.error(e, '[CALL DELIVERY]'))
-    return { id: call.id }
   }),
 
   /** The caller's own calls, or every call for a global admin, with how many have answered. */
