@@ -2,9 +2,11 @@ import { describe, it, expect, vi } from 'vitest'
 import { screen, waitFor, act, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
+import { CALL_POSTED } from '@/lib/calls'
 import {
   createChapter,
   createChapterDeputy,
+  createCoordinator,
   createMember,
   createVolunteer,
   createProject,
@@ -495,5 +497,154 @@ describe('home', () => {
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).toBeNull()
     await waitFor(async () => expect((await note()).readAt).not.toBeNull())
+  })
+})
+
+describe('calls for volunteers on the home page', () => {
+  /** An open call from a fresh coordinator, addressed to everyone. */
+  async function postCall(title: string, skillIds: number[] = []) {
+    const coordinator = await createCoordinator(undefined, { name: 'Caio Coordinator' })
+    return prisma.call.create({
+      data: {
+        senderId: coordinator.id,
+        title,
+        body: `Details of ${title}.`,
+        skills: { create: skillIds.map((skillId) => ({ skillId })) },
+      },
+    })
+  }
+  const callsCard = () => screen.findByRole('region', { name: /Calls for volunteers/ })
+
+  it('is left out when no call is waiting on the volunteer', async () => {
+    await prisma.call.updateMany({ data: { closedAt: new Date() } })
+    const me = await createVolunteer()
+    const answered = await postCall('Answered already')
+    await prisma.callResponse.create({
+      data: { callId: answered.id, volunteerId: me.id, message: 'Done' },
+    })
+    const dismissed = await postCall('Set aside')
+    await prisma.callDismissal.create({ data: { callId: dismissed.id, volunteerId: me.id } })
+    await renderApp(<HomePage />, { as: me, url: '/dashboard' })
+    await screen.findByRole('link', { name: 'Propose a project' })
+    await waitFor(() =>
+      expect(screen.queryByRole('region', { name: /Calls for volunteers/ })).toBeNull(),
+    )
+  })
+
+  it('lists three calls, those matching the volunteer first, and counts the rest', async () => {
+    await prisma.call.updateMany({ data: { closedAt: new Date() } })
+    const me = await createVolunteer()
+    const film = await createSkill({ name: 'Film editing' })
+    const drones = await createSkill({ name: 'Drones' })
+    await prisma.volunteerSkill.create({ data: { volunteerId: me.id, skillId: film.id } })
+    await postCall('Oldest other call', [drones.id])
+    await postCall('Newest other call', [drones.id])
+    await postCall('Anyone call')
+    await postCall('Editing call', [film.id])
+    await postCall('Another other call', [drones.id])
+    await renderApp(<HomePage />, { as: me, url: '/dashboard' })
+
+    const card = await callsCard()
+    const rows = await within(card).findAllByRole('listitem')
+    expect(rows.map((r) => within(r).getByRole('strong').textContent)).toEqual([
+      'Editing call',
+      'Anyone call',
+      'Another other call',
+    ])
+    expect(within(rows[0]).getByText(/Caio Coordinator .* for Film editing/)).toBeInTheDocument()
+    expect(within(rows[2]).getByText('Asks for Drones')).toBeInTheDocument()
+    expect(within(card).getByRole('link', { name: /See all calls \(2 more\)/ })).toHaveAttribute(
+      'href',
+      '/calls',
+    )
+  })
+
+  it('answers a call in a dialog, after which it leaves the card', async () => {
+    await prisma.call.updateMany({ data: { closedAt: new Date() } })
+    const me = await createVolunteer()
+    const call = await postCall('Photograph the vigil')
+    await postCall('Still waiting')
+    await renderApp(<HomePage />, { as: me, url: '/dashboard' })
+
+    const card = await callsCard()
+    expect(within(card).getByRole('link', { name: 'See all calls →' })).toBeInTheDocument()
+    await userEvent.click(within(card).getByRole('button', { name: 'Answer Photograph the vigil' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText('Details of Photograph the vigil.')).toBeInTheDocument()
+    await userEvent.type(within(dialog).getByLabelText('Answer this call'), 'I can, in Bristol')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Send answer' }))
+    await screen.findByText(/the coordinator can now see your answer/)
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    await waitFor(() =>
+      expect(within(card).queryByText('Photograph the vigil')).not.toBeInTheDocument(),
+    )
+    expect(within(card).getByText('Still waiting')).toBeInTheDocument()
+    expect(
+      await prisma.callResponse.findFirstOrThrow({
+        where: { callId: call.id, volunteerId: me.id },
+      }),
+    ).toMatchObject({ message: 'I can, in Bristol' })
+
+    // Escape closes the dialog without answering.
+    await userEvent.click(within(card).getByRole('button', { name: 'Answer Still waiting' }))
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('dismisses a call, reading its Inbox notification, and then hides the card', async () => {
+    await prisma.call.updateMany({ data: { closedAt: new Date() } })
+    const me = await createVolunteer()
+    const call = await postCall('Translate a leaflet')
+    const notification = await prisma.notification.create({
+      data: { volunteerId: me.id, type: CALL_POSTED, title: 'Call', entityId: call.id },
+    })
+    await renderApp(<HomePage />, { as: me, url: '/dashboard' })
+
+    const card = await callsCard()
+    await userEvent.click(within(card).getByRole('button', { name: 'Dismiss Translate a leaflet' }))
+    await screen.findByText('Call dismissed')
+    await waitFor(() =>
+      expect(screen.queryByRole('region', { name: /Calls for volunteers/ })).toBeNull(),
+    )
+    expect(await prisma.callDismissal.count({ where: { callId: call.id } })).toBe(1)
+    expect(
+      (await prisma.notification.findUniqueOrThrow({ where: { id: notification.id } })).readAt,
+    ).not.toBeNull()
+    expect(await prisma.callResponse.count({ where: { callId: call.id } })).toBe(0)
+  })
+
+  it('reports a refused dismissal', async () => {
+    await prisma.call.updateMany({ data: { closedAt: new Date() } })
+    const me = await createVolunteer()
+    const call = await postCall('Closing soon')
+    await renderApp(<HomePage />, { as: me, url: '/dashboard' })
+    const card = await callsCard()
+    await prisma.call.update({ where: { id: call.id }, data: { closedAt: new Date() } })
+    await userEvent.click(within(card).getByRole('button', { name: 'Dismiss Closing soon' }))
+    await screen.findByText('This call is no longer taking answers')
+    // The refresh that follows drops the closed call.
+    await waitFor(() =>
+      expect(screen.queryByRole('region', { name: /Calls for volunteers/ })).toBeNull(),
+    )
+  })
+
+  it('keeps the answer dialog and its draft open when the call closes meanwhile', async () => {
+    await prisma.call.updateMany({ data: { closedAt: new Date() } })
+    const me = await createVolunteer()
+    const call = await postCall('Closing while drafting')
+    await renderApp(<HomePage />, { as: me, url: '/dashboard' })
+    const card = await callsCard()
+    await userEvent.click(
+      within(card).getByRole('button', { name: 'Answer Closing while drafting' }),
+    )
+    const dialog = screen.getByRole('dialog')
+    await userEvent.type(within(dialog).getByLabelText('Answer this call'), 'My long draft')
+    await prisma.call.update({ where: { id: call.id }, data: { closedAt: new Date() } })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Send answer' }))
+    await screen.findByText('This call is no longer taking answers')
+    await waitFor(() => expect(within(card).queryByRole('listitem')).toBeNull())
+    expect(within(screen.getByRole('dialog')).getByLabelText('Answer this call')).toHaveValue(
+      'My long draft',
+    )
   })
 })

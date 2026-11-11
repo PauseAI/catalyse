@@ -129,4 +129,55 @@ test.describe('Coordinator calls', () => {
     await inbox.goto(`${baseUrl}/inbox`)
     await expect(inbox.getByText(subject)).toBeVisible()
   })
+
+  test('A volunteer answers one call and dismisses another from their home page', async ({
+    browser,
+    baseUrl,
+    snap,
+  }) => {
+    const adminApi = createApiClient(baseUrl, readAdminToken(baseUrl))
+    const coordinator = await createApprovedVolunteerNamed(baseUrl, fake.personName())
+    await adminApi.admin.coordinators.appoint({
+      body: { volunteerId: coordinator.id, remit: 'Media' },
+    })
+    const coordinatorApi = createApiClient(baseUrl, coordinator.token)
+    const [toAnswer, toDismiss] = [fake.projectTitle(), fake.projectTitle()]
+    for (const title of [toAnswer, toDismiss]) {
+      const sent = await coordinatorApi.calls.send({
+        body: { title, body: `About ${title}`, chapterIds: [], skillIds: [] },
+      })
+      expect(sent.status).toBe(200)
+    }
+    const volunteer = await createApprovedVolunteerNamed(baseUrl, fake.personName())
+
+    const page = await signedInPage(browser, volunteer.token)
+    await page.goto(`${baseUrl}/dashboard`)
+    const card = page.getByRole('region', { name: /Calls for volunteers/ })
+    await expect(card.getByText(toAnswer, { exact: true })).toBeVisible()
+    await expect(card.getByText(toDismiss, { exact: true })).toBeVisible()
+    await snap(page, 'calls on the home page')
+
+    await card.getByRole('button', { name: `Answer ${toAnswer}` }).click()
+    const dialog = page.getByRole('dialog', { name: toAnswer })
+    await dialog.getByLabel('Answer this call').fill('I can cover it')
+    await snap(page, 'answering from the home page')
+    await dialog.getByRole('button', { name: 'Send answer' }).click()
+    await expect(page.getByText(/the coordinator can now see your answer/)).toBeVisible()
+    await expect(dialog).toBeHidden()
+    await expect(card.getByText(toAnswer, { exact: true })).toBeHidden()
+
+    await card.getByRole('button', { name: `Dismiss ${toDismiss}` }).click()
+    await expect(getAlert(page)).toContainText('Call dismissed')
+    await expect(page.getByText(toDismiss, { exact: true })).toBeHidden()
+
+    await page.goto(`${baseUrl}/calls`)
+    await expect(page.getByRole('region', { name: toAnswer })).toBeVisible()
+    await page.getByRole('button', { name: /Dismissed/ }).click()
+    const dismissed = page.getByRole('region', { name: toDismiss })
+    await dismissed.getByRole('button', { name: `Restore ${toDismiss}` }).click()
+    await expect(getAlert(page)).toContainText('Call restored')
+    await expect(page.getByRole('button', { name: /Dismissed/ })).toBeHidden()
+    await page.goto(`${baseUrl}/dashboard`)
+    await expect(card.getByText(toDismiss, { exact: true })).toBeVisible()
+  })
 })
