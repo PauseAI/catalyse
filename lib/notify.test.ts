@@ -157,6 +157,14 @@ describe('notifyUser email preferences', () => {
     expect(emails.to(held.email!)).toEqual([])
   })
 
+  it('leaves someone deleted an Inbox row and no email', async () => {
+    const gone = await createVolunteer({ deletedAt: new Date() })
+    await notifyUser(gone.id, 'project_approved', 'Approved', null, null, payload)
+    expect(await rowsOf(gone.id)).toMatchObject([{ inDigest: false }])
+    await emails.settle()
+    expect(emails.to(gone.email!)).toEqual([])
+  })
+
   it('ignores a stored choice for a fixed type', async () => {
     const vol = await createVolunteer()
     await choose(vol.id, 'call_posted', 'email')
