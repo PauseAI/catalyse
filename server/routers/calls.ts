@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { clearNotifications, notifyUser } from '@/lib/notify'
-import { logger } from '@/lib/logger'
+import type { Prisma } from '@/generated/prisma/client'
 import {
   ADDRESSABLE,
   addressedToWhere,
@@ -29,12 +29,15 @@ const CallInput = z.object({
  * every volunteer, so emailing each would spend the mail provider's quota in one send. The
  * addressees are read here and never returned, so a call does not tell its sender whom it reached.
  */
-async function deliver(call: { id: number; title: string; body: string } & Addressing) {
-  const addressees = await prisma.volunteer.findMany({
+async function deliver(
+  tx: Prisma.TransactionClient,
+  call: { id: number; title: string; body: string } & Addressing,
+) {
+  const addressees = await tx.volunteer.findMany({
     where: addresseeWhere(call),
     select: { id: true },
   })
-  await prisma.notification.createMany({
+  await tx.notification.createMany({
     data: addressees.map((v) => ({
       volunteerId: v.id,
       type: CALL_POSTED,
@@ -90,7 +93,8 @@ export const callsRouter = {
       throw new ORPCError('BAD_REQUEST', { message: 'Choose chapters from the list' })
     }
     const skillIds = [...new Set(input.skillIds)]
-    const call = await prisma.$transaction(async (tx) => {
+    // One transaction, so a delivery that fails takes its call with it and the sender can resend.
+    return prisma.$transaction(async (tx) => {
       // Shared row locks keep the skills from being deleted until the call is in.
       const found = skillIds.length
         ? await tx.$queryRaw<{ id: number }[]>`
@@ -99,7 +103,7 @@ export const callsRouter = {
       if (found.length !== skillIds.length) {
         throw new ORPCError('BAD_REQUEST', { message: 'Choose a skill from the list' })
       }
-      return tx.call.create({
+      const call = await tx.call.create({
         data: {
           senderId: context.volunteer.id,
           title: input.title,
@@ -108,9 +112,9 @@ export const callsRouter = {
           skills: { create: skillIds.map((skillId) => ({ skillId })) },
         },
       })
+      await deliver(tx, { ...call, skillIds })
+      return { id: call.id }
     })
-    deliver({ ...call, skillIds }).catch((e) => logger.error(e, '[CALL DELIVERY]'))
-    return { id: call.id }
   }),
 
   /** The caller's own calls, or every call for a global admin, with how many have answered. */
