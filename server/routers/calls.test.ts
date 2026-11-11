@@ -529,6 +529,18 @@ describe('edges of a call', () => {
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' })
   })
 
+  it('closes when its last two skills are deleted at once', async () => {
+    const s = await setup()
+    const [film, photo] = [await createSkill(), await createSkill()]
+    const { id } = await s.c.calls.send(call({ skillIds: [film.id, photo.id] }))
+    const [a, b] = [clientAs(await createAdmin()), clientAs(await createAdmin())]
+    await Promise.all([
+      a.admin.skills.delete({ id: film.id }),
+      b.admin.skills.delete({ id: photo.id }),
+    ])
+    expect((await prisma.call.findUniqueOrThrow({ where: { id } })).closedAt).not.toBeNull()
+  })
+
   it("closes, with the role, when the coordinator's account is deleted", async () => {
     const s = await setup()
     const { id } = await s.c.calls.send(call({}))

@@ -84,6 +84,7 @@ export function addressedToWhere(volunteer: {
   }
 }
 
+const choice = new Intl.ListFormat('en-GB', { type: 'disjunction' })
+
 /** The skills a call asks for, read as the choice they are: "Film, Photography or Video". */
-export const anyOfSkills = (names: string[]) =>
-  new Intl.ListFormat('en-GB', { type: 'disjunction' }).format(names)
+export const anyOfSkills = (names: string[]) => choice.format(names)

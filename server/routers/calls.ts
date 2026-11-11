@@ -90,17 +90,24 @@ export const callsRouter = {
       throw new ORPCError('BAD_REQUEST', { message: 'Choose chapters from the list' })
     }
     const skillIds = [...new Set(input.skillIds)]
-    if ((await prisma.skill.count({ where: { id: { in: skillIds } } })) !== skillIds.length) {
-      throw new ORPCError('BAD_REQUEST', { message: 'Choose a skill from the list' })
-    }
-    const call = await prisma.call.create({
-      data: {
-        senderId: context.volunteer.id,
-        title: input.title,
-        body: input.body,
-        chapterIds,
-        skills: { create: skillIds.map((skillId) => ({ skillId })) },
-      },
+    const call = await prisma.$transaction(async (tx) => {
+      // Shared row locks keep the skills from being deleted until the call is in.
+      const found = skillIds.length
+        ? await tx.$queryRaw<{ id: number }[]>`
+            SELECT id FROM skills WHERE id = ANY(${skillIds}::int[]) FOR SHARE`
+        : []
+      if (found.length !== skillIds.length) {
+        throw new ORPCError('BAD_REQUEST', { message: 'Choose a skill from the list' })
+      }
+      return tx.call.create({
+        data: {
+          senderId: context.volunteer.id,
+          title: input.title,
+          body: input.body,
+          chapterIds,
+          skills: { create: skillIds.map((skillId) => ({ skillId })) },
+        },
+      })
     })
     deliver({ ...call, skillIds }).catch((e) => logger.error(e, '[CALL DELIVERY]'))
     return { id: call.id }

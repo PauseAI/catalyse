@@ -153,14 +153,18 @@ export default function FilterDropdown<T extends string>({
         )
       : options
 
-  function select(opt: FilterOption<T>) {
-    if (opt.header) return
-    onChange(opt.value)
+  /** Closes the list from inside it; the search input that held focus goes with the list. */
+  function closeHere() {
     setOpen(false)
     setQuery('')
     setFocusedIndex(-1)
-    // The search input that held focus goes with the list.
     if (searchable) triggerRef.current?.focus()
+  }
+
+  function select(opt: FilterOption<T>) {
+    if (opt.header) return
+    onChange(opt.value)
+    closeHere()
   }
 
   function nextSelectableIndex(from: number, direction: 1 | -1): number {
@@ -195,15 +199,12 @@ export default function FilterDropdown<T extends string>({
         if (focusedIndex >= 0 && filtered[focusedIndex]) select(filtered[focusedIndex])
         break
       case 'Escape':
-        setOpen(false)
-        setQuery('')
-        setFocusedIndex(-1)
+        closeHere()
         onClose?.('escape')
         break
       case 'Backspace':
         if (searchable && query === '') {
-          setOpen(false)
-          setFocusedIndex(-1)
+          closeHere()
           onClose?.('escape')
         }
         break
