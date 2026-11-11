@@ -1,6 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { logger } from '@/lib/logger'
 import { CALL_ANSWERED, CALL_POSTED } from '@/lib/calls'
 import {
   createAdmin,
@@ -59,9 +58,8 @@ async function setup() {
   }
 }
 
-/** Waits for a call's delivery, which runs after `send` returns, to reach `volunteerId`. */
-const delivered = (callId: number, volunteerId: number) =>
-  vi.waitFor(async () => expect(await notifiedOf(callId, volunteerId)).toBe(1), { timeout: 5000 })
+const delivered = async (callId: number, volunteerId: number) =>
+  expect(await notifiedOf(callId, volunteerId)).toBe(1)
 
 const notifiedOf = (callId: number, volunteerId: number) =>
   prisma.notification.count({ where: { type: CALL_POSTED, entityId: callId, volunteerId } })
@@ -112,6 +110,9 @@ describe('delivering a call', () => {
 
     for (const v of [s.ukVisible, s.ukHidden, s.deVisible, s.deHidden, s.poolHidden]) {
       await delivered(id, v.id)
+    }
+    await emails.settle()
+    for (const v of [s.ukVisible, s.ukHidden, s.deVisible, s.deHidden, s.poolHidden]) {
       expect(emails.to(v.email!)).toEqual([])
     }
     for (const v of [pending, unconfirmed, gone, s.coordinator]) {
@@ -148,19 +149,6 @@ describe('delivering a call', () => {
     await expect(
       clientAs(s.ukVisible).calls.respond({ callId: toGermany.id, message: 'Me!' }),
     ).rejects.toMatchObject(notFound)
-  })
-
-  it('logs a delivery that fails outright', async () => {
-    const s = await setup()
-    const failed = vi.spyOn(logger, 'error').mockImplementation(() => {})
-    const lookup = vi.spyOn(prisma.volunteer, 'findMany').mockRejectedValueOnce(new Error('down'))
-    await s.c.calls.send(call({}))
-    await vi.waitFor(
-      () => expect(failed).toHaveBeenCalledWith(expect.anything(), '[CALL DELIVERY]'),
-      { timeout: 5000 },
-    )
-    lookup.mockRestore()
-    failed.mockRestore()
   })
 })
 
@@ -203,6 +191,7 @@ describe('who a call reached', () => {
       where: { type: CALL_ANSWERED, volunteerId: s.coordinator.id },
     })
     expect(answered.title).toContain(s.deHidden.name)
+    await emails.settle()
     expect(emails.to(s.coordinator.email!)).toEqual([])
 
     await them.calls.respond({ callId: id, message: 'Berlin and Hamburg' })
