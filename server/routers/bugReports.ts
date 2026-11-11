@@ -2,11 +2,10 @@ import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
 import { globalAdminWhere } from '@/lib/chapter-access-server'
-import { createNotification, notifyUser } from '@/lib/notify'
+import { notifyUser } from '@/lib/notify'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { canViewBugReport } from '@/lib/bug-report-access'
 import { CreateBugReportSchema } from '@/lib/schemas'
-import { logger } from '@/lib/logger'
 import { authedProcedure } from '../procedures'
 
 export const bugReportsRouter = {
@@ -92,42 +91,33 @@ export const bugReportsRouter = {
 
     const admins = await prisma.volunteer.findMany({
       where: { ...globalAdminWhere(), id: { not: volunteer.id } },
-      select: { id: true, isTechnicalAdmin: true },
+      select: { id: true },
     })
     const notifyTitle = `New ${input.category ?? 'bug'}: ${input.title.trim()}`
     const notifyBody = `Severity: ${input.severity ?? 'medium'}`
-    await createNotification(
+    await notifyUser(
       volunteer.id,
       'bug_report_submitted',
       'Bug report submitted',
       `We've received your report: ${input.title.trim()}`,
       `/bugs/${report.id}`,
-    ).catch((e) => logger.error(e, '[NOTIFY ERROR]'))
+    )
     await Promise.all(
       admins.map((admin) =>
-        admin.isTechnicalAdmin
-          ? notifyUser(
-              admin.id,
-              'new_bug_report',
-              notifyTitle,
-              notifyBody,
-              '/admin/bugs',
-              {
-                subject: notifyTitle,
-                message: notifyBody,
-                ctaLabel: 'View Bug Report',
-                ctaUrl: '/admin/bugs',
-              },
-              report.id,
-            )
-          : createNotification(
-              admin.id,
-              'new_bug_report',
-              notifyTitle,
-              notifyBody,
-              '/admin/bugs',
-              report.id,
-            ).catch((e) => logger.error(e, '[NOTIFY ERROR]')),
+        notifyUser(
+          admin.id,
+          'new_bug_report',
+          notifyTitle,
+          notifyBody,
+          '/admin/bugs',
+          {
+            subject: notifyTitle,
+            message: notifyBody,
+            ctaLabel: 'View Bug Report',
+            ctaUrl: '/admin/bugs',
+          },
+          report.id,
+        ),
       ),
     )
 

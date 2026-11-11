@@ -25,11 +25,9 @@ import { SECTION_CARD } from '@/lib/ui-classes'
 import { useUrlParam } from '@/lib/hooks/url-filters'
 import { formatDate } from '@/lib/format-date'
 import { BUG_STATUS_VARIANT, bugStatusLabel } from '@/lib/bug-report-labels'
-import {
-  EMAIL_CATEGORY_LABELS,
-  MUTABLE_EMAIL_CATEGORIES,
-  type MutableEmailCategory,
-} from '@/lib/notification-categories'
+import type { Delivery } from '@/lib/notification-types'
+import { DIGEST_HOUR_UTC } from '@/lib/notification-digest'
+import NotificationPreferences from '@/components/NotificationPreferences'
 import {
   NO_LOCAL_GROUP,
   buildLocalGroupOptionsForCountry,
@@ -57,6 +55,8 @@ const TABS: { key: TabKey; label: string }[] = [
 ]
 
 const VALID_TABS = new Set<string>(TABS.map((t) => t.key))
+
+const DIGEST_TIME = `${String(DIGEST_HOUR_UTC).padStart(2, '0')}:00 UTC`
 
 const SUBHEADING = 'mt-6 mb-3'
 const HINT =
@@ -123,7 +123,8 @@ function SettingsPageContent() {
     ],
     'none',
   )
-  const [emailMutedCategories, setEmailMutedCategories] = useState<MutableEmailCategory[]>([])
+  /** Choices changed since the panel loaded, by notification type. */
+  const [deliveries, setDeliveries] = useState<Record<string, Delivery>>({})
   const [dailySummary, setDailySummary] = useState<DailySummaryChoice>('email_and_in_app')
   const [consentMakeProfileVisibleInDirectory, setConsentMakeProfileVisibleInDirectory] =
     useState(true)
@@ -143,6 +144,10 @@ function SettingsPageContent() {
   const { data: me, isPending: loadingProfile } = useQuery({
     ...orpc.auth.me.queryOptions(),
     enabled: !!user,
+  })
+  const { data: preferenceRows } = useQuery({
+    ...orpc.notifications.preferences.queryOptions(),
+    enabled: !!user && activeTab === 'notifications',
   })
   const { data: localGroupsData } = useQuery(orpc.localGroups.list.queryOptions({ input: {} }))
   const allLocalGroups: LocalGroupOption[] = localGroupsData?.groups ?? []
@@ -212,9 +217,6 @@ function SettingsPageContent() {
     setContactPreference(me.contactPreference ?? '')
     setContactNotes(me.contactNotes ?? '')
     setEmailDigest(me.emailDigest ?? 'none')
-    setEmailMutedCategories(
-      MUTABLE_EMAIL_CATEGORIES.filter((c) => me.emailMutedCategories?.includes(c)),
-    )
     setDailySummary(me.dailySummary ?? 'email_and_in_app')
     setOtherSkills(me.otherSkills ?? '')
     setConsentMakeProfileVisibleInDirectory(!!me.consentMakeProfileVisibleInDirectory)
@@ -233,6 +235,8 @@ function SettingsPageContent() {
       await queryClient.invalidateQueries({ queryKey: orpc.auth.me.key() })
       await refreshUser()
       showToast('Profile updated!', 'success')
+      await queryClient.invalidateQueries({ queryKey: orpc.notifications.preferences.key() })
+      setDeliveries({})
     },
     onError: (err: unknown) => {
       showToast(err instanceof Error ? err.message : 'Failed to save', 'error')
@@ -334,8 +338,8 @@ function SettingsPageContent() {
       contactPreference: contactPreference || null,
       contactNotes: contactNotes.trim() || null,
       emailDigest,
-      emailMutedCategories,
       dailySummary,
+      ...(Object.keys(deliveries).length > 0 ? { notificationPreferences: deliveries } : {}),
       otherSkills: otherSkills.trim() || null,
       skillIds: skills.map((s) => s.skillId),
       consentMakeProfileVisibleInDirectory,
@@ -762,29 +766,6 @@ function SettingsPageContent() {
               />
             </div>
             <fieldset className="mb-5 border-0 p-0">
-              <legend className="font-medium mb-2">Also email me</legend>
-              <div className="flex flex-col gap-2">
-                {MUTABLE_EMAIL_CATEGORIES.map((c) => (
-                  <Checkbox
-                    key={c}
-                    id={`email_${c}`}
-                    checked={!emailMutedCategories.includes(c)}
-                    onChange={(e) =>
-                      setEmailMutedCategories((muted) =>
-                        e.target.checked ? muted.filter((m) => m !== c) : [...muted, c],
-                      )
-                    }
-                  >
-                    {EMAIL_CATEGORY_LABELS[c]}
-                  </Checkbox>
-                ))}
-              </div>
-              <P className="text-sm text-text-light mt-1 ml-7">
-                Everything still arrives in your Inbox. Messages from other volunteers are always
-                emailed as well.
-              </P>
-            </fieldset>
-            <fieldset className="mb-5 border-0 p-0">
               <legend className="font-medium mb-2">Daily summary</legend>
               <div className="flex flex-col gap-2">
                 {DAILY_SUMMARY_CHOICES.map((c) => (
@@ -804,6 +785,31 @@ function SettingsPageContent() {
                 what is waiting on your Home page.
               </P>
             </fieldset>
+            <H3 className={SUBHEADING}>Email for each notification</H3>
+            <div className={HINT}>
+              <p className="m-0 mb-2">
+                Everything arrives in your Inbox whatever you choose here. Choose which
+                notifications also come by email: <strong>Email</strong> sends each one as it
+                happens, and <strong>Digest</strong> gathers them into one email each morning at{' '}
+                {DIGEST_TIME}, listing what you have not yet read. No digest is sent on a day with
+                nothing in it.
+              </p>
+              <p className="m-0">
+                Some emails are always sent and are not listed: sign-in links, password resets,
+                email confirmation and other account and security emails, decisions on your
+                application, warnings before a task you hold is released for inactivity, and
+                operational alerts to admins.
+              </p>
+            </div>
+            {preferenceRows ? (
+              <NotificationPreferences
+                rows={preferenceRows}
+                value={deliveries}
+                onChange={setDeliveries}
+              />
+            ) : (
+              <P className="text-text-light">Loading…</P>
+            )}
             {saveButton}
           </SectionCard>
         )}

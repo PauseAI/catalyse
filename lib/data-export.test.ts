@@ -354,6 +354,10 @@ const rowFor: Record<string, (who: Person, other: Person) => Promise<Row>> = {
   'NationalChapter.lead': (who) => createChapter({ leadId: who.id }),
   'Notification.volunteer': (who) =>
     prisma.notification.create({ data: { volunteerId: who.id, type: 't', title: 't' } }),
+  'NotificationPreference.volunteer': (who) =>
+    prisma.notificationPreference.create({
+      data: { volunteerId: who.id, type: 'mention', delivery: 'email' },
+    }),
   'PasswordResetToken.volunteer': (who) =>
     prisma.passwordResetToken.create({
       data: { volunteerId: who.id, token: `p${nextSeq()}`, expiresAt: new Date() },

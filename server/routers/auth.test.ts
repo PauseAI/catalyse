@@ -808,7 +808,7 @@ describe('deleteAccount', () => {
     emails.failAll()
     await clientAs(me).auth.deleteAccount({})
     expect(error).toHaveBeenCalledWith(expect.any(Error), '[NOTIFY ERROR]')
-    expect(error).toHaveBeenCalledWith(expect.any(Error), '[NOTIFY ERROR] email failed:')
+    await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.any(Error), '[EMAIL ERROR]'))
     vi.restoreAllMocks()
   })
 })

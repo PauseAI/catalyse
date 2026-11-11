@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
+import { saveDeliveries, unchoosableTypes } from '@/lib/notification-preferences'
 import { Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 import { groupIn, placement } from '@/lib/chapter-placement'
@@ -348,7 +349,6 @@ export const volunteersRouter = {
       'location',
       'otherSkills',
       'emailDigest',
-      'emailMutedCategories',
       'dailySummary',
       'applicationMessage',
     ] as const
@@ -393,8 +393,25 @@ export const volunteersRouter = {
     }
 
     const skillIds = input.skillIds
+    const preferences = input.notificationPreferences
+    if (preferences) {
+      const refused = unchoosableTypes(preferences)
+      if (refused.length > 0) {
+        throw new ORPCError('BAD_REQUEST', {
+          message: `These notifications have no choice to make: ${refused.join(', ')}`,
+        })
+      }
+    }
 
     const [vol] = await prisma.$transaction(async (tx) => {
+      if (preferences) {
+        await saveDeliveries(
+          tx,
+          volunteer.id,
+          { isTechnicalAdmin: !!volunteer.isTechnicalAdmin },
+          preferences,
+        )
+      }
       const updated = await tx.volunteer.update({
         where: { id: volunteer.id },
         data,

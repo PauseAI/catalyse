@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MUTABLE_EMAIL_CATEGORIES } from './notification-categories'
+import { EMAIL_DELIVERIES } from './notification-types'
 import { isHttpUrl } from './url'
 import {
   AdminInviteSchema,
@@ -550,6 +550,7 @@ export const UpdateVolunteerSchema = VolunteerSchema.omit({
       .nullable()
       .optional(),
     availabilityHoursPerWeek: AvailabilitySchema.nullable().optional(),
-    emailMutedCategories: z.array(z.enum(MUTABLE_EMAIL_CATEGORIES)).optional(),
+    /** Delivery by notification type, for the types being changed (lib/notification-types.ts). */
+    notificationPreferences: z.record(z.string().max(64), z.enum(EMAIL_DELIVERIES)).optional(),
     dailySummary: z.enum(['email_and_in_app', 'in_app_only', 'off']).optional(),
   })

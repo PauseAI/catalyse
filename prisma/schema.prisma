@@ -240,6 +240,13 @@ enum TaskStatus {
   completed
 }
 
+/// How a notification of one type reaches its recipient beyond the Inbox (lib/notification-types.ts).
+enum EmailDelivery {
+  in_app
+  email
+  digest
+}
+
 enum DailySummaryPreference {
   email_and_in_app
   in_app_only
@@ -439,13 +446,31 @@ model Notification {
   entityId    Int?      @map("entity_id")
   readAt      DateTime? @map("read_at")
   emailedAt   DateTime? @map("emailed_at")
+  /// Held for the recipient's daily notification digest, because they chose Digest for its type.
+  inDigest    Boolean   @default(false) @map("in_digest")
+  /// When a digest listed this notification; a digest lists each one once.
+  digestedAt  DateTime? @map("digested_at")
   createdAt   DateTime? @default(now()) @map("created_at")
   volunteer   Volunteer @relation(fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([volunteerId, readAt], map: "idx_notifications_unread")
   @@index([volunteerId], map: "idx_notifications_volunteer")
   @@index([type, entityId], map: "idx_notifications_type_entity")
+  @@index([inDigest, digestedAt], map: "idx_notifications_digest")
   @@map("notifications")
+}
+
+/// A volunteer's choice of delivery for one notification type, kept only where it differs from
+/// the type's default, so a default that changes reaches everyone who never chose.
+model NotificationPreference {
+  id          Int           @id @default(autoincrement())
+  volunteerId Int           @map("volunteer_id")
+  type        String
+  delivery    EmailDelivery
+  volunteer   Volunteer     @relation(fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([volunteerId, type])
+  @@map("notification_preferences")
 }
 
 model PasswordResetToken {
@@ -1130,8 +1155,6 @@ model Volunteer {
   deletedAt                               DateTime?                @map("deleted_at")
   country                                 String?
   emailDigest                             String?                  @default("none") @map("email_digest") // TODO: enum — none, daily, weekly
-  /// Inbox categories (lib/notification-categories.ts) whose notifications are not also emailed.
-  emailMutedCategories                    String[]                 @default([]) @map("email_muted_categories")
   /// How the daily summary of reminders and project activity reaches this person.
   dailySummary                            DailySummaryPreference   @default(email_and_in_app) @map("daily_summary")
   /// Set from `country`; null is the holding pool. Changing it is a transfer (ChapterTransferRequest).
@@ -1189,6 +1212,7 @@ model Volunteer {
   contactRequestsReceived                 ContactRequest[]         @relation("ContactRequestTo")
   messagesReceived                        Message[]                @relation("MessageTo")
   notifications                           Notification[]
+  notificationPreferences                 NotificationPreference[]
   finishByReminders                       FinishByReminder[]
   emailVerificationTokens                 EmailVerificationToken[]
   passwordResetTokens                     PasswordResetToken[]

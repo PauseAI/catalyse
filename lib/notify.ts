@@ -1,6 +1,6 @@
 import { prisma } from './prisma'
-import { sendProjectNotificationEmail, sendAdminAlertEmail } from './email'
-import { categoryOf } from './notification-categories'
+import { sendProjectNotificationEmail, sendAdminAlertEmail, html } from './email'
+import { resolveDelivery } from './notification-types'
 import { chapterCarers, globalAdminWhere } from './chapter-access-server'
 import { logger } from './logger'
 
@@ -50,7 +50,12 @@ export async function refreshNotification(
   await createNotification(volunteerId, type, title, body, link, entityId)
 }
 
-type NotifyEmailPayload =
+/**
+ * The email a caller writes for a notification: a project notice, an alert with one button, or
+ * its own template sent by `send`. Without one, an emailed notification is its title, body and
+ * link.
+ */
+export type NotifyEmailPayload =
   | {
       subject?: string
       message: string
@@ -59,7 +64,43 @@ type NotifyEmailPayload =
       extraHtml?: string
     }
   | { subject?: string; message: string; ctaLabel: string; ctaUrl: string }
+  | { send: (to: string, name: string) => Promise<boolean> }
 
+function sendNotificationEmail(
+  to: string,
+  name: string,
+  title: string,
+  body: string | null | undefined,
+  link: string | null | undefined,
+  email: NotifyEmailPayload | undefined,
+): Promise<boolean> {
+  if (email && 'send' in email) return email.send(to, name)
+  if (email && 'projectId' in email) {
+    return sendProjectNotificationEmail({
+      to,
+      name,
+      subject: email.subject ?? title,
+      message: email.message,
+      projectTitle: email.projectTitle,
+      projectId: email.projectId,
+      extraHtml: email.extraHtml,
+    })
+  }
+  return sendAdminAlertEmail({
+    to,
+    name,
+    subject: email?.subject ?? title,
+    message: email?.message ?? html`${body ?? title}`,
+    ctaLabel: email?.ctaLabel ?? 'Open in Catalyse',
+    ctaUrl: email?.ctaUrl ?? link ?? '/inbox',
+  })
+}
+
+/**
+ * The one place a notification is delivered: it always lands in the Inbox, and the recipient's
+ * choice for its type (lib/notification-types.ts) decides whether it is also emailed now, held
+ * for their daily digest, or neither.
+ */
 export async function notifyUser(
   volunteerId: number,
   type: string,
@@ -69,57 +110,53 @@ export async function notifyUser(
   email?: NotifyEmailPayload,
   entityId?: number | null,
 ): Promise<void> {
-  // The row is awaited so a caller can rely on it being there when this
-  // resolves; only the email is left to run on its own. Nothing here throws:
-  // the caller's change has already been saved.
-  const notification = await createNotification(
-    volunteerId,
-    type,
-    title,
-    body,
-    link,
-    entityId,
-  ).catch((e) => {
-    logger.error(e, '[NOTIFY ERROR]')
-    return null
-  })
-  if (!email) return
-
+  // The row is awaited so a caller can rely on it being there when this resolves; only the
+  // email is left to run on its own. Nothing here throws: the caller's change is already saved.
   const vol = await prisma.volunteer
     .findFirst({
       where: { id: volunteerId, deletedAt: null },
-      select: { name: true, email: true, emailMutedCategories: true },
+      select: {
+        name: true,
+        email: true,
+        isTechnicalAdmin: true,
+        notificationPreferences: { where: { type }, select: { delivery: true } },
+      },
     })
     .catch((e) => {
       logger.error(e, '[EMAIL ERROR]')
       return null
     })
-  if (!vol?.email) return
-  if (vol.emailMutedCategories.includes(categoryOf(type))) return
+  const delivery = vol
+    ? resolveDelivery(
+        type,
+        { isTechnicalAdmin: !!vol.isTechnicalAdmin },
+        vol.notificationPreferences[0]?.delivery,
+        !!email,
+      )
+    : 'in_app'
+  const emailTo = vol?.email ? vol.email : null
 
-  const send =
-    'projectId' in email
-      ? sendProjectNotificationEmail({
-          to: vol.email,
-          name: vol.name,
-          subject: email.subject ?? title,
-          message: email.message,
-          projectTitle: email.projectTitle,
-          projectId: email.projectId,
-          extraHtml: email.extraHtml,
-        })
-      : sendAdminAlertEmail({
-          to: vol.email,
-          name: vol.name,
-          subject: email.subject ?? title,
-          message: email.message,
-          ctaLabel: email.ctaLabel,
-          ctaUrl: email.ctaUrl,
-        })
+  const notification = await prisma.notification
+    .create({
+      data: {
+        volunteerId,
+        type,
+        title,
+        body: body ?? null,
+        link: link ?? null,
+        entityId: entityId ?? null,
+        inDigest: delivery === 'digest' && !!emailTo,
+      },
+    })
+    .catch((e) => {
+      logger.error(e, '[NOTIFY ERROR]')
+      return null
+    })
+  if (delivery !== 'email' || !vol || !emailTo) return
 
-  send
-    .then(async () => {
-      if (notification) {
+  sendNotificationEmail(emailTo, vol.name, title, body, link, email)
+    .then(async (sent) => {
+      if (sent && notification) {
         await prisma.notification.update({
           where: { id: notification.id },
           data: { emailedAt: new Date() },

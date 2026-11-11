@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { screen, waitFor, fireEvent, cleanup } from '@testing-library/react'
+import { screen, waitFor, fireEvent, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { prisma } from '@/lib/prisma'
 import { createVolunteer, createLocalGroup, createSkill, TEST_PASSWORD } from '@/test/factories'
@@ -219,23 +219,42 @@ describe('settings — notifications and privacy tabs', () => {
       await screen.findByRole('button', { name: 'Keep me in the loop about new projects' }),
     )
     await userEvent.click(screen.getByRole('option', { name: 'Send me a fortnightly digest' }))
-    // Both email categories start on; turn updates off, then needs-action off and on again.
-    const needs = screen.getByLabelText(/^Things that need me/)
-    const updates = screen.getByLabelText(/^Updates:/)
-    expect(needs).toBeChecked()
-    expect(updates).toBeChecked()
-    await userEvent.click(updates)
-    await userEvent.click(needs)
-    await userEvent.click(needs)
+    // One choice per type, starting on its default; "Set all" sets a category at once.
+    const approved = await screen.findByRole('radiogroup', {
+      name: 'Your project proposal is approved',
+    })
+    expect(within(approved).getByRole('radio', { name: 'Email' })).toBeChecked()
+    const mention = screen.getByRole('radiogroup', { name: 'Someone mentions you in a comment' })
+    expect(within(mention).getByRole('radio', { name: 'In app' })).toBeChecked()
+    const setAllUpdates = screen.getByRole('radiogroup', { name: 'Set all Updates' })
+    expect(within(setAllUpdates).getByRole('radio', { name: 'Digest' })).not.toBeChecked()
+    await userEvent.click(within(setAllUpdates).getByRole('radio', { name: 'Digest' }))
+    expect(within(approved).getByRole('radio', { name: 'Digest' })).toBeChecked()
+    expect(within(setAllUpdates).getByRole('radio', { name: 'Digest' })).toBeChecked()
+    await userEvent.click(within(approved).getByRole('radio', { name: 'In app' }))
+    expect(within(setAllUpdates).getByRole('radio', { name: 'Digest' })).not.toBeChecked()
+    await userEvent.click(within(mention).getByRole('radio', { name: 'Email' }))
+    // A fixed type shows its delivery and why, with nothing to choose.
+    expect(screen.queryByRole('radiogroup', { name: 'A coordinator posts a call' })).toBeNull()
+    expect(screen.getByText(/while call emails move to a mail service/)).toBeInTheDocument()
+    expect(screen.queryByText('A new volunteer signs up')).toBeNull()
     expect(screen.getByRole('radio', { name: 'Email and in-app' })).toBeChecked()
     await userEvent.click(screen.getByRole('radio', { name: 'In-app only' }))
     await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
     await screen.findByText('Profile updated!')
     expect(await me(vol.id)).toMatchObject({
       emailDigest: 'fortnightly',
-      emailMutedCategories: ['update'],
       dailySummary: 'in_app_only',
     })
+    const chosen = await prisma.notificationPreference.findMany({ where: { volunteerId: vol.id } })
+    const byType = Object.fromEntries(chosen.map((p) => [p.type, p.delivery]))
+    expect(byType).toMatchObject({
+      project_approved: 'in_app',
+      task_assigned: 'digest',
+      task_done: 'digest',
+      mention: 'email',
+    })
+    expect(byType.new_interest).toBeUndefined()
 
     await userEvent.click(screen.getByRole('tab', { name: 'Privacy & data' }))
     expect(screen.getByRole('link', { name: 'Read privacy policy' })).toHaveAttribute(

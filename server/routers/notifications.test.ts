@@ -7,6 +7,8 @@ import {
   createQuickTask,
   createTask,
   createTeam,
+  createChapter,
+  createChapterDeputy,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 
@@ -259,5 +261,55 @@ describe('notifications by category', () => {
     expect(await actionOf(owner)).toBeNull()
     await prisma.workItemInterest.update({ where: { id: invite.id }, data: { status: 'accepted' } })
     expect(await actionOf(invitee)).toBeNull()
+  })
+})
+
+describe('notification preferences', () => {
+  const rowOf = async (c: ReturnType<typeof clientAs>, type: string) =>
+    (await c.notifications.preferences()).find((r) => r.type === type)
+
+  it('lists the types for each person, admin types only for staff', async () => {
+    const vol = await createVolunteer()
+    const admin = await createAdmin()
+    const deputy = await createChapterDeputy(await createChapter())
+    const types = async (v: Parameters<typeof clientAs>[0]) =>
+      (await clientAs(v).notifications.preferences()).map((r) => r.type)
+    expect(await types(vol)).not.toContain('new_volunteer_signup')
+    expect(await types(admin)).toContain('new_volunteer_signup')
+    expect(await types(deputy)).toContain('new_volunteer_signup')
+    expect(await types(vol)).toContain('project_approved')
+  })
+
+  it('saves choices, storing only those that differ from the default', async () => {
+    const vol = await createVolunteer()
+    const c = clientAs(vol)
+    await c.volunteers.updateMe({
+      notificationPreferences: {
+        project_approved: 'digest',
+        mention: 'email',
+        task_done: 'in_app',
+      },
+    })
+    expect(await rowOf(c, 'project_approved')).toMatchObject({
+      delivery: 'digest',
+      default: 'email',
+    })
+    expect(await rowOf(c, 'mention')).toMatchObject({ delivery: 'email' })
+    const stored = await prisma.notificationPreference.findMany({ where: { volunteerId: vol.id } })
+    expect(stored.map((p) => p.type).sort()).toEqual(['mention', 'project_approved'])
+
+    // Back to the default leaves no choice behind; types left out keep theirs.
+    await c.volunteers.updateMe({ notificationPreferences: { project_approved: 'email' } })
+    const after = await prisma.notificationPreference.findMany({ where: { volunteerId: vol.id } })
+    expect(after.map((p) => p.type)).toEqual(['mention'])
+  })
+
+  it('refuses a fixed or unknown type', async () => {
+    const c = clientAs(await createVolunteer())
+    await expect(
+      c.volunteers.updateMe({ notificationPreferences: { call_posted: 'email', nope: 'email' } }),
+    ).rejects.toMatchObject({
+      message: 'These notifications have no choice to make: call_posted, nope',
+    })
   })
 })

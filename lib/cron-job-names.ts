@@ -6,6 +6,7 @@ export const CRON_JOB_NAMES = [
   'applications-anonymisation',
   'csp-summary',
   'deadline-reminders',
+  'notification-digest',
 ] as const
 
 export type CronJobName = (typeof CRON_JOB_NAMES)[number]
@@ -39,6 +40,11 @@ export const CRON_JOB_INFO: Record<CronJobName, { description: string; idempoten
   'deadline-reminders': {
     description:
       'Deadline check-ins and overdue reminders, past-plan decisions for owners, and one daily summary email per person.',
+    idempotent: true,
+  },
+  'notification-digest': {
+    description:
+      'Emails each person one daily digest of the unread notifications they chose to get that way.',
     idempotent: true,
   },
 }

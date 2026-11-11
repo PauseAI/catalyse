@@ -42,7 +42,6 @@ import {
 import { taskCounts } from '@/lib/task-list-order'
 import { loadWorkItemSummaries, toWorkItemSummary } from '@/lib/work-item-summary'
 import {
-  createNotification,
   notifyUser,
   notifyChapterStaff,
   notifyTeamOfProject,
@@ -623,12 +622,13 @@ async function askOwnerToComplete(projectId: number): Promise<void> {
     where: { volunteerId: project.assigneeId, type: READY_TO_COMPLETE, entityId: project.id },
   })
   if (asked > 0) return
-  await createNotification(
+  await notifyUser(
     project.assigneeId,
     READY_TO_COMPLETE,
     `Every task on '${project.title}' is done`,
     'Ready to complete the project?',
     `/projects/${project.id}`,
+    undefined,
     project.id,
   )
 }
@@ -2223,6 +2223,12 @@ export const projectsRouter = {
           `Accepted: your interest in '${project.title}'`,
           null,
           link,
+          {
+            message: html`The team has <strong>accepted</strong> your interest in the project
+              <strong>${project.title}</strong>.`,
+            projectTitle: project.title,
+            projectId: input.projectId,
+          },
         )
         return { message: 'They had already applied, so they are now on the project' }
       }

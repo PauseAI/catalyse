@@ -5,6 +5,7 @@ import { runNudgesJob } from '@/jobs/nudges'
 import { runApplicationsSummaryJob, runApplicationsAnonymisationJob } from '@/jobs/applications'
 import { runCspSummaryJob } from '@/jobs/csp-summary'
 import { runDeadlineRemindersJob } from '@/jobs/deadline-reminders'
+import { runNotificationDigestJob } from '@/jobs/notification-digest'
 import { CRON_JOB_NAMES, type CronJobName } from '@/lib/cron-job-names'
 
 export { CRON_JOB_NAMES, type CronJobName } from '@/lib/cron-job-names'
@@ -19,6 +20,7 @@ const realRunners: CronJobRunners = {
   'applications-anonymisation': runApplicationsAnonymisationJob,
   'csp-summary': runCspSummaryJob,
   'deadline-reminders': runDeadlineRemindersJob,
+  'notification-digest': runNotificationDigestJob,
 }
 
 let current: CronJobRunners = realRunners

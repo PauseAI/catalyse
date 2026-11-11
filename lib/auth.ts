@@ -183,7 +183,6 @@ export function redactVolunteer(
     whatsappNumber: showContact ? vol.whatsappNumber : undefined,
     contactPreference: showContact ? vol.contactPreference : undefined,
     contactNotes: showContact ? vol.contactNotes : undefined,
-    emailMutedCategories: showContact ? vol.emailMutedCategories : undefined,
     dailySummary: showContact ? vol.dailySummary : undefined,
     skills,
     endorsements,
