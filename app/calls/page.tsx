@@ -9,7 +9,13 @@ import { orpc } from '@/lib/orpc'
 import { SECTION_CARD } from '@/lib/ui-classes'
 import { Badge } from '@/components/Badge'
 import Button from '@/components/Button'
-import { type Call, CallAnswer, CallMeta, useDismissCall } from '@/components/CallAnswer'
+import {
+  type Call,
+  CallAnswer,
+  CallMeta,
+  DismissCallButton,
+  useDismissCall,
+} from '@/components/CallAnswer'
 import EmptyState from '@/components/EmptyState'
 import Linkify from '@/components/Linkify'
 import PageLoading from '@/components/PageLoading'
@@ -17,7 +23,7 @@ import { H1, H2, H3 } from '@/components/Heading'
 import { P } from '@/components/Text'
 
 function CallCard({ call }: { call: Call }) {
-  const { dismiss, undismiss } = useDismissCall()
+  const { undismiss } = useDismissCall()
   // An answer is withdrawn rather than dismissed; answering a dismissed call restores it.
   const canSetAside = call.open && !call.myResponse
   return (
@@ -41,15 +47,7 @@ function CallCard({ call }: { call: Call }) {
               Restore
             </Button>
           ) : (
-            <Button
-              size="sm"
-              variant="ghost"
-              aria-label={`Dismiss ${call.title}`}
-              disabled={dismiss.isPending}
-              onClick={() => dismiss.mutate({ callId: call.id })}
-            >
-              Dismiss
-            </Button>
+            <DismissCallButton call={call} />
           ))}
       </div>
       {!call.matchesSkills && (
@@ -139,13 +137,9 @@ export default function CallsPage() {
               Dismissed ({dismissed.length})
             </button>
           </H2>
-          {dismissedOpen && (
-            <div id="dismissed-calls-body">
-              {dismissed.map((call) => (
-                <CallCard key={call.id} call={call} />
-              ))}
-            </div>
-          )}
+          <div id="dismissed-calls-body" hidden={!dismissedOpen}>
+            {dismissedOpen && dismissed.map((call) => <CallCard key={call.id} call={call} />)}
+          </div>
         </section>
       )}
     </main>

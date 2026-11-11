@@ -557,6 +557,8 @@ describe('dismissing a call', () => {
       data: { callId: id, volunteerId: s.deVisible.id, message: 'Merged in' },
     })
     expect((await me.calls.forMe()).find((x) => x.id === id)).toMatchObject({ dismissed: false })
+    await me.calls.withdraw({ callId: id })
+    expect((await me.calls.forMe()).find((x) => x.id === id)).toMatchObject({ dismissed: false })
   })
 
   it('follows who may answer: not a call out of reach, its sender, or a closed call', async () => {

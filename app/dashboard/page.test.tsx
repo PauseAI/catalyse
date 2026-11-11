@@ -622,5 +622,29 @@ describe('calls for volunteers on the home page', () => {
     await prisma.call.update({ where: { id: call.id }, data: { closedAt: new Date() } })
     await userEvent.click(within(card).getByRole('button', { name: 'Dismiss Closing soon' }))
     await screen.findByText('This call is no longer taking answers')
+    // The refresh that follows drops the closed call.
+    await waitFor(() =>
+      expect(screen.queryByRole('region', { name: /Calls for volunteers/ })).toBeNull(),
+    )
+  })
+
+  it('keeps the answer dialog and its draft open when the call closes meanwhile', async () => {
+    await prisma.call.updateMany({ data: { closedAt: new Date() } })
+    const me = await createVolunteer()
+    const call = await postCall('Closing while drafting')
+    await renderApp(<HomePage />, { as: me, url: '/dashboard' })
+    const card = await callsCard()
+    await userEvent.click(
+      within(card).getByRole('button', { name: 'Answer Closing while drafting' }),
+    )
+    const dialog = screen.getByRole('dialog')
+    await userEvent.type(within(dialog).getByLabelText('Answer this call'), 'My long draft')
+    await prisma.call.update({ where: { id: call.id }, data: { closedAt: new Date() } })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Send answer' }))
+    await screen.findByText('This call is no longer taking answers')
+    await waitFor(() => expect(within(card).queryByRole('listitem')).toBeNull())
+    expect(within(screen.getByRole('dialog')).getByLabelText('Answer this call')).toHaveValue(
+      'My long draft',
+    )
   })
 })

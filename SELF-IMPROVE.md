@@ -107,7 +107,7 @@ confusing than it needed to be, and that will do so again.
       mid-run: `dropStale` drops every `vitest_` schema, not just its own run's. A per-run database prefix and reports directory in
       `test/pg.ts` and `scripts/test-unit.ts` (from an env var or the pid) would let runs overlap.
 
-## 5x
+## 6x
 
 - [ ] **`npm run new-migration` always writes an unrelated `ALTER TABLE "schema_migrations"`
       line that must be deleted by hand, and if `npm run migrate` runs first it is applied
@@ -116,7 +116,9 @@ confusing than it needed to be, and that will do so again.
       enum rename diff carried it again, and so did the national chapters migration, along
       with a `CREATE EXTENSION` already applied, and both duplicate-account migrations. The
       chapter-joining enum migration carried it too; running migrate before stripping it failed
-      the migration and left it recorded as failed until `prisma migrate resolve`.
+      the migration and left it recorded as failed until `prisma migrate resolve`. The call
+      dismissals migration carried both again, and a chained `new-migration && migrate` failed
+      the same way until `prisma migrate resolve --rolled-back`.
       `scripts/new-migration.ts` should strip both from the diff it writes.
 
 ## 4x
@@ -168,6 +170,13 @@ confusing than it needed to be, and that will do so again.
       no test fed a new field, a chip's own null guard. An npm script that runs the unit tests
       with coverage limited to files changed since `main` and prints their uncovered lines would
       find these in a minute.
+
+- [ ] **A headless screenshot cannot sign in as a dev account, because signing in means
+      running `localStorage.setItem` in the page.** Screenshot tools that only click, fill and
+      navigate (the pod's `shot`) had no way to do it, so a screenshot of a signed-in page meant
+      dropping a throwaway HTML file into `public/` to set the token and redirect, then deleting
+      it. The calls-on-dashboard screenshots needed the same throwaway page. A development-only route that takes a `dev-` token, stores it and redirects (refused
+      outside `NODE_ENV=development`) would make any signed-in page one URL away.
 
 ## 1x
 
@@ -309,9 +318,3 @@ confusing than it needed to be, and that will do so again.
       need no database, and a script that prints a CI run's failing tests from its annotations,
       would give such a session a loop of seconds for pure code and one readable command for the
       rest.
-- [ ] **A headless screenshot cannot sign in as a dev account, because signing in means
-      running `localStorage.setItem` in the page.** Screenshot tools that only click, fill and
-      navigate (the pod's `shot`) had no way to do it, so a screenshot of a signed-in page meant
-      dropping a throwaway HTML file into `public/` to set the token and redirect, then deleting
-      it. A development-only route that takes a `dev-` token, stores it and redirects (refused
-      outside `NODE_ENV=development`) would make any signed-in page one URL away.

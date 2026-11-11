@@ -8,7 +8,8 @@ import { orpc } from '@/lib/orpc'
 import { BLEED } from '@/lib/ui-classes'
 import { Badge } from '@/components/Badge'
 import Button from '@/components/Button'
-import { type Call, CallAnswer, CallMeta, useDismissCall } from '@/components/CallAnswer'
+import { type Call, CallAnswer, CallMeta, DismissCallButton } from '@/components/CallAnswer'
+import Count from '@/components/Count'
 import Linkify from '@/components/Linkify'
 import Modal from '@/components/ui/Modal'
 import { H2 } from '@/components/Heading'
@@ -18,10 +19,9 @@ import { P } from '@/components/Text'
 const SHOWN = 3
 
 function CallRow({ call, onAnswer }: { call: Call; onAnswer: () => void }) {
-  const { dismiss } = useDismissCall()
   return (
     <li className="p-4 border-b border-brand-border last:border-0 wrap-break-word">
-      <strong>{call.title}</strong>
+      <strong className="font-semibold">{call.title}</strong>
       <P className="text-sm text-text-light m-0 mt-1">
         <CallMeta call={call} />
       </P>
@@ -38,15 +38,7 @@ function CallRow({ call, onAnswer }: { call: Call; onAnswer: () => void }) {
         >
           Answer
         </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          aria-label={`Dismiss ${call.title}`}
-          disabled={dismiss.isPending}
-          onClick={() => dismiss.mutate({ callId: call.id })}
-        >
-          Dismiss
-        </Button>
+        <DismissCallButton call={call} />
       </div>
     </li>
   )
@@ -58,15 +50,15 @@ function CallRow({ call, onAnswer }: { call: Call; onAnswer: () => void }) {
  */
 export default function DashboardCalls() {
   const { data: calls } = useQuery(orpc.calls.forMe.queryOptions())
-  const [answeringId, setAnsweringId] = useState<number | null>(null)
+  const [opened, setOpened] = useState<Call | null>(null)
 
   const waiting = (calls ?? []).filter((c) => c.open && !c.myResponse && !c.dismissed)
   const ordered = [
     ...waiting.filter((c) => c.matchesSkills),
     ...waiting.filter((c) => !c.matchesSkills),
   ]
-  // Read from every call, so the dialog stays open on its call while the list refreshes.
-  const answering = calls?.find((c) => c.id === answeringId)
+  // Kept as opened when a refresh drops the call, say on its closing, so a draft is not lost.
+  const answering = opened && (calls?.find((c) => c.id === opened.id) ?? opened)
   if (ordered.length === 0 && !answering) return null
   const rest = ordered.length - SHOWN
 
@@ -75,11 +67,7 @@ export default function DashboardCalls() {
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <H2 id="calls-heading">
           Calls for volunteers
-          {ordered.length > 0 && (
-            <span className="bg-chip text-chip-text text-xs px-2 py-0.5 rounded-full ml-2 align-middle">
-              {ordered.length}
-            </span>
-          )}
+          <Count n={ordered.length} />
         </H2>
         <Link href="/calls" className="text-sm">
           See all calls{rest > 0 && ` (${rest} more)`} →
@@ -88,7 +76,7 @@ export default function DashboardCalls() {
       {ordered.length > 0 && (
         <ul className={`list-none p-0 my-0 bg-surface shadow ${BLEED}`}>
           {ordered.slice(0, SHOWN).map((call) => (
-            <CallRow key={call.id} call={call} onAnswer={() => setAnsweringId(call.id)} />
+            <CallRow key={call.id} call={call} onAnswer={() => setOpened(call)} />
           ))}
         </ul>
       )}
@@ -98,7 +86,7 @@ export default function DashboardCalls() {
           title={answering.title}
           isOpen
           size="wide"
-          onClose={() => setAnsweringId(null)}
+          onClose={() => setOpened(null)}
         >
           <P className="text-sm text-text-light">
             <CallMeta call={answering} />
@@ -106,7 +94,7 @@ export default function DashboardCalls() {
           <P className="whitespace-pre-line">
             <Linkify text={answering.body} />
           </P>
-          <CallAnswer call={answering} onAnswered={() => setAnsweringId(null)} />
+          <CallAnswer call={answering} onAnswered={() => setOpened(null)} />
         </Modal>
       )}
     </section>

@@ -44,12 +44,30 @@ export function useDismissCall() {
       showToast(data.message, 'success')
       void refresh()
     },
-    onError: (err: unknown) => showToast(errorText(err), 'error'),
+    onError: (err: unknown) => {
+      showToast(errorText(err), 'error')
+      void refresh()
+    },
   }
   return {
     dismiss: useMutation({ ...orpc.calls.dismiss.mutationOptions(), ...options }),
     undismiss: useMutation({ ...orpc.calls.undismiss.mutationOptions(), ...options }),
   }
+}
+
+export function DismissCallButton({ call }: { call: Call }) {
+  const { dismiss } = useDismissCall()
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      aria-label={`Dismiss ${call.title}`}
+      disabled={dismiss.isPending}
+      onClick={() => dismiss.mutate({ callId: call.id })}
+    >
+      Dismiss
+    </Button>
+  )
 }
 
 /** The form that answers a call, changes the answer or withdraws it. */
@@ -64,7 +82,10 @@ export function CallAnswer({ call, onAnswered }: { call: Call; onAnswered?: () =
       void refresh()
       onAnswered?.()
     },
-    onError: (err) => showToast(errorText(err), 'error'),
+    onError: (err) => {
+      showToast(errorText(err), 'error')
+      void refresh()
+    },
   })
   const withdraw = useMutation({
     ...orpc.calls.withdraw.mutationOptions(),
@@ -73,7 +94,10 @@ export function CallAnswer({ call, onAnswered }: { call: Call; onAnswered?: () =
       setMessage('')
       void refresh()
     },
-    onError: (err) => showToast(errorText(err), 'error'),
+    onError: (err) => {
+      showToast(errorText(err), 'error')
+      void refresh()
+    },
   })
   const sender = call.senderName ?? 'the coordinator'
   const fieldId = `call-${call.id}-answer`

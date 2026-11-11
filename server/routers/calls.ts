@@ -219,7 +219,7 @@ export const callsRouter = {
       createdAt: c.createdAt,
       open: c.closedAt === null,
       myResponse: c.responses[0] ?? null,
-      // A merge of two accounts can bring a dismissal to a call already answered.
+      // An answer wins over a dismissal a merge of two accounts brought beside it.
       dismissed: c.dismissals.length > 0 && c.responses.length === 0,
     }))
   }),
@@ -265,6 +265,10 @@ export const callsRouter = {
       if (!response)
         throw new ORPCError('NOT_FOUND', { message: 'You have not answered this call' })
       await prisma.callResponse.delete({ where: { id: response.id } })
+      // A merge of two accounts can leave a dismissal beside an answer; it was never this choice.
+      await prisma.callDismissal.deleteMany({
+        where: { callId: input.callId, volunteerId: context.volunteer.id },
+      })
       await clearNotifications(CALL_ANSWERED, response.id)
       return { message: 'Your answer is withdrawn' }
     }),
@@ -278,16 +282,14 @@ export const callsRouter = {
     .handler(async ({ input, context }) => {
       const me = context.volunteer
       const call = await openCallFor(me.id, input.callId)
-      const answered = await prisma.callResponse.count({
-        where: { callId: call.id, volunteerId: me.id },
-      })
-      if (answered) {
+      const mine = { callId: call.id, volunteerId: me.id }
+      // Written before the answer is looked for, as `respond` writes its answer before deleting
+      // any dismissal: whichever way the two interleave, no dismissal outlives an answer.
+      await prisma.callDismissal.createMany({ data: [mine], skipDuplicates: true })
+      if (await prisma.callResponse.count({ where: mine })) {
+        await prisma.callDismissal.deleteMany({ where: mine })
         throw new ORPCError('BAD_REQUEST', { message: 'Withdraw your answer to dismiss this call' })
       }
-      await prisma.callDismissal.createMany({
-        data: [{ callId: call.id, volunteerId: me.id }],
-        skipDuplicates: true,
-      })
       await prisma.notification.updateMany({
         where: { volunteerId: me.id, type: CALL_POSTED, entityId: call.id, readAt: null },
         data: { readAt: new Date() },
