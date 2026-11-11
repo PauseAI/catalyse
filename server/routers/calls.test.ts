@@ -500,6 +500,100 @@ describe('admin.coordinators', () => {
   })
 })
 
+describe('dismissing a call', () => {
+  it('sets it aside for the dismisser alone, reads their notification and tells the sender nothing', async () => {
+    const s = await setup()
+    const { id } = await s.c.calls.send(call({ chapterIds: [s.uk.id] }))
+    await delivered(id, s.ukHidden.id)
+    await delivered(id, s.ukVisible.id)
+    const before = await everythingTheCoordinatorSees(s.c)
+    const me = clientAs(s.ukHidden)
+
+    await expect(me.calls.dismiss({ callId: id })).resolves.toEqual({ message: 'Call dismissed' })
+    await me.calls.dismiss({ callId: id })
+    expect((await me.calls.forMe()).find((x) => x.id === id)).toMatchObject({
+      dismissed: true,
+      myResponse: null,
+    })
+    expect((await clientAs(s.ukVisible).calls.forMe()).find((x) => x.id === id)).toMatchObject({
+      dismissed: false,
+    })
+    const readAt = (volunteerId: number) =>
+      prisma.notification
+        .findFirstOrThrow({ where: { type: CALL_POSTED, entityId: id, volunteerId } })
+        .then((n) => n.readAt)
+    expect(await readAt(s.ukHidden.id)).not.toBeNull()
+    expect(await readAt(s.ukVisible.id)).toBeNull()
+    expect(await everythingTheCoordinatorSees(s.c)).toBe(before)
+    expect(await prisma.notification.count({ where: { volunteerId: s.coordinator.id } })).toBe(0)
+
+    await expect(me.calls.undismiss({ callId: id })).resolves.toEqual({ message: 'Call restored' })
+    await me.calls.undismiss({ callId: id })
+    expect((await me.calls.forMe()).find((x) => x.id === id)).toMatchObject({ dismissed: false })
+    // Restoring does not mark the notification unread again.
+    expect(await readAt(s.ukHidden.id)).not.toBeNull()
+  })
+
+  it('is undone by answering, and refused once answered', async () => {
+    const s = await setup()
+    const { id } = await s.c.calls.send(call({}))
+    const me = clientAs(s.deVisible)
+    await me.calls.dismiss({ callId: id })
+    await me.calls.respond({ callId: id, message: 'I can after all' })
+    expect((await me.calls.forMe()).find((x) => x.id === id)).toMatchObject({
+      dismissed: false,
+      myResponse: { message: 'I can after all' },
+    })
+    await expect(me.calls.dismiss({ callId: id })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'Withdraw your answer to dismiss this call',
+    })
+    await me.calls.withdraw({ callId: id })
+    await me.calls.dismiss({ callId: id })
+    expect((await me.calls.forMe()).find((x) => x.id === id)).toMatchObject({ dismissed: true })
+
+    // A merge of two accounts can leave an answered call dismissed; the answer wins.
+    await prisma.callResponse.create({
+      data: { callId: id, volunteerId: s.deVisible.id, message: 'Merged in' },
+    })
+    expect((await me.calls.forMe()).find((x) => x.id === id)).toMatchObject({ dismissed: false })
+    await me.calls.withdraw({ callId: id })
+    expect((await me.calls.forMe()).find((x) => x.id === id)).toMatchObject({ dismissed: false })
+  })
+
+  it('follows who may answer: not a call out of reach, its sender, or a closed call', async () => {
+    const s = await setup()
+    const { id } = await s.c.calls.send(call({ chapterIds: [s.uk.id] }))
+    for (const fn of ['dismiss', 'undismiss'] as const) {
+      await expect(clientAs(s.deVisible).calls[fn]({ callId: id })).rejects.toMatchObject(notFound)
+      await expect(clientAs(s.poolHidden).calls[fn]({ callId: id })).rejects.toMatchObject(notFound)
+      await expect(s.c.calls[fn]({ callId: id })).rejects.toMatchObject(notFound)
+      await expect(clientAs(s.ukVisible).calls[fn]({ callId: id + 1000 })).rejects.toMatchObject(
+        notFound,
+      )
+    }
+    await clientAs(s.ukVisible).calls.dismiss({ callId: id })
+    await s.c.calls.close({ callId: id })
+    for (const fn of ['dismiss', 'undismiss'] as const) {
+      await expect(clientAs(s.ukHidden).calls[fn]({ callId: id })).rejects.toMatchObject({
+        code: 'BAD_REQUEST',
+      })
+    }
+    expect((await clientAs(s.ukVisible).calls.forMe()).map((x) => x.id)).not.toContain(id)
+  })
+
+  it('goes with the call and with the volunteer', async () => {
+    const s = await setup()
+    const { id } = await s.c.calls.send(call({}))
+    await clientAs(s.ukVisible).calls.dismiss({ callId: id })
+    await clientAs(s.deVisible).calls.dismiss({ callId: id })
+    await prisma.volunteer.delete({ where: { id: s.deVisible.id } })
+    expect(await prisma.callDismissal.count({ where: { callId: id } })).toBe(1)
+    await prisma.call.delete({ where: { id } })
+    expect(await prisma.callDismissal.count({ where: { callId: id } })).toBe(0)
+  })
+})
+
 describe('edges of a call', () => {
   it('loses a deleted skill, closing only once none it asked for is left, rather than widening to everyone', async () => {
     const s = await setup()

@@ -38,6 +38,7 @@ export const MERGE_REFERENCES = {
   'bug_reports.assignee_id': 'move',
   'bug_reports.reporter_id': 'move',
   'bug_reports.resolved_by_id': 'move',
+  'call_dismissals.volunteer_id': 'move',
   'call_responses.volunteer_id': 'move',
   'calls.sender_id': 'move',
   'chapter_audit_events.actor_id': 'move',

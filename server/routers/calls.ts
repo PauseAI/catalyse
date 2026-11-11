@@ -199,6 +199,7 @@ export const callsRouter = {
         ...SKILL_NAMES,
         sender: { select: { name: true, coordinatorRole: { select: { remit: true } } } },
         responses: { where: { volunteerId: me.id }, select: { message: true, createdAt: true } },
+        dismissals: { where: { volunteerId: me.id }, select: { callId: true } },
       },
       orderBy: { createdAt: 'desc' },
     })
@@ -218,6 +219,8 @@ export const callsRouter = {
       createdAt: c.createdAt,
       open: c.closedAt === null,
       myResponse: c.responses[0] ?? null,
+      // An answer wins over a dismissal a merge of two accounts brought beside it.
+      dismissed: c.dismissals.length > 0 && c.responses.length === 0,
     }))
   }),
 
@@ -236,6 +239,7 @@ export const callsRouter = {
       const response = created
         ? await prisma.callResponse.findUnique({ where })
         : await prisma.callResponse.update({ where, data: { message: input.message } })
+      await prisma.callDismissal.deleteMany({ where: { callId: call.id, volunteerId: me.id } })
       // Null when a withdrawal got in first: there is nothing left to tell the sender about.
       if (created && response && call.senderId !== null) {
         await notifyUser(
@@ -261,7 +265,45 @@ export const callsRouter = {
       if (!response)
         throw new ORPCError('NOT_FOUND', { message: 'You have not answered this call' })
       await prisma.callResponse.delete({ where: { id: response.id } })
+      // A merge of two accounts can leave a dismissal beside an answer; it was never this choice.
+      await prisma.callDismissal.deleteMany({
+        where: { callId: input.callId, volunteerId: context.volunteer.id },
+      })
       await clearNotifications(CALL_ANSWERED, response.id)
       return { message: 'Your answer is withdrawn' }
+    }),
+
+  /**
+   * Sets a call aside for the caller, and reads its Inbox notification. The sender is not told,
+   * and it is not an answer: a call already answered is withdrawn from instead.
+   */
+  dismiss: confirmedProcedure
+    .input(z.object({ callId: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      const me = context.volunteer
+      const call = await openCallFor(me.id, input.callId)
+      const mine = { callId: call.id, volunteerId: me.id }
+      // Written before the answer is looked for, as `respond` writes its answer before deleting
+      // any dismissal: whichever way the two interleave, no dismissal outlives an answer.
+      await prisma.callDismissal.createMany({ data: [mine], skipDuplicates: true })
+      if (await prisma.callResponse.count({ where: mine })) {
+        await prisma.callDismissal.deleteMany({ where: mine })
+        throw new ORPCError('BAD_REQUEST', { message: 'Withdraw your answer to dismiss this call' })
+      }
+      await prisma.notification.updateMany({
+        where: { volunteerId: me.id, type: CALL_POSTED, entityId: call.id, readAt: null },
+        data: { readAt: new Date() },
+      })
+      return { message: 'Call dismissed' }
+    }),
+
+  /** Brings a dismissed call back among the caller's calls. */
+  undismiss: confirmedProcedure
+    .input(z.object({ callId: z.number().int() }))
+    .handler(async ({ input, context }) => {
+      const me = context.volunteer
+      const call = await openCallFor(me.id, input.callId)
+      await prisma.callDismissal.deleteMany({ where: { callId: call.id, volunteerId: me.id } })
+      return { message: 'Call restored' }
     }),
 }

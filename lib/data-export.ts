@@ -45,6 +45,7 @@ export const EXPORTED_LINKS: readonly string[] = [
   'BugReport.reporterEmail',
   'BugReportComment.author',
   'Call.sender',
+  'CallDismissal.volunteer',
   'CallResponse.volunteer',
   'ChapterAuditEvent.targetVolunteer',
   'ChapterDeputy.volunteer',

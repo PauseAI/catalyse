@@ -1211,6 +1211,7 @@ model Volunteer {
   coordinatorsAppointed                   Coordinator[]            @relation("CoordinatorAppointedBy")
   callsSent                               Call[]                   @relation("CallSender")
   callResponses                           CallResponse[]           @relation("CallResponder")
+  callDismissals                          CallDismissal[]
   chapterDeputiesAppointed                ChapterDeputy[]          @relation("ChapterDeputyAppointedBy")
   chapterTransferRequests                 ChapterTransferRequest[] @relation("TransferVolunteer")
   chapterTransfersDecided                 ChapterTransferRequest[] @relation("TransferDecidedBy")
@@ -1518,7 +1519,8 @@ model Call {
   sender    Volunteer?     @relation("CallSender", fields: [senderId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   /// The skills it asks for, any one of which addresses it to a volunteer; none means anyone.
   skills    CallSkill[]
-  responses CallResponse[]
+  responses  CallResponse[]
+  dismissals CallDismissal[]
 
   @@index([createdAt], map: "idx_calls_created")
   @@map("calls")
@@ -1550,4 +1552,19 @@ model CallResponse {
   @@unique([callId, volunteerId])
   @@index([volunteerId], map: "idx_call_responses_volunteer")
   @@map("call_responses")
+}
+
+/// A volunteer setting a call aside: it leaves their home page and folds away on /calls. It tells
+/// the sender nothing and is not an answer; answering removes it.
+model CallDismissal {
+  callId      Int      @map("call_id")
+  volunteerId Int      @map("volunteer_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  call      Call      @relation(fields: [callId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  volunteer Volunteer @relation(fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([callId, volunteerId])
+  @@index([volunteerId], map: "idx_call_dismissals_volunteer")
+  @@map("call_dismissals")
 }
