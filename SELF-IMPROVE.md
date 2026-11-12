@@ -318,3 +318,11 @@ confusing than it needed to be, and that will do so again.
       need no database, and a script that prints a CI run's failing tests from its annotations,
       would give such a session a loop of seconds for pure code and one readable command for the
       rest.
+
+- [ ] **A migration rewritten after it was pushed breaks that PR's Railway preview, whose
+      database outlives pushes.** On #397 the first push applied
+      `20261111193751_notification_preferences` to the preview; a review round regenerated it as
+      `20261111205034`, which then failed there (`type "EmailDelivery" already exists`) and left
+      Prisma refusing every later migration (P3009) until the database was fixed by hand. A
+      line under "Database migrations" in AGENTS.md (once pushed, a migration is fixed; change
+      the schema with a new one) would have prevented it.
