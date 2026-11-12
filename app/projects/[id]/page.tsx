@@ -261,6 +261,9 @@ function TaskTimeline({
 
   const reschedule = useMutation({
     ...orpc.schedule.rescheduleItems.mutationOptions(),
+    // The server places a following task after its predecessors as stored, so one drag's save
+    // waits for the last to land.
+    scope: { id: 'reschedule' },
     // Place the drag immediately, using the same scheduler the server will run. Without this the
     // bar snaps back the instant the pointer is released and only jumps forward on the refetch.
     onMutate: async (vars: {

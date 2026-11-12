@@ -41,6 +41,7 @@ export default function RoadmapPage() {
 
   const reschedule = useMutation({
     ...orpc.schedule.rescheduleItems.mutationOptions(),
+    scope: { id: 'reschedule' },
     onSuccess: () => void invalidate(),
     onError: (err: unknown) =>
       showToast(err instanceof Error ? err.message : 'Failed to reschedule', 'error'),
