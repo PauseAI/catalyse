@@ -20,14 +20,20 @@ test.describe('Legacy Railway domain', () => {
     )
   })
 
-  test('API routes, build assets and the service worker are answered on the legacy host itself', async ({
+  test('API routes, build assets and the service worker files are answered on the legacy host itself', async ({
     request,
     baseUrl,
   }) => {
     const html = await (await request.get(`${baseUrl}/login`)).text()
     const asset = html.match(/\/_next\/static\/[^"]+\.js/)?.[0]
     expect(asset).toBeTruthy()
-    for (const path of ['/api/health', '/sw.js', '/api/project-import/schema', asset]) {
+    for (const path of [
+      '/api/health',
+      '/sw.js',
+      '/offline.html',
+      '/api/project-import/schema',
+      asset,
+    ]) {
       const res = await request.get(`${baseUrl}${path}`, { headers: legacy, maxRedirects: 0 })
       expect(res.status(), path).toBe(200)
     }
