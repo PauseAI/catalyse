@@ -2,7 +2,7 @@
   "mcpServers": {
     "catalyse": {
       "type": "http",
-      "url": "${CATALYSE_MCP_URL:-https://catalyse.up.railway.app/api/mcp}",
+      "url": "${CATALYSE_MCP_URL:-https://action.pauseai.info/api/mcp}",
       "headers": {
         "Authorization": "Bearer ${CATALYSE_MCP_TOKEN:-}"
       }
