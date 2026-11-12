@@ -86,7 +86,7 @@ import GanttChart, { inStartOrder } from '@/components/gantt/GanttChart'
 import type { GanttRow as GanttRowData, GanttUndatedRow } from '@/components/gantt/types'
 import GanttItemPanel from '@/components/gantt/GanttItemPanel'
 import GanttPlanMenu from '@/components/gantt/GanttPlanMenu'
-import { orpc } from '@/lib/orpc'
+import { orpc, rescheduleMutationOptions } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import { formatDateShort } from '@/lib/format-date'
 import BaselineDialog from '@/components/gantt/BaselineDialog'
@@ -259,8 +259,11 @@ function TaskTimeline({
   // The exact key the timeline query writes to, so the optimistic patch lands on the same entry.
   const timelineKey = orpc.projects.listTasks.queryOptions({ input: { projectId } }).queryKey
 
+  const isLastReschedule = () =>
+    queryClient.isMutating({ mutationKey: rescheduleMutationOptions().mutationKey }) === 1
+
   const reschedule = useMutation({
-    ...orpc.schedule.rescheduleItems.mutationOptions(),
+    ...rescheduleMutationOptions(),
     // Place the drag immediately, using the same scheduler the server will run. Without this the
     // bar snaps back the instant the pointer is released and only jumps forward on the refetch.
     onMutate: async (vars: {
@@ -307,11 +310,17 @@ function TaskTimeline({
       return { previous }
     },
     onError: (err: unknown, _vars, context) => {
-      // The server refused the move, so the bar belongs back where it was.
-      if (context?.previous) queryClient.setQueryData(timelineKey, context.previous)
+      // The server refused the move, so the bar belongs back where it was. A later drag still
+      // waiting to save was patched on top of this one; the refetch after it settles corrects both.
+      if (context?.previous && isLastReschedule()) {
+        queryClient.setQueryData(timelineKey, context.previous)
+      }
       onErr('reschedule')(err)
     },
-    onSettled: () => void invalidate(),
+    // A refetch while another drag waits to save would overwrite that drag's optimistic bar.
+    onSettled: () => {
+      if (isLastReschedule()) void invalidate()
+    },
   })
   const addDep = useMutation({
     ...orpc.dependencies.add.mutationOptions(),
