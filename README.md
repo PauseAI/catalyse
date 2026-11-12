@@ -33,7 +33,9 @@ Catalyse connects volunteers with projects, matching skills to needs and enablin
 - **Database**: PostgreSQL via Prisma ORM
 - **Email**: Resend SDK
 - **Auth**: Custom token-based + Google OAuth
-- **Hosting**: Railway
+- **Hosting**: Railway, served at https://action.pauseai.info. The Railway domain
+  `catalyse.up.railway.app` stays attached: `proxy.ts` sends its pages to the same path on
+  `APP_URL` with a 308, and answers `/api` itself so cron and MCP callers keep working.
 
 ## Getting Started
 
@@ -64,6 +66,8 @@ cp .env.local.example .env.local
 
 Key variables:
 
+- `APP_URL` — the app's public origin, used for links in emails; in production
+  `https://action.pauseai.info`
 - `DATABASE_URL` — Postgres connection URL (e.g. `postgresql://postgres:postgres@localhost:5432/catalyse`)
 - `RESEND_API_KEY` — for email sending
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — for Google OAuth

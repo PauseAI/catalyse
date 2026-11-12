@@ -1,4 +1,4 @@
-const url = process.env.CRON_URL ?? 'https://catalyse.up.railway.app/api/cron/daily'
+const url = process.env.CRON_URL ?? 'https://action.pauseai.info/api/cron/daily'
 const secret = process.env.CRON_SECRET
 
 console.log(`[cron-trigger] POST ${url}`)
