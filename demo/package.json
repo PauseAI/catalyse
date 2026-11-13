@@ -4,5 +4,8 @@
   "description": "Dependencies only the demo recorder needs, kept out of the site's install. `npm run demo` installs them.",
   "dependencies": {
     "kokoro-js": "1.2.1"
+  },
+  "overrides": {
+    "sharp": "^0.35.5"
   }
 }

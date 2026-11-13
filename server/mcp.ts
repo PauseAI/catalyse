@@ -20,6 +20,11 @@ function text(value: string) {
 
 const userWritten = (data: unknown) => text(`${UNTRUSTED}\n\n${JSON.stringify(data, null, 2)}`)
 
+// Tighter than the SDK's defaults of no element limit and 4 MiB bodies (GHSA-46jr-4wx8-v453):
+// every tool takes a few scalar fields, and a request carries at most one comment.
+export const MAX_TOOL_INPUT_ELEMENTS = 100
+export const MAX_REQUEST_BODY_BYTES = 256 * 1024
+
 /**
  * The tools a caller's token grants. Each runs the same router procedure the web app calls, as
  * the token's owner, so permissions, validation and notifications are the UI's own.
@@ -35,7 +40,10 @@ export function createMcpServer(caller: ApiCaller, request: Request): McpServer 
       request,
     }),
   })
-  const server = new McpServer({ name: 'catalyse', version: '1.0.0' })
+  const server = new McpServer(
+    { name: 'catalyse', version: '1.0.0' },
+    { maxToolInputElements: MAX_TOOL_INPUT_ELEMENTS },
+  )
 
   if (caller.scopes.includes('bug_reports:read')) {
     server.registerTool(
@@ -143,7 +151,10 @@ export async function handleMcpRequest(request: Request): Promise<Response> {
   }
 
   const server = createMcpServer(caller, request)
-  const transport = new WebStandardStreamableHTTPServerTransport({ enableJsonResponse: true })
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    enableJsonResponse: true,
+    maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
+  })
   await server.connect(transport)
   return transport.handleRequest(request)
 }
