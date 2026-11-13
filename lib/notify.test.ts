@@ -21,6 +21,7 @@ import {
   notifyTeamOfProject,
   notifyAdmins,
   notifyChapterStaff,
+  notifyUserOfEach,
 } from './notify'
 
 afterEach(() => {
@@ -64,18 +65,133 @@ describe('createNotification / clearNotifications', () => {
 describe('notifyUser email preferences', () => {
   const payload = { message: 'm', projectId: 1, projectTitle: 'P' }
 
-  it('skips the email for a muted category but still notifies in the app', async () => {
-    const vol = await createVolunteer({ emailMutedCategories: ['update'] })
+  const choose = (volunteerId: number, type: string, delivery: 'in_app' | 'email' | 'digest') =>
+    prisma.notificationPreference.create({ data: { volunteerId, type, delivery } })
+  const rowsOf = (volunteerId: number) =>
+    prisma.notification.findMany({ where: { volunteerId }, orderBy: { id: 'asc' } })
+
+  it("follows each type's default for someone who never chose", async () => {
+    const vol = await createVolunteer()
     await notifyUser(vol.id, 'project_approved', 'Approved', null, null, payload)
-    expect(emails.to(vol.email!)).toEqual([])
-    await vi.waitFor(async () =>
-      expect(await prisma.notification.count({ where: { volunteerId: vol.id } })).toBe(1),
-    )
-    // Needs-action email still goes.
+    await vi.waitFor(() => expect(emails.lastTo(vol.email!)).toMatchObject({ subject: 'Approved' }))
+    await notifyUser(vol.id, 'mention', 'Mentioned', null, '/x')
+    expect((await rowsOf(vol.id)).map((n) => [n.title, n.inDigest])).toEqual([
+      ['Approved', false],
+      ['Mentioned', false],
+    ])
+    expect(emails.to(vol.email!)).toHaveLength(1)
+  })
+
+  it('keeps an In app choice out of email, but in the Inbox', async () => {
+    const vol = await createVolunteer()
+    await choose(vol.id, 'project_approved', 'in_app')
+    await notifyUser(vol.id, 'project_approved', 'Approved', null, null, payload)
+    expect(await rowsOf(vol.id)).toMatchObject([{ title: 'Approved', inDigest: false }])
+    // Another type still emails.
     await notifyUser(vol.id, 'new_interest', 'Someone wants to help', null, null, payload)
     await vi.waitFor(() =>
       expect(emails.lastTo(vol.email!)).toMatchObject({ subject: 'Someone wants to help' }),
     )
+    expect(emails.to(vol.email!)).toHaveLength(1)
+  })
+
+  it('holds a Digest choice for the digest instead of emailing', async () => {
+    const vol = await createVolunteer()
+    await choose(vol.id, 'project_approved', 'digest')
+    await notifyUser(vol.id, 'project_approved', 'Approved', null, null, payload)
+    expect(await rowsOf(vol.id)).toMatchObject([{ inDigest: true, digestId: null }])
+    expect(emails.to(vol.email!)).toEqual([])
+
+    // Someone with no address has no digest to hold it for.
+    const noEmail = await createVolunteer({ email: null })
+    await choose(noEmail.id, 'project_approved', 'digest')
+    await notifyUser(noEmail.id, 'project_approved', 'Approved', null, null, payload)
+    expect(await rowsOf(noEmail.id)).toMatchObject([{ inDigest: false }])
+  })
+
+  it('emails a type that has no email of its own as its title, body and link', async () => {
+    const vol = await createVolunteer()
+    await choose(vol.id, 'mention', 'email')
+    await notifyUser(vol.id, 'mention', 'Ana mentioned you', 'Look <here>', '/projects/9')
+    await vi.waitFor(() =>
+      expect(emails.lastTo(vol.email!)).toMatchObject({ subject: 'Ana mentioned you' }),
+    )
+    expect(emails.last.html).toContain('Look &lt;here&gt;')
+    expect(emails.last.html).toContain('/projects/9')
+    expect(emails.last.html).toContain('Open in Catalyse')
+
+    await choose(vol.id, 'task_done', 'email')
+    await notifyUser(vol.id, 'task_done', 'Done', null, null)
+    await vi.waitFor(() => expect(emails.lastTo(vol.email!)).toMatchObject({ subject: 'Done' }))
+    expect(emails.last.html).toContain('/inbox')
+  })
+
+  it("sends a caller's own template through `send`", async () => {
+    const vol = await createVolunteer({ name: 'Bo' })
+    const send = vi.fn(async () => true)
+    await notifyUser(vol.id, 'local_group_suggestion_reviewed', 'Reviewed', null, null, { send })
+    await vi.waitFor(() => expect(send).toHaveBeenCalledWith(vol.email, 'Bo'))
+  })
+
+  it('delivers several of one type together: a row each, one email or all held', async () => {
+    const vol = await createVolunteer()
+    const items = [
+      { title: 'One', link: '/1' },
+      { title: 'Two', link: '/2', entityId: 2 },
+    ]
+    await notifyUserOfEach(vol.id, 'account_deleted_impact', items)
+    await vi.waitFor(async () =>
+      expect(
+        (await rowsOf(vol.id)).map((n) => [n.title, n.entityId, n.emailedAt !== null]),
+      ).toEqual([
+        ['One', null, true],
+        ['Two', 2, true],
+      ]),
+    )
+    expect(emails.to(vol.email!)).toMatchObject([{ subject: 'One' }])
+
+    const held = await createVolunteer()
+    await choose(held.id, 'account_deleted_impact', 'digest')
+    await notifyUserOfEach(held.id, 'account_deleted_impact', items)
+    expect((await rowsOf(held.id)).map((n) => n.inDigest)).toEqual([true, true])
+    expect(emails.to(held.email!)).toEqual([])
+  })
+
+  it('leaves someone deleted an Inbox row and no email', async () => {
+    const gone = await createVolunteer({ deletedAt: new Date() })
+    await notifyUser(gone.id, 'project_approved', 'Approved', null, null, payload)
+    expect(await rowsOf(gone.id)).toMatchObject([{ inDigest: false }])
+    await emails.settle()
+    expect(emails.to(gone.email!)).toEqual([])
+  })
+
+  it('ignores a stored choice for a fixed type', async () => {
+    const vol = await createVolunteer()
+    await choose(vol.id, 'call_posted', 'email')
+    await notifyUser(vol.id, 'call_posted', 'A call', null, null, payload)
+    expect(await rowsOf(vol.id)).toHaveLength(1)
+    expect(emails.to(vol.email!)).toEqual([])
+  })
+
+  it('emails a type not in the list only when its caller wrote an email', async () => {
+    const vol = await createVolunteer()
+    await notifyUser(vol.id, 'brand_new_type', 'Quiet', null, null)
+    await notifyUser(vol.id, 'brand_new_type', 'Loud', null, null, payload)
+    await vi.waitFor(() => expect(emails.lastTo(vol.email!)).toMatchObject({ subject: 'Loud' }))
+    expect(emails.to(vol.email!)).toHaveLength(1)
+  })
+
+  it('emails new bug reports to technical admins only, unless an admin chooses otherwise', async () => {
+    const tech = await createAdmin({ isTechnicalAdmin: true })
+    const plain = await createAdmin()
+    const alert = { message: 'm', ctaLabel: 'View', ctaUrl: '/admin/bugs' }
+    await notifyUser(tech.id, 'new_bug_report', 'Bug', null, null, alert)
+    await notifyUser(plain.id, 'new_bug_report', 'Bug', null, null, alert)
+    await vi.waitFor(() => expect(emails.lastTo(tech.email!)).toMatchObject({ subject: 'Bug' }))
+    expect(emails.to(plain.email!)).toEqual([])
+    await choose(plain.id, 'new_bug_report', 'email')
+    await notifyUser(plain.id, 'new_bug_report', 'Bug 2', null, null, alert)
+    await vi.waitFor(() => expect(emails.lastTo(plain.email!)).toMatchObject({ subject: 'Bug 2' }))
   })
 
   it('records when a notification was emailed', async () => {
@@ -88,7 +204,9 @@ describe('notifyUser email preferences', () => {
     )
     // An in-app notice that failed to save leaves nothing to stamp.
     const error = vi.spyOn(logger, 'error').mockImplementation(() => logger as never)
-    vi.spyOn(prisma.notification, 'create').mockRejectedValueOnce(new Error('db') as never)
+    vi.spyOn(prisma.notification, 'createManyAndReturn').mockRejectedValueOnce(
+      new Error('db') as never,
+    )
     await notifyUser(vol.id, 'project_approved', 'Again', null, null, payload)
     await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.any(Error), '[NOTIFY ERROR]'))
     await vi.waitFor(() => expect(emails.lastTo(vol.email!)).toMatchObject({ subject: 'Again' }))
@@ -97,7 +215,7 @@ describe('notifyUser email preferences', () => {
   it('resolves even when looking up who to email fails, and sends nothing', async () => {
     const vol = await createVolunteer()
     const error = vi.spyOn(logger, 'error').mockImplementation(() => logger as never)
-    vi.spyOn(prisma.volunteer, 'findFirst').mockRejectedValueOnce(new Error('db') as never)
+    vi.spyOn(prisma, '$queryRaw').mockRejectedValueOnce(new Error('db') as never)
     await notifyUser(vol.id, 'project_approved', 'Lookup fails', null, null, payload)
     expect(error).toHaveBeenCalledWith(expect.any(Error), '[EMAIL ERROR]')
     expect(await prisma.notification.findFirst({ where: { volunteerId: vol.id } })).toMatchObject({
@@ -146,7 +264,9 @@ describe('notifyUser', () => {
     await new Promise((r) => setImmediate(r))
     expect(error).toHaveBeenCalledWith(expect.any(Error), '[EMAIL ERROR]')
 
-    vi.spyOn(prisma.notification, 'create').mockRejectedValueOnce(new Error('db') as never)
+    vi.spyOn(prisma.notification, 'createManyAndReturn').mockRejectedValueOnce(
+      new Error('db') as never,
+    )
     await notifyUser(vol.id, 'a', 'T', null, null)
     await new Promise((r) => setImmediate(r))
     expect(error).toHaveBeenCalledWith(expect.any(Error), '[NOTIFY ERROR]')
@@ -175,11 +295,12 @@ describe('notifyTeamOfProject / notifyAdmins', () => {
     expect(notes[0]).toMatchObject({ link: '/projects/7', entityId: 7 })
 
     const admin = await createAdmin()
-    await createAdmin({ deletedAt: new Date() })
+    const gone = await createAdmin({ deletedAt: new Date() })
     await notifyAdmins('alert', 'T', null, null, { message: 'm', ctaLabel: 'L', ctaUrl: '/u' }, 3)
-    await vi.waitFor(async () =>
-      expect(await prisma.notification.count({ where: { type: 'alert' } })).toBe(1),
-    )
+    const alerted = (id: number) =>
+      prisma.notification.count({ where: { type: 'alert', volunteerId: id } })
+    expect(await alerted(admin.id)).toBe(1)
+    expect(await alerted(gone.id)).toBe(0)
     expect(emails.to(admin.email!)).toHaveLength(1)
   })
 })

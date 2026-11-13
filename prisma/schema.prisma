@@ -240,6 +240,20 @@ enum TaskStatus {
   completed
 }
 
+/// How a notification of one type reaches its recipient beyond the Inbox (lib/notification-types.ts).
+enum EmailDelivery {
+  in_app
+  email
+  digest
+}
+
+/// How often a person's notification digest may go out.
+enum DigestFrequency {
+  daily
+  every_3_days
+  weekly
+}
+
 enum DailySummaryPreference {
   email_and_in_app
   in_app_only
@@ -426,8 +440,8 @@ model DeletionRequest {
 }
 
 model Notification {
-  id          Int       @id @default(autoincrement())
-  volunteerId Int       @map("volunteer_id")
+  id          Int                 @id @default(autoincrement())
+  volunteerId Int                 @map("volunteer_id")
   type        String // TODO: enum — new_project_proposal, project_approved, project_needs_discussion, project_status_changed, new_interest, interest_accepted, interest_declined, interest_withdrawn, assigned_to_project, task_assigned, new_bug_report, quick_task_assigned, quick_task_submitted, quick_task_reviewed, local_group_suggestion
   title       String
   body        String?
@@ -436,16 +450,49 @@ model Notification {
   // that when the underlying item is resolved by one person, matching notifications for the
   // same (type, entityId) can be cleared for every other recipient. Null for types that aren't
   // cleared this way.
-  entityId    Int?      @map("entity_id")
-  readAt      DateTime? @map("read_at")
-  emailedAt   DateTime? @map("emailed_at")
-  createdAt   DateTime? @default(now()) @map("created_at")
-  volunteer   Volunteer @relation(fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  entityId    Int?                @map("entity_id")
+  readAt      DateTime?           @map("read_at")
+  emailedAt   DateTime?           @map("emailed_at")
+  /// Held for the recipient's notification digest, because they chose Digest for its type.
+  inDigest    Boolean             @default(false) @map("in_digest")
+  /// The digest that listed this notification; a digest lists each one once.
+  digestId    Int?                @map("digest_id")
+  createdAt   DateTime?           @default(now()) @map("created_at")
+  volunteer   Volunteer           @relation(fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  digest      NotificationDigest? @relation(fields: [digestId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([volunteerId, readAt], map: "idx_notifications_unread")
   @@index([volunteerId], map: "idx_notifications_volunteer")
   @@index([type, entityId], map: "idx_notifications_type_entity")
+  @@index([inDigest, digestId], map: "idx_notifications_digest")
   @@map("notifications")
+}
+
+/// One digest email, recorded before it is sent. `sentOn` is the person's local day, and one
+/// digest per person per local day is the database's guard against sending twice.
+model NotificationDigest {
+  id            Int            @id @default(autoincrement())
+  volunteerId   Int            @map("volunteer_id")
+  sentOn        DateTime       @map("sent_on") @db.Date
+  createdAt     DateTime       @default(now()) @map("created_at")
+  volunteer     Volunteer      @relation(fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  notifications Notification[]
+
+  @@unique([volunteerId, sentOn])
+  @@map("notification_digests")
+}
+
+/// A volunteer's choice of delivery for one notification type, kept only where it differs from
+/// the type's default, so a default that changes reaches everyone who never chose.
+model NotificationPreference {
+  id          Int           @id @default(autoincrement())
+  volunteerId Int           @map("volunteer_id")
+  type        String
+  delivery    EmailDelivery
+  volunteer   Volunteer     @relation(fields: [volunteerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([volunteerId, type])
+  @@map("notification_preferences")
 }
 
 model PasswordResetToken {
@@ -1130,8 +1177,11 @@ model Volunteer {
   deletedAt                               DateTime?                @map("deleted_at")
   country                                 String?
   emailDigest                             String?                  @default("none") @map("email_digest") // TODO: enum — none, daily, weekly
-  /// Inbox categories (lib/notification-categories.ts) whose notifications are not also emailed.
-  emailMutedCategories                    String[]                 @default([]) @map("email_muted_categories")
+  /// IANA time zone, from their browser or chosen in Settings; null falls back by chapter country.
+  timeZone                                String?                  @map("time_zone")
+  digestFrequency                         DigestFrequency          @default(daily) @map("digest_frequency")
+  /// Local hour (0-23) the notification digest goes out.
+  digestHour                              Int                      @default(8) @map("digest_hour")
   /// How the daily summary of reminders and project activity reaches this person.
   dailySummary                            DailySummaryPreference   @default(email_and_in_app) @map("daily_summary")
   /// Set from `country`; null is the holding pool. Changing it is a transfer (ChapterTransferRequest).
@@ -1190,6 +1240,8 @@ model Volunteer {
   contactRequestsReceived                 ContactRequest[]         @relation("ContactRequestTo")
   messagesReceived                        Message[]                @relation("MessageTo")
   notifications                           Notification[]
+  notificationPreferences                 NotificationPreference[]
+  notificationDigests                     NotificationDigest[]
   finishByReminders                       FinishByReminder[]
   emailVerificationTokens                 EmailVerificationToken[]
   passwordResetTokens                     PasswordResetToken[]

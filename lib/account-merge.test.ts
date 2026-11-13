@@ -154,6 +154,28 @@ describe('mergeAccounts', () => {
     ).toBe(null)
   })
 
+  it('keeps notifications already sent in a digest on a day both accounts had one', async () => {
+    const [kept, merged] = [await createVolunteer(), await createVolunteer()]
+    const sentOn = new Date('2026-11-12T00:00:00Z')
+    const digest = await prisma.notificationDigest.create({
+      data: { volunteerId: merged.id, sentOn },
+    })
+    await prisma.notificationDigest.create({ data: { volunteerId: kept.id, sentOn } })
+    await prisma.notification.create({
+      data: {
+        volunteerId: merged.id,
+        type: 'mention',
+        title: 'Sent',
+        inDigest: true,
+        digestId: digest.id,
+      },
+    })
+    await mergeAccounts(kept.id, merged.id, kept.id)
+    const [row] = await prisma.notification.findMany({ where: { volunteerId: kept.id } })
+    expect(row.digestId).not.toBeNull()
+    expect(await prisma.notificationDigest.count({ where: { volunteerId: kept.id } })).toBe(1)
+  })
+
   it("signs in with the merged account's address and password when asked to", async () => {
     const kept = await createVolunteer({ passwordHash: 'kept-hash' })
     const merged = await createVolunteer({ passwordHash: 'merged-hash', emailConfirmed: false })

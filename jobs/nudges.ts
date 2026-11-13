@@ -67,7 +67,7 @@ export async function runNudgesJob(): Promise<Record<string, unknown>> {
       )
       await createNotification(
         assignee.id,
-        'task_released',
+        'task_auto_released',
         `Released: ${task.title}`,
         `No update for ${TASK_RELEASE_AFTER_DAYS} days, so the task is open for others. Claim it again if you are still working on it.`,
         `/projects/${task.parentId}/tasks/${task.id}`,

@@ -78,6 +78,46 @@ describe('messages.send', () => {
     ).toEqual([project.title])
   })
 
+  it("follows the recipient's choice for messages: In app sends no copy, Digest holds it", async () => {
+    const sender = await createVolunteer()
+    const quiet = await createVolunteer()
+    const batched = await createVolunteer()
+    await connect(sender, quiet)
+    await connect(sender, batched)
+    await prisma.notificationPreference.createMany({
+      data: [
+        { volunteerId: quiet.id, type: 'message_received', delivery: 'in_app' },
+        { volunteerId: batched.id, type: 'message_received', delivery: 'digest' },
+      ],
+    })
+    const c = clientAs(sender)
+    await c.messages.send({ recipientId: quiet.id, subject: 'Q', message: 'm' })
+    await c.messages.send({ recipientId: batched.id, subject: 'B', message: 'm' })
+    const note = (id: number) =>
+      prisma.notification.findFirstOrThrow({ where: { volunteerId: id, type: 'message_received' } })
+    expect(await note(quiet.id)).toMatchObject({ body: 'Q', inDigest: false })
+    expect(await note(batched.id)).toMatchObject({ body: 'B', inDigest: true })
+    expect(emails.to(quiet.email!)).toEqual([])
+    expect(emails.to(batched.email!)).toEqual([])
+  })
+
+  it("still emails the copy when the recipient's choice cannot be read", async () => {
+    const sender = await createVolunteer()
+    const recipient = await createVolunteer()
+    await connect(sender, recipient)
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
+    vi.spyOn(prisma, '$queryRaw').mockRejectedValueOnce(new Error('db') as never)
+    await clientAs(sender).messages.send({ recipientId: recipient.id, subject: 'S', message: 'm' })
+    expect(error).toHaveBeenCalledWith(expect.any(Error), '[EMAIL ERROR]')
+    expect(
+      await prisma.notification.count({
+        where: { volunteerId: recipient.id, type: 'message_received' },
+      }),
+    ).toBe(1)
+    await vi.waitFor(() => expect(emails.lastTo(recipient.email!).subject).toContain('S'))
+    vi.restoreAllMocks()
+  })
+
   it('refuses self, unknown recipients and people the sender does not work with, and rate limits', async () => {
     const sender = await createVolunteer()
     const c = clientAs(sender)

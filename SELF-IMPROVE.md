@@ -81,7 +81,7 @@ confusing than it needed to be, and that will do so again.
       a fresh world for each persona in turn, so `tasks-access` is slow alone and its largest
       tests sit near the node timeout; under full-suite load some time out while passing alone.
       The CSP-report run hit it again: one timed out in `check-all`, then passed eight reruns of
-      the file, and the coordinator-sight runs likewise (its file took 111 s in the suite; a later run timed out `projects-access` and `ProjectEditor` once each, both 8/8 alone; the next run failed `ProjectEditor` "admins publish org projects directly" again: no publish dialog and no warning, so the fresh task count likely came from a `getById` fetch already in flight before the task; cancelling in-flight queries before `fetchQuery` made it fail alone 3 in 6, so something else is cancelling or racing it too). The calls-inbox-only hotfix run timed out `tasks-access` "are reviewed by its admins, owner and deputies" at 20 s; 8/8 alone. The run after its review timed out three of its tests, and with the host loaded the file then failed two of 17 alone, on `main` too. Building each matrix's world once per file, or running the roles of one
+      the file, and the coordinator-sight runs likewise (its file took 111 s in the suite; a later run timed out `projects-access` and `ProjectEditor` once each, both 8/8 alone; the next run failed `ProjectEditor` "admins publish org projects directly" again: no publish dialog and no warning, so the fresh task count likely came from a `getById` fetch already in flight before the task; cancelling in-flight queries before `fetchQuery` made it fail alone 3 in 6, so something else is cancelling or racing it too). The calls-inbox-only hotfix run timed out `tasks-access` "are reviewed by its admins, owner and deputies" at 20 s; 8/8 alone. The run after its review timed out three of its tests, and with the host loaded the file then failed two of 17 alone, on `main` too. Then the notification-preferences runs timed it out in three of three `check-all`s (that test twice, "are started and handed in only by whoever holds them" once; the file took 112–165 s in the suite, 60 s alone with its slowest test at 14 s). With other worktrees loading the host it then failed alone too, at 122–143 s, and so did the same file on the base commit: under shared-host load the 20 s budget is not enough even for one file. Building each matrix's world once per file, or running the roles of one
       `expectAccess` concurrently, would keep it well clear of the timeout.
 
 ## 7x
@@ -318,3 +318,11 @@ confusing than it needed to be, and that will do so again.
       need no database, and a script that prints a CI run's failing tests from its annotations,
       would give such a session a loop of seconds for pure code and one readable command for the
       rest.
+
+- [ ] **A migration rewritten after it was pushed breaks that PR's Railway preview, whose
+      database outlives pushes.** On #397 the first push applied
+      `20261111193751_notification_preferences` to the preview; a review round regenerated it as
+      `20261111205034`, which then failed there (`type "EmailDelivery" already exists`) and left
+      Prisma refusing every later migration (P3009) until the database was fixed by hand. A
+      line under "Database migrations" in AGENTS.md (once pushed, a migration is fixed; change
+      the schema with a new one) would have prevented it.

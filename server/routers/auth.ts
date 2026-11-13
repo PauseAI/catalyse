@@ -29,7 +29,7 @@ import {
 } from '@/lib/email'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { verifyGoogleToken } from '@/lib/google-auth'
-import { notifyChapterStaff } from '@/lib/notify'
+import { notifyChapterStaff, notifyUserOfEach } from '@/lib/notify'
 import { placement } from '@/lib/chapter-placement'
 import {
   SignupSchema,
@@ -129,74 +129,60 @@ async function sendAccountDeletionNotifications(deletedId: number, deletedName: 
 
   const { sendProjectNotificationEmail } = await import('@/lib/email')
   for (const [recipientId, r] of Object.entries(recipients)) {
-    const rid = Number(recipientId)
-    for (const p of r.taskProjects) {
-      const word = p.taskCount === 1 ? 'task' : 'tasks'
-      await prisma.notification
-        .create({
-          data: {
-            volunteerId: rid,
-            type: 'account_deleted_impact',
-            title: `${deletedName} has deleted their account`,
-            body: `${p.taskCount} ${word} in '${p.projectTitle}' assigned to ${deletedName} need a new assignee.`,
-            link: `/projects/${p.projectId}`,
-          },
-        })
-        .catch((e) => logger.error(e, '[NOTIFY ERROR]'))
-    }
-    for (const p of r.ownerlessProjects) {
-      await prisma.notification
-        .create({
-          data: {
-            volunteerId: rid,
-            type: 'account_deleted_impact',
-            title: `${deletedName} has deleted their account`,
-            body: `'${p.projectTitle}' needs a new owner.`,
-            link: `/projects/${p.projectId}`,
-          },
-        })
-        .catch((e) => logger.error(e, '[NOTIFY ERROR]'))
-    }
-    if (r.email) {
-      const allProjects = [...r.taskProjects, ...r.ownerlessProjects]
-      const msgParts = [html`<p><strong>${deletedName}</strong> has deleted their account.</p>`]
-      if (r.taskProjects.length)
-        msgParts.push(
-          html`<p>The following tasks need a new assignee:</p>
-            <ul>
-              ${rawHtml(
-                r.taskProjects
-                  .map(
-                    (p) =>
-                      html`<li>
-                        ${p.taskCount} ${p.taskCount === 1 ? 'task' : 'tasks'} in
-                        <strong>${p.projectTitle}</strong>
-                      </li>`,
-                  )
-                  .join(''),
-              )}
-            </ul>`,
-        )
-      if (r.ownerlessProjects.length)
-        msgParts.push(
-          html`<p>The following projects need a new owner:</p>
-            <ul>
-              ${rawHtml(
-                r.ownerlessProjects
-                  .map((p) => html`<li><strong>${p.projectTitle}</strong></li>`)
-                  .join(''),
-              )}
-            </ul>`,
-        )
-      await sendProjectNotificationEmail({
-        to: r.email,
-        name: r.name,
-        subject: `${deletedName} has deleted their account`,
-        message: msgParts.join(''),
-        projectTitle: allProjects[0].projectTitle,
-        projectId: allProjects[0].projectId,
-      }).catch((e) => logger.error(e, '[NOTIFY ERROR] email failed:'))
-    }
+    const allProjects = [...r.taskProjects, ...r.ownerlessProjects]
+    const title = `${deletedName} has deleted their account`
+    const items = [
+      ...r.taskProjects.map((p) => ({
+        title,
+        body: `${p.taskCount} ${p.taskCount === 1 ? 'task' : 'tasks'} in '${p.projectTitle}' assigned to ${deletedName} need a new assignee.`,
+        link: `/projects/${p.projectId}`,
+      })),
+      ...r.ownerlessProjects.map((p) => ({
+        title,
+        body: `'${p.projectTitle}' needs a new owner.`,
+        link: `/projects/${p.projectId}`,
+      })),
+    ]
+    const msgParts = [html`<p><strong>${deletedName}</strong> has deleted their account.</p>`]
+    if (r.taskProjects.length)
+      msgParts.push(
+        html`<p>The following tasks need a new assignee:</p>
+          <ul>
+            ${rawHtml(
+              r.taskProjects
+                .map(
+                  (p) =>
+                    html`<li>
+                      ${p.taskCount} ${p.taskCount === 1 ? 'task' : 'tasks'} in
+                      <strong>${p.projectTitle}</strong>
+                    </li>`,
+                )
+                .join(''),
+            )}
+          </ul>`,
+      )
+    if (r.ownerlessProjects.length)
+      msgParts.push(
+        html`<p>The following projects need a new owner:</p>
+          <ul>
+            ${rawHtml(
+              r.ownerlessProjects
+                .map((p) => html`<li><strong>${p.projectTitle}</strong></li>`)
+                .join(''),
+            )}
+          </ul>`,
+      )
+    await notifyUserOfEach(Number(recipientId), 'account_deleted_impact', items, {
+      send: (to, name) =>
+        sendProjectNotificationEmail({
+          to,
+          name,
+          subject: title,
+          message: msgParts.join(''),
+          projectTitle: allProjects[0].projectTitle,
+          projectId: allProjects[0].projectId,
+        }),
+    })
   }
 }
 

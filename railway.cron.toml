@@ -4,3 +4,5 @@ dockerfilePath = "Dockerfile.cron"
 
 [deploy]
 restartPolicyType = "NEVER"
+# Hourly: /api/cron/daily runs each job when it is due (lib/cron-jobs.ts).
+cronSchedule = "0 * * * *"

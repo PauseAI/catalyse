@@ -1,9 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { createVolunteer } from '@/test/factories'
 import { createSession } from '@/lib/auth'
 
 import { cronJobs } from '@/test/fakes/cron-jobs'
+
+afterEach(() => vi.useRealTimers())
 
 beforeEach(() => {
   cronJobs.returns('backup', 'backup-ok')
@@ -47,7 +49,17 @@ describe('cron routes', () => {
     })
   })
 
-  it('daily runs every job and reports failures inline', async () => {
+  it('backup answers a failed run with its error as JSON', async () => {
+    cronJobs.fails('backup', 'upload failed')
+    const { POST } = await import('./cron/backup/route')
+    const res = await POST(cron('backup'))
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ backup: { error: 'Error: upload failed' } })
+  })
+
+  it('daily runs every job due and reports failures inline', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-12-10T09:00:00Z'))
     const { POST } = await import('./cron/daily/route')
     expect((await POST(cron('daily', 'Bearer nope'))).status).toBe(401)
     const body = await (await POST(cron('daily'))).json()

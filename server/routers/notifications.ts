@@ -19,6 +19,9 @@ import {
 import type { Prisma } from '@/generated/prisma/client'
 import { isStaff, type ChapterAccess } from '@/lib/chapter-access'
 import { loadWorkItemSummaries, workItemIdFromLink } from '@/lib/work-item-summary'
+import { preferenceRows } from '@/lib/notification-types'
+import { chosenDeliveries, digestScheduleOf, heldRoles } from '@/lib/notification-preferences'
+import { nextDigestAt } from '@/lib/notification-digest'
 
 type Viewer = { id: number; isAdmin: boolean | null }
 
@@ -231,4 +234,28 @@ export const notificationsRouter = {
       if (result.count === 0) throw new ORPCError('NOT_FOUND')
       return { message: 'Marked as unread' }
     }),
+
+  /** The settings panel: every notification type this person can get, with how it reaches them. */
+  preferences: authedProcedure.handler(async ({ context }) => {
+    const v = context.volunteer
+    const viewer = {
+      isTechnicalAdmin: !!v.isTechnicalAdmin,
+      isStaff: !!context.access.globalAdmin || isStaff(context.access),
+    }
+    const [chosen, roles] = await Promise.all([chosenDeliveries(v.id), heldRoles(v.id, viewer)])
+    return { rows: preferenceRows(viewer, chosen), heldRoles: roles }
+  }),
+
+  /** The person's digest schedule, the zone it follows and why, and when the next can go. */
+  digestSettings: authedProcedure.handler(async ({ context }) => {
+    const s = await digestScheduleOf(context.volunteer.id)
+    return {
+      frequency: s.frequency,
+      hour: s.hour,
+      timeZone: s.ownTimeZone,
+      effectiveTimeZone: s.timeZone,
+      timeZoneSource: s.timeZoneSource,
+      nextDigestAt: nextDigestAt(new Date(), s),
+    }
+  }),
 }

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { client } from '@/lib/client'
 import { queryClient } from '@/lib/query-client'
 import type { ChapterAccess } from '@/lib/chapter-access'
+import { browserTimeZone } from '@/lib/time-zone'
 
 interface User {
   id: number
@@ -21,6 +22,8 @@ interface User {
   emailConfirmed: boolean
   hasPassword: boolean
   emailDigest: string | null
+  /** IANA time zone; null until their browser reports one or they choose. */
+  timeZone?: string | null
   cookieConsentAnalytics: boolean | null
   location: string | null
   country: string | null
@@ -100,6 +103,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('authToken', t)
       setTokenState(t)
       const vol = await fetchMe()
+      const zone = browserTimeZone()
+      if (vol && !vol.timeZone && zone) {
+        await client.volunteers.detectTimeZone({ timeZone: zone }).catch(() => {})
+      }
       if (vol && vol.cookieConsentAnalytics === null) {
         const stored = localStorage.getItem('cookieConsent')
         if (stored !== null) {

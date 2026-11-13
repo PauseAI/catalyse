@@ -23,6 +23,8 @@ import { TaskFinalWarningEmail } from './emails/TaskFinalWarningEmail'
 import { TaskSurrenderedOwnerEmail } from './emails/TaskSurrenderedOwnerEmail'
 import { TaskSurrenderedAssigneeEmail } from './emails/TaskSurrenderedAssigneeEmail'
 import { DailySummaryEmail, type SummaryEmailSection } from './emails/DailySummaryEmail'
+import { NotificationDigestEmail } from './emails/NotificationDigestEmail'
+import type { DigestSection } from './notification-digest'
 
 export type { ChapterRoleInvite, DigestProject, SummaryEmailSection }
 
@@ -800,4 +802,25 @@ export async function sendDailySummaryEmail({
   sections: SummaryEmailSection[]
 }): Promise<boolean> {
   return sendEmail(to, subject, await buildDailySummaryHtml(name, sections))
+}
+
+export function buildNotificationDigestHtml(
+  name: string,
+  sections: DigestSection[],
+): Promise<string> {
+  return render(<NotificationDigestEmail name={name} sections={sections} appUrl={env.APP_URL} />)
+}
+
+export async function sendNotificationDigestEmail({
+  to,
+  name,
+  subject,
+  sections,
+}: {
+  to: string
+  name: string
+  subject: string
+  sections: DigestSection[]
+}): Promise<boolean> {
+  return sendEmail(to, subject, await buildNotificationDigestHtml(name, sections))
 }

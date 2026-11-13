@@ -7,6 +7,10 @@ import {
   createQuickTask,
   createTask,
   createTeam,
+  createChapter,
+  createChapterDeputy,
+  createMember,
+  createCoordinator,
 } from '@/test/factories'
 import { clientAs } from '@/test/rpc'
 
@@ -259,5 +263,158 @@ describe('notifications by category', () => {
     expect(await actionOf(owner)).toBeNull()
     await prisma.workItemInterest.update({ where: { id: invite.id }, data: { status: 'accepted' } })
     expect(await actionOf(invitee)).toBeNull()
+  })
+})
+
+describe('notification preferences', () => {
+  const rowOf = async (c: ReturnType<typeof clientAs>, type: string) =>
+    (await c.notifications.preferences()).rows.find((r) => r.type === type)
+
+  it('lists the types for each person, admin types only for staff', async () => {
+    const vol = await createVolunteer()
+    const admin = await createAdmin()
+    const deputy = await createChapterDeputy(await createChapter())
+    const types = async (v: Parameters<typeof clientAs>[0]) =>
+      (await clientAs(v).notifications.preferences()).rows.map((r) => r.type)
+    expect(await types(vol)).not.toContain('new_volunteer_signup')
+    expect(await types(admin)).toContain('new_volunteer_signup')
+    expect(await types(deputy)).toContain('new_volunteer_signup')
+    expect(await types(vol)).toContain('project_approved')
+  })
+
+  it('saves choices, storing only those that differ from the default', async () => {
+    const vol = await createVolunteer()
+    const c = clientAs(vol)
+    await c.volunteers.updateMe({
+      notificationPreferences: {
+        project_approved: 'digest',
+        mention: 'email',
+        task_done: 'in_app',
+      },
+    })
+    expect(await rowOf(c, 'project_approved')).toMatchObject({ delivery: 'digest' })
+    expect(await rowOf(c, 'mention')).toMatchObject({ delivery: 'email' })
+    const stored = await prisma.notificationPreference.findMany({ where: { volunteerId: vol.id } })
+    expect(stored.map((p) => p.type).sort()).toEqual(['mention', 'project_approved'])
+
+    // Back to the default leaves no choice behind; types left out keep theirs.
+    await c.volunteers.updateMe({ notificationPreferences: { project_approved: 'email' } })
+    const after = await prisma.notificationPreference.findMany({ where: { volunteerId: vol.id } })
+    expect(after.map((p) => p.type)).toEqual(['mention'])
+  })
+
+  it('lets go of what the next digest held for a type moved off Digest', async () => {
+    const vol = await createVolunteer()
+    const held = (type: string) =>
+      prisma.notification.create({
+        data: { volunteerId: vol.id, type, title: type, inDigest: true },
+      })
+    await held('project_approved')
+    await held('mention')
+    await clientAs(vol).volunteers.updateMe({
+      notificationPreferences: { project_approved: 'in_app', mention: 'digest' },
+    })
+    const rows = await prisma.notification.findMany({ where: { volunteerId: vol.id } })
+    expect(Object.fromEntries(rows.map((r) => [r.type, r.inDigest]))).toEqual({
+      project_approved: false,
+      mention: true,
+    })
+  })
+
+  it('refuses a fixed or unknown type', async () => {
+    const c = clientAs(await createVolunteer())
+    await expect(
+      c.volunteers.updateMe({ notificationPreferences: { call_posted: 'email', nope: 'email' } }),
+    ).rejects.toMatchObject({
+      message: 'These notifications have no choice to make: call_posted, nope',
+    })
+  })
+})
+
+describe('digest settings', () => {
+  it("falls back to the chapter's country, then follows a chosen zone, hour and frequency", async () => {
+    const japan =
+      (await prisma.nationalChapter.findFirst({ where: { country: 'Japan' } })) ??
+      (await createChapter({ country: 'Japan' }))
+    const vol = await createMember(japan)
+    const c = clientAs(vol)
+    expect(await c.notifications.digestSettings()).toMatchObject({
+      frequency: 'daily',
+      hour: 8,
+      timeZone: null,
+      effectiveTimeZone: 'Asia/Tokyo',
+      timeZoneSource: 'country',
+    })
+    await c.volunteers.updateMe({
+      timeZone: 'America/Chicago',
+      digestHour: 18,
+      digestFrequency: 'weekly',
+    })
+    const after = await c.notifications.digestSettings()
+    expect(after).toMatchObject({
+      frequency: 'weekly',
+      hour: 18,
+      effectiveTimeZone: 'America/Chicago',
+      timeZoneSource: 'chosen',
+    })
+    expect(after.nextDigestAt!.getTime()).toBeGreaterThan(Date.now())
+    await expect(c.volunteers.updateMe({ timeZone: 'Mars/Olympus' })).rejects.toMatchObject({
+      message: expect.stringContaining('Input validation failed'),
+    })
+  })
+
+  it("records the browser's zone only for someone who has none", async () => {
+    const fresh = await createVolunteer({ timeZone: null })
+    const chosen = await createVolunteer({ timeZone: 'Asia/Tokyo' })
+    expect(await clientAs(fresh).volunteers.detectTimeZone({ timeZone: 'Europe/Paris' })).toEqual({
+      saved: true,
+    })
+    expect(await clientAs(chosen).volunteers.detectTimeZone({ timeZone: 'Europe/Paris' })).toEqual({
+      saved: false,
+    })
+    const zones = await prisma.volunteer.findMany({
+      where: { id: { in: [fresh.id, chosen.id] } },
+      orderBy: { id: 'asc' },
+      select: { timeZone: true },
+    })
+    expect(zones.map((z) => z.timeZone)).toEqual(['Europe/Paris', 'Asia/Tokyo'])
+  })
+})
+
+describe('roles in the preferences panel', () => {
+  const rolesOf = async (v: Parameters<typeof clientAs>[0]) =>
+    (await clientAs(v).notifications.preferences()).heldRoles
+
+  it('reads the roles someone holds from what they lead, deputise, post and coordinate', async () => {
+    expect(await rolesOf(await createVolunteer())).toEqual(['everyone'])
+
+    const owner = await createVolunteer()
+    await createProject({ assigneeId: owner.id, status: 'in_progress' })
+    const deputy = await createVolunteer()
+    const deputised = await createProject({ status: 'ready' })
+    await prisma.projectDeputy.create({ data: { projectId: deputised.id, volunteerId: deputy.id } })
+    const pastLead = await createVolunteer()
+    await createProject({ assigneeId: pastLead.id, status: 'completed' })
+    expect(await rolesOf(owner)).toEqual(['everyone', 'project_lead'])
+    expect(await rolesOf(deputy)).toEqual(['everyone', 'project_lead'])
+    expect(await rolesOf(pastLead)).toEqual(['everyone'])
+
+    const leader = await createVolunteer()
+    const team = await createTeam()
+    await prisma.teamMembership.create({
+      data: { teamId: team.id, volunteerId: leader.id, role: 'leader' },
+    })
+    const poster = await createVolunteer()
+    await createQuickTask({ creatorId: poster.id, status: 'open' })
+    const coordinator = await createCoordinator()
+    expect(await rolesOf(leader)).toEqual(['everyone', 'team_lead'])
+    expect(await rolesOf(poster)).toEqual(['everyone', 'quick_task_poster'])
+    expect(await rolesOf(coordinator)).toEqual(['everyone', 'coordinator'])
+    expect(await rolesOf(await createAdmin())).toEqual(['everyone', 'staff'])
+    expect(await rolesOf(await createAdmin({ isTechnicalAdmin: true }))).toEqual([
+      'everyone',
+      'staff',
+      'technical',
+    ])
   })
 })

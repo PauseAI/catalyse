@@ -12,26 +12,19 @@ function summarize(result: unknown): string {
 
 export type CronTriggerSource = 'cron' | 'admin'
 
-export async function recordCronRun<T>(
-  jobName: string,
-  fn: () => Promise<T>,
-  triggeredBy: CronTriggerSource = 'cron',
-): Promise<T> {
-  const run = await prisma.cronJobRun.create({
-    data: { jobName, status: 'running', triggeredBy },
-  })
-
+/** Runs `fn` for the already-started audit row `runId`, recording how it ended. */
+export async function finishCronRun<T>(runId: number, fn: () => Promise<T>): Promise<T> {
   try {
     const result = await fn()
     await prisma.cronJobRun.update({
-      where: { id: run.id },
+      where: { id: runId },
       data: { finishedAt: new Date(), status: 'success', summary: summarize(result) },
     })
     return result
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     await prisma.cronJobRun.update({
-      where: { id: run.id },
+      where: { id: runId },
       data: {
         finishedAt: new Date(),
         status: 'error',
@@ -40,4 +33,19 @@ export async function recordCronRun<T>(
     })
     throw err
   }
+}
+
+/** Runs `fn` under a new audit row, which is removed afterwards if `quiet` says it did nothing. */
+export async function recordCronRun<T>(
+  jobName: string,
+  fn: () => Promise<T>,
+  triggeredBy: CronTriggerSource = 'cron',
+  quiet?: (result: T) => boolean,
+): Promise<T> {
+  const run = await prisma.cronJobRun.create({
+    data: { jobName, status: 'running', triggeredBy },
+  })
+  const result = await finishCronRun(run.id, fn)
+  if (quiet?.(result)) await prisma.cronJobRun.delete({ where: { id: run.id } })
+  return result
 }

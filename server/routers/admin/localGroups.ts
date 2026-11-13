@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { sendLocalGroupSuggestionEmail } from '@/lib/email'
 import { canAdminChapter, type ChapterAccess } from '@/lib/chapter-access'
 import { chapterFilter } from '@/lib/chapter-access-server'
-import { createNotification, clearNotifications } from '@/lib/notify'
+import { notifyUser, clearNotifications } from '@/lib/notify'
 import { LocalGroupBodySchema, ReviewSuggestionSchema } from '@/lib/schemas'
 import { staffProcedure } from '../../procedures'
 import { LocalGroupSuggestionStatus, ProjectReach } from '@/generated/prisma/enums'
@@ -240,21 +240,23 @@ export const adminLocalGroupsRouter = {
         ? `/local-groups/${targetGroupId}`
         : '/suggest-local-group'
 
-      await createNotification(
+      await notifyUser(
         suggestion.suggestedBy.id,
         'local_group_suggestion_reviewed',
         title,
         adminNotes,
         notificationLink,
+        {
+          send: (to, name) =>
+            sendLocalGroupSuggestionEmail({
+              to,
+              name,
+              action: notificationAction,
+              groupName: finalName,
+              adminNotes,
+            }),
+        },
       )
-
-      await sendLocalGroupSuggestionEmail({
-        to: suggestion.suggestedBy.email ?? '',
-        name: suggestion.suggestedBy.name ?? 'there',
-        action: notificationAction,
-        groupName: finalName,
-        adminNotes,
-      })
 
       await clearNotifications('local_group_suggestion', input.id)
 

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { ORPCError } from '@orpc/server'
 import { prisma } from '@/lib/prisma'
-import { createNotification, clearNotifications } from '@/lib/notify'
+import { notifyUser, clearNotifications } from '@/lib/notify'
 import { TeamBodySchema, ReviewTeamSuggestionSchema } from '@/lib/schemas'
 import { adminProcedure, staffProcedure } from '../../procedures'
 import { canAdminChapter, type ChapterAccess } from '@/lib/chapter-access'
@@ -256,7 +256,7 @@ export const adminTeamsRouter = {
       const title = titleFn ? titleFn(finalName) : `Update on your team suggestion`
       const notificationLink = targetTeamId ? `/teams/${targetTeamId}` : '/suggest-team'
 
-      await createNotification(
+      await notifyUser(
         suggestion.suggestedBy.id,
         'team_suggestion_reviewed',
         title,

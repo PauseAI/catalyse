@@ -53,16 +53,3 @@ export function typesIn(category: Exclude<NotificationCategory, 'update'>): stri
 
 /** Every type that is not an update, for excluding them in the database. */
 export const NON_UPDATE_TYPES = [...NEEDS_ACTION_TYPES, ...MESSAGE_TYPES]
-
-/**
- * Categories whose email a volunteer may turn off. A message is delivered by email, so it
- * always sends.
- */
-export const MUTABLE_EMAIL_CATEGORIES = ['needs_action', 'update'] as const
-export type MutableEmailCategory = (typeof MUTABLE_EMAIL_CATEGORIES)[number]
-
-export const EMAIL_CATEGORY_LABELS: Record<MutableEmailCategory, string> = {
-  needs_action:
-    'Things that need me: applicants, invites, contact and join requests, mentions, changes requested',
-  update: 'Updates: approvals, status changes, comments and replies',
-}

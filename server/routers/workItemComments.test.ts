@@ -297,10 +297,9 @@ describe('workItemComments replies', () => {
     expect(await notesOf('comment_reply')).toEqual([helper.id])
     expect(await notesOf('mention')).toEqual([other.id, owner.id].sort())
 
-    // Someone who muted updates still sees the reply in their Inbox, with no email.
-    await prisma.volunteer.update({
-      where: { id: other.id },
-      data: { emailMutedCategories: ['update'] },
+    // Someone who chose In app for replies still sees the reply in their Inbox, with no email.
+    await prisma.notificationPreference.create({
+      data: { volunteerId: other.id, type: 'comment_reply', delivery: 'in_app' },
     })
     const fromOther = await clientAs(other).workItemComments.add({
       workItemId: task.id,

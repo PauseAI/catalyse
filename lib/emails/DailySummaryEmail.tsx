@@ -1,6 +1,7 @@
 import { Text } from '@react-email/components'
 import { EmailLayout } from './components/Layout'
 import { EmailFooter } from './components/Footer'
+import { LinkList } from './components/LinkList'
 
 export type SummaryEmailSection = {
   heading: string
@@ -30,13 +31,7 @@ export function DailySummaryEmail({ name, sections, appUrl }: DailySummaryEmailP
             ) : (
               <h3 style={{ margin: '24px 0 8px' }}>{s.heading}</h3>
             )}
-            <ul style={{ paddingLeft: 20, margin: 0 }}>
-              {s.lines.map((l, j) => (
-                <li key={j} style={{ marginBottom: 6 }}>
-                  <a href={`${appUrl}${l.href}`}>{l.text}</a>
-                </li>
-              ))}
-            </ul>
+            <LinkList appUrl={appUrl} items={s.lines} />
           </div>
         )
       })}

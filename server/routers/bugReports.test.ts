@@ -58,8 +58,7 @@ describe('bugReports', () => {
     await createAdmin()
     await createAdmin({ isTechnicalAdmin: true })
     const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
-    vi.spyOn(prisma.notification, 'create').mockRejectedValue(new Error('db') as never)
-    vi.spyOn(prisma.volunteer, 'findFirst').mockRejectedValue(new Error('db') as never)
+    vi.spyOn(prisma.notification, 'createManyAndReturn').mockRejectedValue(new Error('db') as never)
     const res = await clientAs(reporter).bugReports.create({
       title: 'x',
       description: 'Ten characters at least',
