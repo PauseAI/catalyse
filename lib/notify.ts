@@ -120,10 +120,7 @@ export async function notifyUser(
   await notifyUserOfEach(volunteerId, type, [{ title, body, link, entityId }], email)
 }
 
-/**
- * Several notifications of one type to one person, delivered as `notifyUser` does but emailed
- * together: one Inbox row each, and at most one email, written by `email` or else from the first.
- */
+/** How a notification would be delivered, and to which address. */
 export type Route = {
   delivery: Delivery
   /** Who an email would go to; null for someone gone or without an address. */
@@ -191,6 +188,10 @@ export function emailIfChosen(
     .catch((e) => logger.error(e, '[EMAIL ERROR]'))
 }
 
+/**
+ * Several notifications of one type to one person, delivered as `notifyUser` does but emailed
+ * together: one Inbox row each, and at most one email, written by `email` or else from the first.
+ */
 export async function notifyUserOfEach(
   volunteerId: number,
   type: string,

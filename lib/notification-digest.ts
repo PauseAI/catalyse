@@ -36,25 +36,34 @@ export type DigestSchedule = {
   frequency: DigestFrequency
   /** The local day of their last digest, or null before their first. */
   lastSentOn: string | null
+  /** When the oldest notification waiting for their digest arrived; null when none is waiting. */
+  heldSince: Date | null
 }
 
 /**
- * The local day whose digest is due at `now`, or null. A digest goes in the hour starting at
- * the person's local hour today: when the clocks skip that hour, the hour after it, and when
- * they repeat it, the first time round only. Their period must have passed since the last one.
+ * The local day whose digest is due at `now`, or null. A digest is due from the person's local
+ * hour today (when the clocks skip that hour, the hour after it; when they repeat it, the first
+ * pass), once their period has passed since the last one, if something was waiting by then. Until it goes, a missed trigger or a failed send is made up on the next run that day;
+ * anything arriving later waits for the next day's hour.
  */
 export function digestDueOn(now: Date, s: DigestSchedule): string | null {
   const today = localTime(now, s.timeZone).date
-  const slot = zonedInstant(today, s.hour, s.timeZone).getTime()
-  if (now.getTime() < slot || now.getTime() >= slot + 60 * 60_000) return null
+  const slot = zonedInstant(today, s.hour, s.timeZone)
+  if (!s.heldSince || now < slot || s.heldSince >= slot) return null
   if (s.lastSentOn && daysBetween(s.lastSentOn, today) < DIGEST_PERIOD_DAYS[s.frequency]) {
     return null
   }
   return today
 }
 
-/** When the next digest can go, if there is anything new for it by then. */
+const HOUR_MS = 60 * 60_000
+
+/**
+ * When the next digest can go, if there is anything new for it by then: the next hourly run
+ * when one is due now, else the person's hour on the first day their period allows.
+ */
 export function nextDigestAt(now: Date, s: DigestSchedule): Date {
+  if (digestDueOn(now, s)) return new Date(Math.ceil(now.getTime() / HOUR_MS) * HOUR_MS)
   const today = localTime(now, s.timeZone).date
   let day = now < zonedInstant(today, s.hour, s.timeZone) ? today : addLocalDays(today, 1)
   if (s.lastSentOn) {

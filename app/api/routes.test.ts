@@ -49,6 +49,14 @@ describe('cron routes', () => {
     })
   })
 
+  it('backup answers a failed run with its error as JSON', async () => {
+    cronJobs.fails('backup', 'upload failed')
+    const { POST } = await import('./cron/backup/route')
+    const res = await POST(cron('backup'))
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ backup: { error: 'Error: upload failed' } })
+  })
+
   it('daily runs every job due and reports failures inline', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-12-10T09:00:00Z'))

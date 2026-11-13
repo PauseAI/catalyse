@@ -122,4 +122,29 @@ describe('runScheduledJobs (the hourly trigger)', () => {
       ).toHaveLength(1)
     expect(ran.filter((n) => n === 'notification-digest')).toHaveLength(2)
   })
+
+  it('keeps an hourly digest run in the history only when someone was due', async () => {
+    const digestRuns = () => prisma.cronJobRun.count({ where: { jobName: 'notification-digest' } })
+    const before = await digestRuns()
+    cronJobs.returns('notification-digest', { candidates: 3, due: 0, sent: 0 })
+    await trigger(hour('2026-12-10', 3))
+    expect(await digestRuns()).toBe(before)
+    cronJobs.returns('notification-digest', { candidates: 3, due: 1, sent: 1 })
+    await trigger(hour('2026-12-10', 4))
+    expect(await digestRuns()).toBe(before + 1)
+  })
+
+  it("leaves an admin's Run now out of the day's tries", async () => {
+    for (const status of ['success', 'error', 'error', 'error'] as const) {
+      await prisma.cronJobRun.create({
+        data: {
+          jobName: 'nudges',
+          status,
+          triggeredBy: 'admin',
+          startedAt: new Date('2026-12-09T07:30:00Z'),
+        },
+      })
+    }
+    expect((await trigger(hour('2026-12-09', 8))).ran).toContain('nudges')
+  })
 })

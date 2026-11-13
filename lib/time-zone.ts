@@ -60,9 +60,13 @@ export function effectiveTimeZone(
   return { timeZone: 'UTC', source: 'default' }
 }
 
+/** One formatter per zone: building them is the costly part of reading a wall clock. */
+const wallClockFormats = new Map<string, Intl.DateTimeFormat>()
+
 function wallClock(instant: Date, timeZone: string): Record<string, string> {
-  return Object.fromEntries(
-    new Intl.DateTimeFormat('en-CA', {
+  let format = wallClockFormats.get(timeZone)
+  if (!format) {
+    format = new Intl.DateTimeFormat('en-CA', {
       timeZone,
       year: 'numeric',
       month: '2-digit',
@@ -71,9 +75,9 @@ function wallClock(instant: Date, timeZone: string): Record<string, string> {
       minute: '2-digit',
       hourCycle: 'h23',
     })
-      .formatToParts(instant)
-      .map((p) => [p.type, p.value]),
-  )
+    wallClockFormats.set(timeZone, format)
+  }
+  return Object.fromEntries(format.formatToParts(instant).map((p) => [p.type, p.value]))
 }
 
 /** The local calendar day and hour of `instant` in `timeZone`. */

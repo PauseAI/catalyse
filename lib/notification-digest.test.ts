@@ -12,37 +12,47 @@ const london: DigestSchedule = {
   hour: 8,
   frequency: 'daily',
   lastSentOn: null,
+  heldSince: new Date('2026-01-01T00:00:00Z'),
 }
 const at = (iso: string) => new Date(iso)
 
 describe('digest schedule', () => {
-  it('is due in the local hour only, in each zone', () => {
+  it('is due from the local hour, in each zone', () => {
     expect(digestDueOn(at('2026-11-12T08:00:00Z'), london)).toBe('2026-11-12')
-    expect(digestDueOn(at('2026-11-12T08:59:00Z'), london)).toBe('2026-11-12')
     expect(digestDueOn(at('2026-11-12T07:59:00Z'), london)).toBeNull()
-    expect(digestDueOn(at('2026-11-12T09:00:00Z'), london)).toBeNull()
     const tokyo = { ...london, timeZone: 'Asia/Tokyo' }
     expect(digestDueOn(at('2026-11-11T23:00:00Z'), tokyo)).toBe('2026-11-12')
     const la = { ...london, timeZone: 'America/Los_Angeles', hour: 18 }
     expect(digestDueOn(at('2026-11-13T02:00:00Z'), la)).toBe('2026-11-12')
     // British summer time moves the hour.
     expect(digestDueOn(at('2026-07-12T07:00:00Z'), london)).toBe('2026-07-12')
-    expect(digestDueOn(at('2026-07-12T08:00:00Z'), london)).toBeNull()
+    expect(digestDueOn(at('2026-07-12T06:59:00Z'), london)).toBeNull()
+  })
+
+  it('makes up a missed hour later that day, but only for what was waiting by then', () => {
+    expect(digestDueOn(at('2026-11-12T15:00:00Z'), london)).toBe('2026-11-12')
+    const lateArrival = { ...london, heldSince: at('2026-11-12T09:30:00Z') }
+    expect(digestDueOn(at('2026-11-12T15:00:00Z'), lateArrival)).toBeNull()
+    expect(digestDueOn(at('2026-11-13T08:00:00Z'), lateArrival)).toBe('2026-11-13')
+    expect(digestDueOn(at('2026-11-12T15:00:00Z'), { ...london, heldSince: null })).toBeNull()
   })
 
   it('neither skips nor doubles a digest when the clocks change', () => {
     const ny = { ...london, timeZone: 'America/New_York', hour: 2 }
     // 02:00 is skipped on 8 March; the 03:00 hour carries the digest.
-    const spring = ['2026-03-08T06:00:00Z', '2026-03-08T07:00:00Z', '2026-03-08T08:00:00Z']
-    expect(spring.map((t) => digestDueOn(at(t), ny))).toEqual([null, '2026-03-08', null])
-    // 01:00 happens twice on 1 November; only the first pass carries it.
+    const spring = ['2026-03-08T06:00:00Z', '2026-03-08T07:00:00Z']
+    expect(spring.map((t) => digestDueOn(at(t), ny))).toEqual([null, '2026-03-08'])
+    // 01:00 happens twice on 1 November; the first pass carries it, and once it is sent the
+    // second pass is the same day.
     const nyOne = { ...ny, hour: 1 }
-    const autumn = ['2026-11-01T05:00:00Z', '2026-11-01T06:00:00Z']
-    expect(autumn.map((t) => digestDueOn(at(t), nyOne))).toEqual(['2026-11-01', null])
-    // London's repeated 01:00 on 25 October: summer time's pass, not the second.
+    expect(digestDueOn(at('2026-11-01T04:59:00Z'), nyOne)).toBeNull()
+    expect(digestDueOn(at('2026-11-01T05:00:00Z'), nyOne)).toBe('2026-11-01')
+    const sent = { ...nyOne, lastSentOn: '2026-11-01' }
+    expect(digestDueOn(at('2026-11-01T06:00:00Z'), sent)).toBeNull()
+    // London's repeated 01:00 on 25 October: summer time's pass.
     const londonOne = { ...london, hour: 1 }
-    const repeat = ['2026-10-25T00:30:00Z', '2026-10-25T01:30:00Z']
-    expect(repeat.map((t) => digestDueOn(at(t), londonOne))).toEqual(['2026-10-25', null])
+    expect(digestDueOn(at('2026-10-24T23:59:00Z'), londonOne)).toBeNull()
+    expect(digestDueOn(at('2026-10-25T00:30:00Z'), londonOne)).toBe('2026-10-25')
   })
 
   it('waits for the period to pass since the last digest, for each frequency', () => {
@@ -59,12 +69,18 @@ describe('digest schedule', () => {
 
   it('names the next digest time on the local clock', () => {
     const now = at('2026-11-12T10:00:00Z')
-    expect(nextDigestAt(now, london).toISOString()).toBe('2026-11-13T08:00:00.000Z')
-    expect(nextDigestAt(at('2026-11-12T07:00:00Z'), london).toISOString()).toBe(
+    const idle = { ...london, heldSince: null }
+    expect(nextDigestAt(now, idle).toISOString()).toBe('2026-11-13T08:00:00.000Z')
+    expect(nextDigestAt(at('2026-11-12T07:00:00Z'), idle).toISOString()).toBe(
       '2026-11-12T08:00:00.000Z',
     )
     const weekly = { ...london, frequency: 'weekly' as const, lastSentOn: '2026-11-10' }
     expect(nextDigestAt(now, weekly).toISOString()).toBe('2026-11-17T08:00:00.000Z')
+    // Due now, so the next hourly run sends it.
+    const owed = { ...london, lastSentOn: '2026-11-11' }
+    expect(nextDigestAt(at('2026-11-12T10:20:00Z'), owed).toISOString()).toBe(
+      '2026-11-12T11:00:00.000Z',
+    )
   })
 })
 

@@ -52,6 +52,14 @@ export const CRON_JOBS = Object.fromEntries(
   ]),
 ) as Record<CronJobName, (triggeredBy?: CronTriggerSource) => Promise<unknown>>
 
+/**
+ * Hourly runs that found nothing to do, left out of the audit history so it is not mostly
+ * empty digest runs. Errors and admin runs are always kept.
+ */
+const QUIET_RUN: Partial<Record<CronJobName, (result: unknown) => boolean>> = {
+  'notification-digest': (r) => (r as { due?: number }).due === 0,
+}
+
 /** A run still marked running after this long is taken to have died. */
 const STALE_RUN_MS = 6 * 60 * 60 * 1000
 
@@ -61,14 +69,15 @@ const MAX_DAILY_ATTEMPTS = 3
 type Db = Pick<typeof prisma, 'cronJobRun'>
 
 /**
- * Whether daily job `name` is due at `now`: from {@link DAILY_JOBS_HOUR_UTC}, until a run of it
- * succeeds that UTC day. A run still going holds the day; a failed or dead one is tried again
- * on the next trigger, up to {@link MAX_DAILY_ATTEMPTS} tries a day.
+ * Whether daily job `name` is due at `now`: from {@link DAILY_JOBS_HOUR_UTC}, until a scheduled
+ * run of it succeeds that UTC day. A run still going holds the day; a failed or dead one is tried
+ * again on the next trigger, up to {@link MAX_DAILY_ATTEMPTS} tries a day. An admin's Run now
+ * counts for none of this.
  */
 export async function dailyJobDue(name: CronJobName, now: Date, db: Db = prisma): Promise<boolean> {
   if (now.getUTCHours() < DAILY_JOBS_HOUR_UTC) return false
   const runs = await db.cronJobRun.findMany({
-    where: { jobName: name, startedAt: { gte: startOfUtcDay(now) } },
+    where: { jobName: name, triggeredBy: 'cron', startedAt: { gte: startOfUtcDay(now) } },
     select: { status: true, startedAt: true },
   })
   const live = (r: { startedAt: Date }) => now.getTime() - r.startedAt.getTime() < STALE_RUN_MS
@@ -100,7 +109,9 @@ async function claimDailyRun(name: CronJobName, now: Date): Promise<number | nul
 export async function runScheduledJobs(now: Date = new Date()): Promise<Record<string, unknown>> {
   const results = await Promise.allSettled(
     CRON_JOB_NAMES.map(async (name) => {
-      if (CRON_JOB_INFO[name].every === 'hour') return CRON_JOBS[name]()
+      if (CRON_JOB_INFO[name].every === 'hour') {
+        return recordCronRun(name, () => current[name](), 'cron', QUIET_RUN[name])
+      }
       const runId = await claimDailyRun(name, now)
       return runId === null ? { skipped: 'not due' } : finishCronRun(runId, () => current[name]())
     }),

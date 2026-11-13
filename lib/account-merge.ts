@@ -310,6 +310,13 @@ export async function mergeAccounts(
         })
       }
 
+      // A day both accounts had a digest for: the merged one's is dropped as a duplicate, so its
+      // notifications join the kept one's rather than going back into the queue.
+      await tx.$executeRaw`
+        UPDATE notifications n SET digest_id = k.id
+        FROM notification_digests m
+        JOIN notification_digests k ON k.volunteer_id = ${keptId} AND k.sent_on = m.sent_on
+        WHERE m.volunteer_id = ${mergedId} AND n.digest_id = m.id`
       await movePairs(tx, keptId, mergedId)
       for (const ref of references) {
         const policy = policyOf(ref)

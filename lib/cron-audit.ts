@@ -35,13 +35,17 @@ export async function finishCronRun<T>(runId: number, fn: () => Promise<T>): Pro
   }
 }
 
+/** Runs `fn` under a new audit row, which is removed afterwards if `quiet` says it did nothing. */
 export async function recordCronRun<T>(
   jobName: string,
   fn: () => Promise<T>,
   triggeredBy: CronTriggerSource = 'cron',
+  quiet?: (result: T) => boolean,
 ): Promise<T> {
   const run = await prisma.cronJobRun.create({
     data: { jobName, status: 'running', triggeredBy },
   })
-  return finishCronRun(run.id, fn)
+  const result = await finishCronRun(run.id, fn)
+  if (quiet?.(result)) await prisma.cronJobRun.delete({ where: { id: run.id } })
+  return result
 }

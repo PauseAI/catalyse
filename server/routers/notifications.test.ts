@@ -303,6 +303,24 @@ describe('notification preferences', () => {
     expect(after.map((p) => p.type)).toEqual(['mention'])
   })
 
+  it('lets go of what the next digest held for a type moved off Digest', async () => {
+    const vol = await createVolunteer()
+    const held = (type: string) =>
+      prisma.notification.create({
+        data: { volunteerId: vol.id, type, title: type, inDigest: true },
+      })
+    await held('project_approved')
+    await held('mention')
+    await clientAs(vol).volunteers.updateMe({
+      notificationPreferences: { project_approved: 'in_app', mention: 'digest' },
+    })
+    const rows = await prisma.notification.findMany({ where: { volunteerId: vol.id } })
+    expect(Object.fromEntries(rows.map((r) => [r.type, r.inDigest]))).toEqual({
+      project_approved: false,
+      mention: true,
+    })
+  })
+
   it('refuses a fixed or unknown type', async () => {
     const c = clientAs(await createVolunteer())
     await expect(

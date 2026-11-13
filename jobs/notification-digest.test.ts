@@ -8,7 +8,15 @@ import { runNotificationDigestJob } from './notification-digest'
 
 const held = (volunteerId: number, type: string, title: string, extra: object = {}) =>
   prisma.notification.create({
-    data: { volunteerId, type, title, link: `/x/${title}`, inDigest: true, ...extra },
+    data: {
+      volunteerId,
+      type,
+      title,
+      link: `/x/${title}`,
+      inDigest: true,
+      createdAt: new Date('2026-11-01T00:00:00Z'),
+      ...extra,
+    },
   })
 
 /** Someone whose digest goes at 08:00 in `timeZone`. */
@@ -46,7 +54,10 @@ describe('runNotificationDigestJob', () => {
     const tokyo = await person('Asia/Tokyo')
     const newYork = await person('America/New_York')
     await held(tokyo.id, 'project_approved', 'Tokyo')
-    await held(newYork.id, 'project_approved', 'New York')
+    // It came after New York's hour on the 11th, so it waits for the 12th.
+    await held(newYork.id, 'project_approved', 'New York', {
+      createdAt: at('2026-11-11T20:00:00Z'),
+    })
     await runNotificationDigestJob(at('2026-11-11T23:00:00Z'))
     expect(digestsTo(tokyo)).toHaveLength(1)
     expect(digestsTo(newYork)).toHaveLength(0)
@@ -54,6 +65,18 @@ describe('runNotificationDigestJob', () => {
     expect(digestsTo(newYork)).toHaveLength(0)
     await runNotificationDigestJob(at('2026-11-12T13:00:00Z'))
     expect(digestsTo(newYork)).toHaveLength(1)
+  })
+
+  it('makes up a missed hour later that day, holding back what came after it', async () => {
+    const ana = await person()
+    await held(ana.id, 'project_approved', 'Waiting')
+    const late = await person()
+    await held(late.id, 'project_approved', 'Late', { createdAt: at('2026-11-12T10:00:00Z') })
+    await runNotificationDigestJob(at('2026-11-12T13:00:00Z'))
+    expect(digestsTo(ana)).toHaveLength(1)
+    expect(digestsTo(late)).toHaveLength(0)
+    await runNotificationDigestJob(at('2026-11-13T08:00:00Z'))
+    expect(digestsTo(late)).toHaveLength(1)
   })
 
   it('follows a chosen hour', async () => {
@@ -129,6 +152,10 @@ describe('runNotificationDigestJob', () => {
       data: { volunteerId: ana.id, type: 'project_approved', delivery: 'digest' },
     })
     await notifyUser(ana.id, 'project_approved', 'After choosing', null, null, payload)
+    await prisma.notification.updateMany({
+      where: { volunteerId: ana.id },
+      data: { createdAt: new Date('2026-11-01T00:00:00Z') },
+    })
     await runNotificationDigestJob(at('2026-11-12T08:00:00Z'))
     const digest = emails.to(ana.email!).find((e) => e.subject.includes('digest'))!
     expect(digest.html).toContain('After choosing')
@@ -146,16 +173,15 @@ describe('runNotificationDigestJob', () => {
     expect(digestsTo(quiet)).toEqual([])
   })
 
-  it('releases its claim when the send fails, so the next run tries again', async () => {
+  it('releases its claim when the send fails, so the next hourly run tries again', async () => {
     const ana = await person()
     await held(ana.id, 'project_approved', 'Retry')
     const error = vi.spyOn(logger, 'error').mockImplementation(() => logger)
     emails.failNext()
-    const now = at('2026-11-12T08:00:00Z')
-    expect(await runNotificationDigestJob(now)).toMatchObject({ sent: 0 })
+    expect(await runNotificationDigestJob(at('2026-11-12T08:00:00Z'))).toMatchObject({ sent: 0 })
     expect(error).toHaveBeenCalledWith(expect.any(Error), '[NOTIFICATION DIGEST] send failed')
     expect(await prisma.notificationDigest.count({ where: { volunteerId: ana.id } })).toBe(0)
-    await runNotificationDigestJob(now)
+    await runNotificationDigestJob(at('2026-11-12T09:00:00Z'))
     expect(emails.lastTo(ana.email!).html).toContain('Retry')
     error.mockRestore()
   })

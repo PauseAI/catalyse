@@ -22,7 +22,8 @@ export async function chosenDeliveries(volunteerId: number): Promise<Map<string,
 
 /**
  * Saves choices for the given types: a choice equal to the type's default is stored as no choice,
- * so the person follows the default if it changes. Types left out keep what they had.
+ * so the person follows the default if it changes. Types left out keep what they had. A type
+ * moved off Digest lets go of what its next digest was holding, which stays in the Inbox.
  */
 export async function saveDeliveries(
   tx: Prisma.TransactionClient,
@@ -39,6 +40,15 @@ export async function saveDeliveries(
       .filter(([type, delivery]) => delivery !== defaultDelivery(type, who))
       .map(([type, delivery]) => ({ volunteerId, type, delivery })),
   })
+  await tx.notification.updateMany({
+    where: {
+      volunteerId,
+      inDigest: true,
+      digestId: null,
+      type: { in: entries.filter(([, d]) => d !== 'digest').map(([type]) => type) },
+    },
+    data: { inDigest: false },
+  })
 }
 
 /** The types in `choices` that cannot be chosen: unknown, or fixed. */
@@ -53,6 +63,12 @@ const SCHEDULE_FIELDS = {
   digestFrequency: true,
   chapter: { select: { country: true } },
   notificationDigests: { orderBy: { sentOn: 'desc' }, take: 1, select: { sentOn: true } },
+  notifications: {
+    where: { inDigest: true, digestId: null },
+    orderBy: { createdAt: { sort: 'asc', nulls: 'first' } },
+    take: 1,
+    select: { createdAt: true },
+  },
 } as const
 
 /** A digest schedule, with the person's own zone choice and where the zone in use came from. */
@@ -69,11 +85,13 @@ type ScheduleRow = {
   digestFrequency: DigestSchedule['frequency']
   chapter: { country: string } | null
   notificationDigests: { sentOn: Date }[]
+  notifications: { createdAt: Date | null }[]
 }
 
 function toSchedule(vol: ScheduleRow): ScheduleOf {
   const zone = effectiveTimeZone(vol.timeZone, vol.chapter?.country ?? null)
   const last = vol.notificationDigests[0]?.sentOn
+  const held = vol.notifications[0]
   return {
     volunteerId: vol.id,
     timeZone: zone.timeZone,
@@ -82,6 +100,8 @@ function toSchedule(vol: ScheduleRow): ScheduleOf {
     hour: vol.digestHour,
     frequency: vol.digestFrequency,
     lastSentOn: last ? last.toISOString().slice(0, 10) : null,
+    // A row with no arrival time has waited longest of all.
+    heldSince: held ? (held.createdAt ?? new Date(0)) : null,
   }
 }
 
