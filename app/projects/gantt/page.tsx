@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import ViewSwitch, { PROJECT_VIEWS } from '@/components/ViewSwitch'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRequireStaff } from '@/lib/hooks/auth'
-import { orpc } from '@/lib/orpc'
+import { orpc, rescheduleMutationOptions } from '@/lib/orpc'
 import { useToast } from '@/lib/toast'
 import Button from '@/components/Button'
 import GanttChart from '@/components/gantt/GanttChart'
@@ -40,7 +40,7 @@ export default function RoadmapPage() {
     queryClient.invalidateQueries({ queryKey: orpc.projects.ganttOverview.key() })
 
   const reschedule = useMutation({
-    ...orpc.schedule.rescheduleItems.mutationOptions(),
+    ...rescheduleMutationOptions(),
     onSuccess: () => void invalidate(),
     onError: (err: unknown) =>
       showToast(err instanceof Error ? err.message : 'Failed to reschedule', 'error'),

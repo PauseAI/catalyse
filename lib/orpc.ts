@@ -10,3 +10,12 @@ declare module '@orpc/shared' {
 }
 
 export const orpc = createORPCReactQueryUtils(client)
+
+/**
+ * Reschedule saves run one at a time, in order: the server places a follower after its
+ * predecessors' stored dates, so a save must not start before the one before it has committed.
+ */
+export const rescheduleMutationOptions = () => ({
+  ...orpc.schedule.rescheduleItems.mutationOptions(),
+  scope: { id: 'reschedule' },
+})
