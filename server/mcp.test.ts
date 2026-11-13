@@ -7,6 +7,7 @@ import type { ApiTokenScope } from '@/lib/api-token-scopes'
 import { createSession } from '@/lib/auth'
 import { createAdmin, createVolunteer } from '@/test/factories'
 import { POST } from '@/app/api/mcp/route'
+import { MAX_REQUEST_BODY_BYTES, MAX_TOOL_INPUT_ELEMENTS } from './mcp'
 
 const MCP_URL = 'http://localhost/api/mcp'
 const ALL_SCOPES: ApiTokenScope[] = ['bug_reports:read', 'bug_reports:write']
@@ -41,7 +42,10 @@ async function tokenFor(owner: { id: number }, scopes = ALL_SCOPES, expiresAt: D
   return (await createApiToken(owner.id, { name: 'Agent', scopes, expiresAt })).token
 }
 
-const post = (authorization?: string) =>
+const post = (
+  authorization?: string,
+  body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+) =>
   POST(
     new Request(MCP_URL, {
       method: 'POST',
@@ -50,7 +54,7 @@ const post = (authorization?: string) =>
         accept: 'application/json, text/event-stream',
         ...(authorization ? { authorization } : {}),
       },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+      body,
     }),
   )
 
@@ -180,6 +184,31 @@ describe('MCP endpoint', () => {
     const result = await client.callTool({ name: 'get_bug_report', arguments: { id: 999999 } })
     expect(result.isError).toBe(true)
     expect(message(result)).toBe('Bug report not found')
+  })
+
+  it('refuses tool arguments with more elements than any tool needs', async () => {
+    const admin = await createAdmin()
+    const client = await connect(await tokenFor(admin))
+    const result = await client.callTool({
+      name: 'get_bug_report',
+      arguments: { id: 1, padding: Array(MAX_TOOL_INPUT_ELEMENTS).fill(0) },
+    })
+    expect(result.isError).toBe(true)
+    expect(message(result)).toContain(
+      `more than the maximum of ${MAX_TOOL_INPUT_ELEMENTS} elements`,
+    )
+  })
+
+  it('refuses a request body over the size limit before parsing it', async () => {
+    const admin = await createAdmin()
+    const token = await tokenFor(admin)
+    const body = JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/list',
+      params: { padding: 'x'.repeat(MAX_REQUEST_BODY_BYTES) },
+    })
+    expect((await post(`Bearer ${token}`, body)).status).toBe(413)
   })
 
   it('comments and resolves as the token’s owner, notifying the reporter', async () => {
