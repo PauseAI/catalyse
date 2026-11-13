@@ -1,25 +1,28 @@
 // Lists the items in investments/, most hits first, with each one's size and
 // kind, and writes the same list to investments/ranked.txt (gitignored), then
 // says where it wrote it. Each line starts with its item's file name, so `gf`
-// in an editor opens the item. A hit is a line starting "- " under "## Hits";
-// "(x14)" in it counts as fourteen. investments/README.md explains the format.
+// in an editor opens the item. A hit is a line starting "- " under "## Hits",
+// up to the next "## " heading; "(x14)" before its first colon counts as
+// fourteen. investments/README.md explains the format.
 // --quiet writes the file without printing.
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const folder = new URL('../investments/', import.meta.url).pathname
+const folder = fileURLToPath(new URL('../investments/', import.meta.url))
 
 const items = readdirSync(folder)
   .filter((name) => name.endsWith('.md') && name !== 'README.md')
   .map((name) => {
-    const text = readFileSync(join(folder, name), 'utf8')
+    const text = readFileSync(join(folder, name), 'utf8').replace(/\r\n/g, '\n')
     const title = text.match(/^# (.+)$/m)?.[1] ?? name
     const size = text.match(/^Size: (\w+)\./m)?.[1] ?? '?'
     const kind = text.match(/Kind: ([^.]+)\./)?.[1] ?? '?'
-    const hits = (text.split(/^## Hits$/m)[1] ?? '')
+    const hits = (text.split(/^## Hits[ \t]*$/m)[1] ?? '')
+      .split(/^## /m)[0]
       .split('\n')
       .filter((line) => line.startsWith('- '))
-      .reduce((sum, line) => sum + Number(line.match(/\(x(\d+)/)?.[1] ?? 1), 0)
+      .reduce((sum, line) => sum + Number(line.match(/^- [^:]*\(x(\d+)\)/)?.[1] ?? 1), 0)
     return { name, title, size, kind, hits }
   })
   .sort((a, b) => b.hits - a.hits || a.name.localeCompare(b.name))

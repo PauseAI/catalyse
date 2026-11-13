@@ -106,7 +106,7 @@ The same shape serves the other seams: `google.accept(credential, account)` (`te
 - **Pick the next one** with `npm run investments`, which ranks items by hits with their size and kind. Weigh hits against size: tools collect hits fast, architecture and operations items slowly.
 - **About one PR in five** should be an investment, each in its own PR. The PR that finishes an item deletes its file.
 
-Changes under `investments/` travel with your commit, including ones you didn't make: they're the human's working notes as much as yours, and leaving them out strands them until whatever is committed next.
+Changes under `investments/` travel with your commit, including ones you didn't make: they're the human's working notes as much as yours, and leaving them out strands them until whatever is committed next. Never split them into a commit of their own.
 
 ## End-to-end tests
 

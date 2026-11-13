@@ -30,7 +30,7 @@
     "snapshots": "tsx scripts/snapshots.ts",
     "test:unit": "tsx scripts/test-unit.ts",
     "coverage:report": "tsx scripts/coverage-report.ts",
-    "investments": "node scripts/investments.mjs",
+    "investments": "tsx scripts/investments.ts",
     "test:unit:watch": "vitest",
     "test:e2e:dev": "E2E_DEV=1 playwright test",
     "test:e2e:log": "playwright test 2>&1 | tee test-output.txt",
