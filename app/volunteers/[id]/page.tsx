@@ -5,7 +5,7 @@ import { useRequireAuth } from '@/lib/hooks/auth'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import Button from '@/components/Button'
-import { ProjectStatusBadge } from '@/components/StatusBadges'
+import ProjectHistory from '@/components/ProjectHistory'
 import ContactButton from '@/components/ContactButton'
 import ActiveDot from '@/components/ActiveDot'
 import Linkify from '@/components/Linkify'
@@ -293,27 +293,10 @@ export default function VolunteerDetailPage({ params }: { params: Promise<{ id: 
             </div>
           )}
 
-          {volunteer.projects.length > 0 && (
-            <div className={`${SECTION_CARD} mb-4 overflow-hidden wrap-break-word`}>
-              <H2>Project history</H2>
-              {volunteer.projects.map((p) => (
-                <div key={p.id} className="py-3 border-b border-brand-border">
-                  <div className="flex justify-between items-center">
-                    <Link href={`/projects/${p.id}`} className="font-semibold text-primary-dark">
-                      {p.title}
-                    </Link>
-                    <ProjectStatusBadge
-                      status={p.status}
-                      viewerIsAdmin={Boolean(user?.isAdmin || user?.access.role)}
-                    />
-                  </div>
-                  <P className="text-sm text-text-light mt-1">
-                    {p.role === 'owner' ? 'Project owner' : 'Proposer'}
-                  </P>
-                </div>
-              ))}
-            </div>
-          )}
+          <ProjectHistory
+            entries={volunteer.projects}
+            viewerIsAdmin={Boolean(user.isAdmin || user.access.role)}
+          />
         </div>
       </main>
     </>

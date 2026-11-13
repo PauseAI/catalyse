@@ -406,6 +406,28 @@ export async function askToJoinViaApi(
   return taskId
 }
 
+type Interest = { id: number; volunteerName: string; status: string }
+
+/** Accepts `volunteerName`'s pending request to join the project, as its owner would. */
+export async function acceptIntoProject(
+  adminApi: ReturnType<typeof createApiClient>,
+  projectId: number,
+  volunteerName: string,
+): Promise<void> {
+  const project = await adminApi.projects.getById({ body: { id: projectId } })
+  const interest = (project.body as { interests: Interest[] }).interests.find(
+    (i) => i.volunteerName === volunteerName && i.status === 'pending',
+  )
+  if (!interest) throw new Error(`No pending interest from ${volunteerName}`)
+  expect(
+    (
+      await adminApi.projects.respondToInterest({
+        body: { projectId, interestId: interest.id, status: 'accepted' },
+      })
+    ).status,
+  ).toBe(200)
+}
+
 /** Opens the More menu in the bar beside the project page's tabs. */
 export async function openProjectMore(page: Page): Promise<void> {
   await page
