@@ -31,9 +31,6 @@ describe('API tokens page', () => {
 
     const shown = await screen.findByRole('region', { name: 'New token' })
     const token = within(shown).getByText(/^cat_/).textContent!
-    expect(await authenticateApiToken(`Bearer ${token}`)).toMatchObject({
-      scopes: ['bug_reports:read'],
-    })
     expect(shown).toHaveTextContent(
       `claude mcp add --transport http catalyse http://localhost:3000/api/mcp --header "Authorization: Bearer ${token}"`,
     )
@@ -45,6 +42,10 @@ describe('API tokens page', () => {
     expect(row).toHaveTextContent('Read bug reports and their comments')
     expect(row).toHaveTextContent(/Created .* · Never used · Never expires/)
     expect(screen.getByLabelText('Name')).toHaveValue('')
+    // Authenticating marks the token used, so it comes after the row's "Never used".
+    expect(await authenticateApiToken(`Bearer ${token}`)).toMatchObject({
+      scopes: ['bug_reports:read'],
+    })
 
     await userEvent.click(within(shown).getByRole('button', { name: 'Done' }))
     expect(screen.queryByRole('region', { name: 'New token' })).not.toBeInTheDocument()

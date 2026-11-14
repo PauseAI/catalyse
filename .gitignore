@@ -77,3 +77,6 @@ orca.yaml
 # Storybook build output
 /storybook-static/
 *storybook.log
+
+# Ranked list of investments/ (npm run investments)
+/investments/ranked.txt

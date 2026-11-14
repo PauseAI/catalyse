@@ -206,8 +206,8 @@ catalyse/
 ```
 
 `AGENTS.md` holds the working notes for coding agents and contributors, and
-`SELF-IMPROVE.md` is the backlog of things about the repo itself that made work
-harder than it needed to be, sorted by how often each has bitten.
+`investments/` the backlog of things about the repo itself that made work harder
+than it needed to be; `npm run investments` ranks it by how often each has bitten.
 
 ## License
 
